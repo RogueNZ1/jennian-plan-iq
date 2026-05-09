@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UsersRouteImport } from './routes/users'
+import { Route as UploadRouteImport } from './routes/upload'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as SpecificationsRouteImport } from './routes/specifications'
 import { Route as SignupRouteImport } from './routes/signup'
@@ -22,6 +23,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const UsersRoute = UsersRouteImport.update({
   id: '/users',
   path: '/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UploadRoute = UploadRouteImport.update({
+  id: '/upload',
+  path: '/upload',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TemplatesRoute = TemplatesRouteImport.update({
@@ -74,6 +80,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/specifications': typeof SpecificationsRoute
   '/templates': typeof TemplatesRoute
+  '/upload': typeof UploadRoute
   '/users': typeof UsersRoute
 }
 export interface FileRoutesByTo {
@@ -85,6 +92,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/specifications': typeof SpecificationsRoute
   '/templates': typeof TemplatesRoute
+  '/upload': typeof UploadRoute
   '/users': typeof UsersRoute
 }
 export interface FileRoutesById {
@@ -97,6 +105,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/specifications': typeof SpecificationsRoute
   '/templates': typeof TemplatesRoute
+  '/upload': typeof UploadRoute
   '/users': typeof UsersRoute
 }
 export interface FileRouteTypes {
@@ -110,6 +119,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/specifications'
     | '/templates'
+    | '/upload'
     | '/users'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -121,6 +131,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/specifications'
     | '/templates'
+    | '/upload'
     | '/users'
   id:
     | '__root__'
@@ -132,6 +143,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/specifications'
     | '/templates'
+    | '/upload'
     | '/users'
   fileRoutesById: FileRoutesById
 }
@@ -144,6 +156,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   SpecificationsRoute: typeof SpecificationsRoute
   TemplatesRoute: typeof TemplatesRoute
+  UploadRoute: typeof UploadRoute
   UsersRoute: typeof UsersRoute
 }
 
@@ -154,6 +167,13 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/users'
       preLoaderRoute: typeof UsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/upload': {
+      id: '/upload'
+      path: '/upload'
+      fullPath: '/upload'
+      preLoaderRoute: typeof UploadRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/templates': {
@@ -224,6 +244,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   SpecificationsRoute: SpecificationsRoute,
   TemplatesRoute: TemplatesRoute,
+  UploadRoute: UploadRoute,
   UsersRoute: UsersRoute,
 }
 export const routeTree = rootRouteImport
