@@ -15,6 +15,7 @@ import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as SpecificationsRouteImport } from './routes/specifications'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ReviewRouteImport } from './routes/review'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as JobsRouteImport } from './routes/jobs'
@@ -50,6 +51,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReviewRoute = ReviewRouteImport.update({
+  id: '/review',
+  path: '/review',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
@@ -76,6 +82,7 @@ export interface FileRoutesByFullPath {
   '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
   '/reports': typeof ReportsRoute
+  '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/specifications': typeof SpecificationsRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByTo {
   '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
   '/reports': typeof ReportsRoute
+  '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/specifications': typeof SpecificationsRoute
@@ -101,6 +109,7 @@ export interface FileRoutesById {
   '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
   '/reports': typeof ReportsRoute
+  '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/specifications': typeof SpecificationsRoute
@@ -115,6 +124,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/login'
     | '/reports'
+    | '/review'
     | '/settings'
     | '/signup'
     | '/specifications'
@@ -127,6 +137,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/login'
     | '/reports'
+    | '/review'
     | '/settings'
     | '/signup'
     | '/specifications'
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/login'
     | '/reports'
+    | '/review'
     | '/settings'
     | '/signup'
     | '/specifications'
@@ -152,6 +164,7 @@ export interface RootRouteChildren {
   JobsRoute: typeof JobsRoute
   LoginRoute: typeof LoginRoute
   ReportsRoute: typeof ReportsRoute
+  ReviewRoute: typeof ReviewRoute
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
   SpecificationsRoute: typeof SpecificationsRoute
@@ -204,6 +217,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/review': {
+      id: '/review'
+      path: '/review'
+      fullPath: '/review'
+      preLoaderRoute: typeof ReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reports': {
       id: '/reports'
       path: '/reports'
@@ -240,6 +260,7 @@ const rootRouteChildren: RootRouteChildren = {
   JobsRoute: JobsRoute,
   LoginRoute: LoginRoute,
   ReportsRoute: ReportsRoute,
+  ReviewRoute: ReviewRoute,
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
   SpecificationsRoute: SpecificationsRoute,
