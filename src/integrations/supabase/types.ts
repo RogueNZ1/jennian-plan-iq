@@ -14,7 +14,215 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      export_logs: {
+        Row: {
+          export_type: Database["public"]["Enums"]["export_type"]
+          exported_by: string
+          id: string
+          job_id: string
+          timestamp: string
+        }
+        Insert: {
+          export_type: Database["public"]["Enums"]["export_type"]
+          exported_by: string
+          id?: string
+          job_id: string
+          timestamp?: string
+        }
+        Update: {
+          export_type?: Database["public"]["Enums"]["export_type"]
+          exported_by?: string
+          id?: string
+          job_id?: string
+          timestamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "export_logs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      extracted_quantities: {
+        Row: {
+          approved_value: number | null
+          confidence: Database["public"]["Enums"]["confidence_level"]
+          created_at: string
+          extracted_value: number
+          id: string
+          job_id: string
+          notes: string | null
+          quantity_type: string
+          unit: string
+        }
+        Insert: {
+          approved_value?: number | null
+          confidence?: Database["public"]["Enums"]["confidence_level"]
+          created_at?: string
+          extracted_value: number
+          id?: string
+          job_id: string
+          notes?: string | null
+          quantity_type: string
+          unit: string
+        }
+        Update: {
+          approved_value?: number | null
+          confidence?: Database["public"]["Enums"]["confidence_level"]
+          created_at?: string
+          extracted_value?: number
+          id?: string
+          job_id?: string
+          notes?: string | null
+          quantity_type?: string
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "extracted_quantities_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobs: {
+        Row: {
+          address: string
+          client_name: string
+          created_at: string
+          created_by: string
+          id: string
+          job_number: string
+          status: Database["public"]["Enums"]["job_status"]
+          template: string | null
+          updated_at: string
+          uploaded_at: string | null
+        }
+        Insert: {
+          address: string
+          client_name: string
+          created_at?: string
+          created_by: string
+          id?: string
+          job_number: string
+          status?: Database["public"]["Enums"]["job_status"]
+          template?: string | null
+          updated_at?: string
+          uploaded_at?: string | null
+        }
+        Update: {
+          address?: string
+          client_name?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          job_number?: string
+          status?: Database["public"]["Enums"]["job_status"]
+          template?: string | null
+          updated_at?: string
+          uploaded_at?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      quantity_overrides: {
+        Row: {
+          edited_by: string
+          id: string
+          new_value: number
+          original_value: number
+          quantity_id: string
+          reason: string | null
+          timestamp: string
+        }
+        Insert: {
+          edited_by: string
+          id?: string
+          new_value: number
+          original_value: number
+          quantity_id: string
+          reason?: string | null
+          timestamp?: string
+        }
+        Update: {
+          edited_by?: string
+          id?: string
+          new_value?: number
+          original_value?: number
+          quantity_id?: string
+          reason?: string | null
+          timestamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quantity_overrides_quantity_id_fkey"
+            columns: ["quantity_id"]
+            isOneToOne: false
+            referencedRelation: "extracted_quantities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      uploaded_files: {
+        Row: {
+          file_name: string
+          file_type: Database["public"]["Enums"]["file_type"]
+          id: string
+          job_id: string
+          storage_url: string
+          uploaded_at: string
+        }
+        Insert: {
+          file_name: string
+          file_type: Database["public"]["Enums"]["file_type"]
+          id?: string
+          job_id: string
+          storage_url: string
+          uploaded_at?: string
+        }
+        Update: {
+          file_name?: string
+          file_type?: Database["public"]["Enums"]["file_type"]
+          id?: string
+          job_id?: string
+          storage_url?: string
+          uploaded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uploaded_files_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +231,16 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      confidence_level: "high" | "mid" | "low"
+      export_type: "csv" | "excel"
+      file_type: "plan" | "specification"
+      job_status:
+        | "draft"
+        | "uploaded"
+        | "extracted"
+        | "review_required"
+        | "approved"
+        | "exported"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +367,18 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      confidence_level: ["high", "mid", "low"],
+      export_type: ["csv", "excel"],
+      file_type: ["plan", "specification"],
+      job_status: [
+        "draft",
+        "uploaded",
+        "extracted",
+        "review_required",
+        "approved",
+        "exported",
+      ],
+    },
   },
 } as const
