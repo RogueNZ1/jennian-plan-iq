@@ -1,9 +1,11 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, Briefcase, Upload, ClipboardCheck, FileText,
-  LayoutTemplate, BarChart3, Users, Settings, Search, Bell,
+  LayoutTemplate, BarChart3, Users, Settings, Search, Bell, LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth, initialsFor } from "@/hooks/use-auth";
+import { useEffect, useState, useRef } from "react";
 
 const nav = [
   { to: "/",                 label: "Dashboard",        icon: LayoutDashboard },
@@ -19,6 +21,29 @@ const nav = [
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
+  const { user, loading, signOut } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!loading && !user) navigate({ to: "/login" });
+  }, [user, loading, navigate]);
+
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  if (loading || !user) {
+    return <div className="min-h-screen grid place-items-center bg-background text-sm text-muted-foreground">Loading…</div>;
+  }
+
+  const initials = initialsFor(user);
+  const displayName = (user.user_metadata?.full_name as string | undefined) || user.email || "";
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -72,7 +97,29 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex items-center gap-4">
             <button className="text-muted-foreground hover:text-foreground"><Bell className="h-4 w-4" /></button>
-            <div className="h-8 w-8 rounded-full bg-secondary grid place-items-center text-[12px] font-semibold">RM</div>
+            <div ref={menuRef} className="relative">
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                className="h-8 w-8 rounded-full bg-secondary grid place-items-center text-[12px] font-semibold hover:ring-2 hover:ring-primary/30 transition"
+                aria-label="User menu"
+              >
+                {initials}
+              </button>
+              {menuOpen && (
+                <div className="absolute right-0 mt-2 w-56 rounded-md border border-border bg-card shadow-md py-1 z-20">
+                  <div className="px-3 py-2 border-b border-border">
+                    <div className="text-[13px] font-medium truncate">{displayName}</div>
+                    <div className="text-[11px] text-muted-foreground truncate">{user.email}</div>
+                  </div>
+                  <button
+                    onClick={async () => { await signOut(); navigate({ to: "/login" }); }}
+                    className="w-full text-left px-3 py-2 text-[13px] hover:bg-accent flex items-center gap-2"
+                  >
+                    <LogOut className="h-3.5 w-3.5" /> Sign out
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
         <main className="flex-1">{children}</main>
