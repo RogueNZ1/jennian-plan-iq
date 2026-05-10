@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppLayout, PageHeader } from "@/components/jennian/AppLayout";
 import { Breadcrumbs } from "@/components/jennian/Breadcrumbs";
@@ -20,6 +20,9 @@ import { JobAuditTimeline } from "@/components/jennian/JobAuditTimeline";
 import { AutomaticTakeoffDialog } from "@/components/jennian/AutomaticTakeoffDialog";
 import { TakeoffSummary } from "@/components/jennian/TakeoffSummary";
 import { loadLatestTakeoffRun, type LatestTakeoffRun } from "@/lib/takeoff/run";
+import { StartTakeoffPanel } from "@/components/jennian/StartTakeoffPanel";
+import { StartTakeoffDialog } from "@/components/jennian/StartTakeoffDialog";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -35,6 +38,7 @@ const ICONS: Record<string, typeof Ruler> = {
 
 function JobDetail() {
   const { jobId } = Route.useParams();
+  const navigate = useNavigate();
   const [job, setJob] = useState<Job | null>(null);
   const [runs, setRuns] = useState<ModuleRun[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +47,19 @@ function JobDetail() {
   const [takeoffOpen, setTakeoffOpen] = useState(false);
   const [rerunConfirmOpen, setRerunConfirmOpen] = useState(false);
   const [takeoffRun, setTakeoffRun] = useState<LatestTakeoffRun | null>(null);
+  const [startChooserOpen, setStartChooserOpen] = useState(false);
+  const [hasTakeoffData, setHasTakeoffData] = useState<boolean | null>(null);
+
+  async function refreshHasData() {
+    const counts = await Promise.all([
+      supabase.from("extracted_quantities").select("id", { count: "exact", head: true }).eq("job_id", jobId),
+      supabase.from("module_items").select("id", { count: "exact", head: true }).eq("job_id", jobId),
+      supabase.from("plan_measurements").select("id", { count: "exact", head: true }).eq("job_id", jobId),
+      supabase.from("opening_schedule").select("id", { count: "exact", head: true }).eq("job_id", jobId),
+    ]);
+    const total = counts.reduce((s, r) => s + (r.count ?? 0), 0);
+    setHasTakeoffData(total > 0);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +74,7 @@ function JobDetail() {
         if (!cancelled) setRuns(r);
         const tr = await loadLatestTakeoffRun(jobId).catch(() => null);
         if (!cancelled) setTakeoffRun(tr);
+        await refreshHasData();
       } catch {
         /* ignore — modules will surface their own errors */
       }
@@ -68,6 +86,12 @@ function JobDetail() {
   const runByModule: Record<string, ModuleRun | undefined> = Object.fromEntries(
     runs.map((r) => [r.module_id, r]),
   );
+
+  const showStartPanel = !loading && hasTakeoffData === false && !takeoffRun;
+
+  function openWorkingPlan() {
+    navigate({ to: "/review", search: { job: jobId, tab: "working" } });
+  }
 
   return (
     <AppLayout>
@@ -83,20 +107,29 @@ function JobDetail() {
           actions={
             <div className="flex items-center gap-2">
               {takeoffRun ? (
-                <button
-                  type="button"
-                  onClick={() => setRerunConfirmOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
-                >
-                  <RefreshCw className="h-4 w-4" /> Re-run Automatic Takeoff
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setRerunConfirmOpen(true)}
+                    className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
+                  >
+                    <RefreshCw className="h-4 w-4" /> Re-run Takeoff
+                  </button>
+                  <Link
+                    to="/review"
+                    search={{ job: jobId }}
+                    className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+                  >
+                    <ClipboardCheck className="h-4 w-4" /> Review Takeoff Results
+                  </Link>
+                </>
               ) : (
                 <button
                   type="button"
-                  onClick={() => setTakeoffOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
+                  onClick={() => setStartChooserOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
                 >
-                  <Wand2 className="h-4 w-4" /> Run Automatic Takeoff
+                  <Wand2 className="h-4 w-4" /> Start Takeoff
                 </button>
               )}
               <button
@@ -113,16 +146,20 @@ function JobDetail() {
               >
                 <Eye className="h-4 w-4" /> View Plans
               </button>
-              <Link
-                to="/review"
-                search={{ job: jobId }}
-                className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-              >
-                <ClipboardCheck className="h-4 w-4" /> Open IQ Core Review
-              </Link>
             </div>
           }
         />
+
+        {showStartPanel && (
+          <div className="mb-6">
+            <StartTakeoffPanel
+              jobId={jobId}
+              onAutomatic={() => setTakeoffOpen(true)}
+              onVision={() => setTakeoffOpen(true)}
+              onWorkingPlan={openWorkingPlan}
+            />
+          </div>
+        )}
 
         <div className="grid lg:grid-cols-[280px_1fr] gap-6 mb-6">
           <div className="rounded-lg border border-border bg-card p-4">
@@ -219,7 +256,15 @@ function JobDetail() {
           setTakeoffRun(tr);
           const r = await loadModuleRuns(jobId).catch(() => []);
           setRuns(r);
+          await refreshHasData();
         }}
+      />
+      <StartTakeoffDialog
+        open={startChooserOpen}
+        onOpenChange={setStartChooserOpen}
+        onAutomatic={() => { setStartChooserOpen(false); setTakeoffOpen(true); }}
+        onVision={() => { setStartChooserOpen(false); setTakeoffOpen(true); }}
+        onWorkingPlan={() => { setStartChooserOpen(false); openWorkingPlan(); }}
       />
       <AlertDialog open={rerunConfirmOpen} onOpenChange={setRerunConfirmOpen}>
         <AlertDialogContent>

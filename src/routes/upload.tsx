@@ -189,11 +189,11 @@ function UploadPage() {
           })
           .eq("id", job.id);
 
-        // Activate every IQ module for this job with example data.
+        // Activate every IQ module for this job (no fake items seeded).
         seedAllModulesForJob(job.id);
 
-        toast.success("Plan uploaded. Calibrate the working plan and start measuring.");
-        navigate({ to: "/review", search: { job: job.id } });
+        toast.success("Job uploaded. Choose a takeoff method to begin.");
+        navigate({ to: "/jobs/$jobId", params: { jobId: job.id } });
       } else {
         await supabase
           .from("jobs")
