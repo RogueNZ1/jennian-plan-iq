@@ -45,7 +45,7 @@ function Overview({ d }: { d: TakeoffDiagnostics }) {
     ["Total chars extracted", String(d.totalCharsExtracted)],
     ["Quantity matches", String(d.quantityChecks.filter((q) => q.found).length)],
     ["Opening matches", String(d.openings.candidates.filter((c) => c.included).length)],
-    ["Module rows created", String(d.openings.rowsCreated /* rowsCreated from openings only — module total below */)],
+    ["Opening rows created", String(d.openings.rowsCreated)],
     ["Outcome", d.outcome],
   ];
   return (
