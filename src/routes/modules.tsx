@@ -3,9 +3,9 @@ import { AppLayout, PageHeader } from "@/components/jennian/AppLayout";
 import { HouseFrame } from "@/components/jennian/HouseFrame";
 import { PlanThumbnail } from "@/components/jennian/PlanThumbnail";
 import {
-  IQ_MODULES, loadModuleState, confidencePercent,
+  IQ_MODULES, loadModuleRuns, seedAllModulesForJob,
   statusLabel, statusBadgeClass,
-  type IQModuleId, type IQModuleStatus,
+  type IQModuleId, type ModuleRun, type IQModuleStatus,
 } from "@/lib/iq-modules";
 import { listJobs, type Job } from "@/lib/jennian-data";
 import { useEffect, useMemo, useState } from "react";
@@ -33,35 +33,36 @@ export const Route = createFileRoute("/modules")({
   }),
 });
 
-type ModuleSummary = {
-  status: IQModuleStatus;
-  confidence: number;
-  itemCount: number;
-};
-
 function ModulesIndex() {
   const { job: jobId } = Route.useSearch();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selected, setSelected] = useState<string | undefined>(jobId);
+  const [runs, setRuns] = useState<ModuleRun[]>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => { listJobs().then(setJobs).catch(() => {}); }, []);
   useEffect(() => { setSelected(jobId); }, [jobId]);
 
-  const job = jobs.find((j) => j.id === selected);
-  const jobKey = selected ?? "preview";
+  useEffect(() => {
+    let cancelled = false;
+    if (!selected) { setRuns([]); return; }
+    setLoading(true);
+    (async () => {
+      try {
+        await seedAllModulesForJob(selected);
+        const r = await loadModuleRuns(selected);
+        if (!cancelled) setRuns(r);
+      } catch { /* ignore */ }
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [selected]);
 
-  const summaries = useMemo<Record<IQModuleId, ModuleSummary>>(() => {
-    const out = {} as Record<IQModuleId, ModuleSummary>;
-    for (const m of IQ_MODULES) {
-      const s = loadModuleState(jobKey, m);
-      out[m.id] = {
-        status: s.status,
-        confidence: confidencePercent(s.items),
-        itemCount: s.items.length,
-      };
-    }
-    return out;
-  }, [jobKey]);
+  const job = jobs.find((j) => j.id === selected);
+  const runByModule = useMemo<Record<string, ModuleRun | undefined>>(
+    () => Object.fromEntries(runs.map((r) => [r.module_id, r])),
+    [runs],
+  );
 
   return (
     <AppLayout>
@@ -75,7 +76,7 @@ function ModulesIndex() {
               value={selected ?? ""}
               onChange={(e) => setSelected(e.target.value || undefined)}
             >
-              <option value="">Preview (no job)…</option>
+              <option value="">Select a job…</option>
               {jobs.map((j) => (
                 <option key={j.id} value={j.id}>{j.job_number} · {j.client_name}</option>
               ))}
@@ -96,11 +97,11 @@ function ModulesIndex() {
                   <div className="text-xs text-muted-foreground">{job.address}</div>
                 </div>
                 <Link
-                  to="/review"
-                  search={{ job: job.id }}
+                  to="/jobs/$jobId"
+                  params={{ jobId: job.id }}
                   className="text-xs font-medium text-primary inline-flex items-center gap-1 hover:underline"
                 >
-                  Open quantity review <ArrowRight className="h-3 w-3" />
+                  Open job <ArrowRight className="h-3 w-3" />
                 </Link>
               </div>
             </div>
@@ -110,7 +111,8 @@ function ModulesIndex() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {IQ_MODULES.map((m) => {
             const Icon = MODULE_ICONS[m.id] ?? Layers;
-            const s = summaries[m.id];
+            const r = runByModule[m.id];
+            const status: IQModuleStatus = r?.status ?? "not_started";
             return (
               <div
                 key={m.id}
@@ -125,15 +127,22 @@ function ModulesIndex() {
                   <div className="h-9 w-9 rounded-md bg-accent grid place-items-center text-primary">
                     <Icon className="h-4 w-4" strokeWidth={1.75} />
                   </div>
-                  <StatusChip status={s.status} />
+                  <StatusChip status={status} />
                 </div>
 
                 <div className="mt-4 text-[15px] font-semibold tracking-tight">{m.name}</div>
                 <div className="mt-1 text-xs text-muted-foreground leading-relaxed line-clamp-2">{m.shortDescription}</div>
 
                 <div className="mt-4 grid grid-cols-2 gap-3">
-                  <Metric label="Items" value={s.itemCount.toString()} />
-                  <Metric label="Confidence" value={`${s.confidence}%`} accent={s.confidence >= 80} />
+                  <Metric label="Items" value={(r?.item_count ?? 0).toString()} />
+                  <Metric label="Confidence" value={`${r?.confidence_avg ?? 0}%`} accent={(r?.confidence_avg ?? 0) >= 80} />
+                </div>
+
+                <div className="mt-3 text-[10px] text-muted-foreground">
+                  {r?.last_run_at ? `Updated ${new Date(r.last_run_at).toLocaleString()}` : (loading ? "Loading…" : "Not yet reviewed")}
+                  {r?.approved_at && (
+                    <> · Approved {new Date(r.approved_at).toLocaleString()}</>
+                  )}
                 </div>
 
                 <div className="mt-5 flex items-center justify-between">
@@ -157,9 +166,9 @@ function ModulesIndex() {
         {!selected && (
           <div className="mt-10 rounded-xl border border-dashed border-border bg-card p-10 grid place-items-center text-center">
             <HouseFrame className="w-56 text-muted-foreground/40" />
-            <div className="mt-4 text-sm font-medium">Select a job for live module data</div>
+            <div className="mt-4 text-sm font-medium">Select a job to load module status</div>
             <p className="mt-1 text-xs text-muted-foreground max-w-sm">
-              Modules are showing preview data. Pick a job to load that job's saved module state and edits.
+              Modules are job-specific. Pick a job above to view live module status and quantities.
             </p>
           </div>
         )}

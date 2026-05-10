@@ -7,12 +7,13 @@ import {
 } from "@/lib/jennian-data";
 import { MODULES, moduleForQuantity, type ModuleId } from "@/lib/takeoff-modules";
 import {
-  IQ_MODULES, loadModuleState, confidencePercent,
+  IQ_MODULES, loadModuleRuns, calculateJobModuleRollup,
   statusLabel, statusBadgeClass,
-  type IQModuleId, type IQModuleStatus,
+  type IQModuleId, type ModuleRun,
 } from "@/lib/iq-modules";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useRoles } from "@/hooks/use-roles";
 import { Download, FileSpreadsheet, History, CheckCircle2, ArrowRight,
   Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain, AlertTriangle, ShoppingCart, Layers } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -35,10 +36,12 @@ export const Route = createFileRoute("/review")({
 function ReviewPage() {
   const { job: jobId } = Route.useSearch();
   const { user } = useAuth();
+  const roles = useRoles();
   const [job, setJob] = useState<Job | null>(null);
   const [rows, setRows] = useState<Quantity[]>([]);
   const [audit, setAudit] = useState<OverrideRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rollup, setRollup] = useState<{ requiredApproved: number; required: number; allRequiredApproved: boolean } | null>(null);
 
   useEffect(() => {
     if (!jobId) { setLoading(false); return; }
@@ -46,6 +49,7 @@ function ReviewPage() {
       .then(([j, q, o]) => { setJob(j); setRows(q); setAudit(o); })
       .catch((e) => toast.error(e.message))
       .finally(() => setLoading(false));
+    calculateJobModuleRollup(jobId).then((r) => setRollup(r)).catch(() => {});
   }, [jobId]);
 
   async function override(row: Quantity, raw: string, reason: string) {
@@ -74,6 +78,11 @@ function ReviewPage() {
 
   async function approve() {
     if (!job) return;
+    const r = await calculateJobModuleRollup(job.id);
+    if (!r.allRequiredApproved) {
+      toast.error("All required modules must be approved before this job can be approved.");
+      return;
+    }
     await supabase.from("jobs").update({ status: "approved" }).eq("id", job.id);
     setJob({ ...job, status: "approved" });
     toast.success("Job approved.");
@@ -157,14 +166,32 @@ function ReviewPage() {
           actions={
             <div className="flex gap-2 items-center">
               <StatusBadge status={job.status} />
-              {job.status !== "approved" && job.status !== "exported" && (
-                <button onClick={approve} className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3.5 py-2 text-sm font-medium hover:bg-accent"><CheckCircle2 className="h-4 w-4" /> Approve</button>
+              {job.status !== "approved" && job.status !== "exported" && roles.isAdmin && (
+                <button
+                  onClick={approve}
+                  disabled={!rollup?.allRequiredApproved}
+                  title={rollup?.allRequiredApproved ? "Approve job" : "All required modules must be approved before this job can be approved."}
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3.5 py-2 text-sm font-medium hover:bg-accent disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <CheckCircle2 className="h-4 w-4" /> Approve Job
+                </button>
               )}
               <button onClick={exportCsv} className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3.5 py-2 text-sm font-medium hover:bg-accent"><Download className="h-4 w-4" /> Export CSV</button>
               <button onClick={exportExcel} className="inline-flex items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"><FileSpreadsheet className="h-4 w-4" /> Export Excel</button>
             </div>
           }
         />
+
+        {rollup && job.status !== "approved" && job.status !== "exported" && (
+          <div className="-mt-4 mb-6 text-[12px] text-muted-foreground">
+            {rollup.requiredApproved} of {rollup.required} required modules approved.
+            {!rollup.allRequiredApproved && (
+              <span className="ml-1 text-confidence-mid">
+                All required modules must be approved before this job can be approved.
+              </span>
+            )}
+          </div>
+        )}
 
         <ModulesOverview jobId={job.id} />
 
@@ -310,31 +337,26 @@ function triggerDownload(blob: Blob, filename: string) {
 // Status styling now centralised in `statusBadgeClass`/`statusLabel`.
 
 function ModulesOverview({ jobId }: { jobId: string }) {
-  const [tick, setTick] = useState(0);
-  // Recompute when localStorage changes (cross-tab) or window regains focus.
+  const [runs, setRuns] = useState<ModuleRun[]>([]);
   useEffect(() => {
-    const onFocus = () => setTick((t) => t + 1);
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("storage", onFocus);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      window.removeEventListener("storage", onFocus);
+    let cancelled = false;
+    loadModuleRuns(jobId).then((r) => { if (!cancelled) setRuns(r); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [jobId]);
+  const runByModule: Record<string, ModuleRun | undefined> = useMemo(
+    () => Object.fromEntries(runs.map((r) => [r.module_id, r])),
+    [runs],
+  );
+  const summaries = IQ_MODULES.map((m) => {
+    const r = runByModule[m.id];
+    return {
+      mod: m,
+      status: r?.status ?? "not_started",
+      items: r?.item_count ?? 0,
+      confidence: r?.confidence_avg ?? 0,
+      lastRunAt: r?.last_run_at ?? null,
     };
-  }, []);
-
-  const summaries = useMemo(() => {
-    return IQ_MODULES.map((m) => {
-      const s = loadModuleState(jobId, m);
-      return {
-        mod: m,
-        status: s.status,
-        items: s.items.length,
-        confidence: confidencePercent(s.items),
-        lastRunAt: s.lastRunAt,
-      };
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobId, tick]);
+  });
 
   return (
     <section className="mb-8">
