@@ -1,23 +1,27 @@
 /**
  * Phase A — populate draft module_items from source-backed extracted
- * quantities and openings. Never confirms anything. Never overwrites
- * approved values. Only inserts rows when there is real source data.
+ * quantities, openings, and specification rows. Never confirms anything.
+ * Never overwrites approved values. Only inserts rows when there is real
+ * source data.
  */
 import { supabase } from "@/integrations/supabase/client";
 import type { IQModuleId } from "@/lib/iq-modules";
 import type { ExtractedQty } from "./extract-quantities";
 import type { ExtractedOpening } from "./extract-openings";
+import type { SpecRow } from "./extract-spec";
 
 type ModuleDraft = {
   moduleId: IQModuleId;
   label: string;
   unit: string;
-  value: number;
+  /** Text or numeric value (string-stored — module_items.extracted_value is text). */
+  value: string;
   dataSource: string;
   evidence: string;
   confidence: "high" | "mid" | "low";
   page: number | null;
   fileId: string | null;
+  note?: string | null;
 };
 
 function quantityToDrafts(q: ExtractedQty): ModuleDraft[] {
@@ -28,32 +32,30 @@ function quantityToDrafts(q: ExtractedQty): ModuleDraft[] {
     page: q.page,
     fileId: q.fileId,
   };
+  const v = String(q.value);
   const drafts: ModuleDraft[] = [];
   switch (q.kind) {
     case "external_perimeter":
-      drafts.push({ ...base, moduleId: "iq-cladding", label: "External Perimeter", unit: "lm", value: q.value });
-      drafts.push({ ...base, moduleId: "iq-framing",  label: "External Walls",      unit: "lm", value: q.value });
+      drafts.push({ ...base, moduleId: "iq-cladding", label: "External Perimeter", unit: "lm", value: v });
+      drafts.push({ ...base, moduleId: "iq-framing",  label: "External Walls",      unit: "lm", value: v });
       break;
     case "internal_wall_length":
-      drafts.push({ ...base, moduleId: "iq-framing", label: "Internal Walls",        unit: "lm", value: q.value });
-      drafts.push({ ...base, moduleId: "iq-linings", label: "Internal Wall Length",  unit: "lm", value: q.value });
+      drafts.push({ ...base, moduleId: "iq-framing", label: "Internal Walls",        unit: "lm", value: v });
+      drafts.push({ ...base, moduleId: "iq-linings", label: "Internal Wall Length",  unit: "lm", value: v });
       break;
     case "cladding_area":
-      drafts.push({ ...base, moduleId: "iq-cladding", label: "Cladding Area", unit: "m²", value: q.value });
+      drafts.push({ ...base, moduleId: "iq-cladding", label: "Cladding Area", unit: "m²", value: v });
       break;
     case "roof_pitch":
-      drafts.push({ ...base, moduleId: "iq-roofing", label: "Pitch", unit: "°", value: q.value });
+      drafts.push({ ...base, moduleId: "iq-roofing", label: "Pitch", unit: "°", value: v });
       break;
     case "coverage_area":
-      drafts.push({ ...base, moduleId: "iq-roofing", label: "Coverage Area", unit: "m²", value: q.value });
+      drafts.push({ ...base, moduleId: "iq-roofing", label: "Coverage Area", unit: "m²", value: v });
       break;
     case "garage_door_size":
-      // Width-only into cladding as a flagged garage opening.
-      drafts.push({ ...base, moduleId: "iq-cladding", label: "Garage Door Opening", unit: "mm", value: q.value });
+      drafts.push({ ...base, moduleId: "iq-cladding", label: "Garage Door Opening", unit: "mm", value: v });
       break;
     default:
-      // Areas (area_over_frame, total_floor_area, garage_area, living_area, porch_area)
-      // belong on IQ Core (extracted_quantities) and are not duplicated here.
       break;
   }
   return drafts;
@@ -70,7 +72,7 @@ function openingsToDrafts(all: ExtractedOpening[]): ModuleDraft[] {
     moduleId: "iq-framing",
     label: "Openings",
     unit: "qty",
-    value: totalCount,
+    value: String(totalCount),
     dataSource: exemplar.source,
     evidence,
     confidence: "low",
@@ -84,7 +86,7 @@ function openingsToDrafts(all: ExtractedOpening[]): ModuleDraft[] {
       moduleId: "iq-cladding",
       label: "Garage Door Opening",
       unit: "mm",
-      value: garage.width_mm,
+      value: String(garage.width_mm),
       dataSource: garage.source,
       evidence: `Garage door ${garage.width_mm}×${garage.height_mm ?? "?"} — ${garage.evidence}`,
       confidence: garage.confidence,
@@ -96,10 +98,21 @@ function openingsToDrafts(all: ExtractedOpening[]): ModuleDraft[] {
   return drafts;
 }
 
-/**
- * Insert or update one draft module_item. Approved values are never
- * overwritten. Re-run flags drift > 2% as review_required.
- */
+function specRowsToDrafts(rows: SpecRow[]): ModuleDraft[] {
+  return rows.map((r) => ({
+    moduleId: r.moduleId,
+    label: r.label,
+    unit: r.unit,
+    value: r.value,
+    dataSource: r.dataSource,
+    evidence: r.evidence,
+    confidence: r.confidence,
+    page: r.page,
+    fileId: r.fileId,
+    note: r.note,
+  }));
+}
+
 export type DraftPersistResult =
   | { status: "inserted" | "updated" | "conflict" | "skipped"; label: string; moduleId: string }
   | { status: "error"; label: string; moduleId: string; error: string };
@@ -141,26 +154,31 @@ async function persistDraft(
     | { id: string; approved_value: string | null; extracted_value: string | null; data_source: string | null; review_status: string | null }
     | undefined;
 
-  // Never overwrite a User Override.
   if (existing?.data_source === "User Override") return { status: "skipped", ...tag };
 
-  const newValueStr = String(draft.value);
+  const newValueStr = draft.value;
+  const newValueNum = Number(draft.value);
+  const isNumeric = Number.isFinite(newValueNum);
 
   if (existing) {
-    // Approved value present? Only flag drift, never overwrite.
     if (existing.approved_value != null && existing.approved_value !== "") {
       const prev = Number(existing.approved_value);
-      const drift = prev === 0 ? 1 : Math.abs(draft.value - prev) / Math.abs(prev);
+      const prevIsNumeric = Number.isFinite(prev);
+      let drift: number;
+      if (isNumeric && prevIsNumeric) {
+        drift = prev === 0 ? 1 : Math.abs(newValueNum - prev) / Math.abs(prev);
+      } else {
+        drift = existing.approved_value === newValueStr ? 0 : 1;
+      }
       if (drift > 0.02) {
         const { error: upErr } = await supabase.from("module_items").update({
           extracted_value: newValueStr,
           review_status: "review_required",
-          notes: `Automatic takeoff value ${draft.value} differs from approved ${prev} (Δ${(drift * 100).toFixed(1)}%). Review before approval.`,
+          notes: `Automatic takeoff value "${newValueStr}" differs from approved "${existing.approved_value}". Review before approval.`,
         }).eq("id", existing.id);
         if (upErr) return { status: "error", ...tag, error: `Conflict update failed: ${upErr.message}` };
         return { status: "conflict", ...tag };
       }
-      // Within tolerance — refresh extracted_value but leave approved alone.
       const { error: upErr } = await supabase.from("module_items").update({
         extracted_value: newValueStr,
         source_evidence: draft.evidence,
@@ -170,7 +188,6 @@ async function persistDraft(
       if (upErr) return { status: "error", ...tag, error: `Refresh failed: ${upErr.message}` };
       return { status: "updated", ...tag };
     }
-    // No approved value — refresh draft fields.
     const { error: upErr } = await supabase.from("module_items").update({
       extracted_value: newValueStr,
       unit: draft.unit,
@@ -180,6 +197,7 @@ async function persistDraft(
       review_status: "review_required",
       plan_page_number: draft.page,
       file_id: draft.fileId,
+      notes: draft.note ?? null,
     }).eq("id", existing.id);
     if (upErr) return { status: "error", ...tag, error: `Draft refresh failed: ${upErr.message}` };
     return { status: "updated", ...tag };
@@ -200,7 +218,7 @@ async function persistDraft(
     plan_page_number: draft.page,
     file_id: draft.fileId,
     basis: draft.dataSource,
-    notes: `Automatic takeoff run ${takeoffRunId}.`,
+    notes: draft.note ?? `Automatic takeoff run ${takeoffRunId}.`,
     sort_order: 100,
   });
   if (insErr) return { status: "error", ...tag, error: `Insert failed: ${insErr.message}` };
@@ -211,11 +229,15 @@ export async function populateModulesFromTakeoff(args: {
   jobId: string;
   quantities: ExtractedQty[];
   openings: ExtractedOpening[];
+  specRows?: SpecRow[];
   takeoffRunId: string;
 }): Promise<{ inserted: number; updated: number; conflicts: number; skipped: number; errors: string[] }> {
   const drafts: ModuleDraft[] = [];
   for (const q of args.quantities) drafts.push(...quantityToDrafts(q));
   drafts.push(...openingsToDrafts(args.openings));
+  if (args.specRows && args.specRows.length > 0) {
+    drafts.push(...specRowsToDrafts(args.specRows));
+  }
 
   let inserted = 0, updated = 0, conflicts = 0, skipped = 0;
   const errors: string[] = [];
