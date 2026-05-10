@@ -399,7 +399,12 @@ export async function pushMeasurementToModule(args: {
   value: number;
   basis?: string | null;
   createdBy: string;
-}): Promise<void> {
+  measurementId?: string | null;
+  openingId?: string | null;
+  page?: number | null;
+  fileId?: string | null;
+  evidence?: string | null;
+}): Promise<{ status: "inserted" | "updated" | "conflict"; diffPct?: number }> {
   // find or create the run
   const { data: runs, error: runErr } = await supabase
     .from("module_runs")
@@ -411,13 +416,77 @@ export async function pushMeasurementToModule(args: {
   const runId = runs?.[0]?.id;
   if (!runId) throw new Error("Module not initialised for this job.");
 
-  const { data: existing } = await supabase
+  const { data: matching } = await supabase
     .from("module_items")
-    .select("id, sort_order")
+    .select("id, approved_value, sort_order")
     .eq("run_id", runId)
-    .order("sort_order", { ascending: false })
+    .eq("label", args.label)
     .limit(1);
-  const nextSort = (existing?.[0]?.sort_order ?? 0) + 1;
+  const existing = matching?.[0];
+
+  // Conflict check: do not silently overwrite an approved value.
+  if (existing && existing.approved_value != null && existing.approved_value !== "") {
+    const prev = Number(existing.approved_value);
+    const diffPct = prev === 0 ? 1 : Math.abs(args.value - prev) / Math.abs(prev);
+    if (diffPct > 0.02) {
+      await supabase.from("module_items").update({
+        extracted_value: String(args.value),
+        review_status: "review_required",
+        notes:
+          `Measured value differs from approved module value. ` +
+          `Previous ${prev}, new ${args.value} (Δ${(diffPct * 100).toFixed(1)}%). Review before updating.`,
+        data_source: "Measured From Plan",
+        source_evidence: args.evidence ?? null,
+        measurement_id: args.measurementId ?? null,
+        opening_id: args.openingId ?? null,
+        plan_page_number: args.page ?? null,
+        file_id: args.fileId ?? null,
+      }).eq("id", existing.id);
+      await supabase.from("module_audit_logs").insert({
+        job_id: args.jobId, run_id: runId, item_id: existing.id, module_id: args.moduleId,
+        user_id: args.createdBy, action: "measurement_push_conflict",
+        previous_value: String(prev), new_value: String(args.value),
+        notes: `Δ${(diffPct * 100).toFixed(1)}% — review required`,
+      });
+      await logPlanAudit({
+        jobId: args.jobId, measurementId: args.measurementId ?? null,
+        openingId: args.openingId ?? null, action: "pushed_to_module",
+        previousValue: String(prev), newValue: String(args.value),
+        notes: `${args.moduleId} :: ${args.label} — conflict`,
+      });
+      return { status: "conflict", diffPct };
+    }
+  }
+
+  if (existing) {
+    await supabase.from("module_items").update({
+      extracted_value: String(args.value),
+      data_source: "Measured From Plan",
+      source_evidence: args.evidence ?? null,
+      measurement_id: args.measurementId ?? null,
+      opening_id: args.openingId ?? null,
+      plan_page_number: args.page ?? null,
+      file_id: args.fileId ?? null,
+      basis: args.basis ?? "Measured From Plan",
+      unit: args.unit,
+    }).eq("id", existing.id);
+    await supabase.from("module_audit_logs").insert({
+      job_id: args.jobId, run_id: runId, item_id: existing.id, module_id: args.moduleId,
+      user_id: args.createdBy, action: "measurement_pushed",
+      new_value: String(args.value), notes: `${args.label} updated from plan`,
+    });
+    await logPlanAudit({
+      jobId: args.jobId, measurementId: args.measurementId ?? null,
+      openingId: args.openingId ?? null, action: "pushed_to_module",
+      newValue: String(args.value), notes: `${args.moduleId} :: ${args.label}`,
+    });
+    return { status: "updated" };
+  }
+
+  const { data: tail } = await supabase
+    .from("module_items").select("sort_order")
+    .eq("run_id", runId).order("sort_order", { ascending: false }).limit(1);
+  const nextSort = (tail?.[0]?.sort_order ?? 0) + 1;
 
   const { error: insErr } = await supabase.from("module_items").insert({
     run_id: runId,
@@ -431,6 +500,12 @@ export async function pushMeasurementToModule(args: {
     review_status: "review_required",
     basis: args.basis ?? "Measured From Plan",
     sort_order: nextSort,
+    data_source: "Measured From Plan",
+    source_evidence: args.evidence ?? null,
+    measurement_id: args.measurementId ?? null,
+    opening_id: args.openingId ?? null,
+    plan_page_number: args.page ?? null,
+    file_id: args.fileId ?? null,
   });
   if (insErr) throw insErr;
 
@@ -443,6 +518,12 @@ export async function pushMeasurementToModule(args: {
     new_value: String(args.value),
     notes: `${args.label} (${args.unit}) from plan measurement`,
   });
+  await logPlanAudit({
+    jobId: args.jobId, measurementId: args.measurementId ?? null,
+    openingId: args.openingId ?? null, action: "pushed_to_module",
+    newValue: String(args.value), notes: `${args.moduleId} :: ${args.label}`,
+  });
+  return { status: "inserted" };
 }
 
 /* ---------- Validation against printed reference ---------- */
