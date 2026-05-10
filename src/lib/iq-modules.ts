@@ -671,7 +671,69 @@ export async function exportApprovedQuantitiesCsv(job: JobMeta): Promise<void> {
 /* Keeps existing /modules, /modules/$moduleId, /review, /upload compiling
    until they are migrated to the Supabase-backed API above. */
 
-export type IQModuleStatus = ModuleRunStatus;
+/**
+ * Backwards-compatible status union.
+ * Supports both the new Supabase-backed `ModuleRunStatus` values and
+ * legacy values referenced throughout the existing UI.
+ */
+export type IQModuleStatus =
+  | "not_started"
+  | "draft"
+  | "uploaded"
+  | "extracted"
+  | "in_progress"
+  | "ready"
+  | "in_review"
+  | "ready_for_review"
+  | "review_required"
+  | "reviewed"
+  | "approved"
+  | "exported"
+  | "not_required";
+
+/** Human-readable label for any supported status value. */
+export function statusLabel(status: IQModuleStatus | string): string {
+  const map: Record<string, string> = {
+    not_started: "Not Started",
+    draft: "Draft",
+    uploaded: "Uploaded",
+    extracted: "Extracted",
+    in_progress: "Ready for Review",
+    ready: "Ready",
+    in_review: "In Review",
+    ready_for_review: "Ready for Review",
+    review_required: "Review Required",
+    reviewed: "Reviewed",
+    approved: "Approved",
+    exported: "Exported",
+    not_required: "Not Required",
+  };
+  return map[status] ?? status;
+}
+
+/** Tailwind class set for a status badge. */
+export function statusBadgeClass(status: IQModuleStatus | string): string {
+  switch (status) {
+    case "approved":
+    case "exported":
+    case "ready":
+    case "ready_for_review":
+      return "bg-confidence-high-bg text-confidence-high border-transparent";
+    case "reviewed":
+      return "bg-primary/10 text-primary border-transparent";
+    case "in_review":
+    case "review_required":
+    case "in_progress":
+      return "bg-confidence-mid-bg text-confidence-mid border-transparent";
+    case "not_started":
+    case "draft":
+    case "uploaded":
+    case "extracted":
+    case "not_required":
+    default:
+      return "bg-muted text-muted-foreground border-border";
+  }
+}
 export type ReviewStatus = ItemReviewStatus;
 
 export type IQItem = {
