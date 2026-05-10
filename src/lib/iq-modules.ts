@@ -530,7 +530,7 @@ export async function recalculateModule(jobId: string, moduleId: IQModuleId): Pr
     const wasUntouched =
       it.review_status === "review_required" &&
       String(it.approved_value ?? "") === String(it.extracted_value ?? "");
-    const patch: Record<string, unknown> = {
+    const patch: { extracted_value: string; confidence: Confidence; approved_value?: string } = {
       extracted_value: s.extracted_value,
       confidence: s.confidence,
     };
