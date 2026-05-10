@@ -60,6 +60,15 @@ export type NormalizedSummary = {
   completedAt: string | null;
 
   diagnostics: TakeoffDiagnostics | null;
+
+  resultType:
+    | "text_takeoff_completed"
+    | "specification_only_takeoff"
+    | "flattened_plan_vision_review_required"
+    | "no_usable_text_found";
+  flattenedPlanFiles: Array<{ fileId: string; fileName: string; pageSizes: string[]; pageCount: number }>;
+  visionReviewRequired: boolean;
+  visionReviewMarkedAt: string | null;
 };
 
 function num(v: unknown): number {
@@ -185,6 +194,40 @@ export function normalizeSummary(raw: unknown): NormalizedSummary {
       r.diagnostics && typeof r.diagnostics === "object"
         ? (r.diagnostics as unknown as TakeoffDiagnostics)
         : null,
+
+    resultType: (() => {
+      const v = r.resultType;
+      if (
+        v === "text_takeoff_completed" ||
+        v === "specification_only_takeoff" ||
+        v === "flattened_plan_vision_review_required" ||
+        v === "no_usable_text_found"
+      ) return v;
+      // Backward compat: if no resultType, infer from numeric fields.
+      const total =
+        num(r.quantitiesInserted) + num(pickFirst(r.quantitiesRefreshed, r.quantitiesUpdated)) +
+        num(r.openingsInserted) + num(r.moduleItemsInserted);
+      return total > 0 ? "text_takeoff_completed" : "no_usable_text_found";
+    })(),
+
+    flattenedPlanFiles: arr<unknown>(r.flattenedPlanFiles)
+      .map((p) => {
+        if (!p || typeof p !== "object") return null;
+        const o = p as Record<string, unknown>;
+        const fileId = str(o.fileId);
+        const fileName = str(o.fileName);
+        if (!fileId || !fileName) return null;
+        return {
+          fileId,
+          fileName,
+          pageSizes: arr<string>(o.pageSizes).filter((s): s is string => typeof s === "string"),
+          pageCount: num(o.pageCount),
+        };
+      })
+      .filter((p): p is { fileId: string; fileName: string; pageSizes: string[]; pageCount: number } => p !== null),
+
+    visionReviewRequired: r.visionReviewRequired === true,
+    visionReviewMarkedAt: str(r.visionReviewMarkedAt),
   };
 }
 
