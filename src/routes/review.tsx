@@ -39,10 +39,12 @@ const MODULE_ICONS: Record<IQModuleId, React.ComponentType<{ className?: string 
 
 export const Route = createFileRoute("/review")({
   component: ReviewPage,
-  validateSearch: (s: Record<string, unknown>) => ({
-    job: typeof s.job === "string" ? s.job : undefined,
-    tab: typeof s.tab === "string" ? s.tab : undefined,
-  }),
+  validateSearch: (s: Record<string, unknown>): { job?: string; tab?: string } => {
+    const out: { job?: string; tab?: string } = {};
+    if (typeof s.job === "string") out.job = s.job;
+    if (typeof s.tab === "string") out.tab = s.tab;
+    return out;
+  },
 });
 
 function ReviewPage() {
