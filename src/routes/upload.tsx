@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppLayout, PageHeader } from "@/components/jennian/AppLayout";
-import { TEMPLATES, RUSSELL_STREET_QUANTITIES } from "@/lib/jennian-data";
+import { TEMPLATES } from "@/lib/jennian-data";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { UploadCloud, FileText, Sparkles, CheckCircle2, X, ArrowRight, ArrowLeft, Wand2 } from "lucide-react";
@@ -177,15 +177,13 @@ function UploadPage() {
       }
 
       if (asExtraction) {
-        // 3. Insert mock extracted quantities
-        const rows = RUSSELL_STREET_QUANTITIES.map((q) => ({ ...q, job_id: job.id }));
-        const { error: qErr } = await supabase.from("extracted_quantities").insert(rows);
-        if (qErr) throw qErr;
-
+        // No quantities are seeded. IQ Core starts empty — quantities must
+        // come from the uploaded plan/spec, calibrated measurement, template
+        // allowance, or user override.
         await supabase
           .from("jobs")
           .update({
-            status: "extracted",
+            status: "review_required",
             uploaded_at: new Date().toISOString(),
             ...(thumbnailPath ? { plan_thumbnail_url: thumbnailPath } : {}),
           })
@@ -194,7 +192,7 @@ function UploadPage() {
         // Activate every IQ module for this job with example data.
         seedAllModulesForJob(job.id);
 
-        toast.success("Plan reviewed — quantities ready.");
+        toast.success("Plan uploaded. Calibrate the working plan and start measuring.");
         navigate({ to: "/review", search: { job: job.id } });
       } else {
         await supabase
