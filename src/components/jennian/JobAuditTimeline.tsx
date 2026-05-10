@@ -42,8 +42,27 @@ function actionLabel(action: string): string {
     export_module_csv: "Module CSV exported",
     export_approved_quantities: "Approved quantities exported",
     export_csv: "CSV exported",
+    vision_takeoff_started: "Vision takeoff started",
+    vision_model_called: "Vision model reviewed page",
+    vision_page_skipped: "Vision page skipped",
+    vision_takeoff_warning: "Vision warning",
+    vision_quantity_created: "Vision quantity created",
+    vision_opening_created: "Vision opening created",
+    vision_opening_refreshed: "Vision opening refreshed",
+    vision_opening_conflict: "Vision opening conflict — review required",
+    vision_measurement_created: "Vision measurement created",
+    vision_module_item_created: "Vision module item created",
+    vision_takeoff_drift: "Vision takeoff drift detected",
+    vision_page_processed: "Vision page processed",
+    vision_takeoff_failed: "Vision takeoff failed",
+    vision_takeoff_completed: "Vision takeoff completed",
   };
-  return map[action] ?? action;
+  if (map[action]) return map[action];
+  if (action.startsWith("vision_")) {
+    const cleaned = action.replace(/_/g, " ");
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  }
+  return action;
 }
 
 function matchesFilter(e: JobTimelineEntry, f: Filter): boolean {

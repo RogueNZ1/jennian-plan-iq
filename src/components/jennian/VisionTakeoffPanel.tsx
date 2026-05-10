@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ScanEye, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +19,9 @@ type PageCandidate = {
   pageNumber: number;
   clientPageType: string;
   score: number;
+  confidence: "high" | "mid" | "low";
+  reason: string;
+  isFallback: boolean;
 };
 
 export function VisionTakeoffPanel({
@@ -34,6 +37,9 @@ export function VisionTakeoffPanel({
   const [result, setResult] = useState<VisionRunSummary | null>(null);
   const [candidates, setCandidates] = useState<PageCandidate[] | null>(null);
   const [totalPages, setTotalPages] = useState<number>(0);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+
+  const keyOf = (c: { fileId: string; pageNumber: number }) => `${c.fileId}:${c.pageNumber}`;
 
   // Pre-classify available pages so the UI can show "X of Y" before running.
   useEffect(() => {
@@ -46,15 +52,18 @@ export function VisionTakeoffPanel({
           .from("uploaded_files")
           .select("id, file_name, file_type, storage_url")
           .in("id", ids);
-        const found: PageCandidate[] = [];
+        const positives: PageCandidate[] = [];
+        const fallbacks: PageCandidate[] = [];
         let total = 0;
         for (const r of rows ?? []) {
           const file = flattenedFiles.find((f) => f.fileId === r.id);
           if (!file) continue;
+          const isPlan = ((r.file_type as string) ?? "plan") === "plan";
+          if (!isPlan) continue; // never include specification files in vision
           const extracted = await extractFile({
             fileId: file.fileId,
             fileName: file.fileName,
-            fileType: (r.file_type as "plan" | "specification") ?? "plan",
+            fileType: "plan",
             storagePath: r.storage_url as string,
             maxPages: 30,
           });
@@ -66,28 +75,70 @@ export function VisionTakeoffPanel({
               c.pageType === "Floorplan" ? 80 :
               c.pageType === "Unknown" ? -100 : -200;
             if (score > 0) {
-              found.push({
+              positives.push({
                 fileId: file.fileId,
                 fileName: file.fileName,
                 storagePath: r.storage_url as string,
                 pageNumber: pg.pageNumber,
                 clientPageType: c.pageType,
                 score: score + (c.confidence === "high" ? 5 : c.confidence === "mid" ? 2 : 0),
+                confidence: c.confidence,
+                reason: c.reason,
+                isFallback: false,
+              });
+            } else if ((pg.text ?? "").trim().length === 0 || c.pageType === "Unknown") {
+              fallbacks.push({
+                fileId: file.fileId,
+                fileName: file.fileName,
+                storagePath: r.storage_url as string,
+                pageNumber: pg.pageNumber,
+                clientPageType: "Unknown — flattened fallback",
+                score: 0,
+                confidence: "low",
+                reason:
+                  (pg.text ?? "").trim().length === 0
+                    ? "No text layer on this page (flattened drawing)."
+                    : c.reason,
+                isFallback: true,
               });
             }
           }
         }
-        found.sort((a, b) => b.score - a.score);
+        positives.sort((a, b) => b.score - a.score);
+        fallbacks.sort((a, b) => a.pageNumber - b.pageNumber);
+        // Build a single ordered list. Positives first, then fallback pages.
+        const merged: PageCandidate[] = [...positives, ...fallbacks];
         if (!cancelled) {
-          setCandidates(found.slice(0, PAGE_CAP));
+          setCandidates(merged);
           setTotalPages(total);
+          // Default selection: positives (capped). If none, fallback up to PAGE_CAP.
+          const defaults = positives.length > 0
+            ? positives.slice(0, PAGE_CAP).map(keyOf)
+            : fallbacks.slice(0, PAGE_CAP).map(keyOf);
+          setSelectedKeys(new Set(defaults));
         }
       } catch {
-        if (!cancelled) { setCandidates([]); setTotalPages(0); }
+        if (!cancelled) { setCandidates([]); setTotalPages(0); setSelectedKeys(new Set()); }
       }
     })();
     return () => { cancelled = true; };
   }, [flattenedFiles]);
+
+  const selectedCandidates = useMemo(
+    () => (candidates ?? []).filter((c) => selectedKeys.has(keyOf(c))),
+    [candidates, selectedKeys],
+  );
+  const selectedCount = selectedCandidates.length;
+  const overCap = selectedCount > PAGE_CAP;
+
+  const toggleKey = (k: string) => {
+    setSelectedKeys((prev) => {
+      const n = new Set(prev);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
+  };
 
   async function loadSpecificationText(): Promise<string | undefined> {
     try {
@@ -117,9 +168,12 @@ export function VisionTakeoffPanel({
   async function run() {
     setBusy(true); setError(null); setResult(null);
     try {
-      const list = candidates ?? [];
+      const list = selectedCandidates;
       if (list.length === 0) {
         throw new Error("Vision Takeoff could not identify a floorplan page. Select the working plan manually or use manual measurement.");
+      }
+      if (list.length > PAGE_CAP) {
+        throw new Error(`Maximum ${PAGE_CAP} pages per Vision Takeoff run.`);
       }
       setStatus("Loading specification context…");
       const specificationText = await loadSpecificationText();
@@ -161,8 +215,8 @@ export function VisionTakeoffPanel({
     }
   }
 
-  const selected = candidates?.length ?? 0;
-  const noCandidates = candidates !== null && selected === 0;
+  const totalCandidates = candidates?.length ?? 0;
+  const noCandidates = candidates !== null && totalCandidates === 0;
 
   return (
     <div className="px-5 py-3 border-t border-border bg-muted/20">
@@ -175,22 +229,73 @@ export function VisionTakeoffPanel({
           </div>
 
           {candidates !== null && (
-            <div className="mt-2 text-[11px] text-muted-foreground">
-              Pages selected for Vision Takeoff: {selected} of {totalPages}
-              {totalPages > selected && selected > 0 && (
-                <> — only the strongest floorplan candidates will be reviewed in this run (cap {PAGE_CAP}).</>
+            <>
+              <div className="mt-2 text-[11px] text-muted-foreground">
+                Pages selected for Vision Takeoff: {selectedCount} of {PAGE_CAP}
+                {totalPages > 0 && (
+                  <> · {totalPages} plan page{totalPages === 1 ? "" : "s"} scanned</>
+                )}
+                {noCandidates && (
+                  <> — no plan pages available. Upload a plan file or use manual measurement.</>
+                )}
+              </div>
+              {overCap && (
+                <div className="mt-1 text-[11px] text-destructive">
+                  Maximum {PAGE_CAP} pages per Vision Takeoff run.
+                </div>
               )}
-              {noCandidates && (
-                <> — no floorplan candidate identified. Select the working plan manually or use manual measurement.</>
+              {totalCandidates > 0 && (
+                <div className="mt-2 rounded-md border border-border bg-card">
+                  <div className="px-3 py-2 text-[11px] text-muted-foreground border-b border-border">
+                    Select the plan pages Jennian IQ should review. Floorplan or dimension floorplan pages work best.
+                  </div>
+                  <div className="max-h-56 overflow-auto">
+                    <table className="w-full text-[11px]">
+                      <thead>
+                        <tr className="text-muted-foreground">
+                          <th className="px-2 py-1.5 text-left font-medium w-6"></th>
+                          <th className="px-2 py-1.5 text-left font-medium">File</th>
+                          <th className="px-2 py-1.5 text-left font-medium">Page</th>
+                          <th className="px-2 py-1.5 text-left font-medium">Detected type</th>
+                          <th className="px-2 py-1.5 text-left font-medium">Confidence</th>
+                          <th className="px-2 py-1.5 text-left font-medium">Reason</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {candidates!.map((c) => {
+                          const k = keyOf(c);
+                          const checked = selectedKeys.has(k);
+                          return (
+                            <tr key={k} className="border-t border-border">
+                              <td className="px-2 py-1.5">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleKey(k)}
+                                  disabled={busy}
+                                />
+                              </td>
+                              <td className="px-2 py-1.5 truncate max-w-[160px]" title={c.fileName}>{c.fileName}</td>
+                              <td className="px-2 py-1.5 tabular-nums">{c.pageNumber}</td>
+                              <td className="px-2 py-1.5">{c.clientPageType}</td>
+                              <td className="px-2 py-1.5">{c.confidence}</td>
+                              <td className="px-2 py-1.5 text-muted-foreground truncate max-w-[200px]" title={c.reason}>{c.reason}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               )}
-            </div>
+            </>
           )}
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={run}
-              disabled={busy || noCandidates || candidates === null}
+              disabled={busy || candidates === null || selectedCount === 0 || overCap}
               className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ScanEye className="h-3 w-3" />}
