@@ -42,7 +42,7 @@ const POLY_TOOLS: Tool[] = ["polyline", "area", "internal_wall", "external_perim
 export function PlanCanvas({ jobId }: { jobId: string }) {
   const { user } = useAuth();
   const roles = useRoles();
-  const canEdit = roles.canEdit;
+  const canEdit = roles.canWrite;
 
   const [planPage] = useState(1);
   const [bgUrl, setBgUrl] = useState<string | null>(null);
