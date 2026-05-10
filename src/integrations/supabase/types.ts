@@ -372,6 +372,180 @@ export type Database = {
           },
         ]
       }
+      opening_schedule: {
+        Row: {
+          confidence: string
+          created_at: string
+          created_by: string
+          height_mm: number | null
+          id: string
+          job_id: string
+          notes: string | null
+          opening_type: string
+          plan_page_number: number
+          quantity: number
+          review_status: string
+          room_name: string | null
+          source: string
+          source_evidence: string | null
+          updated_at: string
+          width_mm: number
+        }
+        Insert: {
+          confidence?: string
+          created_at?: string
+          created_by: string
+          height_mm?: number | null
+          id?: string
+          job_id: string
+          notes?: string | null
+          opening_type?: string
+          plan_page_number?: number
+          quantity?: number
+          review_status?: string
+          room_name?: string | null
+          source?: string
+          source_evidence?: string | null
+          updated_at?: string
+          width_mm: number
+        }
+        Update: {
+          confidence?: string
+          created_at?: string
+          created_by?: string
+          height_mm?: number | null
+          id?: string
+          job_id?: string
+          notes?: string | null
+          opening_type?: string
+          plan_page_number?: number
+          quantity?: number
+          review_status?: string
+          room_name?: string | null
+          source?: string
+          source_evidence?: string | null
+          updated_at?: string
+          width_mm?: number
+        }
+        Relationships: []
+      }
+      plan_calibrations: {
+        Row: {
+          calibrated_at: string
+          calibrated_by: string
+          calibration_line_pixels: number
+          calibration_real_mm: number
+          calibration_source: string
+          confidence: string
+          created_at: string
+          file_id: string | null
+          id: string
+          job_id: string
+          pixels_per_mm: number
+          plan_page_number: number
+          scale_text: string | null
+          updated_at: string
+        }
+        Insert: {
+          calibrated_at?: string
+          calibrated_by: string
+          calibration_line_pixels: number
+          calibration_real_mm: number
+          calibration_source?: string
+          confidence?: string
+          created_at?: string
+          file_id?: string | null
+          id?: string
+          job_id: string
+          pixels_per_mm: number
+          plan_page_number?: number
+          scale_text?: string | null
+          updated_at?: string
+        }
+        Update: {
+          calibrated_at?: string
+          calibrated_by?: string
+          calibration_line_pixels?: number
+          calibration_real_mm?: number
+          calibration_source?: string
+          confidence?: string
+          created_at?: string
+          file_id?: string | null
+          id?: string
+          job_id?: string
+          pixels_per_mm?: number
+          plan_page_number?: number
+          scale_text?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      plan_measurements: {
+        Row: {
+          calculated_area_m2: number | null
+          calculated_length_m: number | null
+          calculated_length_mm: number | null
+          confidence: string
+          count_value: number | null
+          created_at: string
+          created_by: string
+          file_id: string | null
+          id: string
+          job_id: string
+          label: string | null
+          measurement_type: string
+          module_id: string | null
+          notes: string | null
+          plan_page_number: number
+          points_json: Json
+          review_status: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          calculated_area_m2?: number | null
+          calculated_length_m?: number | null
+          calculated_length_mm?: number | null
+          confidence?: string
+          count_value?: number | null
+          created_at?: string
+          created_by: string
+          file_id?: string | null
+          id?: string
+          job_id: string
+          label?: string | null
+          measurement_type: string
+          module_id?: string | null
+          notes?: string | null
+          plan_page_number?: number
+          points_json?: Json
+          review_status?: string
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          calculated_area_m2?: number | null
+          calculated_length_m?: number | null
+          calculated_length_mm?: number | null
+          confidence?: string
+          count_value?: number | null
+          created_at?: string
+          created_by?: string
+          file_id?: string | null
+          id?: string
+          job_id?: string
+          label?: string | null
+          measurement_type?: string
+          module_id?: string | null
+          notes?: string | null
+          plan_page_number?: number
+          points_json?: Json
+          review_status?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           accepted_at: string | null
