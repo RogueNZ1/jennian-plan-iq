@@ -431,6 +431,29 @@ function ModuleDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <OverrideReasonDialog
+        open={overrideTarget !== null}
+        label={overrideTarget ? `${overrideTarget.item.label}${overrideTarget.item.unit ? ` (${overrideTarget.item.unit})` : ""}` : undefined}
+        currentValue={overrideTarget?.item.approved_value ?? ""}
+        newValue={overrideTarget?.newValue ?? ""}
+        onCancel={() => {
+          setOverrideTarget(null);
+          setOverrideTick((t) => t + 1);
+        }}
+        onConfirm={async (reason) => {
+          if (!overrideTarget || !jobId) return;
+          try {
+            await manualOverrideApprovedValue(jobId, overrideTarget.item, overrideTarget.newValue, reason);
+            toast.success("Quantity overridden.");
+            setOverrideTarget(null);
+            await refresh();
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Could not save override.");
+            setOverrideTick((t) => t + 1);
+          }
+        }}
+      />
     </AppLayout>
   );
 }
