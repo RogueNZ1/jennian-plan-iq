@@ -9,6 +9,7 @@
  * writes geometry it didn't extract. Re-runs are idempotent.
  */
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { extractFile, loadJobFiles, type ExtractedFile } from "./pdf-text";
 import { classifyPage, pickWorkingPage, type ClassifiedPage } from "./classify";
 import { detectScaleFromText, writeCalibration } from "./scale";
