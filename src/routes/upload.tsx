@@ -5,8 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { UploadCloud, FileText, Sparkles, CheckCircle2, X } from "lucide-react";
 import { PlanThumbnail } from "@/components/jennian/PlanThumbnail";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { renderPdfThumbnail } from "@/lib/pdf-thumbnail";
 
 export const Route = createFileRoute("/upload")({ component: UploadPage });
 
@@ -20,6 +21,30 @@ function UploadPage() {
   const [planFile, setPlanFile] = useState<File | null>(null);
   const [specFile, setSpecFile] = useState<File | null>(null);
   const [busy, setBusy] = useState<null | "draft" | "extract">(null);
+  const [planPreviewUrl, setPlanPreviewUrl] = useState<string | null>(null);
+  const [planThumbBlob, setPlanThumbBlob] = useState<Blob | null>(null);
+
+  useEffect(() => {
+    let revoke: string | null = null;
+    setPlanPreviewUrl(null);
+    setPlanThumbBlob(null);
+    if (!planFile) return;
+    let cancelled = false;
+    (async () => {
+      const blob = await renderPdfThumbnail(planFile);
+      if (cancelled) return;
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        revoke = url;
+        setPlanThumbBlob(blob);
+        setPlanPreviewUrl(url);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (revoke) URL.revokeObjectURL(revoke);
+    };
+  }, [planFile]);
 
   async function persist(asExtraction: boolean) {
     if (!user) return;
@@ -66,6 +91,26 @@ function UploadPage() {
         if (insErr) throw insErr;
       }
 
+      // Generate & upload plan thumbnail (private)
+      let thumbnailPath: string | null = null;
+      if (planFile) {
+        const blob =
+          planThumbBlob ?? (await renderPdfThumbnail(planFile));
+        if (blob) {
+          thumbnailPath = `${user.id}/${job.id}/thumbnail-${Date.now()}.jpg`;
+          const { error: tErr } = await supabase.storage
+            .from("job-files")
+            .upload(thumbnailPath, blob, {
+              contentType: "image/jpeg",
+              upsert: true,
+            });
+          if (tErr) {
+            console.warn("Thumbnail upload failed:", tErr);
+            thumbnailPath = null;
+          }
+        }
+      }
+
       if (asExtraction) {
         // 3. Insert mock extracted quantities
         const rows = RUSSELL_STREET_QUANTITIES.map((q) => ({ ...q, job_id: job.id }));
@@ -74,7 +119,11 @@ function UploadPage() {
 
         await supabase
           .from("jobs")
-          .update({ status: "extracted", uploaded_at: new Date().toISOString() })
+          .update({
+            status: "extracted",
+            uploaded_at: new Date().toISOString(),
+            ...(thumbnailPath ? { plan_thumbnail_url: thumbnailPath } : {}),
+          })
           .eq("id", job.id);
 
         toast.success("Extraction complete — review quantities.");
@@ -82,7 +131,10 @@ function UploadPage() {
       } else {
         await supabase
           .from("jobs")
-          .update({ uploaded_at: uploads.length ? new Date().toISOString() : null })
+          .update({
+            uploaded_at: uploads.length ? new Date().toISOString() : null,
+            ...(thumbnailPath ? { plan_thumbnail_url: thumbnailPath } : {}),
+          })
           .eq("id", job.id);
         toast.success("Draft saved.");
         navigate({ to: "/jobs" });
@@ -122,7 +174,7 @@ function UploadPage() {
 
         <form onSubmit={(e) => { e.preventDefault(); persist(true); }} className="space-y-8">
           <div className="grid md:grid-cols-2 gap-4">
-            <Dropzone label="Plan PDF" sub="Architectural drawings" file={planFile} onFile={setPlanFile} />
+            <Dropzone label="Plan PDF" sub="Architectural drawings" file={planFile} onFile={setPlanFile} previewUrl={planPreviewUrl} />
             <Dropzone label="Schedule of Materials & Works" sub="Specification PDF" file={specFile} onFile={setSpecFile} />
           </div>
 
@@ -186,12 +238,12 @@ function Field({ label, placeholder, value, onChange }: { label: string; placeho
   );
 }
 
-function Dropzone({ label, sub, file, onFile }: { label: string; sub: string; file: File | null; onFile: (f: File | null) => void }) {
+function Dropzone({ label, sub, file, onFile, previewUrl }: { label: string; sub: string; file: File | null; onFile: (f: File | null) => void; previewUrl?: string | null }) {
   if (file) {
     return (
       <div className="rounded-xl border border-border bg-card p-4 shadow-[0_1px_0_rgba(0,0,0,0.02)]">
         <div className="flex items-start gap-4">
-          <PlanThumbnail seed={file.name} size="md" />
+          <PlanThumbnail storagePath={previewUrl ?? null} size="md" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-3.5 w-3.5 text-confidence-high" />
