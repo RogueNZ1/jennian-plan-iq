@@ -395,6 +395,11 @@ function ReviewPage() {
           setOpeningsCount(o.count ?? 0);
         }}
       />
+      <VisionTakeoffDialog
+        open={visionOpen}
+        onOpenChange={setVisionOpen}
+        jobId={job.id}
+      />
     </AppLayout>
   );
 }
