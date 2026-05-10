@@ -13,7 +13,7 @@ const nav = [
   { to: "/jobs",             label: "Jobs",             icon: Briefcase },
   { to: "/upload",           label: "Upload Plan",      icon: Upload },
   { to: "/review",           label: "Quantity Review",  icon: ClipboardCheck },
-  { to: "/modules",          label: "Takeoff Modules",  icon: Layers },
+  { to: "/modules",          label: "Modules",          icon: Layers },
   { to: "/specifications",   label: "Specifications",   icon: FileText },
   { to: "/templates",        label: "Templates",        icon: LayoutTemplate },
   { to: "/reports",          label: "Reports",          icon: BarChart3 },
