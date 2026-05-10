@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { OverrideReasonDialog } from "@/components/jennian/OverrideReasonDialog";
+import { Breadcrumbs } from "@/components/jennian/Breadcrumbs";
 
 const MODULE_ICONS: Record<IQModuleId, React.ComponentType<{ className?: string }>> = {
   "iq-core": Ruler, "iq-electrical": Zap, "iq-plumbing": Droplets,
@@ -145,6 +146,11 @@ function ReviewPage() {
   return (
     <AppLayout>
       <div className="px-8 py-8 max-w-7xl">
+        <Breadcrumbs items={[
+          { label: "Jobs", to: "/jobs" },
+          { label: job.job_number, to: "/jobs/$jobId", params: { jobId: job.id } },
+          { label: "IQ Core Review" },
+        ]} />
         <PageHeader
           title="IQ Core Review"
           subtitle={`${job.job_number} · ${job.client_name} · ${job.address}`}
