@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppLayout, PageHeader } from "@/components/jennian/AppLayout";
 import { StatusBadge } from "@/components/jennian/StatusBadge";
 import { PlanThumbnail } from "@/components/jennian/PlanThumbnail";
+import { PlanViewer } from "@/components/jennian/PlanViewer";
 import { listJobs, type Job } from "@/lib/jennian-data";
 import { Upload, ArrowUpRight, Briefcase, ClipboardCheck, CheckCircle2, FileSpreadsheet } from "lucide-react";
 import { HouseFrame } from "@/components/jennian/HouseFrame";
@@ -36,6 +37,7 @@ function Stat({
 function Dashboard() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewer, setViewer] = useState<{ id: string; number: string } | null>(null);
 
   useEffect(() => {
     listJobs().then((j) => setJobs(j)).finally(() => setLoading(false));
@@ -102,9 +104,14 @@ function Dashboard() {
                 {recent.map((j) => (
                   <tr key={j.id} className="border-t border-border hover:bg-muted/25 transition-colors">
                     <td className="pl-6 py-3">
-                      <Link to="/review" search={{ job: j.id }} aria-label={`Open ${j.job_number}`}>
-                        <PlanThumbnail storagePath={j.plan_thumbnail_url} size="sm" className="hover:border-primary/40 transition-colors" />
-                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => setViewer({ id: j.id, number: j.job_number })}
+                        aria-label={`Open plan for ${j.job_number}`}
+                        className="block"
+                      >
+                        <PlanThumbnail storagePath={j.plan_thumbnail_url} size="sm" className="hover:border-primary/40 cursor-pointer transition-colors" />
+                      </button>
                     </td>
                     <td className="px-2 py-3 font-medium">
                       <Link to="/review" search={{ job: j.id }} className="hover:text-primary">{j.job_number}</Link>
@@ -123,6 +130,12 @@ function Dashboard() {
           )}
         </div>
       </div>
+      <PlanViewer
+        open={!!viewer}
+        jobId={viewer?.id ?? null}
+        jobNumber={viewer?.number}
+        onClose={() => setViewer(null)}
+      />
     </AppLayout>
   );
 }
