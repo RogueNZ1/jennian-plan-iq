@@ -170,6 +170,12 @@ export async function saveCalibration(args: {
     .select("*")
     .single();
   if (error) throw error;
+  await logPlanAudit({
+    jobId: args.jobId,
+    calibrationId: (data as Calibration).id,
+    action: "calibration_created",
+    newValue: `${args.pixels.toFixed(1)}px = ${args.realMm}mm (page ${args.page})`,
+  });
   return data as Calibration;
 }
 
@@ -234,23 +240,60 @@ export async function saveMeasurement(args: {
     .select("*")
     .single();
   if (error) throw error;
-  return { ...(data as unknown as PlanMeasurement), points_json: args.points };
+  const m = { ...(data as unknown as PlanMeasurement), points_json: args.points };
+  await logPlanAudit({
+    jobId: args.jobId,
+    measurementId: m.id,
+    action: "measurement_created",
+    newValue: isArea ? `${areaM2?.toFixed(2)} m²` : `${(lengthM).toFixed(3)} m`,
+    notes: `${args.type} on page ${args.page}`,
+  });
+  return m;
 }
 
 export async function setMeasurementReviewStatus(
   id: string,
   status: ReviewStatus,
 ): Promise<void> {
+  // load current to capture previous status + jobId
+  const { data: prev } = await supabase
+    .from("plan_measurements")
+    .select("job_id, review_status")
+    .eq("id", id)
+    .maybeSingle();
   const { error } = await supabase
     .from("plan_measurements")
     .update({ review_status: status })
     .eq("id", id);
   if (error) throw error;
+  if (prev) {
+    await logPlanAudit({
+      jobId: prev.job_id as string,
+      measurementId: id,
+      action: "review_status_changed",
+      previousValue: (prev.review_status as string) ?? null,
+      newValue: status,
+    });
+  }
 }
 
 export async function deleteMeasurement(id: string): Promise<void> {
+  const { data: prev } = await supabase
+    .from("plan_measurements")
+    .select("job_id, label, calculated_length_m, calculated_area_m2")
+    .eq("id", id)
+    .maybeSingle();
   const { error } = await supabase.from("plan_measurements").delete().eq("id", id);
   if (error) throw error;
+  if (prev) {
+    await logPlanAudit({
+      jobId: prev.job_id as string,
+      measurementId: id,
+      action: "measurement_deleted",
+      previousValue: String(prev.calculated_length_m ?? prev.calculated_area_m2 ?? ""),
+      notes: (prev.label as string) ?? null,
+    });
+  }
 }
 
 export async function updateMeasurementLabel(
@@ -279,6 +322,7 @@ export async function loadOpenings(jobId: string): Promise<Opening[]> {
 export async function createOpening(args: {
   jobId: string;
   page?: number;
+  fileId?: string | null;
   width_mm: number;
   height_mm?: number | null;
   opening_type?: string;
@@ -295,6 +339,7 @@ export async function createOpening(args: {
     .insert({
       job_id: args.jobId,
       plan_page_number: args.page ?? 1,
+      file_id: args.fileId ?? null,
       opening_type: args.opening_type ?? "unknown_opening",
       width_mm: args.width_mm,
       height_mm: args.height_mm ?? null,
@@ -310,7 +355,14 @@ export async function createOpening(args: {
     .select("*")
     .single();
   if (error) throw error;
-  return data as Opening;
+  const op = data as Opening;
+  await logPlanAudit({
+    jobId: args.jobId,
+    openingId: op.id,
+    action: "opening_created",
+    newValue: `${op.opening_type} ${op.width_mm}${op.height_mm ? `x${op.height_mm}` : ""}mm`,
+  });
+  return op;
 }
 
 export async function updateOpening(
