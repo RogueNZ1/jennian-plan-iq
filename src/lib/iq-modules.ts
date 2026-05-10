@@ -517,14 +517,35 @@ export async function recalculateModule(jobId: string, moduleId: IQModuleId): Pr
   if (!mod || mod.id === "iq-core") return;
   const { data: run } = await supabase.from("module_runs").select("id").eq("job_id", jobId).eq("module_id", moduleId).maybeSingle();
   if (!run) return;
-  // Regenerate dummy items deterministically with a fresh nonce.
+  // Regenerate extracted_value with a fresh nonce, but PRESERVE approved_value
+  // for any item that has been confirmed/excluded or manually edited.
   const nonce = Date.now().toString(36);
   const seed = buildSeedItemsFor(jobId, mod, nonce);
-  // Delete existing items, re-insert.
-  await supabase.from("module_items").delete().eq("run_id", run.id);
-  const rows = seed.map((it) => ({ ...it, job_id: jobId, run_id: run.id }));
-  const { error: iErr } = await supabase.from("module_items").insert(rows);
-  if (iErr) throw iErr;
+  const seedByLabel = new Map(seed.map((s) => [s.label, s]));
+  const { data: existing } = await supabase
+    .from("module_items").select("*").eq("run_id", run.id);
+  for (const it of existing ?? []) {
+    const s = seedByLabel.get(it.label);
+    if (!s) continue;
+    const wasUntouched =
+      it.review_status === "review_required" &&
+      String(it.approved_value ?? "") === String(it.extracted_value ?? "");
+    const patch: Record<string, unknown> = {
+      extracted_value: s.extracted_value,
+      confidence: s.confidence,
+    };
+    if (wasUntouched) patch.approved_value = s.extracted_value;
+    await supabase.from("module_items").update(patch).eq("id", it.id);
+    seedByLabel.delete(it.label);
+  }
+  // Insert any newly-introduced items.
+  const inserts = Array.from(seedByLabel.values()).map((it) => ({
+    ...it, job_id: jobId, run_id: run.id,
+  }));
+  if (inserts.length) {
+    const { error: iErr } = await supabase.from("module_items").insert(inserts);
+    if (iErr) throw iErr;
+  }
   const now = new Date().toISOString();
   await supabase.from("module_runs").update({
     last_run_at: now,
