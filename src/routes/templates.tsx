@@ -9,7 +9,7 @@ function Page() {
   return (
     <AppLayout>
       <div className="px-8 py-8 max-w-5xl">
-        <PageHeader title="Templates" subtitle="Extraction templates mapped to Jennian's pricing workbook." />
+        <PageHeader title="Templates" subtitle="Standard templates mapped to Jennian's pricing workbook." />
         <div className="grid md:grid-cols-2 gap-4">
           {templates.map((t) => (
             <div key={t.id} className="rounded-lg border border-border bg-card p-5 hover:shadow-sm transition">
