@@ -30,6 +30,7 @@ import { OpeningScheduleTab } from "@/components/jennian/OpeningScheduleTab";
 import { ValidationTab } from "@/components/jennian/ValidationTab";
 import { loadMeasurements, type PlanMeasurement } from "@/lib/iq-measurements";
 import { AutomaticTakeoffDialog } from "@/components/jennian/AutomaticTakeoffDialog";
+import { VisionTakeoffDialog } from "@/components/jennian/VisionTakeoffDialog";
 
 const MODULE_ICONS: Record<IQModuleId, React.ComponentType<{ className?: string }>> = {
   "iq-core": Ruler, "iq-electrical": Zap, "iq-plumbing": Droplets,
@@ -39,10 +40,12 @@ const MODULE_ICONS: Record<IQModuleId, React.ComponentType<{ className?: string 
 
 export const Route = createFileRoute("/review")({
   component: ReviewPage,
-  validateSearch: (s: Record<string, unknown>) => ({
-    job: typeof s.job === "string" ? s.job : undefined,
-    tab: typeof s.tab === "string" ? s.tab : undefined,
-  }),
+  validateSearch: (s: Record<string, unknown>): { job?: string; tab?: string } => {
+    const out: { job?: string; tab?: string } = {};
+    if (typeof s.job === "string") out.job = s.job;
+    if (typeof s.tab === "string") out.tab = s.tab;
+    return out;
+  },
 });
 
 function ReviewPage() {
@@ -58,6 +61,7 @@ function ReviewPage() {
   const [openingsCount, setOpeningsCount] = useState<number>(0);
   const [tab, setTab] = useState<string>(initialTab && ["base","working","openings","walls","validation"].includes(initialTab) ? initialTab : "base");
   const [takeoffOpen, setTakeoffOpen] = useState(false);
+  const [visionOpen, setVisionOpen] = useState(false);
 
   useEffect(() => {
     if (!jobId) { setLoading(false); return; }
@@ -241,7 +245,7 @@ function ReviewPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setTakeoffOpen(true)}
+                onClick={() => setVisionOpen(true)}
                 className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
               >
                 <ScanEye className="h-4 w-4" /> Run Vision Takeoff
@@ -390,6 +394,11 @@ function ReviewPage() {
           setMeasurementCount(m.count ?? 0);
           setOpeningsCount(o.count ?? 0);
         }}
+      />
+      <VisionTakeoffDialog
+        open={visionOpen}
+        onOpenChange={setVisionOpen}
+        jobId={job.id}
       />
     </AppLayout>
   );

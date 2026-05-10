@@ -22,6 +22,7 @@ import { TakeoffSummary } from "@/components/jennian/TakeoffSummary";
 import { loadLatestTakeoffRun, type LatestTakeoffRun } from "@/lib/takeoff/run";
 import { StartTakeoffPanel } from "@/components/jennian/StartTakeoffPanel";
 import { StartTakeoffDialog } from "@/components/jennian/StartTakeoffDialog";
+import { VisionTakeoffDialog } from "@/components/jennian/VisionTakeoffDialog";
 import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -45,6 +46,7 @@ function JobDetail() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [takeoffOpen, setTakeoffOpen] = useState(false);
+  const [visionOpen, setVisionOpen] = useState(false);
   const [rerunConfirmOpen, setRerunConfirmOpen] = useState(false);
   const [takeoffRun, setTakeoffRun] = useState<LatestTakeoffRun | null>(null);
   const [startChooserOpen, setStartChooserOpen] = useState(false);
@@ -155,7 +157,7 @@ function JobDetail() {
             <StartTakeoffPanel
               jobId={jobId}
               onAutomatic={() => setTakeoffOpen(true)}
-              onVision={() => setTakeoffOpen(true)}
+              onVision={() => setVisionOpen(true)}
               onWorkingPlan={openWorkingPlan}
             />
           </div>
@@ -263,8 +265,13 @@ function JobDetail() {
         open={startChooserOpen}
         onOpenChange={setStartChooserOpen}
         onAutomatic={() => { setStartChooserOpen(false); setTakeoffOpen(true); }}
-        onVision={() => { setStartChooserOpen(false); setTakeoffOpen(true); }}
+        onVision={() => { setStartChooserOpen(false); setVisionOpen(true); }}
         onWorkingPlan={() => { setStartChooserOpen(false); openWorkingPlan(); }}
+      />
+      <VisionTakeoffDialog
+        open={visionOpen}
+        onOpenChange={setVisionOpen}
+        jobId={jobId}
       />
       <AlertDialog open={rerunConfirmOpen} onOpenChange={setRerunConfirmOpen}>
         <AlertDialogContent>
