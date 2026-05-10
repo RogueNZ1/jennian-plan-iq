@@ -39,7 +39,7 @@ function LoginPage() {
           <div className="h-10 w-10 rounded-md bg-primary grid place-items-center text-primary-foreground font-semibold shadow-sm">J</div>
           <div className="leading-tight">
             <div className="text-white font-semibold tracking-tight text-[16px]">Jennian IQ</div>
-            <div className="text-[10.5px] uppercase tracking-[0.18em] text-primary/90 font-medium mt-0.5">Built Smarter.</div>
+            <div className="text-[10.5px] uppercase tracking-[0.18em] text-primary/90 font-medium mt-0.5">Jennian Homes Manawatū</div>
           </div>
         </div>
 
