@@ -13,8 +13,9 @@ import {
 } from "@/lib/iq-modules";
 import {
   Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain,
-  AlertTriangle, ShoppingCart, ClipboardCheck, Eye, FileSpreadsheet, ArrowRight,
+  AlertTriangle, ShoppingCart, ClipboardCheck, Eye, FileSpreadsheet, ArrowRight, History,
 } from "lucide-react";
+import { JobAuditTimeline } from "@/components/jennian/JobAuditTimeline";
 
 export const Route = createFileRoute("/jobs/$jobId")({ component: JobDetail });
 
@@ -30,6 +31,7 @@ function JobDetail() {
   const [runs, setRuns] = useState<ModuleRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +69,13 @@ function JobDetail() {
           subtitle={job ? `${job.client_name} · ${job.address}` : "Loading…"}
           actions={
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setTimelineOpen(true)}
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
+              >
+                <History className="h-4 w-4" /> Audit Timeline
+              </button>
               <button
                 type="button"
                 onClick={() => setViewerOpen(true)}
@@ -159,6 +168,11 @@ function JobDetail() {
         jobId={viewerOpen ? jobId : null}
         jobNumber={job?.job_number}
         onClose={() => setViewerOpen(false)}
+      />
+      <JobAuditTimeline
+        jobId={jobId}
+        open={timelineOpen}
+        onOpenChange={setTimelineOpen}
       />
     </AppLayout>
   );
