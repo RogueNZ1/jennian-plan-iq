@@ -116,6 +116,20 @@ export type VisionRunPageOutcome = {
   resolutionHeightPx?: number | null;
 };
 
+/**
+ * Returned by runVisionTakeoff when the entire handler fails before any page
+ * can be processed (e.g. missing API key, unhandled top-level exception).
+ * Per-page failures are always surfaced via VisionRunSummary.errors instead.
+ */
+export type VisionTakeoffError = {
+  ok: false;
+  error: {
+    operation: string;
+    message: string;
+    technical?: string;
+  };
+};
+
 export type VisionRunSummary = {
   kind: "vision_takeoff";
   ranAt: string;
