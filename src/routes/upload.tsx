@@ -3,12 +3,17 @@ import { AppLayout, PageHeader } from "@/components/jennian/AppLayout";
 import { TEMPLATES, RUSSELL_STREET_QUANTITIES } from "@/lib/jennian-data";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { UploadCloud, FileText, Sparkles, CheckCircle2, X } from "lucide-react";
+import { UploadCloud, FileText, Sparkles, CheckCircle2, X, ArrowRight, ArrowLeft, Wand2 } from "lucide-react";
 import { PlanThumbnail } from "@/components/jennian/PlanThumbnail";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { renderPdfThumbnail } from "@/lib/pdf-thumbnail";
 import { seedAllModulesForJob } from "@/lib/iq-modules";
+import {
+  analyzePdfPages, pickPrimaryFloorplan, disposePageAnalyses,
+  PAGE_TYPE_LABEL, CONFIDENCE_LABEL,
+  type PageAnalysis, type PageConfidence,
+} from "@/lib/pdf-pages";
 
 export const Route = createFileRoute("/upload")({ component: UploadPage });
 
@@ -24,6 +29,16 @@ function UploadPage() {
   const [busy, setBusy] = useState<null | "draft" | "extract">(null);
   const [planPreviewUrl, setPlanPreviewUrl] = useState<string | null>(null);
   const [planThumbBlob, setPlanThumbBlob] = useState<Blob | null>(null);
+
+  // Plan Review Selection step
+  type Step = "form" | "select";
+  const [step, setStep] = useState<Step>("form");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeProgress, setAnalyzeProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+  const [pageAnalyses, setPageAnalyses] = useState<PageAnalysis[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [autoCertainty, setAutoCertainty] = useState<PageConfidence | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
 
   useEffect(() => {
     let revoke: string | null = null;
@@ -47,7 +62,54 @@ function UploadPage() {
     };
   }, [planFile]);
 
-  async function persist(asExtraction: boolean) {
+  // Cleanup any analysis blob URLs on unmount or when file changes
+  useEffect(() => {
+    return () => { disposePageAnalyses(pageAnalyses); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function startPlanReviewSelection() {
+    if (!planFile || !specFile) {
+      toast.error("Plan and Specification PDFs are required to review quantities.");
+      return;
+    }
+    if (!jobNumber || !clientName || !address) {
+      toast.error("Job number, client and address are required.");
+      return;
+    }
+    // Reset prior analyses
+    disposePageAnalyses(pageAnalyses);
+    setPageAnalyses([]);
+    setSelectedIndex(null);
+    setAutoCertainty(null);
+    setConfirmed(false);
+    setStep("select");
+    setAnalyzing(true);
+    setAnalyzeProgress({ done: 0, total: 0 });
+    try {
+      const pages = await analyzePdfPages(planFile, {
+        onProgress: (done, total) => setAnalyzeProgress({ done, total }),
+      });
+      setPageAnalyses(pages);
+      const pick = pickPrimaryFloorplan(pages);
+      if (pick) {
+        setSelectedIndex(pick.index);
+        setAutoCertainty(pick.certainty);
+        if (pick.certainty === "high") setConfirmed(true);
+      } else {
+        setSelectedIndex(0);
+        setAutoCertainty("low");
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Could not analyse the plan PDF. Please try again.");
+      setStep("form");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  async function persist(asExtraction: boolean, primaryThumbBlob?: Blob | null) {
     if (!user) return;
     if (!jobNumber || !clientName || !address) {
       toast.error("Job number, client and address are required.");
@@ -96,7 +158,9 @@ function UploadPage() {
       let thumbnailPath: string | null = null;
       if (planFile) {
         const blob =
-          planThumbBlob ?? (await renderPdfThumbnail(planFile));
+          primaryThumbBlob ??
+          planThumbBlob ??
+          (await renderPdfThumbnail(planFile));
         if (blob) {
           thumbnailPath = `${user.id}/${job.id}/thumbnail-${Date.now()}.jpg`;
           const { error: tErr } = await supabase.storage
@@ -151,6 +215,12 @@ function UploadPage() {
     }
   }
 
+  async function continueToReview() {
+    if (selectedIndex === null) return;
+    const blob = pageAnalyses[selectedIndex]?.thumbnailBlob ?? null;
+    await persist(true, blob);
+  }
+
   if (busy === "extract") {
     return (
       <AppLayout>
@@ -160,7 +230,12 @@ function UploadPage() {
               <Sparkles className="h-6 w-6 text-primary animate-pulse" />
             </div>
             <h2 className="mt-6 text-xl font-semibold tracking-tight">Reviewing plan quantities…</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Reading dimensions, schedules and material callouts.</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Reading dimensions from{" "}
+              {selectedIndex !== null && pageAnalyses[selectedIndex]
+                ? `Page ${pageAnalyses[selectedIndex].pageNumber} · ${PAGE_TYPE_LABEL[pageAnalyses[selectedIndex].pageType]}`
+                : "selected plan"}.
+            </p>
             <div className="mt-6 h-1 w-full overflow-hidden rounded-full bg-secondary">
               <div className="h-full w-1/3 bg-primary animate-[loading_1.4s_ease-in-out_infinite]" />
             </div>
@@ -171,12 +246,163 @@ function UploadPage() {
     );
   }
 
+  if (step === "select") {
+    return (
+      <AppLayout>
+        <div className="px-8 py-8 max-w-7xl">
+          <button
+            type="button"
+            onClick={() => setStep("form")}
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-4"
+          >
+            <ArrowLeft className="h-3 w-3" /> Back to upload
+          </button>
+          <PageHeader
+            title="Select Working Plan"
+            subtitle={
+              autoCertainty === "high"
+                ? "Primary floorplan auto-selected. Confirm or change before quantity review."
+                : "Confirm the primary floorplan to use for quantity review."
+            }
+            actions={
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmed(true)}
+                  disabled={selectedIndex === null || analyzing}
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3.5 py-2 text-sm font-medium hover:bg-accent disabled:opacity-60"
+                >
+                  <CheckCircle2 className="h-4 w-4" /> Confirm Selection
+                </button>
+                <button
+                  type="button"
+                  onClick={continueToReview}
+                  disabled={selectedIndex === null || analyzing || !confirmed}
+                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 shadow-sm disabled:opacity-60"
+                >
+                  Continue to Review <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            }
+          />
+
+          {analyzing && (
+            <div className="mb-6 rounded-lg border border-border bg-card px-5 py-4">
+              <div className="flex items-center gap-3">
+                <Wand2 className="h-4 w-4 text-primary animate-pulse" />
+                <div className="text-sm font-medium">Reading plan set…</div>
+                <div className="text-xs text-muted-foreground tabular-nums">
+                  {analyzeProgress.done}/{analyzeProgress.total || "?"} pages
+                </div>
+              </div>
+              <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-secondary">
+                <div
+                  className="h-full bg-primary transition-[width] duration-200"
+                  style={{
+                    width: analyzeProgress.total
+                      ? `${(analyzeProgress.done / analyzeProgress.total) * 100}%`
+                      : "10%",
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {!analyzing && pageAnalyses.length > 0 && selectedIndex !== null && (
+            <div className="mb-6 rounded-lg border border-border bg-card p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground font-medium">
+                    Primary plan {autoCertainty === "high" ? "(auto-selected)" : "(needs confirmation)"}
+                  </div>
+                  <div className="mt-1 text-[15px] font-semibold tracking-tight">
+                    Page {pageAnalyses[selectedIndex].pageNumber} ·{" "}
+                    {PAGE_TYPE_LABEL[pageAnalyses[selectedIndex].pageType]}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Detection confidence:{" "}
+                    <ConfidenceText level={pageAnalyses[selectedIndex].confidence} />
+                    {" · "}
+                    {confirmed ? (
+                      <span className="text-confidence-high">Confirmed</span>
+                    ) : (
+                      <span className="text-confidence-mid">Awaiting confirmation</span>
+                    )}
+                  </div>
+                </div>
+                {autoCertainty !== "high" && (
+                  <div className="text-[11px] rounded-md border border-confidence-mid/40 bg-confidence-mid-bg text-confidence-mid px-2.5 py-1">
+                    Confirm primary floorplan for quantity review
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {!analyzing && pageAnalyses.length > 0 && (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {pageAnalyses.map((p, idx) => {
+                const active = idx === selectedIndex;
+                return (
+                  <button
+                    key={p.pageNumber}
+                    type="button"
+                    onClick={() => { setSelectedIndex(idx); setConfirmed(false); }}
+                    className={`group text-left rounded-xl border bg-card overflow-hidden transition-all ${
+                      active
+                        ? "border-primary shadow-[0_4px_18px_-12px_rgba(0,0,0,0.25)] ring-2 ring-primary/30"
+                        : "border-border hover:border-primary/40"
+                    }`}
+                  >
+                    <div className="relative aspect-[4/3] bg-muted/40 grid place-items-center overflow-hidden">
+                      <img
+                        src={p.thumbnailUrl}
+                        alt={`Page ${p.pageNumber}`}
+                        className="h-full w-full object-contain"
+                      />
+                      {active && autoCertainty && idx === selectedIndex && (
+                        <span className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground">
+                          <Wand2 className="h-2.5 w-2.5" /> Auto-selected
+                        </span>
+                      )}
+                      <span className="absolute top-2 right-2 inline-flex rounded-md bg-background/90 backdrop-blur px-2 py-0.5 text-[10px] font-medium tabular-nums">
+                        Page {p.pageNumber}
+                      </span>
+                    </div>
+                    <div className="p-3 border-t border-border">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[12.5px] font-semibold tracking-tight truncate">
+                          {PAGE_TYPE_LABEL[p.pageType]}
+                        </div>
+                        <ConfidenceText level={p.confidence} />
+                      </div>
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                          {active ? (confirmed ? "Selected" : "Pending confirm") : "Available"}
+                        </span>
+                        {!active && (
+                          <span className="text-[11px] text-primary font-medium">
+                            Change Plan
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
       <div className="px-8 py-8 max-w-4xl">
         <PageHeader title="Upload Plan" subtitle="Provide the plan set and specification documents to begin quantity review." />
 
-        <form onSubmit={(e) => { e.preventDefault(); persist(true); }} className="space-y-8">
+        <form onSubmit={(e) => { e.preventDefault(); startPlanReviewSelection(); }} className="space-y-8">
           <div className="grid md:grid-cols-2 gap-4">
             <Dropzone label="Plan PDF" sub="Architectural drawings" file={planFile} onFile={setPlanFile} previewUrl={planPreviewUrl} />
             <Dropzone label="Schedule of Materials & Works" sub="Specification PDF" file={specFile} onFile={setSpecFile} />
@@ -219,12 +445,26 @@ function UploadPage() {
               disabled={busy !== null}
               className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 shadow-sm disabled:opacity-60"
             >
-              <Sparkles className="h-4 w-4" /> Review Plan Quantities
+              <Sparkles className="h-4 w-4" /> Select Working Plan
             </button>
           </div>
         </form>
       </div>
     </AppLayout>
+  );
+}
+
+function ConfidenceText({ level }: { level: PageConfidence }) {
+  const cls =
+    level === "high"
+      ? "text-confidence-high"
+      : level === "mid"
+      ? "text-confidence-mid"
+      : "text-confidence-low";
+  return (
+    <span className={`text-[10.5px] font-medium uppercase tracking-[0.14em] ${cls}`}>
+      {CONFIDENCE_LABEL[level]}
+    </span>
   );
 }
 
