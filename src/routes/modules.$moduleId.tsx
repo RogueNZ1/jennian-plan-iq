@@ -202,7 +202,7 @@ function ModuleDetail() {
                 >
                   <ClipboardCheck className="h-4 w-4" /> Open IQ Core Review
                 </Link>
-              ) : (
+              ) : isPhase2 ? null : (
                 <>
                   {canRecalculate && (
                     <button
