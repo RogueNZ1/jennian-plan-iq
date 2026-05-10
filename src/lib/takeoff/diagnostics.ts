@@ -498,3 +498,40 @@ export function deriveOutcome(args: {
   }
   return { outcome: "ok", outcomeMessage: "Module review rows created successfully." };
 }
+
+/* --------------------------- spec checks ---------------------------- */
+
+/**
+ * Runs specification extraction across every file (not only files marked
+ * file_type=specification — schedules can appear in plan PDFs too) and
+ * reports each detected schedule row as a diagnostic check. `created`
+ * indicates whether a corresponding module_items row was inserted/refreshed
+ * by the populator (set by the caller after persistence).
+ */
+export function runSpecChecks(files: ExtractedFile[]): SpecCheck[] {
+  // Force-run extractor on every file regardless of fileType so we surface
+  // findings in the diagnostics panel.
+  const all: SpecCheck[] = [];
+  const seen = new Set<string>();
+  for (const f of files) {
+    const fakeAsSpec: ExtractedFile = { ...f, fileType: "specification" };
+    const rows = extractSpecRowsFromFile(fakeAsSpec);
+    for (const r of rows) {
+      const key = `${r.moduleId}|${r.label}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      all.push({
+        moduleId: r.moduleId,
+        label: r.label,
+        found: true,
+        matchedText: r.evidence,
+        parsedValue: r.value,
+        fileName: r.fileName,
+        pageNumber: r.page,
+        rowCreated: false,
+        confidence: r.confidence,
+      });
+    }
+  }
+  return all;
+}
