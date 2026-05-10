@@ -7,11 +7,17 @@ import {
   runDummyExtraction, confidencePercent,
   type IQItem, type IQModule, type IQModuleId, type IQModuleStatus,
 } from "@/lib/iq-modules";
+import {
+  type ElectricalMode, type ElectricalAllowanceRow, type ReviewStatus,
+  loadElectricalAllowance, saveElectricalAllowance,
+  loadElectricalMode, saveElectricalMode,
+  REVIEW_STATUS_LABEL,
+} from "@/lib/iq-modules";
 import { getJob, type Job } from "@/lib/jennian-data";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Sparkles, CheckCircle2, FileSpreadsheet, RotateCcw, Trash2,
+  ArrowLeft, ClipboardCheck, CheckCircle2, FileSpreadsheet, RotateCcw, Trash2, Info,
 } from "lucide-react";
 import type { Confidence } from "@/lib/jennian-data";
 
@@ -34,6 +40,11 @@ function ModuleDetail() {
   const [lastRunAt, setLastRunAt] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
 
+  // Electrical-only state
+  const isElectrical = mod?.id === "iq-electrical";
+  const [elMode, setElMode] = useState<ElectricalMode>("template_allowance");
+  const [allowance, setAllowance] = useState<ElectricalAllowanceRow[]>([]);
+
   const jobKey = jobId ?? "preview";
 
   useEffect(() => {
@@ -48,6 +59,23 @@ function ModuleDetail() {
     if (!jobId) { setJob(null); return; }
     getJob(jobId).then(setJob).catch(() => setJob(null));
   }, [jobId]);
+
+  // Load electrical allowance + mode
+  useEffect(() => {
+    if (!isElectrical) return;
+    setElMode(loadElectricalMode(jobKey));
+    setAllowance(loadElectricalAllowance(jobKey));
+  }, [isElectrical, jobKey]);
+
+  useEffect(() => {
+    if (!isElectrical) return;
+    saveElectricalMode(jobKey, elMode);
+  }, [isElectrical, jobKey, elMode]);
+
+  useEffect(() => {
+    if (!isElectrical) return;
+    saveElectricalAllowance(jobKey, allowance);
+  }, [isElectrical, jobKey, allowance]);
 
   // Persist on every change
   useEffect(() => {
@@ -81,7 +109,7 @@ function ModuleDetail() {
       setItems(next);
       setStatus("ready");
       setLastRunAt(new Date().toISOString());
-      toast.success(`${mod.name} — extraction complete (preview).`);
+      toast.success(`${mod.name} — quantities updated (preview).`);
     } finally {
       setRunning(false);
     }
@@ -147,8 +175,8 @@ function ModuleDetail() {
                 disabled={running}
                 className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-60"
               >
-                <Sparkles className="h-4 w-4 text-primary" />
-                {running ? "Running…" : "Run Extraction"}
+                <ClipboardCheck className="h-4 w-4 text-primary" />
+                {running ? "Reviewing…" : "Review Plan Quantities"}
               </button>
               <button
                 onClick={markReviewed}
@@ -186,12 +214,23 @@ function ModuleDetail() {
           </div>
         )}
 
+        {isElectrical && (
+          <ElectricalModeControls mode={elMode} setMode={setElMode} />
+        )}
+
+        {isElectrical && elMode === "template_allowance" ? (
+          <ElectricalAllowanceTable
+            rows={allowance}
+            setRows={setAllowance}
+            jobNumber={job?.job_number ?? "preview"}
+          />
+        ) : (
         <div className="rounded-lg border border-border bg-card overflow-hidden">
           <div className="px-5 py-3 border-b border-border flex items-center justify-between">
             <div>
-              <div className="text-[13px] font-semibold tracking-tight">Extracted items</div>
+              <div className="text-[13px] font-semibold tracking-tight">{isElectrical ? "Plan-counted items" : "Reviewed items"}</div>
               <div className="text-[11px] text-muted-foreground mt-0.5">
-                {lastRunAt ? `Last run ${new Date(lastRunAt).toLocaleString()}` : "Not yet extracted"}
+                {lastRunAt ? `Last reviewed ${new Date(lastRunAt).toLocaleString()}` : "Not yet reviewed"}
                 {" · "}{items.filter((i) => i.approved).length}/{items.length} approved
               </div>
             </div>
@@ -213,9 +252,9 @@ function ModuleDetail() {
                   <th className="px-5 py-3 font-medium">Item</th>
                   <th className="px-5 py-3 font-medium">Description</th>
                   <th className="px-5 py-3 font-medium">Unit</th>
-                  <th className="px-5 py-3 font-medium">Extracted</th>
-                  <th className="px-5 py-3 font-medium">Final</th>
-                  <th className="px-5 py-3 font-medium">Confidence</th>
+                  <th className="px-5 py-3 font-medium">Allowed Quantity</th>
+                  <th className="px-5 py-3 font-medium">Confirmed Quantity</th>
+                  <th className="px-5 py-3 font-medium">Review Status</th>
                   <th className="px-5 py-3 font-medium">Notes</th>
                   <th className="px-5 py-3 font-medium text-right">Actions</th>
                 </tr>
@@ -297,6 +336,7 @@ function ModuleDetail() {
             </table>
           </div>
         </div>
+        )}
 
         <div className="mt-8 flex items-center justify-between">
           <button
