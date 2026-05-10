@@ -6,12 +6,23 @@ import {
   type Job, type Quantity, type OverrideRow,
 } from "@/lib/jennian-data";
 import { MODULES, moduleForQuantity, type ModuleId } from "@/lib/takeoff-modules";
+import {
+  IQ_MODULES, loadModuleState, confidencePercent, STATUS_LABEL,
+  type IQModuleId, type IQModuleStatus,
+} from "@/lib/iq-modules";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Download, FileSpreadsheet, History, CheckCircle2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Download, FileSpreadsheet, History, CheckCircle2, ArrowRight,
+  Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain, AlertTriangle, ShoppingCart, Layers } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+
+const MODULE_ICONS: Record<IQModuleId, React.ComponentType<{ className?: string }>> = {
+  "iq-core": Ruler, "iq-electrical": Zap, "iq-plumbing": Droplets,
+  "iq-linings": PaintRoller, "iq-framing": Hammer, "iq-cladding": Square,
+  "iq-roofing": Mountain, "iq-margin": AlertTriangle, "iq-procurement": ShoppingCart,
+};
 
 export const Route = createFileRoute("/review")({
   component: ReviewPage,
@@ -133,7 +144,7 @@ function ReviewPage() {
     <AppLayout>
       <div className="px-8 py-8 max-w-7xl">
         <PageHeader
-          title="Quantity Review"
+          title="IQ Core Review"
           subtitle={`${job.job_number} · ${job.client_name} · ${job.address}`}
           actions={
             <div className="flex gap-2 items-center">
@@ -146,6 +157,8 @@ function ReviewPage() {
             </div>
           }
         />
+
+        <ModulesOverview jobId={job.id} />
 
         <div className="grid lg:grid-cols-[1fr_320px] gap-6">
           <div className="space-y-5">
@@ -270,4 +283,92 @@ function triggerDownload(blob: Blob, filename: string) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+const STATUS_STYLES: Record<IQModuleStatus, string> = {
+  not_started: "bg-muted text-muted-foreground border-border",
+  ready:       "bg-confidence-high-bg text-confidence-high border-transparent",
+  in_review:   "bg-confidence-mid-bg text-confidence-mid border-transparent",
+  approved:    "bg-primary/10 text-primary border-transparent",
+};
+
+function ModulesOverview({ jobId }: { jobId: string }) {
+  const [tick, setTick] = useState(0);
+  // Recompute when localStorage changes (cross-tab) or window regains focus.
+  useEffect(() => {
+    const onFocus = () => setTick((t) => t + 1);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("storage", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("storage", onFocus);
+    };
+  }, []);
+
+  const summaries = useMemo(() => {
+    return IQ_MODULES.map((m) => {
+      const s = loadModuleState(jobId, m);
+      return {
+        mod: m,
+        status: s.status,
+        items: s.items.length,
+        confidence: confidencePercent(s.items),
+        lastRunAt: s.lastRunAt,
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId, tick]);
+
+  return (
+    <section className="mb-8">
+      <div className="flex items-end justify-between mb-3">
+        <div>
+          <h2 className="text-[15px] font-semibold tracking-tight">Job Modules Overview</h2>
+          <p className="text-xs text-muted-foreground">All quantity packages for this job. Open a module to review and approve.</p>
+        </div>
+        <Link to="/modules" search={{ job: jobId }} className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+          All modules <ArrowRight className="h-3 w-3" />
+        </Link>
+      </div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {summaries.map(({ mod, status, items, confidence, lastRunAt }) => {
+          const Icon = MODULE_ICONS[mod.id] ?? Layers;
+          return (
+            <div key={mod.id} className="group rounded-lg border border-border bg-card p-4 hover:border-primary/40 transition-colors flex flex-col">
+              <div className="flex items-start justify-between">
+                <div className="h-8 w-8 rounded-md bg-accent grid place-items-center text-primary">
+                  <Icon className="h-4 w-4" />
+                </div>
+                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLES[status]}`}>
+                  {STATUS_LABEL[status]}
+                </span>
+              </div>
+              <div className="mt-3 text-[14px] font-semibold tracking-tight">{mod.name}</div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                <div className="rounded-md bg-muted/40 px-2 py-1.5">
+                  <div className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Items</div>
+                  <div className="text-[13px] font-semibold tabular-nums">{items}</div>
+                </div>
+                <div className="rounded-md bg-muted/40 px-2 py-1.5">
+                  <div className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Confidence</div>
+                  <div className="text-[13px] font-semibold tabular-nums">{confidence}%</div>
+                </div>
+              </div>
+              <div className="mt-2 text-[10px] text-muted-foreground">
+                {lastRunAt ? `Updated ${new Date(lastRunAt).toLocaleString()}` : "Not yet reviewed"}
+              </div>
+              <Link
+                to="/modules/$moduleId"
+                params={{ moduleId: mod.id }}
+                search={{ job: jobId }}
+                className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:opacity-90"
+              >
+                Open Module <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
