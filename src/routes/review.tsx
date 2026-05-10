@@ -219,7 +219,45 @@ function ReviewPage() {
 
         <ModulesOverview jobId={job.id} />
 
-        <Tabs defaultValue="base" className="w-full">
+        {rows.length === 0 && measurementCount === 0 && openingsCount === 0 && (
+          <div className="mb-6 rounded-lg border border-border bg-card p-6">
+            <div className="text-[15px] font-semibold tracking-tight">No Quantity Data Yet</div>
+            <div className="mt-1 text-[12.5px] text-muted-foreground">
+              This job has no extracted, measured, or vision-reviewed quantities yet. Start a takeoff from the Job Overview.
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <Link
+                to="/jobs/$jobId" params={{ jobId: job.id }}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+              >
+                <ArrowLeft className="h-4 w-4" /> Back to Job Overview
+              </Link>
+              <button
+                type="button"
+                onClick={() => setTakeoffOpen(true)}
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
+              >
+                <Wand2 className="h-4 w-4" /> Run Automatic Takeoff
+              </button>
+              <button
+                type="button"
+                onClick={() => setTakeoffOpen(true)}
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
+              >
+                <ScanEye className="h-4 w-4" /> Run Vision Takeoff
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab("working")}
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
+              >
+                <Ruler className="h-4 w-4" /> Open Working Plan
+              </button>
+            </div>
+          </div>
+        )}
+
+        <Tabs value={tab} onValueChange={setTab} className="w-full">
           <TabsList className="mb-5">
             <TabsTrigger value="base">Base Geometry</TabsTrigger>
             <TabsTrigger value="working">Working Plan</TabsTrigger>
