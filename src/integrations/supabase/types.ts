@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          created_at: string
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+          new_value: Json | null
+          previous_value: Json | null
+          record_id: string | null
+          table_name: string | null
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          new_value?: Json | null
+          previous_value?: Json | null
+          record_id?: string | null
+          table_name?: string | null
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          new_value?: Json | null
+          previous_value?: Json | null
+          record_id?: string | null
+          table_name?: string | null
+        }
+        Relationships: []
+      }
       export_logs: {
         Row: {
           export_type: Database["public"]["Enums"]["export_type"]
@@ -131,21 +170,39 @@ export type Database = {
       }
       profiles: {
         Row: {
+          accepted_at: string | null
           created_at: string
+          email: string | null
           full_name: string | null
           id: string
+          invited_at: string | null
+          invited_by: string | null
+          last_login_at: string | null
+          status: Database["public"]["Enums"]["profile_status"]
           updated_at: string
         }
         Insert: {
+          accepted_at?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string | null
           id: string
+          invited_at?: string | null
+          invited_by?: string | null
+          last_login_at?: string | null
+          status?: Database["public"]["Enums"]["profile_status"]
           updated_at?: string
         }
         Update: {
+          accepted_at?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string | null
           id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          last_login_at?: string | null
+          status?: Database["public"]["Enums"]["profile_status"]
           updated_at?: string
         }
         Relationships: []
@@ -223,14 +280,44 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      can_write: { Args: { _user_id: string }; Returns: boolean }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_admin_or_owner: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
+      app_role: "owner" | "admin" | "estimator" | "viewer"
       confidence_level: "high" | "mid" | "low"
       export_type: "csv" | "excel"
       file_type: "plan" | "specification"
@@ -241,6 +328,7 @@ export type Database = {
         | "review_required"
         | "approved"
         | "exported"
+      profile_status: "invited" | "active" | "suspended"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -368,6 +456,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["owner", "admin", "estimator", "viewer"],
       confidence_level: ["high", "mid", "low"],
       export_type: ["csv", "excel"],
       file_type: ["plan", "specification"],
@@ -379,6 +468,7 @@ export const Constants = {
         "approved",
         "exported",
       ],
+      profile_status: ["invited", "active", "suspended"],
     },
   },
 } as const
