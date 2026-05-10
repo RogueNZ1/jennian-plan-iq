@@ -22,7 +22,8 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 import type {
   VisionPageResult,
   VisionRunSummary,
@@ -307,6 +308,11 @@ const InputSchema = z.object({
     .min(1)
     .max(PAGE_CAP),
   specificationText: z.string().optional(),
+  // Supabase access token forwarded from the browser session.
+  // useServerFn does not automatically include localStorage-stored tokens in
+  // request headers, so the panel passes it explicitly in the POST body.
+  // It is validated server-side before any operations and never returned.
+  accessToken: z.string().min(1),
 });
 
 type AuditEntry = {
@@ -322,17 +328,50 @@ type AuditEntry = {
 };
 
 export const runVisionTakeoff = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => InputSchema.parse(input))
-  .handler(async ({ data, context }): Promise<VisionRunSummary | VisionTakeoffError> => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { supabase, userId } = context as any;
+  .handler(async ({ data }): Promise<VisionRunSummary | VisionTakeoffError> => {
+    // ---- Build and validate the Supabase client from the forwarded token ----
+    // useServerFn HTTP calls do not automatically include the Supabase Bearer
+    // token from localStorage, so the panel passes it in the POST body and we
+    // validate it here before any other operation.
+    const SUPABASE_URL = process.env.SUPABASE_URL;
+    const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
+    if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+      return {
+        ok: false,
+        error: {
+          operation: "auth_check",
+          message: "Server database connection is not configured. Contact support.",
+          technical: `Missing env: ${[!SUPABASE_URL && "SUPABASE_URL", !SUPABASE_PUBLISHABLE_KEY && "SUPABASE_PUBLISHABLE_KEY"].filter(Boolean).join(", ")}`,
+        },
+      };
+    }
+    const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+      global: { headers: { Authorization: `Bearer ${data.accessToken}` } },
+      auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+    });
+    const { data: claimsData, error: claimsErr } = await supabase.auth.getClaims(data.accessToken);
+    if (claimsErr || !claimsData?.claims?.sub) {
+      return {
+        ok: false,
+        error: {
+          operation: "auth_check",
+          message: "Your session has expired. Please sign in again.",
+          technical: claimsErr?.message ?? "Token validation failed: no sub claim",
+        },
+      };
+    }
+    const userId: string = claimsData.claims.sub as string;
 
     const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
     if (!LOVABLE_API_KEY) {
       return {
         ok: false,
-        error: { operation: "startup", message: "Vision Takeoff is not configured on this server. Contact support." },
+        error: {
+          operation: "vision_model_call",
+          message: "Vision model credentials are not configured. Contact support.",
+          technical: "Expected server environment variable LOVABLE_API_KEY was not found. Add it as a Cloudflare Workers secret via the Lovable dashboard or wrangler secret put.",
+        },
       };
     }
 
@@ -511,7 +550,16 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
         });
 
         if (aiRes.status === 429) throw new Error("Vision model rate-limited (429). Try again shortly.");
-        if (aiRes.status === 402) throw new Error("Lovable AI workspace credits exhausted (402).");
+        if (aiRes.status === 402) throw new Error("Lovable AI workspace credits exhausted (402). Contact support.");
+        if (aiRes.status === 401) {
+          const body = await aiRes.text().catch(() => "");
+          throw new Error(
+            `Vision Takeoff could not call the vision model. Check server AI credentials. ` +
+            `Technical: HTTP 401 from AI gateway (ai.gateway.lovable.dev). ` +
+            `Expected env: LOVABLE_API_KEY. ` +
+            `Response body: ${body.slice(0, 120) || "(empty)"}`,
+          );
+        }
         if (!aiRes.ok) {
           const text = await aiRes.text().catch(() => "");
           throw new Error(`Vision model error ${aiRes.status}: ${text.slice(0, 240)}`);

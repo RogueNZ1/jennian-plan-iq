@@ -204,8 +204,19 @@ export function VisionTakeoffPanel({
         });
       }
 
+      // Get the Supabase session token before calling the server function.
+      // useServerFn HTTP calls do not forward localStorage-stored tokens
+      // automatically, so we pass it explicitly in the POST body for the
+      // server to validate. We never log or return this token.
+      setStatus("Verifying session…");
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) {
+        throw new Error("Your session has expired. Please sign in again before running Vision Takeoff.");
+      }
+
       setStatus(`Calling vision model on ${pageInputs.length} rendered pages…`);
-      const response = await runFn({ data: { jobId, pages: pageInputs, specificationText } });
+      const response = await runFn({ data: { jobId, pages: pageInputs, specificationText, accessToken } });
 
       // Structured error: server function returned { ok: false } instead of throwing.
       if (
