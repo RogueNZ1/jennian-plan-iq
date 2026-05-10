@@ -404,7 +404,38 @@ export async function pushMeasurementToModule(args: {
   page?: number | null;
   fileId?: string | null;
   evidence?: string | null;
+  /** Inherited from the source measurement/opening. Never auto-promoted. */
+  confidence?: string | null;
+  /** Optional notes appended to the module item. */
+  notes?: string | null;
 }): Promise<{ status: "inserted" | "updated" | "conflict"; diffPct?: number }> {
+  // Server-side guard: refuse to push from unconfirmed sources, even if the
+  // UI fails to disable the action.
+  if (args.measurementId) {
+    const { data: src } = await supabase
+      .from("plan_measurements")
+      .select("review_status")
+      .eq("id", args.measurementId)
+      .maybeSingle();
+    if (!src || src.review_status !== "confirmed") {
+      throw new Error("Confirm this measurement before pushing to modules.");
+    }
+  }
+  if (args.openingId) {
+    const { data: src } = await supabase
+      .from("opening_schedule")
+      .select("review_status")
+      .eq("id", args.openingId)
+      .maybeSingle();
+    if (!src || src.review_status !== "confirmed") {
+      throw new Error("Confirm this opening before pushing to modules.");
+    }
+  }
+
+  // Inherit confidence from source. Never promote automatically.
+  const allowed = new Set(["high", "mid", "low"]);
+  const inheritedConfidence = allowed.has(String(args.confidence)) ? String(args.confidence) : "low";
+
   // find or create the run
   const { data: runs, error: runErr } = await supabase
     .from("module_runs")
@@ -441,6 +472,7 @@ export async function pushMeasurementToModule(args: {
         opening_id: args.openingId ?? null,
         plan_page_number: args.page ?? null,
         file_id: args.fileId ?? null,
+        confidence: inheritedConfidence,
       }).eq("id", existing.id);
       await supabase.from("module_audit_logs").insert({
         job_id: args.jobId, run_id: runId, item_id: existing.id, module_id: args.moduleId,
@@ -469,6 +501,8 @@ export async function pushMeasurementToModule(args: {
       file_id: args.fileId ?? null,
       basis: args.basis ?? "Measured From Plan",
       unit: args.unit,
+      confidence: inheritedConfidence,
+      notes: args.notes ?? null,
     }).eq("id", existing.id);
     await supabase.from("module_audit_logs").insert({
       job_id: args.jobId, run_id: runId, item_id: existing.id, module_id: args.moduleId,
@@ -496,7 +530,7 @@ export async function pushMeasurementToModule(args: {
     unit: args.unit,
     extracted_value: String(args.value),
     approved_value: null,
-    confidence: "mid",
+    confidence: inheritedConfidence,
     review_status: "review_required",
     basis: args.basis ?? "Measured From Plan",
     sort_order: nextSort,
@@ -506,6 +540,7 @@ export async function pushMeasurementToModule(args: {
     opening_id: args.openingId ?? null,
     plan_page_number: args.page ?? null,
     file_id: args.fileId ?? null,
+    notes: args.notes ?? null,
   });
   if (insErr) throw insErr;
 

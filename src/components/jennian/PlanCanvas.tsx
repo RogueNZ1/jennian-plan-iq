@@ -3,16 +3,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
 import {
-  Loader2, Ruler, Square, Spline, Plus, Minus, Move, Trash2, Check,
+  Loader2, Ruler, Square, Spline, Plus, Minus, Move, Trash2, Check, Send,
   AlertTriangle, RotateCcw, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   loadCalibration, saveCalibration, loadMeasurements, saveMeasurement,
-  setMeasurementReviewStatus, deleteMeasurement,
+  setMeasurementReviewStatus, deleteMeasurement, pushMeasurementToModule,
   polylinePixelLength, polygonPixelArea, pxToMm, pxAreaToM2,
   type Calibration, type PlanMeasurement, type Pt, type MeasurementType,
 } from "@/lib/iq-measurements";
+import { PushToModuleDialog } from "@/components/jennian/PushToModuleDialog";
+import type { IQModuleId } from "@/lib/iq-modules";
 // pdfjs-dist references DOM globals (DOMMatrix) that don't exist on the
 // server. Import it lazily inside an effect so this module stays SSR-safe.
 type PdfJs = typeof import("pdfjs-dist");
@@ -55,6 +57,23 @@ const TOOL_LABEL: Record<Tool, string> = {
 
 const POLY_TOOLS: Tool[] = ["polyline", "area", "internal_wall", "external_perimeter"];
 
+/** Default target modules per measurement type. */
+const MEASUREMENT_TARGETS: Record<string, IQModuleId[]> = {
+  external_perimeter: ["iq-core", "iq-cladding", "iq-framing"],
+  internal_wall: ["iq-core", "iq-framing", "iq-linings"],
+  area: ["iq-core", "iq-linings"],
+  line: ["iq-core"],
+  polyline: ["iq-core"],
+  count: ["iq-core"],
+};
+
+function pushDefaults(m: PlanMeasurement) {
+  if (m.measurement_type === "area") {
+    return { unit: "m²", value: m.calculated_area_m2 ?? 0 };
+  }
+  return { unit: "lm", value: m.calculated_length_m ?? 0 };
+}
+
 export function PlanCanvas({ jobId }: { jobId: string }) {
   const { user } = useAuth();
   const roles = useRoles();
@@ -66,6 +85,8 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
   const [bgSize, setBgSize] = useState<{ w: number; h: number } | null>(null);
   const [planFileId, setPlanFileId] = useState<string | null>(null);
   const [planFileName, setPlanFileName] = useState<string | null>(null);
+  const [planFiles, setPlanFiles] = useState<Array<{ id: string; file_name: string; storage_url: string }>>([]);
+  const [workingFileId, setWorkingFileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [calibration, setCalibration] = useState<Calibration | null>(null);
@@ -75,6 +96,7 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
   const [draftPoints, setDraftPoints] = useState<Pt[]>([]);
   const [hoverPoint, setHoverPoint] = useState<Pt | null>(null);
   const [wallCategory, setWallCategory] = useState<string>("standard");
+  const [pushFor, setPushFor] = useState<PlanMeasurement | null>(null);
 
   // Zoom + pan
   const [zoom, setZoom] = useState(1);
@@ -88,19 +110,57 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
   const [calibPrompt, setCalibPrompt] = useState<{ pts: Pt[] } | null>(null);
   const [calibInputMm, setCalibInputMm] = useState("");
 
+  /* ---------- Load list of plan files + working-plan selection ---------- */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [{ data: files }, { data: job }] = await Promise.all([
+        supabase
+          .from("uploaded_files")
+          .select("id, file_name, storage_url, uploaded_at")
+          .eq("job_id", jobId)
+          .eq("file_type", "plan")
+          .order("uploaded_at", { ascending: false }),
+        supabase
+          .from("jobs")
+          .select("working_plan_file_id, working_plan_page_number")
+          .eq("id", jobId)
+          .maybeSingle(),
+      ]);
+      if (cancelled) return;
+      const list = (files ?? []).map((f) => ({
+        id: f.id as string, file_name: f.file_name as string, storage_url: f.storage_url as string,
+      }));
+      setPlanFiles(list);
+      const persisted = (job?.working_plan_file_id as string | null) ?? null;
+      const initial =
+        persisted && list.some((f) => f.id === persisted)
+          ? persisted
+          : list[0]?.id ?? null;
+      setWorkingFileId(initial);
+      if (job?.working_plan_page_number) setPlanPage(Number(job.working_plan_page_number));
+    })();
+    return () => { cancelled = true; };
+  }, [jobId]);
+
+  async function persistWorkingPlan(fileId: string | null, page: number) {
+    if (!canEdit) return;
+    await supabase
+      .from("jobs")
+      .update({
+        working_plan_file_id: fileId,
+        working_plan_page_number: page,
+      })
+      .eq("id", jobId);
+  }
+
   /* ---------- Load plan page as backdrop image ---------- */
   useEffect(() => {
     let cancelled = false;
+    if (!workingFileId) { setLoading(false); setBgUrl(null); setBgSize(null); return; }
     setLoading(true);
     (async () => {
-      const { data: files } = await supabase
-        .from("uploaded_files")
-        .select("id, file_name, storage_url, uploaded_at")
-        .eq("job_id", jobId)
-        .eq("file_type", "plan")
-        .order("uploaded_at", { ascending: false })
-        .limit(1);
-      const f = files?.[0];
+      const f = planFiles.find((p) => p.id === workingFileId) ?? planFiles[0];
       if (!f) { if (!cancelled) setLoading(false); return; }
       setPlanFileId(f.id);
       setPlanFileName(f.file_name);
@@ -151,13 +211,18 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
       if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [jobId, planPage]);
+  }, [jobId, planPage, workingFileId, planFiles]);
 
   /* ---------- Load calibration + measurements ---------- */
   useEffect(() => {
     loadCalibration(jobId, planPage).then(setCalibration).catch(() => {});
     loadMeasurements(jobId).then(setMeasurements).catch(() => {});
   }, [jobId, planPage]);
+
+  /** True when the loaded calibration belongs to a different plan file. */
+  const calibrationStale =
+    !!calibration && !!planFileId && !!calibration.file_id && calibration.file_id !== planFileId;
+  const canMeasure = !!calibration && !calibrationStale;
 
   /* ---------- Mouse → image-space coordinates ---------- */
   function eventToImagePt(e: React.MouseEvent): Pt | null {
@@ -213,6 +278,10 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
     if (!user || !bgSize) return;
     if (!calibration) {
       toast.error("Calibrate the plan scale before measuring.");
+      return;
+    }
+    if (calibrationStale) {
+      toast.error("Calibration is for a previous plan file. Recalibrate before measuring.");
       return;
     }
     const pixelsPerMm = calibration.pixels_per_mm;
@@ -271,6 +340,43 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not update.");
     }
+  }
+
+  async function onPushMeasurement(
+    m: PlanMeasurement,
+    payload: { moduleIds: IQModuleId[]; label: string; unit: string; value: number; basis: string | null; notes: string | null },
+  ) {
+    if (!user) return;
+    const evidence =
+      `Working Plan page ${m.plan_page_number}, measurement ${m.id.slice(0, 8)}` +
+      (m.label ? ` — ${m.label}` : "");
+    let inserted = 0;
+    let conflicts = 0;
+    for (const moduleId of payload.moduleIds) {
+      try {
+        const r = await pushMeasurementToModule({
+          jobId,
+          moduleId,
+          label: payload.label,
+          unit: payload.unit,
+          value: payload.value,
+          basis: payload.basis,
+          notes: payload.notes,
+          createdBy: user.id,
+          measurementId: m.id,
+          page: m.plan_page_number,
+          fileId: m.file_id,
+          evidence,
+          confidence: m.confidence,
+        });
+        if (r.status === "conflict") conflicts++;
+        else inserted++;
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : `Could not push to ${moduleId}.`);
+      }
+    }
+    if (inserted) toast.success(`Pushed to ${inserted} module${inserted === 1 ? "" : "s"}.`);
+    if (conflicts) toast.warning(`${conflicts} conflict${conflicts === 1 ? "" : "s"} flagged Review Required.`);
   }
 
   async function onDeleteMeasurement(m: PlanMeasurement) {
@@ -375,12 +481,12 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
           <ToolBtn active={tool === "pan"} onClick={() => { setTool("pan"); clearDraft(); }} icon={Move} label="Pan" />
           <Divider />
           <ToolBtn disabled={!canEdit} active={tool === "calibrate"} onClick={() => { setTool("calibrate"); clearDraft(); }} icon={Ruler} label="Calibrate" />
-          <ToolBtn disabled={!canEdit || !calibration} active={tool === "line"} onClick={() => { setTool("line"); clearDraft(); }} icon={Ruler} label="Line" />
-          <ToolBtn disabled={!canEdit || !calibration} active={tool === "polyline"} onClick={() => { setTool("polyline"); clearDraft(); }} icon={Spline} label="Polyline" />
-          <ToolBtn disabled={!canEdit || !calibration} active={tool === "area"} onClick={() => { setTool("area"); clearDraft(); }} icon={Square} label="Area" />
+          <ToolBtn disabled={!canEdit || !canMeasure} active={tool === "line"} onClick={() => { setTool("line"); clearDraft(); }} icon={Ruler} label="Line" />
+          <ToolBtn disabled={!canEdit || !canMeasure} active={tool === "polyline"} onClick={() => { setTool("polyline"); clearDraft(); }} icon={Spline} label="Polyline" />
+          <ToolBtn disabled={!canEdit || !canMeasure} active={tool === "area"} onClick={() => { setTool("area"); clearDraft(); }} icon={Square} label="Area" />
           <Divider />
-          <ToolBtn disabled={!canEdit || !calibration} active={tool === "internal_wall"} onClick={() => { setTool("internal_wall"); clearDraft(); }} icon={Spline} label="Internal Wall" />
-          <ToolBtn disabled={!canEdit || !calibration} active={tool === "external_perimeter"} onClick={() => { setTool("external_perimeter"); clearDraft(); }} icon={Spline} label="Perimeter" />
+          <ToolBtn disabled={!canEdit || !canMeasure} active={tool === "internal_wall"} onClick={() => { setTool("internal_wall"); clearDraft(); }} icon={Spline} label="Internal Wall" />
+          <ToolBtn disabled={!canEdit || !canMeasure} active={tool === "external_perimeter"} onClick={() => { setTool("external_perimeter"); clearDraft(); }} icon={Spline} label="Perimeter" />
           <Divider />
           <button onClick={zoomOut} className="h-7 w-7 grid place-items-center rounded-md border border-border bg-card hover:bg-accent" title="Zoom out"><Minus className="h-3.5 w-3.5" /></button>
           <span className="text-[11px] tabular-nums text-muted-foreground w-10 text-center">{Math.round(zoom * 100)}%</span>
@@ -388,6 +494,50 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
           <button onClick={resetView} className="h-7 w-7 grid place-items-center rounded-md border border-border bg-card hover:bg-accent" title="Reset view"><RotateCcw className="h-3.5 w-3.5" /></button>
         </div>
       </div>
+
+      {/* Working plan picker */}
+      {planFiles.length > 0 && (
+        <div className="px-4 py-1.5 border-b border-border bg-muted/10 flex items-center gap-2 flex-wrap text-[11px]">
+          <span className="text-muted-foreground uppercase tracking-[0.14em] text-[10px]">Working plan file</span>
+          <select
+            disabled={!canEdit}
+            value={workingFileId ?? ""}
+            onChange={(e) => {
+              const id = e.target.value || null;
+              setWorkingFileId(id);
+              clearDraft();
+              persistWorkingPlan(id, planPage);
+            }}
+            className="rounded-md border border-input bg-background px-2 py-1 text-[11px] max-w-[320px]"
+          >
+            {planFiles.map((f) => (
+              <option key={f.id} value={f.id}>{f.file_name}</option>
+            ))}
+          </select>
+          <span className="text-muted-foreground">Page</span>
+          <input
+            type="number"
+            min={1}
+            disabled={!canEdit}
+            value={planPage}
+            onChange={(e) => {
+              const n = Math.max(1, Number(e.target.value) || 1);
+              setPlanPage(n);
+              clearDraft();
+              persistWorkingPlan(workingFileId, n);
+            }}
+            className="w-16 rounded-md border border-input bg-background px-2 py-1 text-[11px]"
+          />
+        </div>
+      )}
+
+      {calibrationStale && (
+        <div className="px-4 py-2 border-b border-border bg-confidence-low/10 text-[11px] text-confidence-low flex items-center gap-2">
+          <AlertTriangle className="h-3.5 w-3.5" />
+          Calibration is for a previous plan file. Recalibrate before measuring.
+        </div>
+      )}
+
       {tool === "internal_wall" && (
         <div className="px-4 py-1.5 border-b border-border bg-muted/20 flex items-center gap-2 text-[11px]">
           <span className="text-muted-foreground uppercase tracking-[0.14em] text-[10px]">Wall category</span>
@@ -479,6 +629,7 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
                 m={m}
                 onConfirm={() => onConfirmMeasurement(m)}
                 onDelete={() => onDeleteMeasurement(m)}
+                onPush={() => setPushFor(m)}
                 canEdit={canEdit}
               />
             ))}
@@ -519,6 +670,27 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
           </div>
         </div>
       )}
+
+      {pushFor && (() => {
+        const d = pushDefaults(pushFor);
+        const sourceSummary =
+          pushFor.measurement_type === "area"
+            ? `Area · ${(pushFor.calculated_area_m2 ?? 0).toFixed(2)} m² · page ${pushFor.plan_page_number}`
+            : `${pushFor.measurement_type.replace("_", " ")} · ${(pushFor.calculated_length_m ?? 0).toFixed(3)} m · page ${pushFor.plan_page_number}`;
+        return (
+          <PushToModuleDialog
+            open={true}
+            onOpenChange={(v) => { if (!v) setPushFor(null); }}
+            defaultLabel={pushFor.label ?? pushFor.measurement_type.replace("_", " ")}
+            defaultUnit={d.unit}
+            defaultValue={d.value}
+            defaultBasis="Measured From Plan"
+            suggestedModules={MEASUREMENT_TARGETS[pushFor.measurement_type] ?? ["iq-core"]}
+            sourceSummary={sourceSummary}
+            onSubmit={async (s) => { await onPushMeasurement(pushFor, s); setPushFor(null); }}
+          />
+        );
+      })()}
     </div>
   );
 }
@@ -625,11 +797,12 @@ function DraftShape({
 }
 
 function MeasurementRow({
-  m, onConfirm, onDelete, canEdit,
+  m, onConfirm, onDelete, onPush, canEdit,
 }: {
   m: PlanMeasurement;
   onConfirm: () => void;
   onDelete: () => void;
+  onPush: () => void;
   canEdit: boolean;
 }) {
   const valueLabel =
@@ -659,6 +832,14 @@ function MeasurementRow({
             title="Confirm measurement"
             className="h-6 w-6 grid place-items-center rounded-md border border-border bg-card hover:bg-accent"
           ><Check className="h-3 w-3" /></button>
+        )}
+        {canEdit && (
+          <button
+            onClick={onPush}
+            disabled={m.review_status !== "confirmed"}
+            title={m.review_status === "confirmed" ? "Push to module…" : "Confirm measurement before pushing to modules."}
+            className="h-6 w-6 grid place-items-center rounded-md border border-border bg-card hover:bg-accent text-primary disabled:opacity-40 disabled:cursor-not-allowed"
+          ><Send className="h-3 w-3" /></button>
         )}
         {canEdit && (
           <button
