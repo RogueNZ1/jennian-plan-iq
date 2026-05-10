@@ -53,7 +53,7 @@ function UploadPage() {
       return;
     }
     if (asExtraction && (!planFile || !specFile)) {
-      toast.error("Plan and Specification PDFs are required to run extraction.");
+      toast.error("Plan and Specification PDFs are required to review quantities.");
       return;
     }
     setBusy(asExtraction ? "extract" : "draft");
@@ -126,7 +126,7 @@ function UploadPage() {
           })
           .eq("id", job.id);
 
-        toast.success("Extraction complete — review quantities.");
+        toast.success("Plan reviewed — quantities ready.");
         navigate({ to: "/review", search: { job: job.id } });
       } else {
         await supabase
@@ -155,7 +155,7 @@ function UploadPage() {
             <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10 grid place-items-center">
               <Sparkles className="h-6 w-6 text-primary animate-pulse" />
             </div>
-            <h2 className="mt-6 text-xl font-semibold tracking-tight">Jennian IQ analysing plans…</h2>
+            <h2 className="mt-6 text-xl font-semibold tracking-tight">Reviewing plan quantities…</h2>
             <p className="mt-2 text-sm text-muted-foreground">Reading dimensions, schedules and material callouts.</p>
             <div className="mt-6 h-1 w-full overflow-hidden rounded-full bg-secondary">
               <div className="h-full w-1/3 bg-primary animate-[loading_1.4s_ease-in-out_infinite]" />
@@ -170,7 +170,7 @@ function UploadPage() {
   return (
     <AppLayout>
       <div className="px-8 py-8 max-w-4xl">
-        <PageHeader title="Upload Plan" subtitle="Provide the plan set and specification documents to begin extraction." />
+        <PageHeader title="Upload Plan" subtitle="Provide the plan set and specification documents to begin quantity review." />
 
         <form onSubmit={(e) => { e.preventDefault(); persist(true); }} className="space-y-8">
           <div className="grid md:grid-cols-2 gap-4">
@@ -215,7 +215,7 @@ function UploadPage() {
               disabled={busy !== null}
               className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 shadow-sm disabled:opacity-60"
             >
-              <Sparkles className="h-4 w-4" /> Run Jennian IQ Extraction
+              <Sparkles className="h-4 w-4" /> Review Plan Quantities
             </button>
           </div>
         </form>
@@ -251,7 +251,7 @@ function Dropzone({ label, sub, file, onFile, previewUrl }: { label: string; sub
             </div>
             <div className="mt-1 text-[13.5px] font-medium truncate">{file.name}</div>
             <div className="text-[11px] text-muted-foreground mt-0.5">
-              {(file.size / 1024 / 1024).toFixed(2)} MB · ready for extraction
+              {(file.size / 1024 / 1024).toFixed(2)} MB · ready for review
             </div>
             <div className="mt-3 flex items-center gap-3">
               <label className="text-[11px] text-primary font-medium hover:underline cursor-pointer">
