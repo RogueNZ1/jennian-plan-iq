@@ -90,19 +90,38 @@ export type VisionRunPageOutcome = {
   fileName: string;
   pageNumber: number;
   storagePath: string;
-  status: "ok" | "model_unreadable" | "error";
+  status:
+    | "ok"
+    | "model_unreadable"
+    | "error"
+    | "skipped_non_floorplan"
+    | "geometry_skipped_wrong_page_type";
   errorMessage?: string;
   result?: VisionPageResult;
   quantitiesInserted: number;
+  quantitiesRefreshed: number;
   openingsInserted: number;
+  openingsRefreshed: number;
   measurementsInserted: number;
+  measurementsRefreshed: number;
   moduleItemsInserted: number;
+  moduleItemsRefreshed: number;
   reviewRequiredCount: number;
   warnings: string[];
+  /** Phase A classifier verdict for this page, if pre-filtered client-side. */
+  clientPageType?: string | null;
+  /** Vision model's reported page type, if it returned. */
+  visionPageType?: string | null;
+  resolutionWidthPx?: number | null;
+  resolutionHeightPx?: number | null;
 };
 
 export type VisionRunSummary = {
+  kind: "vision_takeoff";
   ranAt: string;
+  pagesRendered: number;
+  pagesSentToVision: number;
+  pagesSkipped: number;
   pagesProcessed: number;
   workingPlanReviewed: boolean;
   areaPerimeterValuesFound: number;
@@ -111,6 +130,18 @@ export type VisionRunSummary = {
   wallLengthsFound: number;
   moduleDraftItemsCreated: number;
   reviewRequiredItems: number;
+  visionQuantitiesCreated: number;
+  visionMeasurementsCreated: number;
+  visionOpeningsCreated: number;
+  visionModuleItemsCreated: number;
+  warningCount: number;
+  errorCount: number;
+  confidenceCounts: { high: number; medium: number; low: number };
+  flattenedPlanDetected: boolean;
+  visionReviewRequired: boolean;
+  failedPages: number;
+  processedPages: number;
+  pageCap: number;
   warnings: string[];
   errors: string[];
   pages: VisionRunPageOutcome[];
