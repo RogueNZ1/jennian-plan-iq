@@ -13,10 +13,26 @@ import {
   polylinePixelLength, polygonPixelArea, pxToMm, pxAreaToM2,
   type Calibration, type PlanMeasurement, type Pt, type MeasurementType,
 } from "@/lib/iq-measurements";
-import * as pdfjsLib from "pdfjs-dist";
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+// pdfjs-dist references DOM globals (DOMMatrix) that don't exist on the
+// server. Import it lazily inside an effect so this module stays SSR-safe.
+type PdfJs = typeof import("pdfjs-dist");
+let _pdfjs: PdfJs | null = null;
+async function getPdfJs(): Promise<PdfJs> {
+  if (_pdfjs) return _pdfjs;
+  const pdfjs = await import("pdfjs-dist");
+  const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+  _pdfjs = pdfjs;
+  return pdfjs;
+}
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+const INTERNAL_WALL_CATEGORIES: { value: string; label: string }[] = [
+  { value: "standard",        label: "Standard internal wall" },
+  { value: "wet_area",        label: "Wet area wall" },
+  { value: "robe",            label: "Robe wall" },
+  { value: "garage_internal", label: "Garage internal wall" },
+  { value: "excluded",        label: "Excluded" },
+];
 
 type Tool =
   | "pan"
@@ -44,7 +60,8 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
   const roles = useRoles();
   const canEdit = roles.canWrite;
 
-  const [planPage] = useState(1);
+  const [planPage, setPlanPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [bgUrl, setBgUrl] = useState<string | null>(null);
   const [bgSize, setBgSize] = useState<{ w: number; h: number } | null>(null);
   const [planFileId, setPlanFileId] = useState<string | null>(null);
@@ -57,6 +74,7 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
   const [tool, setTool] = useState<Tool>("pan");
   const [draftPoints, setDraftPoints] = useState<Pt[]>([]);
   const [hoverPoint, setHoverPoint] = useState<Pt | null>(null);
+  const [wallCategory, setWallCategory] = useState<string>("standard");
 
   // Zoom + pan
   const [zoom, setZoom] = useState(1);
@@ -94,8 +112,11 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
       const isPdf = /\.pdf($|\?)/i.test(f.file_name) || /\.pdf($|\?)/i.test(f.storage_url);
       if (isPdf) {
         try {
-          const pdf = await pdfjsLib.getDocument({ url: signed.signedUrl }).promise;
-          const page = await pdf.getPage(planPage);
+          const pdfjs = await getPdfJs();
+          const pdf = await pdfjs.getDocument({ url: signed.signedUrl }).promise;
+          if (!cancelled) setTotalPages(pdf.numPages);
+          const safePage = Math.min(Math.max(1, planPage), pdf.numPages);
+          const page = await pdf.getPage(safePage);
           const baseVp = page.getViewport({ scale: 1 });
           const targetW = 1600;
           const scale = Math.min(3, targetW / baseVp.width);
@@ -207,6 +228,7 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
     try {
       const m = await saveMeasurement({
         jobId, fileId: planFileId, page: planPage, type: mt, label,
+        category: tool === "internal_wall" ? wallCategory : null,
         points, pixelsPerMm, createdBy: user.id,
       });
       setMeasurements((prev) => [m, ...prev]);
