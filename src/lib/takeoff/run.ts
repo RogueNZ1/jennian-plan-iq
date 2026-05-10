@@ -453,6 +453,7 @@ function emptySummary(runId: string): TakeoffSummary {
     reviewRequiredCount: 0, highCount: 0, midCount: 0, lowCount: 0,
     errors: [], warnings: [], hasWarnings: false, completedAt: null,
     pageClassifications: [],
+    diagnostics: null,
   };
 }
 
