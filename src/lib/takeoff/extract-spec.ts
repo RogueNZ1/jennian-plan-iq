@@ -145,7 +145,10 @@ const AS_PER_PLAN_RE = /as\s+per\s+plan/i;
 /* ----------------------------- public API ------------------------------- */
 
 export function extractSpecRowsFromFile(file: ExtractedFile): SpecRow[] {
-  if (file.fileType !== "specification") return [];
+  // Schedule-style rows can appear in either specification PDFs or plan
+  // PDFs (some practices put a spec sheet inside the drawing set). We run
+  // the regexes on whichever file has readable text — confidence and
+  // review_status keep the user in control before any approval.
   const rows: SpecRow[] = [];
   const seen = new Set<string>(); // moduleId|label — first occurrence wins
 
