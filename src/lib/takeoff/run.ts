@@ -11,7 +11,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { extractFile, loadJobFiles, type ExtractedFile } from "./pdf-text";
-import { classifyPage, pickWorkingPage, type ClassifiedPage } from "./classify";
+import { classifyPageWithType, pickWorkingPage, type ClassifiedPage } from "./classify";
 import { detectScaleFromText, writeCalibration } from "./scale";
 import { extractQuantitiesFromFile, persistQuantity, type ExtractedQty } from "./extract-quantities";
 import { extractOpeningsFromFile, persistOpening, type ExtractedOpening } from "./extract-openings";
@@ -20,7 +20,7 @@ import { populateModulesFromTakeoff } from "./populate-modules";
 import { seedAllModulesForJob } from "@/lib/iq-modules";
 import type { PageClassification } from "./summary";
 import {
-  buildPageDiagnostic, runQuantityChecks, runOpeningChecks, deriveOutcome,
+  buildPageDiagnostic, runQuantityChecks, runOpeningChecks, runSpecChecks, deriveOutcome,
   type FileDiagnostic, type TakeoffDiagnostics,
 } from "./diagnostics";
 
@@ -71,6 +71,7 @@ export type TakeoffSummary = {
   resultType:
     | "text_takeoff_completed"
     | "specification_only_takeoff"
+    | "limited_specification_takeoff"
     | "flattened_plan_vision_review_required"
     | "no_usable_text_found";
   /** Plan files (A1/A2/A3) where every plan page returned 0 chars. */
