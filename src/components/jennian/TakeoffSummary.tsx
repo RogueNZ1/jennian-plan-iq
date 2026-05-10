@@ -6,6 +6,8 @@ import {
   FileSearch, Ruler, ListChecks, Layers, AlertCircle, ClipboardCheck, Eye,
   AlertTriangle, FileWarning, ChevronDown, ChevronRight,
 } from "lucide-react";
+import { useRoles } from "@/hooks/use-roles";
+import { TakeoffDiagnosticsPanel } from "./TakeoffDiagnostics";
 
 const GEOMETRY_DEFERRED = [
   "Internal Wall Length (if not printed)",
@@ -23,11 +25,13 @@ export function TakeoffSummary({
   jobId: string;
 }) {
   const s = normalizeSummary(run.summary);
+  const { isAdmin } = useRoles();
   const failed = run.status === "failed";
   const hasWarnings =
     s.hasWarnings || run.status === "completed_with_warnings" ||
     s.errors.length > 0 || s.warnings.length > 0;
   const empty = !failed && isEmptyRun(s);
+  const diag = s.diagnostics;
 
   const [errorsOpen, setErrorsOpen] = useState(false);
   const [pagesOpen, setPagesOpen] = useState(false);
@@ -71,10 +75,22 @@ export function TakeoffSummary({
           <div className="flex items-start gap-2">
             <FileWarning className="h-4 w-4 mt-0.5 text-amber-600 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <div className="text-[12.5px] font-semibold tracking-tight">No quantities found</div>
+              <div className="text-[12.5px] font-semibold tracking-tight">
+                {diag?.outcome === "no_readable_text"
+                  ? "No PDF text layer detected"
+                  : diag?.outcome === "partial_readable_text_no_matches"
+                  ? "Some pages have no readable text"
+                  : diag?.outcome === "matches_no_module_rows"
+                  ? "Matches found but no module rows created"
+                  : diag?.outcome === "errors"
+                  ? "Errors during file processing"
+                  : diag?.outcome === "no_files"
+                  ? "No uploaded files"
+                  : "Readable text but no quantity matches"}
+              </div>
               <div className="mt-1 text-[11.5px] text-muted-foreground">
-                Jennian IQ reviewed the uploaded files but did not find usable plan or
-                specification text for automatic takeoff.
+                {diag?.outcomeMessage ??
+                  "Jennian IQ reviewed the uploaded files but did not find usable plan or specification text for automatic takeoff."}
               </div>
               <ul className="mt-2 grid sm:grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground">
                 {[
@@ -236,6 +252,8 @@ export function TakeoffSummary({
           <Eye className="h-3 w-3" /> Open Working Plan
         </Link>
       </div>
+
+      {isAdmin && diag && <TakeoffDiagnosticsPanel d={diag} />}
     </div>
   );
 }

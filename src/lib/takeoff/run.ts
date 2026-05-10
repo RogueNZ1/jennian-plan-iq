@@ -18,6 +18,10 @@ import { extractOpeningsFromFile, persistOpening, type ExtractedOpening } from "
 import { populateModulesFromTakeoff } from "./populate-modules";
 import { seedAllModulesForJob } from "@/lib/iq-modules";
 import type { PageClassification } from "./summary";
+import {
+  buildPageDiagnostic, runQuantityChecks, runOpeningChecks, deriveOutcome,
+  type FileDiagnostic, type TakeoffDiagnostics,
+} from "./diagnostics";
 
 export type TakeoffStep =
   | "reviewing_files"
@@ -61,6 +65,7 @@ export type TakeoffSummary = {
   hasWarnings: boolean;
   completedAt: string | null;
   pageClassifications: PageClassification[];
+  diagnostics: TakeoffDiagnostics | null;
 };
 
 async function logAudit(entry: {
@@ -115,11 +120,19 @@ export async function runAutomaticTakeoff(args: {
     const errors: string[] = [];
     const warnings: string[] = [];
     const files = await loadJobFiles(jobId);
+    const fileDiagnostics: FileDiagnostic[] = [];
     if (files.length === 0) {
       const summary: TakeoffSummary = emptySummary(runId);
       summary.warnings.push("No uploaded files found for this job.");
       summary.hasWarnings = true;
       summary.completedAt = new Date().toISOString();
+      summary.diagnostics = {
+        jobId, uploadedFileCount: 0, includedFileCount: 0, files: [],
+        quantityChecks: [], openings: { pairsFound: 0, bareDoorsFound: 0, ignored: 0, duplicatesRemoved: 0, rowsCreated: 0, candidates: [] },
+        totalCharsExtracted: 0, pagesWithText: 0, pagesWithoutText: 0,
+        outcome: "no_files",
+        outcomeMessage: "No uploaded files found for this job.",
+      };
       await supabase.from("takeoff_runs").update({
         status: "completed",
         completed_at: new Date().toISOString(),
@@ -132,6 +145,17 @@ export async function runAutomaticTakeoff(args: {
 
     const extracted: ExtractedFile[] = [];
     for (const f of files) {
+      const isPlanOrSpec = f.file_type === "plan" || f.file_type === "specification";
+      if (!isPlanOrSpec) {
+        fileDiagnostics.push({
+          fileId: f.id, fileName: f.file_name, fileType: f.file_type,
+          storagePath: f.storage_url, storageStatus: "ok", storageError: null,
+          included: false,
+          inclusionReason: `Excluded — file_type "${f.file_type}" is not a plan or specification.`,
+          pageCount: 0, pages: [],
+        });
+        continue;
+      }
       try {
         const ef = await extractFile({
           fileId: f.id,
@@ -140,9 +164,24 @@ export async function runAutomaticTakeoff(args: {
           storagePath: f.storage_url,
         });
         extracted.push(ef);
+        fileDiagnostics.push({
+          fileId: f.id, fileName: f.file_name, fileType: f.file_type,
+          storagePath: f.storage_url, storageStatus: "ok", storageError: null,
+          included: true,
+          inclusionReason: `Included — file_type "${f.file_type}".`,
+          pageCount: ef.pages.length,
+          pages: [], // filled after classification
+        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : "unknown error";
         errors.push(`Failed to read file: ${f.file_name} — ${msg}`);
+        fileDiagnostics.push({
+          fileId: f.id, fileName: f.file_name, fileType: f.file_type,
+          storagePath: f.storage_url, storageStatus: "download_error", storageError: msg,
+          included: false,
+          inclusionReason: `Excluded — could not read PDF (${msg}).`,
+          pageCount: 0, pages: [],
+        });
       }
     }
 
@@ -164,6 +203,20 @@ export async function runAutomaticTakeoff(args: {
         reason: p.reason,
       })),
     );
+
+    // Fill per-page diagnostics into the matching file diagnostic entries.
+    for (const c of classified) {
+      const fd = fileDiagnostics.find((d) => d.fileId === c.fileId);
+      if (!fd) continue;
+      fd.pages = c.rawPages.map((rp) => {
+        const cp = c.pages.find((p) => p.pageNumber === rp.pageNumber);
+        return buildPageDiagnostic(
+          rp,
+          cp ?? { pageNumber: rp.pageNumber, pageType: "Unknown", confidence: "low", reason: "" },
+          null,
+        );
+      });
+    }
 
     const planClass = classified
       .filter((c) => c.fileType === "plan")
@@ -296,6 +349,41 @@ export async function runAutomaticTakeoff(args: {
     const hasWarnings = errors.length > 0 || warnings.length > 0;
     const completedAt = new Date().toISOString();
 
+    // Diagnostics
+    const quantityChecks = runQuantityChecks(extracted);
+    const openingDiagnostics = runOpeningChecks(extracted, oInserted);
+    const totalChars = extracted.reduce(
+      (s, f) => s + f.pages.reduce((ss, p) => ss + (p.text?.length ?? 0), 0), 0,
+    );
+    const pagesWithText = extracted.reduce(
+      (s, f) => s + f.pages.filter((p) => (p.text?.length ?? 0) > 0).length, 0,
+    );
+    const pagesWithoutText = extracted.reduce(
+      (s, f) => s + f.pages.filter((p) => (p.text?.length ?? 0) === 0).length, 0,
+    );
+    const { outcome, outcomeMessage } = deriveOutcome({
+      fileCount: files.length,
+      pagesWithText,
+      pagesWithoutText,
+      quantityMatchCount: quantityChecks.filter((q) => q.found).length,
+      openingMatchCount: openingDiagnostics.candidates.filter((c) => c.included).length,
+      moduleRowsInserted: mod.inserted,
+      errorsCount: errors.length,
+    });
+    const diagnostics: TakeoffDiagnostics = {
+      jobId,
+      uploadedFileCount: files.length,
+      includedFileCount: fileDiagnostics.filter((f) => f.included).length,
+      files: fileDiagnostics,
+      quantityChecks,
+      openings: openingDiagnostics,
+      totalCharsExtracted: totalChars,
+      pagesWithText,
+      pagesWithoutText,
+      outcome,
+      outcomeMessage,
+    };
+
     const summary: TakeoffSummary = {
       runId,
       filesScanned: extracted.length,
@@ -318,6 +406,7 @@ export async function runAutomaticTakeoff(args: {
       hasWarnings,
       completedAt,
       pageClassifications,
+      diagnostics,
     };
 
     await supabase.from("takeoff_runs").update({
@@ -364,6 +453,7 @@ function emptySummary(runId: string): TakeoffSummary {
     reviewRequiredCount: 0, highCount: 0, midCount: 0, lowCount: 0,
     errors: [], warnings: [], hasWarnings: false, completedAt: null,
     pageClassifications: [],
+    diagnostics: null,
   };
 }
 

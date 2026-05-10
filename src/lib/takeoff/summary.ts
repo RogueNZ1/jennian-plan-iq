@@ -6,6 +6,8 @@
  * shape so the UI never displays NaN / undefined / null / [object Object].
  */
 
+import type { TakeoffDiagnostics } from "./diagnostics";
+
 export type PageClassification = {
   fileName: string;
   pageNumber: number;
@@ -56,6 +58,8 @@ export type NormalizedSummary = {
   pageClassifications: PageClassification[];
 
   completedAt: string | null;
+
+  diagnostics: TakeoffDiagnostics | null;
 };
 
 function num(v: unknown): number {
@@ -176,6 +180,11 @@ export function normalizeSummary(raw: unknown): NormalizedSummary {
       .filter((p): p is PageClassification => p !== null),
 
     completedAt: str(r.completedAt),
+
+    diagnostics:
+      r.diagnostics && typeof r.diagnostics === "object"
+        ? (r.diagnostics as unknown as TakeoffDiagnostics)
+        : null,
   };
 }
 
