@@ -208,7 +208,18 @@ export function VisionTakeoffPanel({
       setResult(summary);
       setStatus(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Vision takeoff failed.");
+      let msg = "Vision takeoff failed.";
+      if (e instanceof Error) {
+        msg = e.message;
+      } else if (e instanceof Response) {
+        try {
+          const text = await e.clone().text();
+          msg = `Vision takeoff failed (${e.status}${text ? `: ${text.slice(0, 160)}` : ""}).`;
+        } catch {
+          msg = `Vision takeoff failed (${e.status}).`;
+        }
+      }
+      setError(msg);
       setStatus(null);
     } finally {
       setBusy(false);
@@ -329,7 +340,7 @@ export function VisionTakeoffPanel({
                 <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" />
                 <span>Vision takeoff creates draft quantities for review. Confirm before pricing or procurement.</span>
               </div>
-              {result.errors.length === 0 && result.pagesProcessed > 0 && (
+              {(result.errors?.length ?? 0) === 0 && result.pagesProcessed > 0 && (
                 <div className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-emerald-700">
                   <CheckCircle2 className="h-3 w-3" />
                   Vision review complete on {result.pagesProcessed} {result.pagesProcessed === 1 ? "page" : "pages"}.
@@ -340,14 +351,14 @@ export function VisionTakeoffPanel({
                   Vision review could not extract reliable quantities from this drawing. Use manual measurement tools or upload a clearer plan.
                 </div>
               )}
-              {result.warnings.length > 0 && (
+              {(result.warnings?.length ?? 0) > 0 && (
                 <ul className="mt-2 text-[11px] text-amber-700 space-y-0.5 max-h-40 overflow-auto">
-                  {result.warnings.slice(0, 8).map((w, i) => <li key={i}>• {w}</li>)}
+                  {result.warnings!.slice(0, 8).map((w, i) => <li key={i}>• {w}</li>)}
                 </ul>
               )}
-              {result.errors.length > 0 && (
+              {(result.errors?.length ?? 0) > 0 && (
                 <ul className="mt-2 text-[11px] text-destructive space-y-0.5 max-h-40 overflow-auto">
-                  {result.errors.slice(0, 8).map((e, i) => <li key={i}>• {e}</li>)}
+                  {result.errors!.slice(0, 8).map((e, i) => <li key={i}>• {e}</li>)}
                 </ul>
               )}
             </>
