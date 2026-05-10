@@ -874,6 +874,60 @@ export type Database = {
         }
         Relationships: []
       }
+      vision_takeoff_pages: {
+        Row: {
+          created_at: string
+          created_by: string
+          file_id: string
+          id: string
+          job_id: string
+          page_number: number
+          page_type: string | null
+          render_resolution: number
+          storage_bucket: string
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          file_id: string
+          id?: string
+          job_id: string
+          page_number: number
+          page_type?: string | null
+          render_resolution?: number
+          storage_bucket?: string
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          file_id?: string
+          id?: string
+          job_id?: string
+          page_number?: number
+          page_type?: string | null
+          render_resolution?: number
+          storage_bucket?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vision_takeoff_pages_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "uploaded_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vision_takeoff_pages_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
