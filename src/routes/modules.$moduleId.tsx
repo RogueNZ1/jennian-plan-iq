@@ -5,6 +5,7 @@ import {
   IQ_MODULES, findIQModule,
   loadModuleRun, updateModuleItem, markModuleReviewed,
   approveModule, recalculateModule, exportModuleCsv,
+  manualOverrideApprovedValue,
   REVIEW_STATUS_LABEL, statusLabel, statusBadgeClass,
   type IQModuleId, type ItemReviewStatus, type ModuleItem, type ModuleRun,
 } from "@/lib/iq-modules";
@@ -17,6 +18,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { OverrideReasonDialog } from "@/components/jennian/OverrideReasonDialog";
 import {
   ArrowLeft, ClipboardCheck, CheckCircle2, FileSpreadsheet, RotateCcw, Info,
 } from "lucide-react";
@@ -45,6 +47,8 @@ function ModuleDetail() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<null | "recalculate" | "approve" | "review" | "export">(null);
   const [showRecalc, setShowRecalc] = useState(false);
+  const [overrideTarget, setOverrideTarget] = useState<{ item: ModuleItem; newValue: string } | null>(null);
+  const [overrideTick, setOverrideTick] = useState(0);
 
   const isPhase2 = mod ? PHASE2.has(mod.id) : false;
   const isCore = mod?.id === "iq-core";
