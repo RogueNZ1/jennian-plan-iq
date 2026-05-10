@@ -44,18 +44,17 @@ function LoginPage() {
         </div>
 
         <div className="relative">
-          <div className="text-[11px] uppercase tracking-[0.2em] text-primary/90 font-medium">Construction command centre</div>
           <h1 className="mt-3 text-[34px] font-semibold tracking-tight text-white max-w-md leading-[1.1]">
-            Quantity intelligence for better building.
+            Better building starts with better information.
           </h1>
           <p className="mt-5 text-sm text-sidebar-foreground/70 max-w-md leading-relaxed">
-            AI-assisted quantity extraction and estimating preparation, feeding directly into the Jennian Homes Manawatū pricing workbook.
+            Jennian IQ helps standardise quantity review, plan analysis, and estimating preparation — creating greater consistency, visibility, and control across projects.
           </p>
         </div>
 
         <div className="relative flex items-end justify-between">
           <div className="text-[11px] text-sidebar-foreground/50">© Jennian Homes Manawatū</div>
-          <div className="text-[10px] uppercase tracking-[0.2em] text-sidebar-foreground/40">Plans · Quantities · Pricing</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-sidebar-foreground/40">Plans · Quantities · Pricing · Procurement</div>
         </div>
       </div>
 
@@ -85,7 +84,7 @@ function LoginPage() {
           </button>
 
           <div className="text-[11px] text-muted-foreground text-center leading-relaxed">
-            Jennian IQ is invite-only. Contact your Jennian Homes administrator if you need access.
+            Please sign in using your Jennian Homes account.
           </div>
         </form>
       </div>
