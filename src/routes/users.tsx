@@ -6,6 +6,7 @@ import { useRoles, ROLE_LABEL, ROLE_DESCRIPTION, type AppRole } from "@/hooks/us
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
+import type { Json } from "@/integrations/supabase/types";
 import {
   UserPlus, Search, Mail, Trash2, Power, RefreshCw, Pencil, Shield,
   History, X, ChevronDown, CheckCircle2,
@@ -18,7 +19,7 @@ const ROLES: AppRole[] = ["owner", "admin", "estimator", "project_manager", "vie
 
 const BRANCHES = ["Manawatū", "Wellington", "Hawke's Bay", "Taranaki", "Other"];
 
-type ProfileStatus = "invited" | "active" | "disabled";
+type ProfileStatus = "invited" | "active" | "suspended";
 
 type ProfileRow = {
   id: string;
@@ -137,7 +138,7 @@ function UsersPage() {
       name: p.full_name || (p.email ?? "—"),
       email: p.email ?? "",
       role: roleByUser[p.id] ?? "viewer",
-      status: p.status === "disabled" ? "disabled" : p.status === "invited" ? "pending" : "active",
+      status: p.status === "suspended" ? "disabled" : p.status === "invited" ? "pending" : "active",
       branch: p.branch,
       lastActive: p.last_login_at,
       invitedBy: p.invited_by ? (profileById[p.invited_by]?.full_name ?? profileById[p.invited_by]?.email ?? null) : null,
@@ -178,7 +179,7 @@ function UsersPage() {
       action,
       table_name: tableName,
       record_id: recordId,
-      metadata,
+      metadata: metadata as unknown as Json,
     });
   }
 
@@ -198,7 +199,8 @@ function UsersPage() {
   async function setProfileStatus(targetUserId: string, status: "active" | "disabled") {
     if (!canManage) return toast.error("You don't have permission to change user status.");
     const prev = profileById[targetUserId]?.status;
-    const { error } = await supabase.from("profiles").update({ status }).eq("id", targetUserId);
+    const dbStatus: ProfileStatus = status === "disabled" ? "suspended" : "active";
+    const { error } = await supabase.from("profiles").update({ status: dbStatus }).eq("id", targetUserId);
     if (error) return toast.error(error.message);
     await logAction(status === "disabled" ? "user_disabled" : "user_enabled", "profiles", targetUserId, { previous: prev, next: status });
     toast.success(status === "disabled" ? "User disabled." : "User enabled.");
@@ -211,7 +213,7 @@ function UsersPage() {
     if (!confirm("Remove this user's access to Jennian IQ?")) return;
     const { error: rErr } = await supabase.from("user_roles").delete().eq("user_id", targetUserId);
     if (rErr) return toast.error(rErr.message);
-    const { error: pErr } = await supabase.from("profiles").update({ status: "disabled" }).eq("id", targetUserId);
+    const { error: pErr } = await supabase.from("profiles").update({ status: "suspended" }).eq("id", targetUserId);
     if (pErr) return toast.error(pErr.message);
     await logAction("user_removed", "profiles", targetUserId, {});
     toast.success("User access removed.");
@@ -391,6 +393,7 @@ function UsersPage() {
             toast.success(`Invitation queued for ${payload.email}.`);
             setShowInvite(false);
             load();
+            return;
           }}
         />
       )}
