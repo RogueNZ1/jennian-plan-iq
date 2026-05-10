@@ -26,6 +26,7 @@ export function TakeoffDiagnosticsPanel({ d }: { d: TakeoffDiagnostics }) {
           <Overview d={d} />
           <FilesSection d={d} />
           <QuantitiesSection d={d} />
+          <SpecChecksSection d={d} />
           <OpeningsSection d={d} />
           <PagesSection d={d} />
         </div>
@@ -44,6 +45,8 @@ function Overview({ d }: { d: TakeoffDiagnostics }) {
     ["Pages without text", String(d.pagesWithoutText)],
     ["Total chars extracted", String(d.totalCharsExtracted)],
     ["Quantity matches", String(d.quantityChecks.filter((q) => q.found).length)],
+    ["Spec items extracted", String((d.specChecks ?? []).filter((s) => s.found).length)],
+    ["Spec rows created", String((d.specChecks ?? []).filter((s) => s.rowCreated).length)],
     ["Opening matches", String(d.openings.candidates.filter((c) => c.included).length)],
     ["Opening rows created", String(d.openings.rowsCreated)],
     ["Outcome", d.outcome],
