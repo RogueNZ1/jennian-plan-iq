@@ -280,6 +280,11 @@ function ModuleDetail() {
               </Link>
             </div>
           </div>
+        ) : isPhase2 ? (
+          <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+            This module is read-only in Phase 1. No editable quantities, manual
+            overrides, push targets, or exports are available yet.
+          </div>
         ) : (
           <div className="rounded-lg border border-border bg-card overflow-hidden">
             <div className="px-5 py-3 border-b border-border flex items-center justify-between">
