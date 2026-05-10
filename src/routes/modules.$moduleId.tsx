@@ -88,6 +88,7 @@ function ModuleDetail() {
   }
 
   function markReviewed() {
+    if (!mod) return;
     setStatus("approved");
     setItems((rs) => rs.map((r) => ({ ...r, approved: true })));
     toast.success(`${mod.name} marked reviewed.`);
@@ -104,6 +105,7 @@ function ModuleDetail() {
   }
 
   function exportCsv() {
+    if (!mod) return;
     const header = ["Item","Description","Unit","Extracted Quantity","Final Quantity","Confidence","Notes","Approved"];
     const rows = items.map((i) => [
       i.key, i.description, i.unit,
