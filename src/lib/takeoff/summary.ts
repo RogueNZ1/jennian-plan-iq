@@ -64,6 +64,7 @@ export type NormalizedSummary = {
   resultType:
     | "text_takeoff_completed"
     | "specification_only_takeoff"
+    | "limited_specification_takeoff"
     | "flattened_plan_vision_review_required"
     | "no_usable_text_found";
   flattenedPlanFiles: Array<{ fileId: string; fileName: string; pageSizes: string[]; pageCount: number }>;
@@ -200,6 +201,7 @@ export function normalizeSummary(raw: unknown): NormalizedSummary {
       if (
         v === "text_takeoff_completed" ||
         v === "specification_only_takeoff" ||
+        v === "limited_specification_takeoff" ||
         v === "flattened_plan_vision_review_required" ||
         v === "no_usable_text_found"
       ) return v;
