@@ -111,7 +111,7 @@ export async function runAutomaticTakeoff(args: {
       await supabase.from("takeoff_runs").update({
         status: "completed",
         completed_at: new Date().toISOString(),
-        summary: summary as unknown as Record<string, unknown>,
+        summary: summary as unknown as Json,
         error_message: "No uploaded files found.",
       }).eq("id", runId);
       await logAudit({ jobId, userId, action: "automatic_takeoff_completed", notes: "no files" });
@@ -287,7 +287,7 @@ export async function runAutomaticTakeoff(args: {
       classification_confidence: workingPageConf,
       scale_text: scaleText,
       calibration_id: calibrationId,
-      summary: summary as unknown as Record<string, unknown>,
+      summary: summary as unknown as Json,
     }).eq("id", runId);
 
     await logAudit({ jobId, userId, action: "automatic_takeoff_completed",
