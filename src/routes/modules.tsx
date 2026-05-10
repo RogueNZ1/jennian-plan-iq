@@ -3,7 +3,8 @@ import { AppLayout, PageHeader } from "@/components/jennian/AppLayout";
 import { HouseFrame } from "@/components/jennian/HouseFrame";
 import { PlanThumbnail } from "@/components/jennian/PlanThumbnail";
 import {
-  IQ_MODULES, loadModuleState, confidencePercent, STATUS_LABEL,
+  IQ_MODULES, loadModuleState, confidencePercent,
+  statusLabel, statusBadgeClass,
   type IQModuleId, type IQModuleStatus,
 } from "@/lib/iq-modules";
 import { listJobs, type Job } from "@/lib/jennian-data";
@@ -177,15 +178,9 @@ function Metric({ label, value, accent }: { label: string; value: string; accent
 }
 
 export function StatusChip({ status }: { status: IQModuleStatus }) {
-  const cls: Record<IQModuleStatus, string> = {
-    not_started: "bg-muted text-muted-foreground border-border",
-    ready:       "bg-confidence-high-bg text-confidence-high border-transparent",
-    in_review:   "bg-confidence-mid-bg text-confidence-mid border-transparent",
-    approved:    "bg-primary/10 text-primary border-transparent",
-  };
   return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-medium ${cls[status]}`}>
-      {STATUS_LABEL[status]}
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-medium ${statusBadgeClass(status)}`}>
+      {statusLabel(status)}
     </span>
   );
 }

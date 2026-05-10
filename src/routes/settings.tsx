@@ -20,10 +20,14 @@ function Page() {
                 <div className="text-sm font-semibold">{s.title}</div>
                 <div className="text-xs text-muted-foreground mt-0.5">{s.desc}</div>
               </div>
-              <button className="text-xs font-medium text-primary hover:underline">{s.actionLabel}</button>
+              <span className="text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground">Phase 2</span>
             </div>
           ))}
         </div>
+        <p className="mt-6 text-xs text-muted-foreground">
+          Editable workspace settings will be enabled in a future release. Reach out to your administrator if a value
+          needs to be changed in the meantime.
+        </p>
       </div>
     </AppLayout>
   );

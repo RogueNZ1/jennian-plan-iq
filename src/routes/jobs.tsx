@@ -80,12 +80,12 @@ function JobsPage() {
                           <Eye className="h-3 w-3" /> Plan
                         </button>
                         <Link
-                          to="/review"
-                          search={{ job: j.id }}
+                          to="/jobs/$jobId"
+                          params={{ jobId: j.id }}
                           className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1.5 text-[11px] font-medium hover:bg-accent hover:border-primary/30 transition"
-                          title="Quantity Review"
+                          title="Open Job"
                         >
-                          <ClipboardCheck className="h-3 w-3" /> Review
+                          <ClipboardCheck className="h-3 w-3" /> Open Job
                         </Link>
                         <Link
                           to="/review"

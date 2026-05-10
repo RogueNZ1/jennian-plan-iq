@@ -7,24 +7,27 @@ import { cn } from "@/lib/utils";
 import { useAuth, initialsFor } from "@/hooks/use-auth";
 import { useEffect, useState, useRef } from "react";
 import { HouseFrame } from "./HouseFrame";
+import { useRoles } from "@/hooks/use-roles";
 
-const nav = [
-  { to: "/",                 label: "Dashboard",        icon: LayoutDashboard },
-  { to: "/jobs",             label: "Jobs",             icon: Briefcase },
-  { to: "/upload",           label: "Upload Plan",      icon: Upload },
-  { to: "/review",           label: "Quantity Review",  icon: ClipboardCheck },
-  { to: "/modules",          label: "Modules",          icon: Layers },
-  { to: "/specifications",   label: "Specifications",   icon: FileText },
-  { to: "/templates",        label: "Templates",        icon: LayoutTemplate },
-  { to: "/reports",          label: "Reports",          icon: BarChart3 },
-  { to: "/users",            label: "Users",            icon: Users },
-  { to: "/settings",         label: "Settings",         icon: Settings },
+type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; gate?: "admin" | "owner" };
+const nav: NavItem[] = [
+  { to: "/",               label: "Dashboard",       icon: LayoutDashboard },
+  { to: "/jobs",           label: "Jobs",            icon: Briefcase },
+  { to: "/upload",         label: "Upload Plan",     icon: Upload },
+  { to: "/review",         label: "Quantity Review", icon: ClipboardCheck },
+  { to: "/modules",        label: "Modules",         icon: Layers },
+  { to: "/specifications", label: "Specifications",  icon: FileText },
+  { to: "/templates",      label: "Templates",       icon: LayoutTemplate },
+  { to: "/reports",        label: "Reports",         icon: BarChart3 },
+  { to: "/users",          label: "Users",           icon: Users,    gate: "admin" },
+  { to: "/settings",       label: "Settings",        icon: Settings, gate: "owner" },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const { user, loading, signOut } = useAuth();
+  const { isOwner, isAdmin, loading: rolesLoading } = useRoles();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -67,7 +70,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="px-3 flex-1 space-y-0.5 overflow-y-auto">
-          {nav.map(({ to, label, icon: Icon }) => {
+          {nav.filter((item) => {
+            if (rolesLoading) return !item.gate;
+            if (item.gate === "owner") return isOwner;
+            if (item.gate === "admin") return isAdmin;
+            return true;
+          }).map(({ to, label, icon: Icon }) => {
             const active = to === "/" ? path === "/" : path.startsWith(to);
             return (
               <Link

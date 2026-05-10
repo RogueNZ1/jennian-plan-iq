@@ -7,7 +7,8 @@ import {
 } from "@/lib/jennian-data";
 import { MODULES, moduleForQuantity, type ModuleId } from "@/lib/takeoff-modules";
 import {
-  IQ_MODULES, loadModuleState, confidencePercent, STATUS_LABEL,
+  IQ_MODULES, loadModuleState, confidencePercent,
+  statusLabel, statusBadgeClass,
   type IQModuleId, type IQModuleStatus,
 } from "@/lib/iq-modules";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +18,8 @@ import { Download, FileSpreadsheet, History, CheckCircle2, ArrowRight,
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { OverrideReasonDialog } from "@/components/jennian/OverrideReasonDialog";
+import { Breadcrumbs } from "@/components/jennian/Breadcrumbs";
 
 const MODULE_ICONS: Record<IQModuleId, React.ComponentType<{ className?: string }>> = {
   "iq-core": Ruler, "iq-electrical": Zap, "iq-plumbing": Droplets,
@@ -143,6 +146,11 @@ function ReviewPage() {
   return (
     <AppLayout>
       <div className="px-8 py-8 max-w-7xl">
+        <Breadcrumbs items={[
+          { label: "Jobs", to: "/jobs" },
+          { label: job.job_number, to: "/jobs/$jobId", params: { jobId: job.id } },
+          { label: "IQ Core Review" },
+        ]} />
         <PageHeader
           title="IQ Core Review"
           subtitle={`${job.job_number} · ${job.client_name} · ${job.address}`}
@@ -253,17 +261,31 @@ function ReviewPage() {
 
 function OverrideInput({ row, onSave }: { row: Quantity; onSave: (r: Quantity, value: string, reason: string) => void }) {
   const [val, setVal] = useState(String(row.approved_value ?? row.extracted_value));
+  const [pending, setPending] = useState<{ value: string } | null>(null);
+  const original = String(row.approved_value ?? row.extracted_value);
   return (
-    <input
-      value={val}
-      onChange={(e) => setVal(e.target.value)}
-      onBlur={() => {
-        if (val === String(row.approved_value ?? row.extracted_value)) return;
-        const reason = window.prompt("Reason for override?") ?? "";
-        onSave(row, val, reason);
-      }}
-      className="w-24 rounded-md border border-input bg-background px-2 py-1 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
-    />
+    <>
+      <input
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={() => {
+          if (val === original) return;
+          setPending({ value: val });
+        }}
+        className="w-24 rounded-md border border-input bg-background px-2 py-1 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+      />
+      <OverrideReasonDialog
+        open={!!pending}
+        label={row.quantity_type}
+        currentValue={original}
+        newValue={pending?.value}
+        onCancel={() => { setPending(null); setVal(original); }}
+        onConfirm={(reason) => {
+          if (pending) onSave(row, pending.value, reason);
+          setPending(null);
+        }}
+      />
+    </>
   );
 }
 
@@ -285,12 +307,7 @@ function triggerDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-const STATUS_STYLES: Record<IQModuleStatus, string> = {
-  not_started: "bg-muted text-muted-foreground border-border",
-  ready:       "bg-confidence-high-bg text-confidence-high border-transparent",
-  in_review:   "bg-confidence-mid-bg text-confidence-mid border-transparent",
-  approved:    "bg-primary/10 text-primary border-transparent",
-};
+// Status styling now centralised in `statusBadgeClass`/`statusLabel`.
 
 function ModulesOverview({ jobId }: { jobId: string }) {
   const [tick, setTick] = useState(0);
@@ -339,8 +356,8 @@ function ModulesOverview({ jobId }: { jobId: string }) {
                 <div className="h-8 w-8 rounded-md bg-accent grid place-items-center text-primary">
                   <Icon className="h-4 w-4" />
                 </div>
-                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLES[status]}`}>
-                  {STATUS_LABEL[status]}
+                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${statusBadgeClass(status)}`}>
+                  {statusLabel(status)}
                 </span>
               </div>
               <div className="mt-3 text-[14px] font-semibold tracking-tight">{mod.name}</div>
