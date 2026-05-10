@@ -368,6 +368,13 @@ export async function runAutomaticTakeoff(args: {
     // Diagnostics
     const quantityChecks = runQuantityChecks(extracted);
     const openingDiagnostics = runOpeningChecks(extracted, oInserted);
+    const specChecksRaw = runSpecChecks(extracted);
+    // Mark spec checks whose row was actually created/updated by populator.
+    const insertedSpecKeys = new Set(allSpecRows.map((r) => `${r.moduleId}|${r.label}`));
+    const specChecks = specChecksRaw.map((c) => ({
+      ...c,
+      rowCreated: insertedSpecKeys.has(`${c.moduleId}|${c.label}`) && mod.inserted + mod.updated > 0,
+    }));
     const totalChars = extracted.reduce(
       (s, f) => s + f.pages.reduce((ss, p) => ss + (p.text?.length ?? 0), 0), 0,
     );
@@ -392,6 +399,7 @@ export async function runAutomaticTakeoff(args: {
       includedFileCount: fileDiagnostics.filter((f) => f.included).length,
       files: fileDiagnostics,
       quantityChecks,
+      specChecks,
       openings: openingDiagnostics,
       totalCharsExtracted: totalChars,
       pagesWithText,
