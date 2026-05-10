@@ -77,6 +77,12 @@ export type ModuleItem = {
   basis: string | null;
   sort_order: number;
   updated_at: string;
+  data_source: string | null;
+  source_evidence: string | null;
+  measurement_id: string | null;
+  opening_id: string | null;
+  plan_page_number: number | null;
+  file_id: string | null;
 };
 
 export type ModuleAuditLog = {
