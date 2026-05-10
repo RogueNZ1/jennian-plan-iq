@@ -140,7 +140,8 @@ export async function runAutomaticTakeoff(args: {
       summary.completedAt = new Date().toISOString();
       summary.diagnostics = {
         jobId, uploadedFileCount: 0, includedFileCount: 0, files: [],
-        quantityChecks: [], openings: { pairsFound: 0, bareDoorsFound: 0, ignored: 0, duplicatesRemoved: 0, rowsCreated: 0, candidates: [] },
+        quantityChecks: [], specChecks: [],
+        openings: { pairsFound: 0, bareDoorsFound: 0, ignored: 0, duplicatesRemoved: 0, rowsCreated: 0, candidates: [] },
         totalCharsExtracted: 0, pagesWithText: 0, pagesWithoutText: 0,
         outcome: "no_files",
         outcomeMessage: "No uploaded files found for this job.",
