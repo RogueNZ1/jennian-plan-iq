@@ -16,7 +16,7 @@ function Page() {
   return (
     <AppLayout>
       <div className="px-8 py-8 max-w-5xl">
-        <PageHeader title="Specifications" subtitle="Library of standard specifications used during extraction." />
+        <PageHeader title="Specifications" subtitle="Library of standard specifications used during plan review." />
         <div className="grid md:grid-cols-2 gap-4">
           {sections.map((s) => (
             <div key={s.name} className="rounded-lg border border-border bg-card p-5">
