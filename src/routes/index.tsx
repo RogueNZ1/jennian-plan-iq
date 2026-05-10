@@ -2,17 +2,25 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppLayout, PageHeader } from "@/components/jennian/AppLayout";
 import { StatusBadge } from "@/components/jennian/StatusBadge";
 import { listJobs, type Job } from "@/lib/jennian-data";
-import { Upload, ArrowUpRight } from "lucide-react";
+import { Upload, ArrowUpRight, Briefcase, ClipboardCheck, CheckCircle2, FileSpreadsheet } from "lucide-react";
+import { HouseFrame } from "@/components/jennian/HouseFrame";
 import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/")({ component: Dashboard });
 
-function Stat({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
+function Stat({
+  label, value, accent, Icon,
+}: { label: string; value: string | number; accent?: boolean; Icon: React.ComponentType<{ className?: string }> }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-5">
-      <div className="text-[12px] font-medium text-muted-foreground">{label}</div>
-      <div className="mt-2 flex items-baseline gap-2">
-        <div className={`text-3xl font-semibold tracking-tight ${accent ? "text-primary" : ""}`}>{value}</div>
+    <div className="group rounded-lg border border-border bg-card p-5 hover:border-primary/30 transition-colors">
+      <div className="flex items-start justify-between">
+        <div className="text-[10.5px] font-medium uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+        <div className={`h-7 w-7 rounded-md grid place-items-center ${accent ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+          <Icon className="h-3.5 w-3.5" />
+        </div>
+      </div>
+      <div className="mt-4 flex items-baseline gap-2">
+        <div className={`text-[32px] font-semibold tracking-tight leading-none ${accent ? "text-primary" : ""}`}>{value}</div>
       </div>
     </div>
   );
@@ -46,10 +54,10 @@ function Dashboard() {
         />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Stat label="Jobs uploaded" value={total} />
-          <Stat label="Pending review" value={review} />
-          <Stat label="Approved jobs" value={approved} />
-          <Stat label="Exported" value={exported} accent />
+          <Stat label="Jobs uploaded" value={total} Icon={Briefcase} />
+          <Stat label="Pending review" value={review} Icon={ClipboardCheck} />
+          <Stat label="Approved jobs" value={approved} Icon={CheckCircle2} />
+          <Stat label="Exported" value={exported} accent Icon={FileSpreadsheet} />
         </div>
 
         <div className="mt-10 rounded-lg border border-border bg-card overflow-hidden">
@@ -63,8 +71,12 @@ function Dashboard() {
           {loading ? (
             <div className="p-10 text-sm text-muted-foreground text-center">Loading…</div>
           ) : recent.length === 0 ? (
-            <div className="p-10 text-sm text-muted-foreground text-center">
-              No jobs yet. <Link to="/upload" className="text-primary font-medium hover:underline">Upload your first plan</Link>.
+            <div className="p-12 grid place-items-center text-center">
+              <HouseFrame className="w-44 text-muted-foreground/40" />
+              <div className="mt-4 text-sm font-medium">No jobs yet</div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                <Link to="/upload" className="text-primary font-medium hover:underline">Upload your first plan</Link> to begin extraction.
+              </p>
             </div>
           ) : (
             <table className="w-full text-sm">
