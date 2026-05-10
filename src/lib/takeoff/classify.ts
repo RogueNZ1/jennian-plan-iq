@@ -31,12 +31,58 @@ export type ClassifiedPage = {
 const FLOOR_RE = /\b(floor\s*plan|ground\s*floor|first\s*floor|upper\s*floor|lower\s*floor)\b/i;
 const DIM_RE  = /\b\d{3,5}\b/g;
 
+/**
+ * Specification / product schedule indicators. If a page contains many of
+ * these terms it is a Specification document, even if it mentions
+ * "floor plan" / "drawings" / "plans included" in passing.
+ */
+const SPEC_INDICATORS: RegExp[] = [
+  /preliminary\s*&\s*general/i, /\bfoundation\b/i, /\bexterior\b/i,
+  /aluminium\s+joinery/i, /\binsulation\b/i, /interior\s+linings?/i,
+  /\belectrical\b/i, /\blighting\b/i, /\bplumbing\b/i, /\bkitchen\b/i,
+  /\blaundry\b/i, /\bexclusions?\b/i, /included\s+in\s+cost/i,
+  /no\s+allowance/i, /roof\s+pitch/i, /stud\s+height/i, /area\s+over\s+frame/i,
+  /\bperimeter\b/i, /garage\s+door/i, /cladding\s+type/i, /wall\s+linings?/i,
+  /ceiling\s+linings?/i, /\bskirting\b/i, /\bscotia\b/i, /\barchitraves?\b/i,
+  /standard\s+inclusions/i, /plan\s+version/i,
+];
+
+/**
+ * Strong drawing-only signals — only present on actual floorplan sheets.
+ * The presence of "floor plan" alone is NOT enough.
+ */
+const FLOOR_STRONG_INDICATORS: RegExp[] = [
+  /\b(bed(?:room)?\s*\d?|lounge|kitchen|bathroom|ensuite|wc|laundry|dining|living|family|hall|entry|garage|study|office|pantry|master)\b/i,
+  /\b1\s*[:/]\s*\d{2,4}\b/,            // scale e.g. 1:100
+  /\btitle\s*block\b/i,
+  /drawing\s*(?:sheet\s*)?number/i,
+  /\barea\s*box\b/i, /\bperimeter\s*box\b/i,
+];
+
+function countMatches(text: string, patterns: RegExp[]): number {
+  let n = 0;
+  for (const p of patterns) if (p.test(text)) n++;
+  return n;
+}
+
 export function classifyPage(p: ExtractedPage): ClassifiedPage {
   const t = p.text.toLowerCase();
   const has = (s: string) => t.includes(s);
   const dimMatches = p.text.match(DIM_RE);
   const dimHits = dimMatches ? dimMatches.length : 0;
   const reason = (txt: string) => `${txt} (page ${p.pageNumber})`;
+
+  const specCount = countMatches(p.text, SPEC_INDICATORS);
+  const floorStrong = countMatches(p.text, FLOOR_STRONG_INDICATORS);
+
+  // Strong specification signal beats a passing "floor plan" mention.
+  if (specCount >= 3 && floorStrong < 2) {
+    return {
+      pageNumber: p.pageNumber, pageType: "Specification",
+      confidence: specCount >= 6 ? "high" : "mid",
+      reason: reason(`${specCount} specification indicators, ${floorStrong} floorplan signals`),
+    };
+  }
 
   if ((has("legend") || has("symbols schedule") || has("abbreviation")) && !FLOOR_RE.test(p.text)) {
     return { pageNumber: p.pageNumber, pageType: "Legend", confidence: "high", reason: reason("legend keywords") };
@@ -68,11 +114,18 @@ export function classifyPage(p: ExtractedPage): ClassifiedPage {
   if (has("elevation")) {
     return { pageNumber: p.pageNumber, pageType: "Elevations", confidence: "mid", reason: reason("elevation keywords") };
   }
-  if (FLOOR_RE.test(p.text)) {
+  if (FLOOR_RE.test(p.text) && floorStrong >= 1) {
     if (has("dimensioned") || has("dimensions") || dimHits >= 12) {
-      return { pageNumber: p.pageNumber, pageType: "Dimension Floorplan", confidence: "high", reason: reason(`floor plan + ${dimHits} dim callouts`) };
+      return { pageNumber: p.pageNumber, pageType: "Dimension Floorplan", confidence: "high",
+        reason: reason(`floor plan + ${dimHits} dim callouts + ${floorStrong} drawing signals`) };
     }
-    return { pageNumber: p.pageNumber, pageType: "Floorplan", confidence: "mid", reason: reason("floor plan keyword") };
+    return { pageNumber: p.pageNumber, pageType: "Floorplan", confidence: "mid",
+      reason: reason(`floor plan keyword + ${floorStrong} drawing signals`) };
+  }
+  if (FLOOR_RE.test(p.text)) {
+    // "floor plan" mentioned but no real drawing signals — likely prose.
+    return { pageNumber: p.pageNumber, pageType: "Unknown", confidence: "low",
+      reason: reason("'floor plan' mentioned but no drawing signals") };
   }
   if (dimHits >= 18) {
     return { pageNumber: p.pageNumber, pageType: "Dimension Floorplan", confidence: "low", reason: reason(`${dimHits} dim-like numbers, no title`) };

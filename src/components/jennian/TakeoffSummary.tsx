@@ -4,10 +4,11 @@ import type { LatestTakeoffRun } from "@/lib/takeoff/run";
 import { normalizeSummary, isEmptyRun } from "@/lib/takeoff/summary";
 import {
   FileSearch, Ruler, ListChecks, Layers, AlertCircle, ClipboardCheck, Eye,
-  AlertTriangle, FileWarning, ChevronDown, ChevronRight,
+  AlertTriangle, FileWarning, ChevronDown, ChevronRight, ScanEye, CheckCircle2,
 } from "lucide-react";
 import { useRoles } from "@/hooks/use-roles";
 import { TakeoffDiagnosticsPanel } from "./TakeoffDiagnostics";
+import { supabase } from "@/integrations/supabase/client";
 
 const GEOMETRY_DEFERRED = [
   "Internal Wall Length (if not printed)",
@@ -35,11 +36,68 @@ export function TakeoffSummary({
 
   const [errorsOpen, setErrorsOpen] = useState(false);
   const [pagesOpen, setPagesOpen] = useState(false);
+  const [visionMarked, setVisionMarked] = useState<boolean>(s.visionReviewRequired);
+  const [visionMarkedAt, setVisionMarkedAt] = useState<string | null>(s.visionReviewMarkedAt);
+  const [visionBusy, setVisionBusy] = useState(false);
+  const [visionError, setVisionError] = useState<string | null>(null);
+
+  async function markForVisionReview() {
+    setVisionBusy(true);
+    setVisionError(null);
+    try {
+      // Read current summary and merge — never overwrite existing keys.
+      const { data: row, error: readErr } = await supabase
+        .from("takeoff_runs")
+        .select("summary")
+        .eq("id", run.id)
+        .single();
+      if (readErr) throw readErr;
+      const existing = (row?.summary && typeof row.summary === "object" ? row.summary : {}) as Record<string, unknown>;
+      const nowIso = new Date().toISOString();
+      const merged = {
+        ...existing,
+        visionReviewRequired: true,
+        visionReviewMarkedAt: nowIso,
+      };
+      const { error: upErr } = await supabase
+        .from("takeoff_runs")
+        .update({ summary: merged })
+        .eq("id", run.id);
+      if (upErr) throw upErr;
+      setVisionMarked(true);
+      setVisionMarkedAt(nowIso);
+    } catch (e) {
+      setVisionError(e instanceof Error ? e.message : "Could not mark for vision review.");
+    } finally {
+      setVisionBusy(false);
+    }
+  }
 
   const completedLabel = (() => {
     const ts = s.completedAt ?? run.completed_at ?? run.started_at;
     try { return new Date(ts).toLocaleString(); } catch { return "—"; }
   })();
+
+  const resultTypeLabel: Record<typeof s.resultType, string> = {
+    text_takeoff_completed: "Text Takeoff Completed",
+    specification_only_takeoff: "Specification Only Takeoff",
+    flattened_plan_vision_review_required: "Flattened Plan — Vision Review Required",
+    no_usable_text_found: "No Usable Text Found",
+  };
+  const resultTypeMessage: Record<typeof s.resultType, string> = {
+    text_takeoff_completed:
+      "Readable text was found and source-backed quantities were created. Review before approval.",
+    specification_only_takeoff:
+      "Specification text was readable, but plan pages could not be read. Plan measurements need vision review or manual measurement.",
+    flattened_plan_vision_review_required:
+      "Plan pages appear to be flattened images. Text-based takeoff cannot read dimensions from these drawings. OCR / vision review is required for automatic plan measurement.",
+    no_usable_text_found:
+      "No useful plan or specification text was found in the uploaded files.",
+  };
+  const showVisionSection =
+    s.resultType === "flattened_plan_vision_review_required" ||
+    s.resultType === "specification_only_takeoff" ||
+    s.flattenedPlanFiles.length > 0;
 
   const workingPlanValue =
     s.workingPlanStatus === "not_identified"
@@ -69,6 +127,24 @@ export function TakeoffSummary({
           </div>
         </div>
       </div>
+
+      {!failed && (
+        <div className="px-5 py-3 border-b border-border bg-muted/20">
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 inline-flex h-5 items-center rounded-full border border-border bg-card px-2 text-[10.5px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+              Result
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="text-[12.5px] font-semibold tracking-tight">
+                {resultTypeLabel[s.resultType]}
+              </div>
+              <div className="mt-0.5 text-[11.5px] text-muted-foreground">
+                {resultTypeMessage[s.resultType]}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {empty && (
         <div className="px-5 py-4 border-b border-border bg-amber-500/5">
@@ -220,6 +296,63 @@ export function TakeoffSummary({
           </div>
         )}
       </div>
+
+      {showVisionSection && (
+        <div className="px-5 py-3 border-t border-border bg-muted/20">
+          <div className="flex items-start gap-2">
+            <ScanEye className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="text-[12.5px] font-semibold tracking-tight">Plan Vision Review</div>
+                <span className="inline-flex h-4 items-center rounded-full border border-border bg-card px-1.5 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  {visionMarked ? "Marked" : "Not configured"}
+                </span>
+              </div>
+              <div className="mt-1 text-[11.5px] text-muted-foreground">
+                Flattened drawings require OCR / vision processing before Jennian IQ can automatically read dimensions, rooms, openings, and scale.
+              </div>
+              {s.flattenedPlanFiles.length > 0 && (
+                <ul className="mt-2 text-[11px] text-muted-foreground space-y-0.5">
+                  {s.flattenedPlanFiles.map((f) => (
+                    <li key={f.fileId} className="flex items-start gap-1.5">
+                      <span className="text-muted-foreground/60 mt-1.5 inline-block h-1 w-1 rounded-full bg-current flex-shrink-0" />
+                      <span className="break-all">
+                        <span className="font-medium text-foreground">{f.fileName}</span>{" "}
+                        — {f.pageCount} {f.pageCount === 1 ? "page" : "pages"}{" "}
+                        ({f.pageSizes.join(", ") || "unknown size"}), no text layer detected
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {visionMarked && visionMarkedAt && (
+                <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-emerald-700">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Marked for vision review on {(() => { try { return new Date(visionMarkedAt).toLocaleString(); } catch { return visionMarkedAt; } })()}.
+                </div>
+              )}
+              {visionError && (
+                <div className="mt-2 text-[11px] text-destructive">{visionError}</div>
+              )}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={markForVisionReview}
+                  disabled={visionBusy || visionMarked}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ScanEye className="h-3 w-3" />
+                  {visionMarked ? "Marked for Vision Review" : visionBusy ? "Marking…" : "Mark for Vision Review"}
+                </button>
+                <Link to="/jobs/$jobId" params={{ jobId }}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent">
+                  <Eye className="h-3 w-3" /> Open Working Plan for Manual Measurement
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="px-5 py-3 border-t border-border bg-muted/20">
         <div className="text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground mb-1.5">
