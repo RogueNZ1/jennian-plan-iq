@@ -11,7 +11,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { extractFile, loadJobFiles, type ExtractedFile } from "./pdf-text";
-import { classifyPage, pickWorkingPage, type ClassifiedPage } from "./classify";
+import { classifyPageWithType, pickWorkingPage, type ClassifiedPage } from "./classify";
 import { detectScaleFromText, writeCalibration } from "./scale";
 import { extractQuantitiesFromFile, persistQuantity, type ExtractedQty } from "./extract-quantities";
 import { extractOpeningsFromFile, persistOpening, type ExtractedOpening } from "./extract-openings";
@@ -20,7 +20,7 @@ import { populateModulesFromTakeoff } from "./populate-modules";
 import { seedAllModulesForJob } from "@/lib/iq-modules";
 import type { PageClassification } from "./summary";
 import {
-  buildPageDiagnostic, runQuantityChecks, runOpeningChecks, deriveOutcome,
+  buildPageDiagnostic, runQuantityChecks, runOpeningChecks, runSpecChecks, deriveOutcome,
   type FileDiagnostic, type TakeoffDiagnostics,
 } from "./diagnostics";
 
@@ -71,6 +71,7 @@ export type TakeoffSummary = {
   resultType:
     | "text_takeoff_completed"
     | "specification_only_takeoff"
+    | "limited_specification_takeoff"
     | "flattened_plan_vision_review_required"
     | "no_usable_text_found";
   /** Plan files (A1/A2/A3) where every plan page returned 0 chars. */
@@ -139,7 +140,8 @@ export async function runAutomaticTakeoff(args: {
       summary.completedAt = new Date().toISOString();
       summary.diagnostics = {
         jobId, uploadedFileCount: 0, includedFileCount: 0, files: [],
-        quantityChecks: [], openings: { pairsFound: 0, bareDoorsFound: 0, ignored: 0, duplicatesRemoved: 0, rowsCreated: 0, candidates: [] },
+        quantityChecks: [], specChecks: [],
+        openings: { pairsFound: 0, bareDoorsFound: 0, ignored: 0, duplicatesRemoved: 0, rowsCreated: 0, candidates: [] },
         totalCharsExtracted: 0, pagesWithText: 0, pagesWithoutText: 0,
         outcome: "no_files",
         outcomeMessage: "No uploaded files found for this job.",
@@ -201,7 +203,8 @@ export async function runAutomaticTakeoff(args: {
       fileId: file.fileId,
       fileName: file.fileName,
       fileType: file.fileType,
-      pages: file.pages.map<ClassifiedPage>((p) => classifyPage(p)),
+      pages: file.pages.map<ClassifiedPage>((p) =>
+        classifyPageWithType(p, file.fileType)),
       rawPages: file.pages,
     }));
 
@@ -365,6 +368,13 @@ export async function runAutomaticTakeoff(args: {
     // Diagnostics
     const quantityChecks = runQuantityChecks(extracted);
     const openingDiagnostics = runOpeningChecks(extracted, oInserted);
+    const specChecksRaw = runSpecChecks(extracted);
+    // Mark spec checks whose row was actually created/updated by populator.
+    const insertedSpecKeys = new Set(allSpecRows.map((r) => `${r.moduleId}|${r.label}`));
+    const specChecks = specChecksRaw.map((c) => ({
+      ...c,
+      rowCreated: insertedSpecKeys.has(`${c.moduleId}|${c.label}`) && mod.inserted + mod.updated > 0,
+    }));
     const totalChars = extracted.reduce(
       (s, f) => s + f.pages.reduce((ss, p) => ss + (p.text?.length ?? 0), 0), 0,
     );
@@ -389,6 +399,7 @@ export async function runAutomaticTakeoff(args: {
       includedFileCount: fileDiagnostics.filter((f) => f.included).length,
       files: fileDiagnostics,
       quantityChecks,
+      specChecks,
       openings: openingDiagnostics,
       totalCharsExtracted: totalChars,
       pagesWithText,
@@ -418,27 +429,34 @@ export async function runAutomaticTakeoff(args: {
       }
     }
 
-    const specOnlyMatches = allSpecRows.length > 0 || quantityChecks.some((q) => q.found);
+    // "Useful" spec items: spec rows + quantity matches anchored in
+    // specification text or readable plan text.
+    const usefulSpecCount = allSpecRows.length + quantityChecks.filter((q) => q.found).length;
+    const specOnlyMatches = usefulSpecCount > 0;
     const planTextChars = extracted
       .filter((f) => f.fileType === "plan")
       .reduce((s, f) => s + f.pages.reduce((ss, p) => ss + (p.text?.length ?? 0), 0), 0);
     const planFiles = extracted.filter((f) => f.fileType === "plan");
     const hasPlanFiles = planFiles.length > 0;
     const planTextless = hasPlanFiles && planTextChars === 0;
+    const planUnreadable = flattenedPlanFiles.length > 0 || planTextless;
+    const isLimitedSpec = usefulSpecCount > 0 && usefulSpecCount < 5;
 
     let resultType: TakeoffSummary["resultType"];
-    if (flattenedPlanFiles.length > 0 && !specOnlyMatches) {
+    if (planUnreadable && !specOnlyMatches) {
       resultType = "flattened_plan_vision_review_required";
-    } else if (flattenedPlanFiles.length > 0 && specOnlyMatches) {
+    } else if (planUnreadable && isLimitedSpec) {
+      resultType = "limited_specification_takeoff";
+    } else if (planUnreadable && specOnlyMatches) {
       resultType = "specification_only_takeoff";
-    } else if (planTextless && specOnlyMatches) {
-      resultType = "specification_only_takeoff";
+    } else if (isLimitedSpec && mod.inserted < 5 && oInserted === 0) {
+      resultType = "limited_specification_takeoff";
     } else if (specOnlyMatches || mod.inserted > 0 || qInserted > 0 || oInserted > 0) {
       resultType = "text_takeoff_completed";
     } else {
       resultType = "no_usable_text_found";
     }
-    if (flattenedPlanFiles.length > 0 && resultType === "specification_only_takeoff") {
+    if (flattenedPlanFiles.length > 0 && (resultType === "specification_only_takeoff" || resultType === "limited_specification_takeoff")) {
       warnings.push(
         `${flattenedPlanFiles.length} plan ${flattenedPlanFiles.length === 1 ? "file appears" : "files appear"} to be flattened images — vision review required for plan measurements.`,
       );
@@ -447,6 +465,27 @@ export async function runAutomaticTakeoff(args: {
         "Plan pages appear to be flattened images. Text-based takeoff cannot read dimensions from these drawings. OCR / vision review is required.",
       );
     }
+    if (resultType === "limited_specification_takeoff") {
+      warnings.push(
+        `Only ${usefulSpecCount} useful specification ${usefulSpecCount === 1 ? "item was" : "items were"} extracted — review uploaded files or expand specification detail.`,
+      );
+    }
+    // Override outcome label when the high-level resultType is more specific
+    // than the base diagnostic outcome.
+    let finalOutcome: TakeoffDiagnostics["outcome"] = outcome;
+    let finalOutcomeMessage = outcomeMessage;
+    if (resultType === "flattened_plan_vision_review_required") {
+      finalOutcome = "flattened_plan";
+      finalOutcomeMessage = "Plan PDF is flattened (no text layer). Vision review required for plan measurements.";
+    } else if (resultType === "limited_specification_takeoff") {
+      finalOutcome = "limited_specification";
+      finalOutcomeMessage = `Only ${usefulSpecCount} useful specification ${usefulSpecCount === 1 ? "item" : "items"} extracted from readable text.`;
+    } else if (resultType === "specification_only_takeoff") {
+      finalOutcome = "specification_only";
+      finalOutcomeMessage = "Specification text was readable; plan drawings could not be read for measurements.";
+    }
+    diagnostics.outcome = finalOutcome;
+    diagnostics.outcomeMessage = finalOutcomeMessage;
     const hasWarnings2 = errors.length > 0 || warnings.length > 0;
 
     const summary: TakeoffSummary = {

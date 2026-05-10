@@ -12,6 +12,8 @@
  */
 import type { ExtractedFile, ExtractedPage } from "./pdf-text";
 import type { ClassifiedPage } from "./classify";
+import { extractSpecRowsFromFile } from "./extract-spec";
+import type { IQModuleId } from "@/lib/iq-modules";
 
 /* --------------------------------- types --------------------------------- */
 
@@ -83,12 +85,25 @@ export type OpeningDiagnostics = {
   candidates: OpeningCandidate[];
 };
 
+export type SpecCheck = {
+  moduleId: IQModuleId | "iq-core" | "iq-framing" | "iq-roofing" | "iq-cladding" | "iq-linings" | "iq-electrical" | "iq-plumbing";
+  label: string;
+  found: boolean;
+  matchedText: string | null;
+  parsedValue: string | null;
+  fileName: string | null;
+  pageNumber: number | null;
+  rowCreated: boolean;
+  confidence: "high" | "mid" | "low" | null;
+};
+
 export type TakeoffDiagnostics = {
   jobId: string;
   uploadedFileCount: number;
   includedFileCount: number;
   files: FileDiagnostic[];
   quantityChecks: QuantityCheck[];
+  specChecks: SpecCheck[];
   openings: OpeningDiagnostics;
   totalCharsExtracted: number;
   pagesWithText: number;
@@ -100,6 +115,9 @@ export type TakeoffDiagnostics = {
     | "readable_text_no_matches"
     | "matches_no_module_rows"
     | "ok"
+    | "limited_specification"
+    | "specification_only"
+    | "flattened_plan"
     | "errors";
   outcomeMessage: string;
 };
@@ -479,4 +497,41 @@ export function deriveOutcome(args: {
     };
   }
   return { outcome: "ok", outcomeMessage: "Module review rows created successfully." };
+}
+
+/* --------------------------- spec checks ---------------------------- */
+
+/**
+ * Runs specification extraction across every file (not only files marked
+ * file_type=specification — schedules can appear in plan PDFs too) and
+ * reports each detected schedule row as a diagnostic check. `created`
+ * indicates whether a corresponding module_items row was inserted/refreshed
+ * by the populator (set by the caller after persistence).
+ */
+export function runSpecChecks(files: ExtractedFile[]): SpecCheck[] {
+  // Force-run extractor on every file regardless of fileType so we surface
+  // findings in the diagnostics panel.
+  const all: SpecCheck[] = [];
+  const seen = new Set<string>();
+  for (const f of files) {
+    const fakeAsSpec: ExtractedFile = { ...f, fileType: "specification" };
+    const rows = extractSpecRowsFromFile(fakeAsSpec);
+    for (const r of rows) {
+      const key = `${r.moduleId}|${r.label}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      all.push({
+        moduleId: r.moduleId,
+        label: r.label,
+        found: true,
+        matchedText: r.evidence,
+        parsedValue: r.value,
+        fileName: r.fileName,
+        pageNumber: r.page,
+        rowCreated: false,
+        confidence: r.confidence,
+      });
+    }
+  }
+  return all;
 }

@@ -26,6 +26,7 @@ export function TakeoffDiagnosticsPanel({ d }: { d: TakeoffDiagnostics }) {
           <Overview d={d} />
           <FilesSection d={d} />
           <QuantitiesSection d={d} />
+          <SpecChecksSection d={d} />
           <OpeningsSection d={d} />
           <PagesSection d={d} />
         </div>
@@ -44,6 +45,8 @@ function Overview({ d }: { d: TakeoffDiagnostics }) {
     ["Pages without text", String(d.pagesWithoutText)],
     ["Total chars extracted", String(d.totalCharsExtracted)],
     ["Quantity matches", String(d.quantityChecks.filter((q) => q.found).length)],
+    ["Spec items extracted", String((d.specChecks ?? []).filter((s) => s.found).length)],
+    ["Spec rows created", String((d.specChecks ?? []).filter((s) => s.rowCreated).length)],
     ["Opening matches", String(d.openings.candidates.filter((c) => c.included).length)],
     ["Opening rows created", String(d.openings.rowsCreated)],
     ["Outcome", d.outcome],
@@ -174,6 +177,92 @@ function QuantitiesSection({ d }: { d: TakeoffDiagnostics }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function SpecChecksSection({ d }: { d: TakeoffDiagnostics }) {
+  const checks = d.specChecks ?? [];
+  // Group by module for readability.
+  const groups = new Map<string, typeof checks>();
+  for (const c of checks) {
+    const k = String(c.moduleId);
+    const arr = groups.get(k) ?? [];
+    arr.push(c);
+    groups.set(k, arr);
+  }
+  const moduleLabel: Record<string, string> = {
+    "iq-core": "IQ Core",
+    "iq-framing": "IQ Framing",
+    "iq-roofing": "IQ Roofing",
+    "iq-cladding": "IQ Cladding",
+    "iq-linings": "IQ Linings",
+    "iq-electrical": "IQ Electrical",
+    "iq-plumbing": "IQ Plumbing",
+  };
+  return (
+    <div className="rounded-md border border-border overflow-hidden">
+      <div className="bg-muted/40 px-2.5 py-1.5 text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground">
+        Specification Extraction Checks
+      </div>
+      {checks.length === 0 ? (
+        <div className="px-2.5 py-2 text-[11px] text-muted-foreground">
+          No specification rows extracted from the readable text.
+        </div>
+      ) : (
+        <table className="w-full text-[11px]">
+          <thead className="text-muted-foreground">
+            <tr className="border-t border-border">
+              <th className="text-left font-medium px-2.5 py-1.5">Module</th>
+              <th className="text-left font-medium px-2.5 py-1.5">Label</th>
+              <th className="text-left font-medium px-2.5 py-1.5">Found</th>
+              <th className="text-left font-medium px-2.5 py-1.5">Parsed value</th>
+              <th className="text-left font-medium px-2.5 py-1.5">Conf</th>
+              <th className="text-left font-medium px-2.5 py-1.5">Row created</th>
+              <th className="text-left font-medium px-2.5 py-1.5">Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from(groups.entries()).flatMap(([mod, list]) =>
+              list.map((c, i) => (
+                <tr key={`${mod}-${c.label}-${i}`} className="border-t border-border align-top">
+                  <td className="px-2.5 py-1.5 text-muted-foreground">{moduleLabel[mod] ?? mod}</td>
+                  <td className="px-2.5 py-1.5">{c.label}</td>
+                  <td className="px-2.5 py-1.5">
+                    {c.found ? (
+                      <span className="inline-flex items-center gap-1 text-emerald-600">
+                        <CheckCircle2 className="h-3 w-3" /> yes
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-muted-foreground">
+                        <XCircle className="h-3 w-3" /> no
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-2.5 py-1.5 max-w-[220px] truncate" title={c.parsedValue ?? ""}>
+                    {c.parsedValue ?? "—"}
+                  </td>
+                  <td className="px-2.5 py-1.5">{c.confidence ?? "—"}</td>
+                  <td className="px-2.5 py-1.5">
+                    {c.rowCreated ? (
+                      <span className="inline-flex items-center gap-1 text-emerald-600">
+                        <CheckCircle2 className="h-3 w-3" /> yes
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-muted-foreground">
+                        <XCircle className="h-3 w-3" /> no
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-2.5 py-1.5 text-muted-foreground">
+                    {c.fileName ? `${c.fileName} p${c.pageNumber}` : "—"}
+                  </td>
+                </tr>
+              )),
+            )}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

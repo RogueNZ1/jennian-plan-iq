@@ -88,8 +88,11 @@ function findArea(text: string, def: LabelDef): { value: number; evidence: strin
     // Search forward up to 80 chars for: NUMBER + (m²|m2|sqm|sq m)
     const searchFrom = labelM.index + labelM[0].length;
     const tail = text.slice(searchFrom, searchFrom + 80);
-    const valueRe = new RegExp(`${NUM}\\s*(?:m²|m2|sqm|sq\\s*m)`, "i");
-    const vm = tail.match(valueRe);
+    // Prefer explicit unit suffix; fall back to bare number when label is
+    // explicit (specification schedules often omit the unit).
+    const withUnit = new RegExp(`${NUM}\\s*(?:m²|m2|sqm|sq\\s*m)`, "i");
+    const bare = new RegExp(`^[\\s:]*${NUM}(?!\\d|\\.|mm)`, "i");
+    const vm = tail.match(withUnit) ?? tail.match(bare);
     if (!vm) continue;
     const v = parseNum(vm[1]);
     if (v == null || v <= 0 || v > 10000) continue;
@@ -118,8 +121,8 @@ function findLength(text: string, def: LabelDef): { value: number; evidence: str
 }
 
 function findRoofPitch(text: string): { value: number; evidence: string } | null {
-  // "Roof Pitch: 25°" or "Pitch 25 deg"
-  const re = /(?:roof\s+)?pitch[:\s]*?(\d{1,2}(?:\.\d)?)\s*(?:°|deg|degrees|degree)/i;
+  // "Roof Pitch: 25°" / "Main Roof Pitch 25 Degrees" / "Pitch 25 deg"
+  const re = /(?:main\s+)?(?:roof\s+)?pitch[:\s]+(\d{1,2}(?:\.\d)?)\s*(?:°|deg|degrees?)/i;
   const m = text.match(re);
   if (!m || m.index == null) return null;
   const v = parseNum(m[1]);
@@ -128,8 +131,8 @@ function findRoofPitch(text: string): { value: number; evidence: string } | null
 }
 
 function findStudHeight(text: string): { value: number; evidence: string } | null {
-  // "Stud Height: 2.4m" or "stud height 2400 mm"
-  const re = /stud\s+height[:\s]*?(\d(?:\.\d{1,2})?|\d{4})\s*(m|mm)\b/i;
+  // "Stud Height: 2.4m" or "stud height ground floor 2.4m"
+  const re = /stud\s+height(?:\s+(?:ground|first|upper|lower)\s+floor)?[:\s]+(\d(?:\.\d{1,2})?|\d{4})\s*(m|mm)\b/i;
   const m = text.match(re);
   if (!m || m.index == null) return null;
   let v = parseNum(m[1]);
@@ -140,12 +143,20 @@ function findStudHeight(text: string): { value: number; evidence: string } | nul
 }
 
 function findGarageDoor(text: string): { width: number; height: number; evidence: string } | null {
-  // "Garage Door: 4800 x 2100"
-  const re = /garage\s+door[:\s]*?(\d{3,5})\s*[x×]\s*(\d{3,5})/i;
-  const m = text.match(re);
-  if (!m || m.index == null) return null;
-  const w = parseNum(m[1]);
-  const h = parseNum(m[2]);
+  // "Garage Door: 4800 x 2100" or "Garage Door 4.8m x 2.1m"
+  const reMm = /garage\s+door[:\s]+(\d{3,5})\s*[x×X]\s*(\d{3,5})/i;
+  const reM  = /garage\s+door[:\s]+(\d(?:\.\d)?)\s*m?\s*[x×X]\s*(\d(?:\.\d)?)\s*m/i;
+  let m = text.match(reMm);
+  let w: number | null = null, h: number | null = null;
+  if (m && m.index != null) {
+    w = parseNum(m[1]); h = parseNum(m[2]);
+  } else {
+    m = text.match(reM);
+    if (!m || m.index == null) return null;
+    const wm = parseNum(m[1]); const hm = parseNum(m[2]);
+    if (wm == null || hm == null) return null;
+    w = wm * 1000; h = hm * 1000;
+  }
   if (w == null || h == null || w < 2000 || w > 7500 || h < 1500 || h > 3500) return null;
   return { width: w, height: h, evidence: snippet(text, m.index, m[0].length) };
 }
