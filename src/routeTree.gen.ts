@@ -13,7 +13,6 @@ import { Route as UsersRouteImport } from './routes/users'
 import { Route as UploadRouteImport } from './routes/upload'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as SpecificationsRouteImport } from './routes/specifications'
-import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as ReportsRouteImport } from './routes/reports'
@@ -41,11 +40,6 @@ const TemplatesRoute = TemplatesRouteImport.update({
 const SpecificationsRoute = SpecificationsRouteImport.update({
   id: '/specifications',
   path: '/specifications',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -97,7 +91,6 @@ export interface FileRoutesByFullPath {
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
-  '/signup': typeof SignupRoute
   '/specifications': typeof SpecificationsRoute
   '/templates': typeof TemplatesRoute
   '/upload': typeof UploadRoute
@@ -112,7 +105,6 @@ export interface FileRoutesByTo {
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
-  '/signup': typeof SignupRoute
   '/specifications': typeof SpecificationsRoute
   '/templates': typeof TemplatesRoute
   '/upload': typeof UploadRoute
@@ -128,7 +120,6 @@ export interface FileRoutesById {
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
-  '/signup': typeof SignupRoute
   '/specifications': typeof SpecificationsRoute
   '/templates': typeof TemplatesRoute
   '/upload': typeof UploadRoute
@@ -145,7 +136,6 @@ export interface FileRouteTypes {
     | '/reports'
     | '/review'
     | '/settings'
-    | '/signup'
     | '/specifications'
     | '/templates'
     | '/upload'
@@ -160,7 +150,6 @@ export interface FileRouteTypes {
     | '/reports'
     | '/review'
     | '/settings'
-    | '/signup'
     | '/specifications'
     | '/templates'
     | '/upload'
@@ -175,7 +164,6 @@ export interface FileRouteTypes {
     | '/reports'
     | '/review'
     | '/settings'
-    | '/signup'
     | '/specifications'
     | '/templates'
     | '/upload'
@@ -191,7 +179,6 @@ export interface RootRouteChildren {
   ReportsRoute: typeof ReportsRoute
   ReviewRoute: typeof ReviewRoute
   SettingsRoute: typeof SettingsRoute
-  SignupRoute: typeof SignupRoute
   SpecificationsRoute: typeof SpecificationsRoute
   TemplatesRoute: typeof TemplatesRoute
   UploadRoute: typeof UploadRoute
@@ -226,13 +213,6 @@ declare module '@tanstack/react-router' {
       path: '/specifications'
       fullPath: '/specifications'
       preLoaderRoute: typeof SpecificationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -313,7 +293,6 @@ const rootRouteChildren: RootRouteChildren = {
   ReportsRoute: ReportsRoute,
   ReviewRoute: ReviewRoute,
   SettingsRoute: SettingsRoute,
-  SignupRoute: SignupRoute,
   SpecificationsRoute: SpecificationsRoute,
   TemplatesRoute: TemplatesRoute,
   UploadRoute: UploadRoute,
