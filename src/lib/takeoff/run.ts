@@ -288,9 +288,11 @@ export async function runAutomaticTakeoff(args: {
     progress("preparing_quantities", "Preparing draft quantities…");
     const allQty: ExtractedQty[] = [];
     const allOpenings: ExtractedOpening[] = [];
+    const allSpecRows: SpecRow[] = [];
     for (const f of extracted) {
       allQty.push(...extractQuantitiesFromFile(f));
       allOpenings.push(...extractOpeningsFromFile(f));
+      allSpecRows.push(...extractSpecRowsFromFile(f));
     }
 
     let qInserted = 0, qUpdated = 0, qConflicts = 0;
@@ -330,7 +332,7 @@ export async function runAutomaticTakeoff(args: {
 
     progress("preparing_modules", "Preparing module review items…");
     const mod = await populateModulesFromTakeoff({
-      jobId, quantities: allQty, openings: allOpenings, takeoffRunId: runId,
+      jobId, quantities: allQty, openings: allOpenings, specRows: allSpecRows, takeoffRunId: runId,
     });
     if (mod.errors.length > 0) errors.push(...mod.errors);
     if (mod.inserted > 0) {
