@@ -23,7 +23,7 @@ function JobsPage() {
       <div className="px-8 py-8 max-w-7xl">
         <PageHeader
           title="Jobs"
-          subtitle="All extraction jobs across the workspace."
+          subtitle="All jobs across the workspace."
           actions={
             <Link to="/upload" className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 shadow-sm">
               <Upload className="h-4 w-4" />Upload New Plan
