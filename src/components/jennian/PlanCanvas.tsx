@@ -354,6 +354,21 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
           <div className="text-[12px] font-medium truncate max-w-[280px]">
             {planFileName ?? "Plan"}
           </div>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1 text-[11px]">
+              <span className="text-muted-foreground">Page</span>
+              <select
+                value={planPage}
+                onChange={(e) => { setPlanPage(Number(e.target.value)); clearDraft(); }}
+                className="rounded-md border border-input bg-background px-1.5 py-0.5 text-[11px]"
+              >
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+              <span className="text-muted-foreground">/ {totalPages}</span>
+            </div>
+          )}
           <CalibrationBadge calibration={calibration} />
         </div>
         <div className="flex items-center gap-1.5">
@@ -373,6 +388,20 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
           <button onClick={resetView} className="h-7 w-7 grid place-items-center rounded-md border border-border bg-card hover:bg-accent" title="Reset view"><RotateCcw className="h-3.5 w-3.5" /></button>
         </div>
       </div>
+      {tool === "internal_wall" && (
+        <div className="px-4 py-1.5 border-b border-border bg-muted/20 flex items-center gap-2 text-[11px]">
+          <span className="text-muted-foreground uppercase tracking-[0.14em] text-[10px]">Wall category</span>
+          <select
+            value={wallCategory}
+            onChange={(e) => setWallCategory(e.target.value)}
+            className="rounded-md border border-input bg-background px-2 py-1 text-[11px]"
+          >
+            {INTERNAL_WALL_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Helper text */}
       <div className="px-4 py-1.5 border-b border-border text-[11px] text-muted-foreground bg-muted/30 flex items-center justify-between">
