@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { AppLayout, PageHeader, ConfidencePill } from "@/components/jennian/AppLayout";
 import { HouseFrame } from "@/components/jennian/HouseFrame";
+import { Breadcrumbs } from "@/components/jennian/Breadcrumbs";
 import { StatusChip } from "./modules";
 import {
   IQ_MODULES, findIQModule, loadModuleState, saveModuleState,
@@ -156,13 +157,15 @@ function ModuleDetail() {
   return (
     <AppLayout>
       <div className="px-8 py-8 max-w-7xl">
-        <Link
-          to={jobId ? "/review" : "/modules"}
-          search={jobId ? { job: jobId } : undefined}
-          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-4"
-        >
-          <ArrowLeft className="h-3 w-3" /> {jobId ? "Back to Job" : "All modules"}
-        </Link>
+        {jobId ? (
+          <Breadcrumbs items={[
+            { label: "Jobs", to: "/jobs" },
+            { label: job?.job_number ?? "Job", to: "/jobs/$jobId", params: { jobId } },
+            { label: mod.name },
+          ]} />
+        ) : (
+          <Breadcrumbs items={[{ label: "Modules", to: "/modules" }, { label: mod.name }]} />
+        )}
 
         <PageHeader
           title={mod.name}
