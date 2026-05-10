@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { HouseFrame } from "@/components/jennian/HouseFrame";
 
 export const Route = createFileRoute("/login")({ component: LoginPage });
 
@@ -29,23 +30,33 @@ function LoginPage() {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">
-      <div className="hidden lg:flex flex-col justify-between bg-sidebar text-sidebar-foreground p-12">
-        <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-md bg-primary grid place-items-center text-primary-foreground font-semibold">J</div>
-          <div>
-            <div className="text-white font-semibold tracking-tight">Jennian IQ</div>
-            <div className="text-[11px] text-sidebar-foreground/60">Built Smarter.</div>
+      <div className="hidden lg:flex flex-col justify-between bg-sidebar text-sidebar-foreground p-12 relative overflow-hidden">
+        {/* Subtle architectural backdrop */}
+        <HouseFrame className="absolute -right-10 bottom-10 w-[640px] text-white/[0.05]" />
+        <div className="absolute inset-x-12 top-1/2 h-px bg-white/5" />
+
+        <div className="relative flex items-center gap-3">
+          <div className="h-10 w-10 rounded-md bg-primary grid place-items-center text-primary-foreground font-semibold shadow-sm">J</div>
+          <div className="leading-tight">
+            <div className="text-white font-semibold tracking-tight text-[16px]">Jennian IQ</div>
+            <div className="text-[10.5px] uppercase tracking-[0.18em] text-primary/90 font-medium mt-0.5">Built Smarter.</div>
           </div>
         </div>
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-white max-w-sm leading-tight">
-            The construction command centre for Jennian Homes Manawatū.
+
+        <div className="relative">
+          <div className="text-[11px] uppercase tracking-[0.2em] text-primary/90 font-medium">Construction command centre</div>
+          <h1 className="mt-3 text-[34px] font-semibold tracking-tight text-white max-w-md leading-[1.1]">
+            Quantity intelligence for better building.
           </h1>
-          <p className="mt-4 text-sm text-sidebar-foreground/70 max-w-md">
-            AI-assisted quantity extraction and estimating preparation — feeding directly into your proprietary pricing workbook.
+          <p className="mt-5 text-sm text-sidebar-foreground/70 max-w-md leading-relaxed">
+            AI-assisted quantity extraction and estimating preparation, feeding directly into the Jennian Homes Manawatū pricing workbook.
           </p>
         </div>
-        <div className="text-[11px] text-sidebar-foreground/50">© Jennian Homes Manawatū</div>
+
+        <div className="relative flex items-end justify-between">
+          <div className="text-[11px] text-sidebar-foreground/50">© Jennian Homes Manawatū</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-sidebar-foreground/40">Plans · Quantities · Pricing</div>
+        </div>
       </div>
 
       <div className="flex items-center justify-center p-8">
