@@ -30,6 +30,7 @@ import { OpeningScheduleTab } from "@/components/jennian/OpeningScheduleTab";
 import { ValidationTab } from "@/components/jennian/ValidationTab";
 import { loadMeasurements, type PlanMeasurement } from "@/lib/iq-measurements";
 import { AutomaticTakeoffDialog } from "@/components/jennian/AutomaticTakeoffDialog";
+import { VisionTakeoffDialog } from "@/components/jennian/VisionTakeoffDialog";
 
 const MODULE_ICONS: Record<IQModuleId, React.ComponentType<{ className?: string }>> = {
   "iq-core": Ruler, "iq-electrical": Zap, "iq-plumbing": Droplets,
@@ -60,6 +61,7 @@ function ReviewPage() {
   const [openingsCount, setOpeningsCount] = useState<number>(0);
   const [tab, setTab] = useState<string>(initialTab && ["base","working","openings","walls","validation"].includes(initialTab) ? initialTab : "base");
   const [takeoffOpen, setTakeoffOpen] = useState(false);
+  const [visionOpen, setVisionOpen] = useState(false);
 
   useEffect(() => {
     if (!jobId) { setLoading(false); return; }
@@ -243,7 +245,7 @@ function ReviewPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setTakeoffOpen(true)}
+                onClick={() => setVisionOpen(true)}
                 className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
               >
                 <ScanEye className="h-4 w-4" /> Run Vision Takeoff
