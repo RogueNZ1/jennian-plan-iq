@@ -72,7 +72,7 @@ export const IQ_MODULES: IQModule[] = [
   {
     id: "iq-core",
     name: "IQ Core",
-    shortDescription: "Architectural quantity extraction.",
+    shortDescription: "Architectural quantity review.",
     longDescription: "Core architectural geometry — areas, perimeters, schedules and pitches that drive every downstream trade package.",
     exportSheet: "Core",
     items: [
@@ -93,8 +93,8 @@ export const IQ_MODULES: IQModule[] = [
   {
     id: "iq-electrical",
     name: "IQ Electrical",
-    shortDescription: "Electrical symbol recognition and count.",
-    longDescription: "Symbol-aware electrical takeoff — power, lighting, low-voltage and appliance points across the plan set.",
+    shortDescription: "Electrical points, lighting and appliance schedule.",
+    longDescription: "Electrical takeoff for power, lighting, low-voltage and appliance points. Supports plan-counted quantities and template-based allowances when a marked-up electrical plan is not yet available.",
     exportSheet: "Electrical",
     items: [
       { key: "single_power",     description: "Single Power Points",   unit: "qty", range: [4, 14] },
@@ -117,7 +117,7 @@ export const IQ_MODULES: IQModule[] = [
   {
     id: "iq-plumbing",
     name: "IQ Plumbing",
-    shortDescription: "Fixture and plumbing extraction.",
+    shortDescription: "Fixture and plumbing schedule.",
     longDescription: "Fixture schedule across kitchen, bathroom, laundry and exterior — feeds the plumbing supplier RFQ.",
     exportSheet: "Plumbing",
     items: [
@@ -154,7 +154,7 @@ export const IQ_MODULES: IQModule[] = [
   {
     id: "iq-framing",
     name: "IQ Framing",
-    shortDescription: "Framing quantity extraction.",
+    shortDescription: "Framing quantity schedule.",
     longDescription: "Wall framing, openings, lintels, studs and noggings ready for the timber supplier RFQ.",
     exportSheet: "Framing",
     items: [
@@ -172,7 +172,7 @@ export const IQ_MODULES: IQModule[] = [
   {
     id: "iq-cladding",
     name: "IQ Cladding",
-    shortDescription: "Cladding and brick quantity extraction.",
+    shortDescription: "Cladding and brick quantity schedule.",
     longDescription: "Brick, weatherboard and feature cladding — areas, lineal metres, flashings, sills and corners.",
     exportSheet: "Cladding",
     items: [
@@ -188,7 +188,7 @@ export const IQ_MODULES: IQModule[] = [
   {
     id: "iq-roofing",
     name: "IQ Roofing",
-    shortDescription: "Roofing quantity extraction.",
+    shortDescription: "Roofing quantity schedule.",
     longDescription: "Roof areas, ridges, hips, valleys, fascia, spouting and downpipes for the roofing RFQ.",
     exportSheet: "Roofing",
     items: [
@@ -349,3 +349,87 @@ export async function runDummyExtraction(jobKey: string, mod: IQModule): Promise
     };
   });
 }
+
+/** ---------- IQ Electrical: Template Allowance Mode ---------- */
+
+export type ElectricalMode = "plan_count" | "template_allowance";
+
+export type ReviewStatus = "review_required" | "confirmed" | "excluded";
+
+export type ElectricalAllowanceRow = {
+  key: string;
+  item: string;
+  code: string;
+  description: string;
+  basis: string;
+  allowedQuantity: number;
+  confirmedQuantity: number;
+  reviewStatus: ReviewStatus;
+  notes: string;
+};
+
+/** Default early-stage electrical allowance rules.
+ *  Allowances are placeholders only — confirm against the electrical plan before procurement. */
+export const ELECTRICAL_ALLOWANCE_DEFAULTS: ElectricalAllowanceRow[] = [
+  { key: "smoke",      item: "Smoke Detectors",        code: "EL-SMK",  description: "Hardwired interconnected smoke detectors.",
+    basis: "1 per bedroom + hallway + living area", allowedQuantity: 4, confirmedQuantity: 4, reviewStatus: "review_required", notes: "" },
+  { key: "extractor",  item: "Extractor Fans",         code: "EL-EXT",  description: "Wall or ceiling extractor fan.",
+    basis: "1 per bathroom, ensuite, laundry",      allowedQuantity: 3, confirmedQuantity: 3, reviewStatus: "review_required", notes: "" },
+  { key: "htr",        item: "Heated Towel Rails",     code: "EL-HTR",  description: "Heated towel rail circuit.",
+    basis: "1 per bathroom and ensuite",            allowedQuantity: 2, confirmedQuantity: 2, reviewStatus: "review_required", notes: "Exclude if specified out." },
+  { key: "downlights", item: "Downlights",             code: "EL-DL",   description: "LED downlight fittings.",
+    basis: "Room-based template allowance",         allowedQuantity: 38, confirmedQuantity: 38, reviewStatus: "review_required", notes: "" },
+  { key: "double_pp",  item: "Double Power Points",    code: "EL-DPP",  description: "Standard double power point.",
+    basis: "Room-based template allowance",         allowedQuantity: 28, confirmedQuantity: 28, reviewStatus: "review_required", notes: "" },
+  { key: "single_pp",  item: "Single Power Points",    code: "EL-SPP",  description: "Single power point for dedicated appliance.",
+    basis: "Appliance-specific allowance",          allowedQuantity: 6,  confirmedQuantity: 6,  reviewStatus: "review_required", notes: "" },
+  { key: "data",       item: "Data Points",            code: "EL-CAT6", description: "CAT6 data point.",
+    basis: "Specification allowance",               allowedQuantity: 4,  confirmedQuantity: 4,  reviewStatus: "review_required", notes: "" },
+  { key: "tv",         item: "TV Points",              code: "EL-TV",   description: "TV outlet point.",
+    basis: "Specification allowance",               allowedQuantity: 2,  confirmedQuantity: 2,  reviewStatus: "review_required", notes: "" },
+  { key: "hdmi",       item: "HDMI Points",            code: "EL-HDMI", description: "HDMI feed point.",
+    basis: "Specification allowance",               allowedQuantity: 1,  confirmedQuantity: 1,  reviewStatus: "review_required", notes: "" },
+  { key: "ext_pp",     item: "Exterior Power Points",  code: "EL-XPP",  description: "Weatherproof exterior power point.",
+    basis: "Specification allowance",               allowedQuantity: 3,  confirmedQuantity: 3,  reviewStatus: "review_required", notes: "" },
+  { key: "kitchen",    item: "Kitchen Appliance Outlets", code: "EL-KAP", description: "Dedicated outlets for kitchen appliances.",
+    basis: "Selected kitchen appliance schedule",   allowedQuantity: 6,  confirmedQuantity: 6,  reviewStatus: "review_required", notes: "" },
+  { key: "garage",     item: "Garage Door Outlet",     code: "EL-GDO",  description: "Outlet for motorised garage door.",
+    basis: "1 per motorised garage door",           allowedQuantity: 1,  confirmedQuantity: 1,  reviewStatus: "review_required", notes: "" },
+];
+
+const EL_KEY = (jobKey: string) => `iq:${jobKey}:iq-electrical:allowance`;
+const EL_MODE_KEY = (jobKey: string) => `iq:${jobKey}:iq-electrical:mode`;
+
+export function loadElectricalAllowance(jobKey: string): ElectricalAllowanceRow[] {
+  if (typeof window === "undefined") return ELECTRICAL_ALLOWANCE_DEFAULTS.map((r) => ({ ...r }));
+  try {
+    const raw = localStorage.getItem(EL_KEY(jobKey));
+    if (raw) return JSON.parse(raw) as ElectricalAllowanceRow[];
+  } catch { /* ignore */ }
+  return ELECTRICAL_ALLOWANCE_DEFAULTS.map((r) => ({ ...r }));
+}
+
+export function saveElectricalAllowance(jobKey: string, rows: ElectricalAllowanceRow[]) {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(EL_KEY(jobKey), JSON.stringify(rows)); } catch { /* ignore */ }
+}
+
+export function loadElectricalMode(jobKey: string): ElectricalMode {
+  if (typeof window === "undefined") return "template_allowance";
+  try {
+    const raw = localStorage.getItem(EL_MODE_KEY(jobKey));
+    if (raw === "plan_count" || raw === "template_allowance") return raw;
+  } catch { /* ignore */ }
+  return "template_allowance";
+}
+
+export function saveElectricalMode(jobKey: string, mode: ElectricalMode) {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(EL_MODE_KEY(jobKey), mode); } catch { /* ignore */ }
+}
+
+export const REVIEW_STATUS_LABEL: Record<ReviewStatus, string> = {
+  review_required: "Review Required",
+  confirmed: "Confirmed",
+  excluded: "Excluded",
+};

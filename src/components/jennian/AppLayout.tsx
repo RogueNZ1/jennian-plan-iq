@@ -59,11 +59,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="text-[22px] font-semibold tracking-tight text-white">
               Jennian <span className="text-primary">IQ</span>
             </div>
-            <div className="mt-1.5 text-[10px] uppercase tracking-[0.3em] text-primary/90 font-semibold">
-              Built Smarter.
-            </div>
             <div className="mt-2 text-[11.5px] text-sidebar-foreground/55 leading-snug">
-              Quantity intelligence for better building.
+              Plans · Quantities · Pricing · Procurement
             </div>
           </div>
           <div className="mt-5 h-px bg-sidebar-border/70" />
@@ -95,9 +92,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="px-4 pt-4 pb-3">
             <div className="flex items-center gap-1.5">
               <span className="h-px w-5 bg-primary" />
-              <span className="text-[9.5px] uppercase tracking-[0.22em] text-sidebar-foreground/55 font-medium">Quantity intelligence</span>
+              <span className="text-[9.5px] uppercase tracking-[0.22em] text-sidebar-foreground/55 font-medium">Estimating workspace</span>
             </div>
-            <div className="mt-1 text-[12.5px] text-sidebar-foreground/85 leading-snug">for better building.</div>
+            <div className="mt-1 text-[12.5px] text-sidebar-foreground/85 leading-snug">Plans, quantities and pricing preparation.</div>
           </div>
           <div className="px-3 pb-2">
             <HouseFrame className="w-full text-sidebar-foreground/65" />

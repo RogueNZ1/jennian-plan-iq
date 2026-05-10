@@ -53,8 +53,8 @@ function Dashboard() {
     <AppLayout>
       <div className="px-8 py-8 max-w-7xl">
         <PageHeader
-          title="Dashboard"
-          subtitle="Overview of extraction activity across the Manawatū team."
+          title="Project Overview"
+          subtitle="Current activity across Jennian Homes Manawatū projects."
           actions={
             <Link to="/upload" className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 shadow-sm">
               <Upload className="h-4 w-4" /> Upload New Plan
@@ -73,7 +73,7 @@ function Dashboard() {
           <div className="flex items-center justify-between px-6 py-4 border-b border-border">
             <div>
               <h2 className="text-[15px] font-semibold tracking-tight">Recent jobs</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Latest plans processed by Jennian IQ.</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Latest plans reviewed in Jennian IQ.</p>
             </div>
             <Link to="/jobs" className="text-xs font-medium text-primary inline-flex items-center gap-1 hover:underline">View all <ArrowUpRight className="h-3 w-3" /></Link>
           </div>
@@ -84,7 +84,7 @@ function Dashboard() {
               <HouseFrame className="w-56 text-muted-foreground/40" />
               <div className="mt-4 text-sm font-medium">No jobs yet</div>
               <p className="mt-1 text-xs text-muted-foreground">
-                <Link to="/upload" className="text-primary font-medium hover:underline">Upload your first plan</Link> to begin extraction.
+                <Link to="/upload" className="text-primary font-medium hover:underline">Upload your first plan</Link> to begin a review.
               </p>
             </div>
           ) : (

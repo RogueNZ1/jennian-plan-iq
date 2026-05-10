@@ -39,8 +39,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Jennian IQ — Built Smarter." },
-      { name: "description", content: "AI-assisted residential construction quantity extraction and estimating preparation for Jennian Homes Manawatū." },
+      { title: "Jennian IQ" },
+      { name: "description", content: "Quantity review, plan analysis, and estimating preparation for Jennian Homes Manawatū." },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
   }),

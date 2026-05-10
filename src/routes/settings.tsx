@@ -7,7 +7,7 @@ function Page() {
   return (
     <AppLayout>
       <div className="px-8 py-8 max-w-3xl">
-        <PageHeader title="Settings" subtitle="Workspace and extraction defaults." />
+        <PageHeader title="Settings" subtitle="Workspace and review defaults." />
         <div className="space-y-4">
           {[
             { title: "Workspace", desc: "Jennian Homes Manawatū", actionLabel: "Edit" },
