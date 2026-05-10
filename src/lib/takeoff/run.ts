@@ -17,6 +17,7 @@ import { extractQuantitiesFromFile, persistQuantity, type ExtractedQty } from ".
 import { extractOpeningsFromFile, persistOpening, type ExtractedOpening } from "./extract-openings";
 import { populateModulesFromTakeoff } from "./populate-modules";
 import { seedAllModulesForJob } from "@/lib/iq-modules";
+import type { PageClassification } from "./summary";
 
 export type TakeoffStep =
   | "reviewing_files"
@@ -59,6 +60,7 @@ export type TakeoffSummary = {
   warnings: string[];
   hasWarnings: boolean;
   completedAt: string | null;
+  pageClassifications: PageClassification[];
 };
 
 async function logAudit(entry: {
@@ -152,6 +154,16 @@ export async function runAutomaticTakeoff(args: {
       pages: file.pages.map<ClassifiedPage>((p) => classifyPage(p)),
       rawPages: file.pages,
     }));
+
+    const pageClassifications: PageClassification[] = classified.flatMap((c) =>
+      c.pages.map<PageClassification>((p) => ({
+        fileName: c.fileName,
+        pageNumber: p.pageNumber,
+        pageType: p.pageType,
+        confidence: p.confidence,
+        reason: p.reason,
+      })),
+    );
 
     const planClass = classified
       .filter((c) => c.fileType === "plan")
@@ -305,6 +317,7 @@ export async function runAutomaticTakeoff(args: {
       warnings,
       hasWarnings,
       completedAt,
+      pageClassifications,
     };
 
     await supabase.from("takeoff_runs").update({
@@ -350,6 +363,7 @@ function emptySummary(runId: string): TakeoffSummary {
     moduleItemsInserted: 0, moduleItemsUpdated: 0, moduleItemConflicts: 0,
     reviewRequiredCount: 0, highCount: 0, midCount: 0, lowCount: 0,
     errors: [], warnings: [], hasWarnings: false, completedAt: null,
+    pageClassifications: [],
   };
 }
 
