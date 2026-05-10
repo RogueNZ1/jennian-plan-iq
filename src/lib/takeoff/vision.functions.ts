@@ -28,6 +28,7 @@ import type {
   VisionRunSummary,
   VisionRunPageOutcome,
   VisionConfidence,
+  VisionTakeoffError,
 } from "./vision-types";
 
 const SYSTEM_PROMPT = `You are reviewing a single rendered page from a construction plan PDF for a residential takeoff.
@@ -245,15 +246,19 @@ type AuditEntry = {
 export const runVisionTakeoff = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => InputSchema.parse(input))
-  .handler(async ({ data, context }): Promise<VisionRunSummary> => {
+  .handler(async ({ data, context }): Promise<VisionRunSummary | VisionTakeoffError> => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { supabase, userId } = context as any;
 
     const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
     if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured.");
+      return {
+        ok: false,
+        error: { operation: "startup", message: "Vision Takeoff is not configured on this server. Contact support." },
+      };
     }
 
+    try {
     const summary: VisionRunSummary = {
       kind: "vision_takeoff",
       ranAt: new Date().toISOString(),
@@ -1032,7 +1037,14 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
           notes: `${p.fileName} p${p.pageNumber} (page_type=${parsed.page_type})`,
         });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Unknown vision takeoff failure.";
+        const msg =
+          err instanceof Error
+            ? err.message
+            : err instanceof Response
+              ? `Server error (HTTP ${(err as Response).status}).`
+              : typeof err === "string"
+                ? err
+                : "Unknown vision takeoff failure.";
         pageOutcome.status = "error";
         pageOutcome.errorMessage = msg;
         summary.errors.push(`${p.fileName} p${p.pageNumber}: ${msg}`);
@@ -1074,4 +1086,20 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
     });
 
     return summary;
+    } catch (topErr: unknown) {
+      const msg =
+        topErr instanceof Error
+          ? topErr.message
+          : topErr instanceof Response
+            ? `Server error (HTTP ${(topErr as Response).status}).`
+            : "Unexpected Vision Takeoff failure.";
+      return {
+        ok: false,
+        error: {
+          operation: "vision_takeoff",
+          message: msg,
+          technical: topErr instanceof Error ? topErr.stack?.slice(0, 500) : undefined,
+        },
+      };
+    }
   });

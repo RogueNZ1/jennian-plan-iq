@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { renderAndUploadPlanPage } from "@/lib/takeoff/render-page";
 import { runVisionTakeoff } from "@/lib/takeoff/vision.functions";
-import type { VisionRunSummary } from "@/lib/takeoff/vision-types";
+import type { VisionRunSummary, VisionTakeoffError } from "@/lib/takeoff/vision-types";
 import { extractFile } from "@/lib/takeoff/pdf-text";
 import { classifyPageWithType } from "@/lib/takeoff/classify";
 
@@ -204,13 +204,25 @@ export function VisionTakeoffPanel({
       }
 
       setStatus(`Calling vision model on ${pageInputs.length} rendered pages…`);
-      const summary = await runFn({ data: { jobId, pages: pageInputs, specificationText } });
-      setResult(summary);
+      const response = await runFn({ data: { jobId, pages: pageInputs, specificationText } });
+      // Structured error: server function returned { ok: false } instead of throwing.
+      if ("ok" in response && (response as VisionTakeoffError).ok === false) {
+        const errObj = (response as VisionTakeoffError).error;
+        throw new Error(errObj.message || "Vision Takeoff failed.");
+      }
+      setResult(response as VisionRunSummary);
       setStatus(null);
     } catch (e) {
       let msg = "Vision takeoff failed.";
       if (e instanceof Error) {
-        msg = e.message;
+        const raw = e.message;
+        // TanStack Start serialises a thrown Response as the string "[object Response]".
+        // Detect this and show a meaningful message rather than leaking the raw string.
+        if (!raw || raw === "[object Response]" || /^\[object /.test(raw)) {
+          msg = "Vision Takeoff could not connect to the server. Please refresh the page and try again.";
+        } else {
+          msg = raw;
+        }
       } else if (e instanceof Response) {
         try {
           const text = await e.clone().text();
@@ -218,6 +230,11 @@ export function VisionTakeoffPanel({
         } catch {
           msg = `Vision takeoff failed (${e.status}).`;
         }
+      } else {
+        const s = String(e);
+        msg = s && s !== "[object Object]" && s !== "[object Response]"
+          ? s
+          : "Vision Takeoff encountered an unexpected error. Please try again.";
       }
       setError(msg);
       setStatus(null);
