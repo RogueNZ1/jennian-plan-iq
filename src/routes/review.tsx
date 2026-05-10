@@ -7,7 +7,8 @@ import {
 } from "@/lib/jennian-data";
 import { MODULES, moduleForQuantity, type ModuleId } from "@/lib/takeoff-modules";
 import {
-  IQ_MODULES, loadModuleState, confidencePercent, STATUS_LABEL,
+  IQ_MODULES, loadModuleState, confidencePercent,
+  statusLabel, statusBadgeClass,
   type IQModuleId, type IQModuleStatus,
 } from "@/lib/iq-modules";
 import { supabase } from "@/integrations/supabase/client";
@@ -285,12 +286,7 @@ function triggerDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-const STATUS_STYLES: Record<IQModuleStatus, string> = {
-  not_started: "bg-muted text-muted-foreground border-border",
-  ready:       "bg-confidence-high-bg text-confidence-high border-transparent",
-  in_review:   "bg-confidence-mid-bg text-confidence-mid border-transparent",
-  approved:    "bg-primary/10 text-primary border-transparent",
-};
+// Status styling now centralised in `statusBadgeClass`/`statusLabel`.
 
 function ModulesOverview({ jobId }: { jobId: string }) {
   const [tick, setTick] = useState(0);
@@ -339,8 +335,8 @@ function ModulesOverview({ jobId }: { jobId: string }) {
                 <div className="h-8 w-8 rounded-md bg-accent grid place-items-center text-primary">
                   <Icon className="h-4 w-4" />
                 </div>
-                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLES[status]}`}>
-                  {STATUS_LABEL[status]}
+                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${statusBadgeClass(status)}`}>
+                  {statusLabel(status)}
                 </span>
               </div>
               <div className="mt-3 text-[14px] font-semibold tracking-tight">{mod.name}</div>
