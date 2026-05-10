@@ -21,6 +21,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ModulesModuleIdRouteImport } from './routes/modules.$moduleId'
+import { Route as JobsJobIdRouteImport } from './routes/jobs.$jobId'
 
 const UsersRoute = UsersRouteImport.update({
   id: '/users',
@@ -82,10 +83,15 @@ const ModulesModuleIdRoute = ModulesModuleIdRouteImport.update({
   path: '/$moduleId',
   getParentRoute: () => ModulesRoute,
 } as any)
+const JobsJobIdRoute = JobsJobIdRouteImport.update({
+  id: '/$jobId',
+  path: '/$jobId',
+  getParentRoute: () => JobsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/jobs': typeof JobsRoute
+  '/jobs': typeof JobsRouteWithChildren
   '/login': typeof LoginRoute
   '/modules': typeof ModulesRouteWithChildren
   '/reports': typeof ReportsRoute
@@ -95,11 +101,12 @@ export interface FileRoutesByFullPath {
   '/templates': typeof TemplatesRoute
   '/upload': typeof UploadRoute
   '/users': typeof UsersRoute
+  '/jobs/$jobId': typeof JobsJobIdRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/jobs': typeof JobsRoute
+  '/jobs': typeof JobsRouteWithChildren
   '/login': typeof LoginRoute
   '/modules': typeof ModulesRouteWithChildren
   '/reports': typeof ReportsRoute
@@ -109,12 +116,13 @@ export interface FileRoutesByTo {
   '/templates': typeof TemplatesRoute
   '/upload': typeof UploadRoute
   '/users': typeof UsersRoute
+  '/jobs/$jobId': typeof JobsJobIdRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/jobs': typeof JobsRoute
+  '/jobs': typeof JobsRouteWithChildren
   '/login': typeof LoginRoute
   '/modules': typeof ModulesRouteWithChildren
   '/reports': typeof ReportsRoute
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   '/templates': typeof TemplatesRoute
   '/upload': typeof UploadRoute
   '/users': typeof UsersRoute
+  '/jobs/$jobId': typeof JobsJobIdRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
 }
 export interface FileRouteTypes {
@@ -140,6 +149,7 @@ export interface FileRouteTypes {
     | '/templates'
     | '/upload'
     | '/users'
+    | '/jobs/$jobId'
     | '/modules/$moduleId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -154,6 +164,7 @@ export interface FileRouteTypes {
     | '/templates'
     | '/upload'
     | '/users'
+    | '/jobs/$jobId'
     | '/modules/$moduleId'
   id:
     | '__root__'
@@ -168,12 +179,13 @@ export interface FileRouteTypes {
     | '/templates'
     | '/upload'
     | '/users'
+    | '/jobs/$jobId'
     | '/modules/$moduleId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  JobsRoute: typeof JobsRoute
+  JobsRoute: typeof JobsRouteWithChildren
   LoginRoute: typeof LoginRoute
   ModulesRoute: typeof ModulesRouteWithChildren
   ReportsRoute: typeof ReportsRoute
@@ -271,8 +283,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ModulesModuleIdRouteImport
       parentRoute: typeof ModulesRoute
     }
+    '/jobs/$jobId': {
+      id: '/jobs/$jobId'
+      path: '/$jobId'
+      fullPath: '/jobs/$jobId'
+      preLoaderRoute: typeof JobsJobIdRouteImport
+      parentRoute: typeof JobsRoute
+    }
   }
 }
+
+interface JobsRouteChildren {
+  JobsJobIdRoute: typeof JobsJobIdRoute
+}
+
+const JobsRouteChildren: JobsRouteChildren = {
+  JobsJobIdRoute: JobsJobIdRoute,
+}
+
+const JobsRouteWithChildren = JobsRoute._addFileChildren(JobsRouteChildren)
 
 interface ModulesRouteChildren {
   ModulesModuleIdRoute: typeof ModulesModuleIdRoute
@@ -287,7 +316,7 @@ const ModulesRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  JobsRoute: JobsRoute,
+  JobsRoute: JobsRouteWithChildren,
   LoginRoute: LoginRoute,
   ModulesRoute: ModulesRouteWithChildren,
   ReportsRoute: ReportsRoute,
