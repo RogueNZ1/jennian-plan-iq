@@ -160,3 +160,97 @@ export type VisionRunSummary = {
   errors: string[];
   pages: VisionRunPageOutcome[];
 };
+
+/**
+ * Normalises any unknown thrown/returned value into a structured error object
+ * safe for display in VisionTakeoffPanel. Never throws.
+ */
+export function normaliseVisionError(err: unknown): {
+  operation: string;
+  message: string;
+  technical?: string;
+} {
+  const fallback = {
+    operation: "unknown",
+    message: "Vision Takeoff encountered an unexpected error.",
+  } as const;
+
+  if (err == null) return fallback;
+
+  if (err instanceof Error) {
+    const raw = err.message;
+    const msg =
+      !raw || raw === "[object Response]" || /^\[object /.test(raw)
+        ? "Vision Takeoff could not connect to the server. Please refresh the page and try again."
+        : raw;
+    return { operation: "client_error", message: msg, technical: err.stack?.slice(0, 500) };
+  }
+
+  // Response object (browser Fetch API)
+  if (typeof Response !== "undefined" && err instanceof Response) {
+    return {
+      operation: "server_response",
+      message: `Vision Takeoff failed (HTTP ${err.status}).`,
+      technical: `HTTP ${err.status} ${err.statusText}`.trim(),
+    };
+  }
+
+  if (typeof err === "string") {
+    const trimmed = err.trim();
+    const msg =
+      trimmed && trimmed !== "[object Object]" && trimmed !== "[object Response]"
+        ? trimmed
+        : "Vision Takeoff encountered an unexpected error.";
+    return { operation: "unknown", message: msg };
+  }
+
+  if (typeof err === "object") {
+    const obj = err as Record<string, unknown>;
+
+    // { ok: false, error: { operation, message, technical? } }
+    if (obj.error !== null && obj.error !== undefined && typeof obj.error === "object") {
+      const inner = obj.error as Record<string, unknown>;
+      if (typeof inner.message === "string") {
+        return {
+          operation: typeof inner.operation === "string" ? inner.operation : "unknown",
+          message: inner.message || "Vision Takeoff failed.",
+          technical: typeof inner.technical === "string" ? inner.technical : undefined,
+        };
+      }
+    }
+
+    // { ok: false, error: "some string" }
+    if (typeof obj.error === "string") {
+      return { operation: "unknown", message: obj.error || "Vision Takeoff failed." };
+    }
+
+    // { message: "..." }
+    if (typeof obj.message === "string") {
+      return { operation: "unknown", message: obj.message || "Vision Takeoff failed." };
+    }
+
+    // { status: 500, statusText: "..." }
+    if (typeof obj.status === "number") {
+      return {
+        operation: "server_response",
+        message: `Vision Takeoff failed (HTTP ${obj.status}${obj.statusText ? `: ${obj.statusText}` : ""}).`,
+        technical: `HTTP ${obj.status} ${obj.statusText ?? ""}`.trim(),
+      };
+    }
+
+    // Unknown object shape — include a JSON summary for diagnostics
+    let technical: string | undefined;
+    try {
+      technical = JSON.stringify(err).slice(0, 300);
+    } catch {
+      technical = String(err);
+    }
+    return {
+      operation: "unknown",
+      message: "Vision Takeoff could not complete. Unexpected server response.",
+      technical,
+    };
+  }
+
+  return { ...fallback, technical: String(err) };
+}

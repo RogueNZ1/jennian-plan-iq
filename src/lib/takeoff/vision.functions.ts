@@ -438,16 +438,38 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
           const text = await aiRes.text().catch(() => "");
           throw new Error(`Vision model error ${aiRes.status}: ${text.slice(0, 240)}`);
         }
-        const aiJson = (await aiRes.json()) as {
-          choices?: Array<{ message?: { tool_calls?: Array<{ function?: { arguments?: string } }> } }>;
-        };
+        // Defensively parse the AI gateway JSON — a non-JSON body or missing fields
+        // returns a structured failure rather than letting the page-level catch mask the cause.
+        type AiResponse = { choices?: Array<{ message?: { tool_calls?: Array<{ function?: { arguments?: string } }> } }> };
+        let aiJson: AiResponse;
+        try {
+          aiJson = (await aiRes.json()) as AiResponse;
+        } catch {
+          pageOutcome.status = "model_unreadable";
+          pageOutcome.errorMessage = "Vision model returned an unexpected response.";
+          summary.errors.push(
+            `${p.fileName} p${p.pageNumber}: vision_response_parse — Vision model returned an unexpected response. Technical: HTTP ${aiRes.status}, response body was not valid JSON.`,
+          );
+          summary.failedPages++;
+          summary.pages.push(pageOutcome);
+          continue;
+        }
+
         const argStr = aiJson.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
         if (!argStr) {
+          // Summarise the response shape so the operator can diagnose gateway issues.
+          let technical: string;
+          try {
+            technical = JSON.stringify(aiJson).slice(0, 300);
+          } catch {
+            technical = String(aiJson);
+          }
           pageOutcome.status = "model_unreadable";
-          pageOutcome.errorMessage = "Model did not return structured takeoff JSON.";
-          summary.warnings.push(
-            `${p.fileName} p${p.pageNumber}: vision model did not return structured JSON.`,
+          pageOutcome.errorMessage = "Vision model returned an unexpected response.";
+          summary.errors.push(
+            `${p.fileName} p${p.pageNumber}: vision_model_call — Vision model returned an unexpected response. Technical: ${technical}`,
           );
+          summary.failedPages++;
           summary.pages.push(pageOutcome);
           continue;
         }
@@ -456,10 +478,11 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
           parsed = JSON.parse(argStr) as VisionPageResult;
         } catch (e) {
           pageOutcome.status = "model_unreadable";
-          pageOutcome.errorMessage = `Could not parse model JSON: ${(e as Error).message}`;
-          summary.warnings.push(
-            `${p.fileName} p${p.pageNumber}: could not parse vision model JSON.`,
+          pageOutcome.errorMessage = "Vision model returned an unexpected response.";
+          summary.errors.push(
+            `${p.fileName} p${p.pageNumber}: vision_response_parse — Vision model returned an unexpected response. Technical: ${(e as Error).message}. Raw: ${argStr.slice(0, 200)}`,
           );
+          summary.failedPages++;
           summary.pages.push(pageOutcome);
           continue;
         }
