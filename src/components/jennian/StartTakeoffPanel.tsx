@@ -102,7 +102,7 @@ export function StartTakeoffPanel({
           <div className="space-y-0.5">
             {!rec.hasFiles && (
               <div className="text-muted-foreground">
-                Upload plans and specifications to begin.
+                Upload plans and specifications before starting takeoff.
               </div>
             )}
             {rec.hasFiles && rec.kind === "vision" && (
@@ -150,7 +150,8 @@ export function StartTakeoffPanel({
         <button
           type="button"
           onClick={onAutomatic}
-          className="text-left bg-card hover:bg-accent transition-colors p-5"
+          disabled={!!rec && !rec.hasFiles}
+          className="text-left bg-card hover:bg-accent transition-colors p-5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-card"
         >
           <div className="flex items-center gap-2">
             <Wand2 className="h-4 w-4 text-primary" />
@@ -163,7 +164,8 @@ export function StartTakeoffPanel({
         <button
           type="button"
           onClick={onVision}
-          className="text-left bg-card hover:bg-accent transition-colors p-5"
+          disabled={!!rec && !rec.hasFiles}
+          className="text-left bg-card hover:bg-accent transition-colors p-5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-card"
         >
           <div className="flex items-center gap-2">
             <ScanEye className="h-4 w-4 text-primary" />
@@ -176,7 +178,8 @@ export function StartTakeoffPanel({
         <button
           type="button"
           onClick={onWorkingPlan}
-          className="text-left bg-card hover:bg-accent transition-colors p-5"
+          disabled={!!rec && !rec.hasFiles}
+          className="text-left bg-card hover:bg-accent transition-colors p-5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-card"
         >
           <div className="flex items-center gap-2">
             <Ruler className="h-4 w-4 text-primary" />
