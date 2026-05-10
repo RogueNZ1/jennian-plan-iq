@@ -34,6 +34,11 @@ export type ExtractedFile = {
   pages: ExtractedPage[];
 };
 
+export type ExtractedPageError = {
+  pageNumber: number;
+  message: string;
+};
+
 function classifyPageSize(widthPts: number, heightPts: number): PageSize {
   // pdfjs returns user-units (1pt = 1/72in). ISO sizes in mm:
   // A1 594x841, A2 420x594, A3 297x420, A4 210x297. 1mm = 2.83465pt.
