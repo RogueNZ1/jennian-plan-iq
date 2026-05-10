@@ -3,7 +3,8 @@ import { AppLayout, PageHeader } from "@/components/jennian/AppLayout";
 import { TEMPLATES, RUSSELL_STREET_QUANTITIES } from "@/lib/jennian-data";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { UploadCloud, FileText, Sparkles, CheckCircle2 } from "lucide-react";
+import { UploadCloud, FileText, Sparkles, CheckCircle2, X } from "lucide-react";
+import { PlanThumbnail } from "@/components/jennian/PlanThumbnail";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -186,17 +187,54 @@ function Field({ label, placeholder, value, onChange }: { label: string; placeho
 }
 
 function Dropzone({ label, sub, file, onFile }: { label: string; sub: string; file: File | null; onFile: (f: File | null) => void }) {
+  if (file) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-4 shadow-[0_1px_0_rgba(0,0,0,0.02)]">
+        <div className="flex items-start gap-4">
+          <PlanThumbnail seed={file.name} size="md" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-3.5 w-3.5 text-confidence-high" />
+              <span className="text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground font-medium">{label}</span>
+            </div>
+            <div className="mt-1 text-[13.5px] font-medium truncate">{file.name}</div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">
+              {(file.size / 1024 / 1024).toFixed(2)} MB · ready for extraction
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <label className="text-[11px] text-primary font-medium hover:underline cursor-pointer">
+                Replace file
+                <input type="file" accept="application/pdf" className="sr-only"
+                  onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
+              </label>
+              <button
+                type="button"
+                onClick={() => onFile(null)}
+                className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+              >
+                <X className="h-3 w-3" /> Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
-    <label className={`block rounded-lg border-2 border-dashed bg-card p-8 text-center cursor-pointer transition-colors ${file ? "border-primary/50 bg-accent/30" : "border-border hover:border-primary/40 hover:bg-accent/40"}`}>
-      {file ? (
-        <CheckCircle2 className="h-7 w-7 text-primary mx-auto" />
-      ) : (
-        <UploadCloud className="h-7 w-7 text-muted-foreground mx-auto" />
-      )}
-      <div className="mt-3 text-sm font-medium">{label}</div>
-      <div className="text-xs text-muted-foreground mt-0.5 truncate">{file ? file.name : sub}</div>
-      <div className="mt-4 inline-flex items-center gap-2 text-xs text-primary font-medium">
-        <FileText className="h-3.5 w-3.5" /> {file ? "Replace file" : "Choose file or drag & drop"}
+    <label className="relative block rounded-xl border-2 border-dashed border-border bg-card p-8 text-center cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/40 overflow-hidden">
+      {/* Architectural cue */}
+      <svg viewBox="0 0 200 80" className="absolute inset-x-0 bottom-0 w-full h-16 text-foreground/[0.05] pointer-events-none" aria-hidden>
+        <g stroke="currentColor" strokeWidth="0.5">
+          <line x1="0" y1="60" x2="200" y2="60" />
+          <path d="M30 60 V32 L70 16 L110 32 V60" fill="none" />
+          <path d="M110 60 V40 L160 40 V60" fill="none" />
+        </g>
+      </svg>
+      <UploadCloud className="h-7 w-7 text-muted-foreground mx-auto relative" />
+      <div className="mt-3 text-sm font-medium relative">{label}</div>
+      <div className="text-xs text-muted-foreground mt-0.5 relative">{sub}</div>
+      <div className="mt-4 inline-flex items-center gap-2 text-xs text-primary font-medium relative">
+        <FileText className="h-3.5 w-3.5" /> Choose file or drag &amp; drop
       </div>
       <input
         type="file"

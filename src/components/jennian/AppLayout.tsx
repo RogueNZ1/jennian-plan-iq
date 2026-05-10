@@ -50,19 +50,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-background">
       {/* Sidebar */}
-      <aside className="hidden md:flex w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
+      <aside className="hidden md:flex w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border relative">
+        {/* Top red rule — proprietary brand cue */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary/90" />
+
         <div className="px-6 pt-7 pb-5">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-md bg-primary grid place-items-center text-primary-foreground font-semibold text-[15px] tracking-tight shadow-sm">
-              J
+          <div className="flex items-baseline gap-3">
+            <div className="leading-none">
+              <div className="text-[20px] font-semibold tracking-tight text-white">Jennian<span className="text-primary">.</span></div>
+              <div className="mt-1 text-[9.5px] uppercase tracking-[0.32em] text-sidebar-foreground/55 font-medium">Homes</div>
             </div>
-            <div className="leading-tight">
-              <div className="text-[15px] font-semibold tracking-tight text-white">Jennian IQ</div>
-              <div className="text-[10.5px] uppercase tracking-[0.18em] text-primary/90 font-medium mt-0.5">Built Smarter.</div>
+            <div className="ml-auto pl-3 border-l border-sidebar-border/80 leading-tight">
+              <div className="text-[13px] font-semibold tracking-tight text-white">Jennian IQ</div>
+              <div className="text-[9.5px] uppercase tracking-[0.22em] text-primary font-medium mt-0.5">Built Smarter.</div>
             </div>
-          </div>
-          <div className="mt-3 text-[11px] text-sidebar-foreground/55 leading-snug">
-            Quantity intelligence for better building.
           </div>
           <div className="mt-5 h-px bg-sidebar-border/70" />
         </div>
@@ -89,12 +90,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="mx-3 mb-4 mt-4 rounded-md bg-sidebar-accent/40 border border-sidebar-border/60 overflow-hidden">
-          <div className="px-4 pt-3.5 pb-1">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-sidebar-foreground/45">Workspace</div>
-            <div className="mt-1 text-[13px] font-medium text-white">Jennian Homes Manawatū</div>
+        <div className="mx-3 mb-4 mt-4 rounded-lg bg-[oklch(0.18_0.01_260)] border border-sidebar-border/70 overflow-hidden">
+          <div className="px-4 pt-4 pb-3">
+            <div className="flex items-center gap-1.5">
+              <span className="h-px w-5 bg-primary" />
+              <span className="text-[9.5px] uppercase tracking-[0.22em] text-sidebar-foreground/55 font-medium">Quantity intelligence</span>
+            </div>
+            <div className="mt-1 text-[12.5px] text-sidebar-foreground/85 leading-snug">for better building.</div>
           </div>
-          <HouseFrame className="w-full text-sidebar-foreground/30 px-3 pb-2 pt-1" />
+          <div className="px-3 pb-2">
+            <HouseFrame className="w-full text-sidebar-foreground/65" />
+          </div>
+          <div className="mx-4 my-2 h-px bg-sidebar-border/70" />
+          <div className="px-4 pb-3.5">
+            <div className="text-[9.5px] uppercase tracking-[0.22em] text-sidebar-foreground/45 font-medium">Workspace</div>
+            <div className="mt-0.5 text-[13px] font-medium text-white">Jennian Homes Manawatū</div>
+          </div>
         </div>
       </aside>
 
