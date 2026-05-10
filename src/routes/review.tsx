@@ -5,6 +5,7 @@ import {
   getJob, listQuantities, listOverrides,
   type Job, type Quantity, type OverrideRow,
 } from "@/lib/jennian-data";
+import { MODULES, moduleForQuantity, type ModuleId } from "@/lib/takeoff-modules";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Download, FileSpreadsheet, History, CheckCircle2 } from "lucide-react";
@@ -147,38 +148,58 @@ function ReviewPage() {
         />
 
         <div className="grid lg:grid-cols-[1fr_320px] gap-6">
-          <div className="rounded-lg border border-border bg-card overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="px-5 py-3 font-medium">Quantity Type</th>
-                  <th className="px-5 py-3 font-medium">Unit</th>
-                  <th className="px-5 py-3 font-medium">Extracted</th>
-                  <th className="px-5 py-3 font-medium">Final</th>
-                  <th className="px-5 py-3 font-medium">Confidence</th>
-                  <th className="px-5 py-3 font-medium">Notes</th>
-                  <th className="px-5 py-3 font-medium text-right">Override</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 && (
-                  <tr><td colSpan={7} className="px-5 py-10 text-center text-muted-foreground">No quantities yet for this job.</td></tr>
-                )}
-                {rows.map((r) => (
-                  <tr key={r.id} className="border-t border-border">
-                    <td className="px-5 py-3 font-medium">{r.quantity_type}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{r.unit}</td>
-                    <td className="px-5 py-3 tabular-nums text-muted-foreground">{r.extracted_value}</td>
-                    <td className="px-5 py-3 tabular-nums font-medium">{r.approved_value ?? r.extracted_value}</td>
-                    <td className="px-5 py-3"><ConfidencePill level={r.confidence} /></td>
-                    <td className="px-5 py-3 text-muted-foreground text-xs max-w-xs">{r.notes || "—"}</td>
-                    <td className="px-5 py-3 text-right">
-                      <OverrideInput row={r} onSave={override} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-5">
+            {rows.length === 0 && (
+              <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+                No quantities yet for this job.
+              </div>
+            )}
+            {MODULES.map((m) => {
+              const moduleRows = rows.filter((r) => moduleForQuantity(r.quantity_type) === (m.id as ModuleId));
+              if (moduleRows.length === 0) return null;
+              return (
+                <div key={m.id} className="rounded-lg border border-border bg-card overflow-hidden">
+                  <div className="px-5 py-3 border-b border-border flex items-center justify-between">
+                    <div>
+                      <div className="text-[13px] font-semibold tracking-tight">{m.name}</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">{m.description}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">→ {m.exportSheet}</span>
+                      <Link to="/modules/$moduleId" params={{ moduleId: m.id }} search={{ job: jobId }} className="text-xs font-medium text-primary hover:underline">Open module</Link>
+                    </div>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/30">
+                      <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                        <th className="px-5 py-2.5 font-medium">Quantity Type</th>
+                        <th className="px-5 py-2.5 font-medium">Unit</th>
+                        <th className="px-5 py-2.5 font-medium">Extracted</th>
+                        <th className="px-5 py-2.5 font-medium">Final</th>
+                        <th className="px-5 py-2.5 font-medium">Confidence</th>
+                        <th className="px-5 py-2.5 font-medium">Notes</th>
+                        <th className="px-5 py-2.5 font-medium text-right">Override</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {moduleRows.map((r) => (
+                        <tr key={r.id} className="border-t border-border">
+                          <td className="px-5 py-3 font-medium">{r.quantity_type}</td>
+                          <td className="px-5 py-3 text-muted-foreground">{r.unit}</td>
+                          <td className="px-5 py-3 tabular-nums text-muted-foreground">{r.extracted_value}</td>
+                          <td className="px-5 py-3 tabular-nums font-medium">{r.approved_value ?? r.extracted_value}</td>
+                          <td className="px-5 py-3"><ConfidencePill level={r.confidence} /></td>
+                          <td className="px-5 py-3 text-muted-foreground text-xs max-w-xs">{r.notes || "—"}</td>
+                          <td className="px-5 py-3 text-right">
+                            <OverrideInput row={r} onSave={override} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
           </div>
 
           <aside className="space-y-4">

@@ -1,17 +1,19 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, Briefcase, Upload, ClipboardCheck, FileText,
-  LayoutTemplate, BarChart3, Users, Settings, Search, Bell, LogOut,
+  LayoutTemplate, BarChart3, Users, Settings, Search, Bell, LogOut, Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth, initialsFor } from "@/hooks/use-auth";
 import { useEffect, useState, useRef } from "react";
+import { HouseFrame } from "./HouseFrame";
 
 const nav = [
   { to: "/",                 label: "Dashboard",        icon: LayoutDashboard },
   { to: "/jobs",             label: "Jobs",             icon: Briefcase },
   { to: "/upload",           label: "Upload Plan",      icon: Upload },
   { to: "/review",           label: "Quantity Review",  icon: ClipboardCheck },
+  { to: "/modules",          label: "Takeoff Modules",  icon: Layers },
   { to: "/specifications",   label: "Specifications",   icon: FileText },
   { to: "/templates",        label: "Templates",        icon: LayoutTemplate },
   { to: "/reports",          label: "Reports",          icon: BarChart3 },
@@ -49,19 +51,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen bg-background">
       {/* Sidebar */}
       <aside className="hidden md:flex w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
-        <div className="px-6 pt-7 pb-6">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-md bg-primary grid place-items-center text-primary-foreground font-semibold text-sm tracking-tight">
+        <div className="px-6 pt-7 pb-5">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-md bg-primary grid place-items-center text-primary-foreground font-semibold text-[15px] tracking-tight shadow-sm">
               J
             </div>
             <div className="leading-tight">
               <div className="text-[15px] font-semibold tracking-tight text-white">Jennian IQ</div>
-              <div className="text-[11px] text-sidebar-foreground/60">Built Smarter.</div>
+              <div className="text-[10.5px] uppercase tracking-[0.18em] text-primary/90 font-medium mt-0.5">Built Smarter.</div>
             </div>
           </div>
+          <div className="mt-3 text-[11px] text-sidebar-foreground/55 leading-snug">
+            Quantity intelligence for better building.
+          </div>
+          <div className="mt-5 h-px bg-sidebar-border/70" />
         </div>
 
-        <nav className="px-3 flex-1 space-y-0.5">
+        <nav className="px-3 flex-1 space-y-0.5 overflow-y-auto">
           {nav.map(({ to, label, icon: Icon }) => {
             const active = to === "/" ? path === "/" : path.startsWith(to);
             return (
@@ -69,12 +75,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 key={to}
                 to={to}
                 className={cn(
-                  "group flex items-center gap-3 rounded-md px-3 py-2 text-[13.5px] font-medium transition-colors",
+                  "group relative flex items-center gap-3 rounded-md px-3 py-2 text-[13.5px] font-medium transition-colors",
                   active
                     ? "bg-sidebar-accent text-white"
                     : "text-sidebar-foreground/75 hover:bg-sidebar-accent/60 hover:text-white",
                 )}
               >
+                {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-primary" />}
                 <Icon className={cn("h-4 w-4", active ? "text-primary" : "text-sidebar-foreground/60 group-hover:text-sidebar-foreground")} />
                 <span>{label}</span>
               </Link>
@@ -82,9 +89,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="p-4 mx-3 mb-4 rounded-md bg-sidebar-accent/60 border border-sidebar-border/60">
-          <div className="text-[11px] uppercase tracking-wide text-sidebar-foreground/50">Workspace</div>
-          <div className="mt-1 text-[13px] font-medium text-white">Jennian Homes Manawatū</div>
+        <div className="mx-3 mb-4 mt-4 rounded-md bg-sidebar-accent/40 border border-sidebar-border/60 overflow-hidden">
+          <div className="px-4 pt-3.5 pb-1">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-sidebar-foreground/45">Workspace</div>
+            <div className="mt-1 text-[13px] font-medium text-white">Jennian Homes Manawatū</div>
+          </div>
+          <HouseFrame className="w-full text-sidebar-foreground/30 px-3 pb-2 pt-1" />
         </div>
       </aside>
 
