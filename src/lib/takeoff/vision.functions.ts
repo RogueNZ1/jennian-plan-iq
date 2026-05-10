@@ -616,74 +616,124 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
         }
 
         // ----- opening_schedule (windows + doors) -----
-        for (const w of parsed.windows ?? []) {
-          if (w.width_mm == null) continue;
-          const opening_type = normalizeOpeningType(null, "window");
+        const upsertOpening = async (args: {
+          opening_type: string;
+          width_mm: number;
+          height_mm: number | null;
+          room: string | null;
+          confidence: "high" | "mid" | "low";
+          source_evidence: string;
+          notes: string | null;
+          counterKey: "windowItemsFound" | "doorItemsFound";
+          logLabel: string;
+        }) => {
+          // Lookup existing row matching the dedupe key.
+          const { data: existingRows } = await supabase
+            .from("opening_schedule")
+            .select("id, review_status, room_name, height_mm")
+            .eq("job_id", data.jobId)
+            .eq("file_id", p.fileId)
+            .eq("plan_page_number", p.pageNumber)
+            .eq("opening_type", args.opening_type)
+            .eq("width_mm", args.width_mm)
+            .eq("source", "Vision Takeoff")
+            .limit(50);
+          const match = (existingRows ?? []).find((r: { height_mm: number | null; room_name: string | null }) => {
+            const heightEq =
+              (r.height_mm == null && args.height_mm == null) ||
+              (r.height_mm != null && args.height_mm != null && Number(r.height_mm) === Number(args.height_mm));
+            const roomEq = (r.room_name ?? null) === (args.room ?? null);
+            return heightEq && roomEq;
+          }) as { id: string; review_status: string | null } | undefined;
+
+          if (match) {
+            const wasConfirmed = match.review_status === "approved" || match.review_status === "confirmed";
+            const { error: upErr } = await supabase
+              .from("opening_schedule")
+              .update({
+                confidence: args.confidence,
+                source_evidence: args.source_evidence,
+                review_status: wasConfirmed ? match.review_status : "review_required",
+                notes: args.notes,
+              })
+              .eq("id", match.id);
+            if (upErr) {
+              summary.errors.push(`Opening refresh failed (p${p.pageNumber}): ${upErr.message}`);
+            } else {
+              pageOutcome.openingsRefreshed++;
+              summary[args.counterKey]++;
+              if (!wasConfirmed) pageOutcome.reviewRequiredCount++;
+              audit({
+                job_id: data.jobId,
+                user_id: userId,
+                action: "vision_opening_refreshed",
+                notes: `${args.logLabel} (p${p.pageNumber})`,
+              });
+            }
+            return;
+          }
+
           const { error: oErr } = await supabase.from("opening_schedule").insert({
             job_id: data.jobId,
             plan_page_number: p.pageNumber,
-            opening_type,
-            width_mm: w.width_mm,
-            height_mm: w.height_mm,
-            room_name: w.room,
+            opening_type: args.opening_type,
+            width_mm: args.width_mm,
+            height_mm: args.height_mm,
+            room_name: args.room,
             quantity: 1,
             source: "Vision Takeoff",
-            source_evidence: `${evidenceTag} — ${w.source_evidence || w.label}`,
-            confidence: confToDbConfidence(w.confidence),
+            source_evidence: args.source_evidence,
+            confidence: args.confidence,
             review_status: "review_required",
-            notes: w.label || null,
+            notes: args.notes,
             created_by: userId,
             file_id: p.fileId,
           });
           if (oErr) {
-            summary.errors.push(`Window insert failed (p${p.pageNumber}): ${oErr.message}`);
+            summary.errors.push(`Opening insert failed (p${p.pageNumber}): ${oErr.message}`);
           } else {
             pageOutcome.openingsInserted++;
-            summary.windowItemsFound++;
+            summary[args.counterKey]++;
             summary.visionOpeningsCreated++;
             pageOutcome.reviewRequiredCount++;
             audit({
               job_id: data.jobId,
               user_id: userId,
               action: "vision_opening_created",
-              notes: `Window ${w.width_mm}×${w.height_mm ?? "?"} (p${p.pageNumber})`,
+              notes: `${args.logLabel} (p${p.pageNumber})`,
             });
           }
+        };
+
+        for (const w of parsed.windows ?? []) {
+          if (w.width_mm == null) continue;
+          await upsertOpening({
+            opening_type: normalizeOpeningType(null, "window"),
+            width_mm: w.width_mm,
+            height_mm: w.height_mm,
+            room: w.room,
+            confidence: confToDbConfidence(w.confidence),
+            source_evidence: `${evidenceTag} — ${w.source_evidence || w.label}`,
+            notes: w.label || null,
+            counterKey: "windowItemsFound",
+            logLabel: `Window ${w.width_mm}×${w.height_mm ?? "?"}`,
+          });
         }
         for (const d2 of parsed.doors ?? []) {
           if (d2.width_mm == null) continue;
           const opening_type = normalizeOpeningType(d2.type, "door");
           const isUnknown = opening_type === "unknown_opening";
-          const { error: oErr } = await supabase.from("opening_schedule").insert({
-            job_id: data.jobId,
-            plan_page_number: p.pageNumber,
+          await upsertOpening({
             opening_type,
             width_mm: d2.width_mm,
             height_mm: d2.height_mm,
-            room_name: d2.room,
-            quantity: 1,
-            source: "Vision Takeoff",
-            source_evidence: `${evidenceTag} — ${d2.source_evidence || `${d2.type} door`}`,
+            room: d2.room,
             confidence: isUnknown ? "low" : confToDbConfidence(d2.confidence),
-            review_status: "review_required",
+            source_evidence: `${evidenceTag} — ${d2.source_evidence || `${d2.type} door`}`,
             notes: null,
-            created_by: userId,
-            file_id: p.fileId,
+            counterKey: "doorItemsFound",
+            logLabel: `${opening_type} ${d2.width_mm}×${d2.height_mm ?? "?"}`,
           });
-          if (oErr) {
-            summary.errors.push(`Door insert failed (p${p.pageNumber}): ${oErr.message}`);
-          } else {
-            pageOutcome.openingsInserted++;
-            summary.doorItemsFound++;
-            summary.visionOpeningsCreated++;
-            pageOutcome.reviewRequiredCount++;
-            audit({
-              job_id: data.jobId,
-              user_id: userId,
-              action: "vision_opening_created",
-              notes: `${opening_type} ${d2.width_mm}×${d2.height_mm ?? "?"} (p${p.pageNumber})`,
-            });
-          }
         }
 
         // ----- plan_measurements (deduped) -----
