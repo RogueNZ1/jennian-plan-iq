@@ -331,6 +331,7 @@ function ModuleDetail() {
                       <td className="px-5 py-3 tabular-nums text-muted-foreground">{it.extracted_value}</td>
                       <td className="px-5 py-3">
                         <input
+                          key={`${it.id}-${overrideTick}`}
                           type="number"
                           step="any"
                           defaultValue={it.approved_value ?? ""}
@@ -339,7 +340,7 @@ function ModuleDetail() {
                             if (!canEdit) return;
                             const v = e.target.value;
                             if (v === (it.approved_value ?? "")) return;
-                            patchItem(it, { approved_value: v });
+                            setOverrideTarget({ item: it, newValue: v });
                           }}
                           className="w-28 rounded-md border border-input bg-background px-2 py-1 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60 disabled:cursor-not-allowed"
                         />
