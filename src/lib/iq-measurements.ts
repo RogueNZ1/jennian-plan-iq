@@ -218,7 +218,7 @@ export async function saveMeasurement(args: {
       measurement_type: args.type,
       label: args.label ?? null,
       module_id: args.moduleId ?? null,
-      points_json: args.points as unknown as object,
+      points_json: args.points as unknown as never,
       calculated_length_mm: isArea ? null : lengthMm,
       calculated_length_m: isArea ? null : lengthM,
       calculated_area_m2: areaM2,
