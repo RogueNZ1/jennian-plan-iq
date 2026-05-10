@@ -56,8 +56,15 @@ const SPEC_DEFS: SpecDef[] = [
   { moduleId: "iq-core",     label: "Plan Version",           unit: "",   patterns: [/plan\s+version[:\s]+([A-Za-z0-9 .\-_/]{1,40})/i], maxValueLen: 40 },
 
   // Roof / structure
-  { moduleId: "iq-roofing",  label: "Roof Pitch",             unit: "°",  patterns: [/main\s+roof\s+pitch[:\s]+(\d{1,2}(?:\.\d)?)\s*(?:°|deg|degrees?)?/i, /\broof\s+pitch[:\s]+(\d{1,2}(?:\.\d)?)\s*(?:°|deg|degrees?)?/i] },
-  { moduleId: "iq-framing",  label: "Stud Height",            unit: "m",  patterns: [/stud\s+height(?:\s+ground\s+floor)?[:\s]+(\d(?:\.\d{1,2})?)\s*m\b/i, /stud\s+height(?:\s+ground\s+floor)?[:\s]+(\d{4})\s*mm\b/i] },
+  { moduleId: "iq-roofing",  label: "Roof Pitch",             unit: "°",  patterns: [
+    /main\s+roof\s+pitch[:\s]+(\d{1,2}(?:\.\d)?)\s*(?:°|deg|degrees?)?/i,
+    /\broof\s+pitch[:\s]+(\d{1,2}(?:\.\d)?)\s*(?:°|deg|degrees?)?/i,
+    /\bpitch[:\s]+(\d{1,2}(?:\.\d)?)\s*(?:°|deg|degrees?)/i,
+  ] },
+  { moduleId: "iq-framing",  label: "Stud Height",            unit: "m",  patterns: [
+    /stud\s+height(?:\s+(?:ground|first|upper|lower)\s+floor)?[:\s]+(\d(?:\.\d{1,2})?)\s*m\b/i,
+    /stud\s+height(?:\s+(?:ground|first|upper|lower)\s+floor)?[:\s]+(\d{4})\s*mm\b/i,
+  ] },
   { moduleId: "iq-framing",  label: "Foundation Type",        unit: "",   patterns: [/foundation(?:\s+type)?[:\s]+([A-Za-z0-9 ,.\-/]{2,60})/i], maxValueLen: 60 },
   { moduleId: "iq-framing",  label: "Concrete MPa",           unit: "MPa",patterns: [/concrete[:\s]+(\d{2})\s*mpa/i, /(\d{2})\s*mpa\b/i] },
   { moduleId: "iq-framing",  label: "Wind Zone",              unit: "",   patterns: [/wind\s+zone[:\s]+([A-Za-z0-9 \-]{1,30})/i], maxValueLen: 30 },
@@ -67,7 +74,11 @@ const SPEC_DEFS: SpecDef[] = [
   // Exterior / cladding
   { moduleId: "iq-cladding", label: "Exterior Cladding Type", unit: "",   patterns: [/exterior\s+cladding\s+type(?:\s*\d)?[:\s]+([A-Za-z0-9 ,.\-/]{2,80})/i], maxValueLen: 80 },
   { moduleId: "iq-cladding", label: "Cladding Area",          unit: "m²", patterns: [new RegExp(`cladding\\s+area[:\\s]+(${NUM})\\s*(?:m²|m2)?`, "i")] },
-  { moduleId: "iq-cladding", label: "Garage Door",            unit: "",   patterns: [/garage\s+door[:\s]+(\d(?:\.\d)?\s*m\s*[x×]\s*\d(?:\.\d)?\s*m)/i, /garage\s+door[:\s]+(\d{3,5}\s*[x×]\s*\d{3,5})/i], maxValueLen: 30 },
+  { moduleId: "iq-cladding", label: "Garage Door",            unit: "",   patterns: [
+    /garage\s+door[:\s]+(\d(?:\.\d)?\s*m\s*[x×]\s*\d(?:\.\d)?\s*m)/i,
+    /garage\s+door[:\s]+(\d{3,5}\s*[x×X]\s*\d{3,5})/i,
+    /garage\s+door[:\s]+(\d(?:\.\d)?\s*[x×X]\s*\d(?:\.\d)?)/i,
+  ], maxValueLen: 30 },
   { moduleId: "iq-cladding", label: "Front Door",             unit: "",   patterns: [/front\s+door[:\s]+([A-Za-z0-9 ,.\-/]{2,80})/i], maxValueLen: 80 },
   { moduleId: "iq-cladding", label: "Window Head Rule",       unit: "",   patterns: [/window\s+heads?[:\s]+([A-Za-z0-9 ,.\-/]{2,80})/i], maxValueLen: 80 },
   { moduleId: "iq-cladding", label: "Sills",                  unit: "",   patterns: [/\bsills?[:\s]+([A-Za-z0-9 ,.\-/]{2,80})/i], maxValueLen: 80 },
