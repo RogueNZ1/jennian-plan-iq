@@ -263,7 +263,7 @@ const VISION_TOOL = {
 };
 
 const PAGE_CAP = 6;
-const MIN_RESOLUTION_PX = 2500;
+const MIN_RESOLUTION_PX = 4000;
 
 // Minimal module definitions kept in sync with IQ_MODULES in src/lib/iq-modules.ts.
 // Cannot import that file here — it depends on the browser-side Supabase client.
