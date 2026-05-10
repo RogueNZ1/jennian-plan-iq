@@ -388,12 +388,11 @@ function UsersPage() {
               .insert({ ...payload, invited_by: user.id })
               .select()
               .single();
-            if (error) return toast.error(error.message);
+            if (error) { toast.error(error.message); return; }
             await logAction("invite_created", "user_invitations", data!.id, { email: payload.email, role: payload.role });
             toast.success(`Invitation queued for ${payload.email}.`);
             setShowInvite(false);
             load();
-            return;
           }}
         />
       )}
