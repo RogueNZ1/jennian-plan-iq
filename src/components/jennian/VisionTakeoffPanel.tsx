@@ -194,8 +194,8 @@ export function VisionTakeoffPanel({
           fileStoragePath: cand.storagePath,
           pageNumber: cand.pageNumber,
           pageType: cand.clientPageType,
-          scale: 2.0,
         });
+        setStatus(`Rendered p${cand.pageNumber}: ${rendered.widthPx}×${rendered.heightPx}px${rendered.cached ? " (cached)" : ""}`);
         pageInputs.push({
           fileId: cand.fileId, fileName: cand.fileName, pageNumber: cand.pageNumber,
           storageBucket: rendered.bucket, storagePath: rendered.storagePath,
