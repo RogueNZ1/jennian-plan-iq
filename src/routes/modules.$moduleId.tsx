@@ -344,8 +344,8 @@ function ModuleDetail() {
         <div className="mt-8 flex items-center justify-between">
           <button
             onClick={() => navigate({
-              to: jobId ? "/review" : "/modules",
-              search: jobId ? { job: jobId } : undefined,
+              to: jobId ? "/jobs/$jobId" : "/modules",
+              params: jobId ? { jobId } : undefined,
             })}
             className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3.5 py-2 text-sm font-medium hover:bg-accent"
           >
