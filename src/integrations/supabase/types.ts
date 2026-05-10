@@ -59,6 +59,8 @@ export type Database = {
           exported_by: string
           id: string
           job_id: string
+          module_id: string | null
+          module_name: string | null
           timestamp: string
         }
         Insert: {
@@ -66,6 +68,8 @@ export type Database = {
           exported_by: string
           id?: string
           job_id: string
+          module_id?: string | null
+          module_name?: string | null
           timestamp?: string
         }
         Update: {
@@ -73,6 +77,8 @@ export type Database = {
           exported_by?: string
           id?: string
           job_id?: string
+          module_id?: string | null
+          module_name?: string | null
           timestamp?: string
         }
         Relationships: [
@@ -170,6 +176,201 @@ export type Database = {
           uploaded_at?: string | null
         }
         Relationships: []
+      }
+      module_audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          item_id: string | null
+          job_id: string
+          module_id: string | null
+          new_value: string | null
+          notes: string | null
+          previous_value: string | null
+          run_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          item_id?: string | null
+          job_id: string
+          module_id?: string | null
+          new_value?: string | null
+          notes?: string | null
+          previous_value?: string | null
+          run_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          item_id?: string | null
+          job_id?: string
+          module_id?: string | null
+          new_value?: string | null
+          notes?: string | null
+          previous_value?: string | null
+          run_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "module_audit_logs_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "module_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "module_audit_logs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "module_audit_logs_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "module_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      module_items: {
+        Row: {
+          approved_value: string | null
+          basis: string | null
+          confidence: string | null
+          created_at: string
+          description: string | null
+          extracted_value: string | null
+          id: string
+          job_id: string
+          label: string
+          module_id: string
+          notes: string | null
+          review_status: string
+          run_id: string
+          sort_order: number
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          approved_value?: string | null
+          basis?: string | null
+          confidence?: string | null
+          created_at?: string
+          description?: string | null
+          extracted_value?: string | null
+          id?: string
+          job_id: string
+          label: string
+          module_id: string
+          notes?: string | null
+          review_status?: string
+          run_id: string
+          sort_order?: number
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approved_value?: string | null
+          basis?: string | null
+          confidence?: string | null
+          created_at?: string
+          description?: string | null
+          extracted_value?: string | null
+          id?: string
+          job_id?: string
+          label?: string
+          module_id?: string
+          notes?: string | null
+          review_status?: string
+          run_id?: string
+          sort_order?: number
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "module_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "module_items_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "module_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      module_runs: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          confidence_avg: number | null
+          created_at: string
+          id: string
+          item_count: number
+          job_id: string
+          last_run_at: string | null
+          module_id: string
+          module_name: string
+          required: boolean
+          review_status: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          confidence_avg?: number | null
+          created_at?: string
+          id?: string
+          item_count?: number
+          job_id: string
+          last_run_at?: string | null
+          module_id: string
+          module_name: string
+          required?: boolean
+          review_status?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          confidence_avg?: number | null
+          created_at?: string
+          id?: string
+          item_count?: number
+          job_id?: string
+          last_run_at?: string | null
+          module_id?: string
+          module_name?: string
+          required?: boolean
+          review_status?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "module_runs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
