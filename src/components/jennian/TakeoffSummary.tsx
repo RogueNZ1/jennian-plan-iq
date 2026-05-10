@@ -166,6 +166,12 @@ export function TakeoffSummary({
                   ? "Errors during file processing"
                   : diag?.outcome === "no_files"
                   ? "No uploaded files"
+                  : diag?.outcome === "limited_specification"
+                  ? "Limited specification takeoff"
+                  : diag?.outcome === "specification_only"
+                  ? "Specification only takeoff"
+                  : diag?.outcome === "flattened_plan"
+                  ? "Flattened plan — vision review required"
                   : "Readable text but no quantity matches"}
               </div>
               <div className="mt-1 text-[11.5px] text-muted-foreground">
