@@ -350,6 +350,33 @@ export async function runDummyExtraction(jobKey: string, mod: IQModule): Promise
   });
 }
 
+/**
+ * Seed every module for a job with deterministic dummy items and mark them
+ * `ready` so the Modules Overview shows live counts/confidence immediately
+ * after upload + plan review.
+ */
+export function seedAllModulesForJob(jobKey: string) {
+  if (typeof window === "undefined") return;
+  const now = new Date().toISOString();
+  for (const mod of IQ_MODULES) {
+    const existing = (() => {
+      try {
+        const raw = localStorage.getItem(KEY(jobKey, mod.id));
+        return raw ? (JSON.parse(raw) as Persisted) : null;
+      } catch {
+        return null;
+      }
+    })();
+    // Don't clobber edits already in progress.
+    if (existing && existing.status !== "not_started") continue;
+    saveModuleState(jobKey, mod.id, {
+      items: buildIQItems(jobKey, mod),
+      status: "ready",
+      lastRunAt: now,
+    });
+  }
+}
+
 /** ---------- IQ Electrical: Template Allowance Mode ---------- */
 
 export type ElectricalMode = "plan_count" | "template_allowance";
