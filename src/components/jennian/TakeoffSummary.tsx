@@ -81,6 +81,7 @@ export function TakeoffSummary({
   const resultTypeLabel: Record<typeof s.resultType, string> = {
     text_takeoff_completed: "Text Takeoff Completed",
     specification_only_takeoff: "Specification Only Takeoff",
+    limited_specification_takeoff: "Limited Specification Takeoff",
     flattened_plan_vision_review_required: "Flattened Plan — Vision Review Required",
     no_usable_text_found: "No Usable Text Found",
   };
@@ -89,6 +90,8 @@ export function TakeoffSummary({
       "Readable text was found and source-backed quantities were created. Review before approval.",
     specification_only_takeoff:
       "Specification text was readable, but plan pages could not be read. Plan measurements need vision review or manual measurement.",
+    limited_specification_takeoff:
+      "Only a small number of specification items were extracted. Review the uploaded files — the specification may not include schedule-style values, or extraction patterns may need to be expanded.",
     flattened_plan_vision_review_required:
       "Plan pages appear to be flattened images. Text-based takeoff cannot read dimensions from these drawings. OCR / vision review is required for automatic plan measurement.",
     no_usable_text_found:
@@ -97,6 +100,7 @@ export function TakeoffSummary({
   const showVisionSection =
     s.resultType === "flattened_plan_vision_review_required" ||
     s.resultType === "specification_only_takeoff" ||
+    s.resultType === "limited_specification_takeoff" ||
     s.flattenedPlanFiles.length > 0;
 
   const workingPlanValue =
