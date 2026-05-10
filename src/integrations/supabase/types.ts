@@ -163,6 +163,8 @@ export type Database = {
           template: string | null
           updated_at: string
           uploaded_at: string | null
+          working_plan_file_id: string | null
+          working_plan_page_number: number | null
         }
         Insert: {
           address: string
@@ -176,6 +178,8 @@ export type Database = {
           template?: string | null
           updated_at?: string
           uploaded_at?: string | null
+          working_plan_file_id?: string | null
+          working_plan_page_number?: number | null
         }
         Update: {
           address?: string
@@ -189,6 +193,8 @@ export type Database = {
           template?: string | null
           updated_at?: string
           uploaded_at?: string | null
+          working_plan_file_id?: string | null
+          working_plan_page_number?: number | null
         }
         Relationships: []
       }
@@ -262,16 +268,22 @@ export type Database = {
           basis: string | null
           confidence: string | null
           created_at: string
+          data_source: string | null
           description: string | null
           extracted_value: string | null
+          file_id: string | null
           id: string
           job_id: string
           label: string
+          measurement_id: string | null
           module_id: string
           notes: string | null
+          opening_id: string | null
+          plan_page_number: number | null
           review_status: string
           run_id: string
           sort_order: number
+          source_evidence: string | null
           unit: string | null
           updated_at: string
         }
@@ -280,16 +292,22 @@ export type Database = {
           basis?: string | null
           confidence?: string | null
           created_at?: string
+          data_source?: string | null
           description?: string | null
           extracted_value?: string | null
+          file_id?: string | null
           id?: string
           job_id: string
           label: string
+          measurement_id?: string | null
           module_id: string
           notes?: string | null
+          opening_id?: string | null
+          plan_page_number?: number | null
           review_status?: string
           run_id: string
           sort_order?: number
+          source_evidence?: string | null
           unit?: string | null
           updated_at?: string
         }
@@ -298,16 +316,22 @@ export type Database = {
           basis?: string | null
           confidence?: string | null
           created_at?: string
+          data_source?: string | null
           description?: string | null
           extracted_value?: string | null
+          file_id?: string | null
           id?: string
           job_id?: string
           label?: string
+          measurement_id?: string | null
           module_id?: string
           notes?: string | null
+          opening_id?: string | null
+          plan_page_number?: number | null
           review_status?: string
           run_id?: string
           sort_order?: number
+          source_evidence?: string | null
           unit?: string | null
           updated_at?: string
         }
@@ -392,6 +416,7 @@ export type Database = {
           confidence: string
           created_at: string
           created_by: string
+          file_id: string | null
           height_mm: number | null
           id: string
           job_id: string
@@ -410,6 +435,7 @@ export type Database = {
           confidence?: string
           created_at?: string
           created_by: string
+          file_id?: string | null
           height_mm?: number | null
           id?: string
           job_id: string
@@ -428,6 +454,7 @@ export type Database = {
           confidence?: string
           created_at?: string
           created_by?: string
+          file_id?: string | null
           height_mm?: number | null
           id?: string
           job_id?: string
@@ -495,6 +522,48 @@ export type Database = {
           plan_page_number?: number
           scale_text?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      plan_measurement_audit_logs: {
+        Row: {
+          action: string
+          calibration_id: string | null
+          created_at: string
+          id: string
+          job_id: string
+          measurement_id: string | null
+          new_value: string | null
+          notes: string | null
+          opening_id: string | null
+          previous_value: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          calibration_id?: string | null
+          created_at?: string
+          id?: string
+          job_id: string
+          measurement_id?: string | null
+          new_value?: string | null
+          notes?: string | null
+          opening_id?: string | null
+          previous_value?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          calibration_id?: string | null
+          created_at?: string
+          id?: string
+          job_id?: string
+          measurement_id?: string | null
+          new_value?: string | null
+          notes?: string | null
+          opening_id?: string | null
+          previous_value?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
