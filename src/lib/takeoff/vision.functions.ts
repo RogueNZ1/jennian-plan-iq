@@ -31,6 +31,84 @@ import type {
   VisionTakeoffError,
 } from "./vision-types";
 
+// ---- Zod schema mirroring VisionPageResult — used for runtime validation ----
+// This is intentionally separate from the JSON schema in VISION_TOOL so that
+// changes to the prompt schema are explicit and do not silently bypass validation.
+const _Confidence = z.enum(["high", "medium", "low"]);
+
+const VisionPageResultSchema = z.object({
+  page_type: z.enum([
+    "dimension_floorplan", "floorplan", "site_plan", "elevations",
+    "sections", "roof_plan", "electrical_plan", "plumbing_plan", "unknown",
+  ]),
+  scale_text: z.string().nullable(),
+  scale_confidence: _Confidence,
+  area_box: z.object({
+    total_area_m2: z.number().nullable(),
+    area_over_frame_m2: z.number().nullable(),
+    coverage_area_m2: z.number().nullable(),
+    cladding_area_m2: z.number().nullable(),
+    porch_area_m2: z.number().nullable(),
+    perimeter_m: z.number().nullable(),
+  }),
+  base_geometry: z.object({
+    external_perimeter_m: z.number().nullable(),
+    internal_wall_length_m: z.number().nullable(),
+    garage_area_m2: z.number().nullable(),
+    living_area_excluding_garage_m2: z.number().nullable(),
+  }),
+  rooms: z.array(z.object({
+    name: z.string(),
+    dimensions_mm: z.object({
+      width: z.number().nullable(),
+      length: z.number().nullable(),
+    }),
+    area_m2: z.number().nullable(),
+  })),
+  windows: z.array(z.object({
+    label: z.string(),
+    width_mm: z.number().nullable(),
+    height_mm: z.number().nullable(),
+    room: z.string().nullable(),
+    confidence: _Confidence,
+    source_evidence: z.string(),
+  })),
+  doors: z.array(z.object({
+    type: z.enum(["internal", "external", "sliding", "garage", "robe", "unknown"]),
+    width_mm: z.number().nullable(),
+    height_mm: z.number().nullable(),
+    room: z.string().nullable(),
+    confidence: _Confidence,
+    source_evidence: z.string(),
+  })),
+  wall_lengths: z.object({
+    external_wall_length_m: z.number().nullable(),
+    internal_wall_length_m: z.number().nullable(),
+    wet_area_wall_length_m: z.number().nullable(),
+    garage_internal_wall_length_m: z.number().nullable(),
+    robe_wall_length_m: z.number().nullable(),
+  }),
+  cladding: z.object({
+    type: z.string().nullable(),
+    cladding_area_m2: z.number().nullable(),
+    brick_length_m: z.number().nullable(),
+    notes: z.string().nullable(),
+  }),
+  roofing: z.object({
+    roof_pitch_degrees: z.number().nullable(),
+    roof_area_m2: z.number().nullable(),
+    notes: z.string().nullable(),
+  }),
+  warnings: z.array(z.string()),
+  confidence_summary: _Confidence,
+});
+
+type AiResponse = {
+  choices?: Array<{
+    message?: { tool_calls?: Array<{ function?: { arguments?: string } }> };
+  }>;
+};
+
 const SYSTEM_PROMPT = `You are reviewing a single rendered page from a construction plan PDF for a residential takeoff.
 
 Strict rules:
@@ -438,16 +516,37 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
           const text = await aiRes.text().catch(() => "");
           throw new Error(`Vision model error ${aiRes.status}: ${text.slice(0, 240)}`);
         }
-        const aiJson = (await aiRes.json()) as {
-          choices?: Array<{ message?: { tool_calls?: Array<{ function?: { arguments?: string } }> } }>;
-        };
+        // Defensively parse the AI gateway JSON — a non-JSON body or missing fields
+        // returns a structured failure rather than letting the page-level catch mask the cause.
+        let aiJson: AiResponse;
+        try {
+          aiJson = (await aiRes.json()) as AiResponse;
+        } catch {
+          pageOutcome.status = "model_unreadable";
+          pageOutcome.errorMessage = "Vision model returned an unexpected response.";
+          summary.errors.push(
+            `${p.fileName} p${p.pageNumber}: vision_response_parse — Vision model returned an unexpected response. Technical: HTTP ${aiRes.status}, response body was not valid JSON.`,
+          );
+          summary.failedPages++;
+          summary.pages.push(pageOutcome);
+          continue;
+        }
+
         const argStr = aiJson.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
         if (!argStr) {
+          // Summarise the response shape so the operator can diagnose gateway issues.
+          let technical: string;
+          try {
+            technical = JSON.stringify(aiJson).slice(0, 300);
+          } catch {
+            technical = String(aiJson);
+          }
           pageOutcome.status = "model_unreadable";
-          pageOutcome.errorMessage = "Model did not return structured takeoff JSON.";
-          summary.warnings.push(
-            `${p.fileName} p${p.pageNumber}: vision model did not return structured JSON.`,
+          pageOutcome.errorMessage = "Vision model returned an unexpected response.";
+          summary.errors.push(
+            `${p.fileName} p${p.pageNumber}: vision_model_call — Vision model returned an unexpected response. Technical: ${technical}`,
           );
+          summary.failedPages++;
           summary.pages.push(pageOutcome);
           continue;
         }
@@ -456,13 +555,35 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
           parsed = JSON.parse(argStr) as VisionPageResult;
         } catch (e) {
           pageOutcome.status = "model_unreadable";
-          pageOutcome.errorMessage = `Could not parse model JSON: ${(e as Error).message}`;
-          summary.warnings.push(
-            `${p.fileName} p${p.pageNumber}: could not parse vision model JSON.`,
+          pageOutcome.errorMessage = "Vision model returned an unexpected response.";
+          summary.errors.push(
+            `${p.fileName} p${p.pageNumber}: vision_response_parse — Vision model returned an unexpected response. Technical: ${(e as Error).message}. Raw: ${argStr.slice(0, 200)}`,
           );
+          summary.failedPages++;
           summary.pages.push(pageOutcome);
           continue;
         }
+
+        // Validate the parsed object against the schema before any DB writes.
+        // This rejects wrong enum values, bad field types, and missing required fields.
+        const validation = VisionPageResultSchema.safeParse(parsed);
+        if (!validation.success) {
+          const technical = validation.error.issues
+            .slice(0, 8)
+            .map((iss) => `${iss.path.join(".") || "(root)"}: ${iss.message}`)
+            .join("; ");
+          pageOutcome.status = "model_unreadable";
+          pageOutcome.errorMessage = "Vision model returned data in an unexpected format.";
+          summary.errors.push(
+            `${p.fileName} p${p.pageNumber}: vision_response_validation — Vision model returned data in an unexpected format. Technical: ${technical}`,
+          );
+          summary.failedPages++;
+          summary.pages.push(pageOutcome);
+          continue;
+        }
+        // Use the schema-validated data from here on — all enum values and field types are confirmed.
+        parsed = validation.data as VisionPageResult;
+
         pageOutcome.result = parsed;
         pageOutcome.warnings = [...pageOutcome.warnings, ...(parsed.warnings ?? [])];
         pageOutcome.visionPageType = parsed.page_type;

@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { renderAndUploadPlanPage } from "@/lib/takeoff/render-page";
 import { runVisionTakeoff } from "@/lib/takeoff/vision.functions";
 import type { VisionRunSummary, VisionTakeoffError } from "@/lib/takeoff/vision-types";
+import { normaliseVisionError } from "@/lib/takeoff/vision-types";
 import { extractFile } from "@/lib/takeoff/pdf-text";
 import { classifyPageWithType } from "@/lib/takeoff/classify";
 
@@ -205,11 +206,36 @@ export function VisionTakeoffPanel({
 
       setStatus(`Calling vision model on ${pageInputs.length} rendered pages…`);
       const response = await runFn({ data: { jobId, pages: pageInputs, specificationText } });
+
       // Structured error: server function returned { ok: false } instead of throwing.
-      if ("ok" in response && (response as VisionTakeoffError).ok === false) {
-        const errObj = (response as VisionTakeoffError).error;
-        throw new Error(errObj.message || "Vision Takeoff failed.");
+      if (
+        response != null &&
+        typeof response === "object" &&
+        "ok" in response &&
+        (response as VisionTakeoffError).ok === false
+      ) {
+        const norm = normaliseVisionError(response);
+        throw new Error(norm.message);
       }
+
+      // Guard against any unexpected response shape (framework error, shape mismatch, etc.)
+      if (
+        response == null ||
+        typeof response !== "object" ||
+        (response as { kind?: string }).kind !== "vision_takeoff"
+      ) {
+        let technical: string | undefined;
+        try {
+          technical = JSON.stringify(response).slice(0, 300);
+        } catch {
+          technical = String(response);
+        }
+        console.error("[VisionTakeoff] Unexpected server response shape:", technical);
+        throw new Error(
+          `Vision Takeoff could not complete. Unexpected server response.${technical ? `\nDiagnostics: ${technical}` : ""}`,
+        );
+      }
+
       setResult(response as VisionRunSummary);
       setStatus(null);
     } catch (e) {
