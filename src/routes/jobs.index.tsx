@@ -7,7 +7,7 @@ import { listJobs, type Job } from "@/lib/jennian-data";
 import { Upload, FileSpreadsheet, ClipboardCheck, Eye } from "lucide-react";
 import { useEffect, useState } from "react";
 
-export const Route = createFileRoute("/jobs")({ component: JobsPage });
+export const Route = createFileRoute("/jobs/")({ component: JobsPage });
 
 function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
