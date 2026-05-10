@@ -262,46 +262,12 @@ export const REVIEW_STATUS_LABEL: Record<ItemReviewStatus, string> = {
   excluded: "Excluded",
 };
 
-/** ---------- Deterministic dummy generator ---------- */
+/** ---------- Hash helper (legacy compat only) ---------- */
 
 function hash(str: string): number {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) h = (h ^ str.charCodeAt(i)) * 16777619;
   return Math.abs(h | 0);
-}
-
-function pickConfidence(seed: number): Confidence {
-  const m = seed % 10;
-  if (m < 6) return "high";
-  if (m < 9) return "mid";
-  return "low";
-}
-
-function dummyValue(t: IQItemTemplate, seed: number): number {
-  const [min, max] = t.range;
-  const span = max - min;
-  const v = min + ((seed % 1000) / 1000) * span;
-  const d = t.decimals ?? 0;
-  return Number(v.toFixed(d));
-}
-
-function buildSeedItemsFor(jobKey: string, mod: IQModule, nonce = "") {
-  return mod.items.map((t, idx) => {
-    const seed = hash(`${jobKey}::${mod.id}::${t.key}::${nonce}`);
-    const value = dummyValue(t, seed);
-    return {
-      module_id: mod.id,
-      label: t.key,
-      description: t.description,
-      unit: t.unit,
-      extracted_value: String(value),
-      approved_value: String(value),
-      confidence: pickConfidence(seed),
-      review_status: "review_required" as ItemReviewStatus,
-      basis: t.basis ?? null,
-      sort_order: idx,
-    };
-  });
 }
 
 /** ---------- Audit helper ---------- */
