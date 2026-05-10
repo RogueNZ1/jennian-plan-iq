@@ -21,6 +21,11 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { OverrideReasonDialog } from "@/components/jennian/OverrideReasonDialog";
 import { Breadcrumbs } from "@/components/jennian/Breadcrumbs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { PlanCanvas } from "@/components/jennian/PlanCanvas";
+import { OpeningScheduleTab } from "@/components/jennian/OpeningScheduleTab";
+import { ValidationTab } from "@/components/jennian/ValidationTab";
+import { loadMeasurements, type PlanMeasurement } from "@/lib/iq-measurements";
 
 const MODULE_ICONS: Record<IQModuleId, React.ComponentType<{ className?: string }>> = {
   "iq-core": Ruler, "iq-electrical": Zap, "iq-plumbing": Droplets,
@@ -195,7 +200,17 @@ function ReviewPage() {
 
         <ModulesOverview jobId={job.id} />
 
-        <div className="grid lg:grid-cols-[1fr_320px] gap-6">
+        <Tabs defaultValue="base" className="w-full">
+          <TabsList className="mb-5">
+            <TabsTrigger value="base">Base Geometry</TabsTrigger>
+            <TabsTrigger value="working">Working Plan</TabsTrigger>
+            <TabsTrigger value="openings">Windows & Doors</TabsTrigger>
+            <TabsTrigger value="walls">Internal Walls</TabsTrigger>
+            <TabsTrigger value="validation">Validation</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="base">
+            <div className="grid lg:grid-cols-[1fr_320px] gap-6">
           <div className="space-y-5">
             {rows.length === 0 && (
               <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
@@ -280,9 +295,92 @@ function ReviewPage() {
               </div>
             </div>
           </aside>
-        </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="working">
+            <PlanCanvas jobId={job.id} />
+          </TabsContent>
+
+          <TabsContent value="openings">
+            <OpeningScheduleTab jobId={job.id} />
+          </TabsContent>
+
+          <TabsContent value="walls">
+            <InternalWallsTab jobId={job.id} />
+          </TabsContent>
+
+          <TabsContent value="validation">
+            <ValidationTab jobId={job.id} />
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
+  );
+}
+
+function InternalWallsTab({ jobId }: { jobId: string }) {
+  const [rows, setRows] = useState<PlanMeasurement[]>([]);
+  useEffect(() => {
+    loadMeasurements(jobId).then((all) => {
+      setRows(all.filter((m) => m.measurement_type === "internal_wall"));
+    }).catch(() => {});
+  }, [jobId]);
+  const totalM = rows.reduce((s, r) => s + (r.calculated_length_m ?? 0), 0);
+  const confirmedM = rows
+    .filter((r) => r.review_status === "confirmed")
+    .reduce((s, r) => s + (r.calculated_length_m ?? 0), 0);
+  return (
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="px-5 py-3 border-b border-border flex items-center justify-between">
+        <div>
+          <div className="text-[13px] font-semibold tracking-tight">Internal Walls</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">
+            Wall segments measured from the working plan. Use the Working Plan tab to add segments with the “Internal Wall” tool.
+          </div>
+        </div>
+        <div className="flex items-center gap-4 text-[11px]">
+          <div className="text-muted-foreground">Confirmed total <span className="ml-1 font-medium text-foreground tabular-nums">{confirmedM.toFixed(2)} m</span></div>
+          <div className="text-muted-foreground">All segments <span className="ml-1 font-medium text-foreground tabular-nums">{totalM.toFixed(2)} m</span></div>
+        </div>
+      </div>
+      {rows.length === 0 ? (
+        <div className="px-5 py-8 text-center text-xs text-muted-foreground">
+          No internal walls measured yet.
+        </div>
+      ) : (
+        <table className="w-full text-sm">
+          <thead className="bg-muted/30">
+            <tr className="text-left text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">
+              <th className="px-5 py-2.5 font-medium">Label</th>
+              <th className="px-5 py-2.5 font-medium">Length</th>
+              <th className="px-5 py-2.5 font-medium">Source</th>
+              <th className="px-5 py-2.5 font-medium">Confidence</th>
+              <th className="px-5 py-2.5 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className="border-t border-border">
+                <td className="px-5 py-2.5">{r.label ?? "Internal wall"}</td>
+                <td className="px-5 py-2.5 tabular-nums">{(r.calculated_length_m ?? 0).toFixed(3)} m</td>
+                <td className="px-5 py-2.5 text-[11px] text-muted-foreground">{r.source}</td>
+                <td className="px-5 py-2.5 text-[11px] text-muted-foreground capitalize">{r.confidence}</td>
+                <td className="px-5 py-2.5">
+                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                    r.review_status === "confirmed"
+                      ? "border-confidence-high/40 bg-confidence-high/10 text-confidence-high"
+                      : "border-confidence-mid/40 bg-confidence-mid/10 text-confidence-mid"
+                  }`}>
+                    {r.review_status === "confirmed" ? "Confirmed" : "Review"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
   );
 }
 
