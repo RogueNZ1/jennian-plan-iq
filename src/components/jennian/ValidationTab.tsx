@@ -23,10 +23,12 @@ type RowState = {
   value: string;
   source: "Uploaded Plan Text" | "Uploaded Specification Text";
   evidence: string;
+  confidence: "high" | "mid" | "low";
   saved: boolean;        // matches what's in DB
   loadedValue: string;   // last persisted value
   loadedSource: "Uploaded Plan Text" | "Uploaded Specification Text";
   loadedEvidence: string;
+  loadedConfidence: "high" | "mid" | "low";
 };
 
 function emptyRow(): RowState {
@@ -34,10 +36,12 @@ function emptyRow(): RowState {
     value: "",
     source: "Uploaded Plan Text",
     evidence: "",
+    confidence: "mid",
     saved: true,
     loadedValue: "",
     loadedSource: "Uploaded Plan Text",
     loadedEvidence: "",
+    loadedConfidence: "mid",
   };
 }
 
@@ -65,12 +69,18 @@ export function ValidationTab({ jobId }: { jobId: string }) {
                   ? "Uploaded Specification Text"
                   : "Uploaded Plan Text";
               const evidence = match.source_evidence ?? "";
+              const conf = (match as unknown as { confidence?: string }).confidence === "high"
+                ? "high"
+                : (match as unknown as { confidence?: string }).confidence === "low"
+                ? "low"
+                : "mid";
               next[ref.key] = {
-                value, source, evidence,
+                value, source, evidence, confidence: conf,
                 saved: true,
                 loadedValue: value,
                 loadedSource: source,
                 loadedEvidence: evidence,
+                loadedConfidence: conf,
               };
             }
           }
@@ -87,7 +97,8 @@ export function ValidationTab({ jobId }: { jobId: string }) {
       merged.saved =
         merged.value === merged.loadedValue &&
         merged.source === merged.loadedSource &&
-        merged.evidence === merged.loadedEvidence;
+        merged.evidence === merged.loadedEvidence &&
+        merged.confidence === merged.loadedConfidence;
       return { ...prev, [key]: merged };
     });
   }
@@ -111,6 +122,8 @@ export function ValidationTab({ jobId }: { jobId: string }) {
         value: num,
         source: row.source,
         evidence: row.evidence.trim() || null,
+        confidence: row.confidence,
+        confidenceLabel: row.confidence === "high" ? "High" : row.confidence === "low" ? "Low" : "Medium",
       });
       setRows((prev) => ({
         ...prev,
@@ -120,6 +133,7 @@ export function ValidationTab({ jobId }: { jobId: string }) {
           loadedValue: row.value,
           loadedSource: row.source,
           loadedEvidence: row.evidence,
+          loadedConfidence: row.confidence,
         },
       }));
     } catch (e) {
@@ -155,6 +169,7 @@ export function ValidationTab({ jobId }: { jobId: string }) {
             <th className="px-5 py-2.5 font-medium">Printed</th>
             <th className="px-5 py-2.5 font-medium">Source</th>
             <th className="px-5 py-2.5 font-medium">Source Evidence</th>
+            <th className="px-5 py-2.5 font-medium">Confidence</th>
             <th className="px-5 py-2.5 font-medium">Measured</th>
             <th className="px-5 py-2.5 font-medium">Result</th>
           </tr>
@@ -205,6 +220,20 @@ export function ValidationTab({ jobId }: { jobId: string }) {
                     placeholder="e.g. Area box on floorplan page"
                     className="w-56 rounded-md border border-input bg-background px-2 py-1 text-xs"
                   />
+                </td>
+                <td className="px-5 py-2.5">
+                  <select
+                    value={row.confidence}
+                    onChange={(e) =>
+                      update(ref.key, { confidence: e.target.value as RowState["confidence"] })
+                    }
+                    onBlur={() => persist(ref.key)}
+                    className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+                  >
+                    <option value="high">High</option>
+                    <option value="mid">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
                 </td>
                 <td className="px-5 py-2.5 tabular-nums">
                   {measured == null

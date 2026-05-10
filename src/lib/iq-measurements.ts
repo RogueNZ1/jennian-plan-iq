@@ -283,6 +283,17 @@ export async function deleteMeasurement(id: string): Promise<void> {
     .select("job_id, label, calculated_length_m, calculated_area_m2")
     .eq("id", id)
     .maybeSingle();
+  // Flag downstream module items BEFORE deletion so we can read measurement_id
+  // links from module_items while the row still has audit context.
+  if (prev) {
+    const { flagDependentModuleItems } = await import("./iq-modules");
+    await flagDependentModuleItems({
+      jobId: prev.job_id as string,
+      measurementId: id,
+      reason: "source_deleted",
+      notes: `Measurement deleted${prev.label ? ` — ${prev.label}` : ""}`,
+    });
+  }
   const { error } = await supabase.from("plan_measurements").delete().eq("id", id);
   if (error) throw error;
   if (prev) {
@@ -371,14 +382,51 @@ export async function updateOpening(
     "opening_type" | "width_mm" | "height_mm" | "room_name" |
     "quantity" | "review_status" | "notes" | "confidence">>,
 ): Promise<void> {
+  // If a value-bearing field changed, flag dependent module items so
+  // approved quantities cannot drift unnoticed.
+  const valueFields = ["width_mm", "height_mm", "quantity", "opening_type"] as const;
+  const valueChanged = valueFields.some((f) => Object.prototype.hasOwnProperty.call(patch, f));
+  let prevJobId: string | null = null;
+  if (valueChanged) {
+    const { data: prev } = await supabase
+      .from("opening_schedule").select("job_id").eq("id", id).maybeSingle();
+    prevJobId = (prev?.job_id as string | null) ?? null;
+  }
   const { error } = await supabase
     .from("opening_schedule")
     .update(patch)
     .eq("id", id);
   if (error) throw error;
+  if (valueChanged && prevJobId) {
+    const { flagDependentModuleItems } = await import("./iq-modules");
+    await flagDependentModuleItems({
+      jobId: prevJobId,
+      openingId: id,
+      reason: "source_edited",
+      notes: "Opening dimensions changed",
+    });
+    await logPlanAudit({
+      jobId: prevJobId, openingId: id, action: "opening_updated",
+      notes: "dimensions changed",
+    });
+  }
 }
 
 export async function deleteOpening(id: string): Promise<void> {
+  const { data: prev } = await supabase
+    .from("opening_schedule").select("job_id, opening_type, width_mm").eq("id", id).maybeSingle();
+  if (prev) {
+    const { flagDependentModuleItems } = await import("./iq-modules");
+    await flagDependentModuleItems({
+      jobId: prev.job_id as string,
+      openingId: id,
+      reason: "source_deleted",
+      notes: `Opening deleted${prev.opening_type ? ` — ${prev.opening_type} ${prev.width_mm}mm` : ""}`,
+    });
+    await logPlanAudit({
+      jobId: prev.job_id as string, openingId: id, action: "opening_deleted",
+    });
+  }
   const { error } = await supabase.from("opening_schedule").delete().eq("id", id);
   if (error) throw error;
 }
@@ -653,7 +701,11 @@ export async function upsertPrintedQuantity(args: {
   source: "Uploaded Plan Text" | "Uploaded Specification Text";
   evidence?: string | null;
   page?: number | null;
+  confidence?: "high" | "mid" | "low";
+  confidenceLabel?: "High" | "Medium" | "Low";
 }): Promise<void> {
+  const conf = args.confidence ?? "mid";
+  const confLabel = args.confidenceLabel ?? (conf === "high" ? "High" : conf === "low" ? "Low" : "Medium");
   // Find existing row of same type/source.
   const { data: existing } = await supabase
     .from("extracted_quantities")
@@ -670,7 +722,8 @@ export async function upsertPrintedQuantity(args: {
         unit: args.unit,
         source_evidence: args.evidence ?? null,
         plan_page_number: args.page ?? null,
-        confidence_label: "medium",
+        confidence: conf,
+        confidence_label: confLabel,
       })
       .eq("id", existing[0].id);
     if (error) throw error;
@@ -681,12 +734,12 @@ export async function upsertPrintedQuantity(args: {
     quantity_type: args.quantityType,
     unit: args.unit,
     extracted_value: args.value,
-    confidence: "mid",
+    confidence: conf,
     review_status: "review_required",
     data_source: args.source,
     source_evidence: args.evidence ?? null,
     plan_page_number: args.page ?? null,
-    confidence_label: "medium",
+    confidence_label: confLabel,
   });
   if (error) throw error;
 }

@@ -202,7 +202,7 @@ function ModuleDetail() {
                 >
                   <ClipboardCheck className="h-4 w-4" /> Open IQ Core Review
                 </Link>
-              ) : (
+              ) : isPhase2 ? null : (
                 <>
                   {canRecalculate && (
                     <button
@@ -328,7 +328,26 @@ function ModuleDetail() {
                       <td className="px-5 py-3 font-medium tabular-nums">{it.label}</td>
                       <td className="px-5 py-3">{it.description}</td>
                       <td className="px-5 py-3 text-muted-foreground">{it.unit}</td>
-                      <td className="px-5 py-3 tabular-nums text-muted-foreground">{it.extracted_value}</td>
+                      <td className="px-5 py-3 tabular-nums text-muted-foreground">
+                        <div className="flex items-center gap-1.5">
+                          <span>{it.extracted_value}</span>
+                          {it.review_status === "review_required" && (it.measurement_id || it.opening_id) && (
+                            <span
+                              title={`Source: ${it.data_source ?? "Measured From Plan"}${it.plan_page_number ? ` · page ${it.plan_page_number}` : ""}${it.source_evidence ? ` · ${it.source_evidence}` : ""}. Review before approval.`}
+                              className="inline-flex items-center rounded-full border border-confidence-mid/40 bg-confidence-mid/10 px-1.5 py-0.5 text-[9.5px] font-medium text-confidence-mid"
+                            >
+                              Stale
+                            </span>
+                          )}
+                        </div>
+                        {(it.data_source || it.source_evidence || it.plan_page_number) && (
+                          <div className="mt-0.5 text-[10px] text-muted-foreground/80">
+                            {it.data_source ?? "—"}
+                            {it.plan_page_number ? ` · page ${it.plan_page_number}` : ""}
+                            {it.source_evidence ? ` · ${it.source_evidence}` : ""}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-5 py-3">
                         <input
                           key={`${it.id}-${overrideTick}`}

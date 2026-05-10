@@ -77,6 +77,12 @@ export type ModuleItem = {
   basis: string | null;
   sort_order: number;
   updated_at: string;
+  data_source: string | null;
+  source_evidence: string | null;
+  measurement_id: string | null;
+  opening_id: string | null;
+  plan_page_number: number | null;
+  file_id: string | null;
 };
 
 export type ModuleAuditLog = {
@@ -500,27 +506,270 @@ export async function approveModule(jobId: string, moduleId: IQModuleId): Promis
   });
 }
 
-export async function recalculateModule(jobId: string, moduleId: IQModuleId): Promise<void> {
+/**
+ * Real module recalculation. For every module_item linked to a plan
+ * measurement or opening, re-read the current source value and reconcile:
+ *   - source missing  → review_required, audit `source_missing`
+ *   - drift > 2%      → update extracted_value, review_required, audit `recalculate_drift`
+ *   - drift ≤ 2%      → leave approved_value, refresh extracted_value, audit `recalculate_matched`
+ * Items that are not source-linked (overrides, allowances, printed values)
+ * are left untouched. Approved values are NEVER silently overwritten.
+ */
+export async function recalculateModule(jobId: string, moduleId: IQModuleId): Promise<{
+  checked: number; missing: number; drift: number; matched: number;
+}> {
   const mod = findIQModule(moduleId);
-  if (!mod || mod.id === "iq-core") return;
-  const { data: run } = await supabase.from("module_runs").select("id").eq("job_id", jobId).eq("module_id", moduleId).maybeSingle();
-  if (!run) return;
-  // Real recalculation will reconcile module_items against measurements,
-  // openings, and parsed plan/spec values. For now, just bump the run.
+  if (!mod || mod.id === "iq-core") {
+    return { checked: 0, missing: 0, drift: 0, matched: 0 };
+  }
+  const { data: run } = await supabase
+    .from("module_runs").select("id").eq("job_id", jobId).eq("module_id", moduleId).maybeSingle();
+  if (!run) return { checked: 0, missing: 0, drift: 0, matched: 0 };
+
+  const { data: itemsRaw } = await supabase
+    .from("module_items").select("*").eq("run_id", run.id);
+  const items = (itemsRaw ?? []) as unknown as ModuleItem[];
+
+  const measurementIds = Array.from(new Set(
+    items.map((i) => i.measurement_id).filter((v): v is string => !!v),
+  ));
+  const openingIds = Array.from(new Set(
+    items.map((i) => i.opening_id).filter((v): v is string => !!v),
+  ));
+
+  const measurementMap = new Map<string, {
+    calculated_length_m: number | null;
+    calculated_area_m2: number | null;
+    measurement_type: string;
+  }>();
+  if (measurementIds.length) {
+    const { data: ms } = await supabase
+      .from("plan_measurements")
+      .select("id, calculated_length_m, calculated_area_m2, measurement_type")
+      .in("id", measurementIds);
+    for (const m of ms ?? []) {
+      measurementMap.set(m.id as string, {
+        calculated_length_m: (m.calculated_length_m as number | null) ?? null,
+        calculated_area_m2: (m.calculated_area_m2 as number | null) ?? null,
+        measurement_type: (m.measurement_type as string) ?? "",
+      });
+    }
+  }
+
+  const openingMap = new Map<string, { width_mm: number; quantity: number }>();
+  if (openingIds.length) {
+    const { data: os } = await supabase
+      .from("opening_schedule")
+      .select("id, width_mm, quantity")
+      .in("id", openingIds);
+    for (const o of os ?? []) {
+      openingMap.set(o.id as string, {
+        width_mm: Number(o.width_mm),
+        quantity: Number(o.quantity ?? 1),
+      });
+    }
+  }
+
+  let checked = 0, missing = 0, drift = 0, matched = 0;
+
+  for (const it of items) {
+    if (!it.measurement_id && !it.opening_id) continue; // not source-linked
+    checked += 1;
+
+    let currentSourceValue: number | null = null;
+    if (it.measurement_id) {
+      const src = measurementMap.get(it.measurement_id);
+      if (!src) {
+        currentSourceValue = null;
+      } else {
+        currentSourceValue = src.measurement_type === "area"
+          ? (src.calculated_area_m2 ?? null)
+          : (src.calculated_length_m ?? null);
+      }
+    } else if (it.opening_id) {
+      const src = openingMap.get(it.opening_id);
+      currentSourceValue = src ? src.width_mm : null;
+    }
+
+    if (currentSourceValue == null) {
+      missing += 1;
+      await supabase.from("module_items").update({
+        review_status: "review_required",
+        notes: "Source measurement/opening no longer exists.",
+      }).eq("id", it.id);
+      await logAudit({
+        job_id: jobId, run_id: it.run_id, item_id: it.id, module_id: it.module_id,
+        action: "source_missing",
+        previous_value: it.extracted_value,
+        notes: it.measurement_id ? `measurement ${it.measurement_id}` : `opening ${it.opening_id}`,
+      });
+      continue;
+    }
+
+    const newValueStr = String(currentSourceValue);
+    const approvedNum = it.approved_value == null || it.approved_value === ""
+      ? null
+      : Number(it.approved_value);
+    const compareTo = approvedNum != null && Number.isFinite(approvedNum)
+      ? approvedNum
+      : (it.extracted_value != null ? Number(it.extracted_value) : null);
+    const diffPct = compareTo == null || compareTo === 0
+      ? null
+      : Math.abs(currentSourceValue - compareTo) / Math.abs(compareTo);
+
+    if (diffPct != null && diffPct > 0.02) {
+      drift += 1;
+      // Never overwrite approved_value. Refresh extracted_value and flag stale.
+      await supabase.from("module_items").update({
+        extracted_value: newValueStr,
+        review_status: "review_required",
+        notes: `Source value ${currentSourceValue} differs from previous ${compareTo} (Δ${(diffPct * 100).toFixed(1)}%). Review before approval.`,
+      }).eq("id", it.id);
+      await logAudit({
+        job_id: jobId, run_id: it.run_id, item_id: it.id, module_id: it.module_id,
+        action: "recalculate_drift",
+        previous_value: String(compareTo),
+        new_value: newValueStr,
+        notes: `Δ${(diffPct * 100).toFixed(1)}%`,
+      });
+    } else {
+      matched += 1;
+      const changed = it.extracted_value !== newValueStr;
+      if (changed) {
+        await supabase.from("module_items").update({
+          extracted_value: newValueStr,
+        }).eq("id", it.id);
+        await logAudit({
+          job_id: jobId, run_id: it.run_id, item_id: it.id, module_id: it.module_id,
+          action: "recalculate_matched",
+          previous_value: it.extracted_value,
+          new_value: newValueStr,
+        });
+      }
+    }
+  }
+
   const now = new Date().toISOString();
   await supabase.from("module_runs").update({
     last_run_at: now,
-    status: "in_progress",
-    review_status: "review_required",
-    approved_by: null,
-    approved_at: null,
+    // Only nudge status if there's something to review.
+    ...(missing > 0 || drift > 0
+      ? { status: "in_progress", review_status: "review_required", approved_by: null, approved_at: null }
+      : {}),
   }).eq("id", run.id);
   await recomputeRunAggregates(run.id);
   await logAudit({
     job_id: jobId, run_id: run.id, module_id: moduleId,
     action: "recalculate_module",
     new_value: now,
+    notes: `checked ${checked} · matched ${matched} · drift ${drift} · missing ${missing}`,
   });
+
+  return { checked, missing, drift, matched };
+}
+
+/** ---------- Source-edit propagation (Part 7) ---------- */
+
+/**
+ * When a plan measurement or opening is edited or deleted, dependent module
+ * items become potentially stale. We never overwrite approved values; we
+ * flip review_status back to review_required and write an audit row so the
+ * QS sees that the source moved.
+ */
+export async function flagDependentModuleItems(args: {
+  jobId: string;
+  measurementId?: string | null;
+  openingId?: string | null;
+  reason: "source_edited" | "source_deleted";
+  notes?: string | null;
+}): Promise<number> {
+  let q = supabase.from("module_items").select("*").eq("job_id", args.jobId);
+  if (args.measurementId) q = q.eq("measurement_id", args.measurementId);
+  else if (args.openingId) q = q.eq("opening_id", args.openingId);
+  else return 0;
+  const { data } = await q;
+  const items = (data ?? []) as unknown as ModuleItem[];
+  for (const it of items) {
+    await supabase.from("module_items").update({
+      review_status: "review_required",
+    }).eq("id", it.id);
+    await logAudit({
+      job_id: args.jobId, run_id: it.run_id, item_id: it.id, module_id: it.module_id,
+      action: args.reason === "source_deleted" ? "source_deleted" : "source_edited",
+      previous_value: it.extracted_value,
+      notes: args.notes ?? null,
+    });
+  }
+  return items.length;
+}
+
+/** ---------- Job audit timeline (Part 4) ---------- */
+
+export type JobTimelineKind = "module" | "measurement" | "export";
+export type JobTimelineEntry = {
+  id: string;
+  kind: JobTimelineKind;
+  created_at: string;
+  user_id: string | null;
+  action: string;
+  module_id: string | null;
+  item_id: string | null;
+  measurement_id: string | null;
+  opening_id: string | null;
+  previous_value: string | null;
+  new_value: string | null;
+  notes: string | null;
+};
+
+export async function loadJobTimeline(jobId: string, limit = 200): Promise<JobTimelineEntry[]> {
+  const [mod, meas, exp] = await Promise.all([
+    supabase.from("module_audit_logs").select("*").eq("job_id", jobId).order("created_at", { ascending: false }).limit(limit),
+    supabase.from("plan_measurement_audit_logs").select("*").eq("job_id", jobId).order("created_at", { ascending: false }).limit(limit),
+    supabase.from("export_logs").select("*").eq("job_id", jobId).order("timestamp", { ascending: false }).limit(limit),
+  ]);
+  const out: JobTimelineEntry[] = [];
+  for (const r of (mod.data ?? []) as Array<Record<string, unknown>>) {
+    out.push({
+      id: String(r.id), kind: "module",
+      created_at: String(r.created_at),
+      user_id: (r.user_id as string | null) ?? null,
+      action: String(r.action),
+      module_id: (r.module_id as string | null) ?? null,
+      item_id: (r.item_id as string | null) ?? null,
+      measurement_id: null, opening_id: null,
+      previous_value: (r.previous_value as string | null) ?? null,
+      new_value: (r.new_value as string | null) ?? null,
+      notes: (r.notes as string | null) ?? null,
+    });
+  }
+  for (const r of (meas.data ?? []) as Array<Record<string, unknown>>) {
+    out.push({
+      id: String(r.id), kind: "measurement",
+      created_at: String(r.created_at),
+      user_id: (r.user_id as string | null) ?? null,
+      action: String(r.action),
+      module_id: null, item_id: null,
+      measurement_id: (r.measurement_id as string | null) ?? null,
+      opening_id: (r.opening_id as string | null) ?? null,
+      previous_value: (r.previous_value as string | null) ?? null,
+      new_value: (r.new_value as string | null) ?? null,
+      notes: (r.notes as string | null) ?? null,
+    });
+  }
+  for (const r of (exp.data ?? []) as Array<Record<string, unknown>>) {
+    out.push({
+      id: String(r.id), kind: "export",
+      created_at: String(r.timestamp),
+      user_id: (r.exported_by as string | null) ?? null,
+      action: `export_${r.export_type ?? "csv"}`,
+      module_id: (r.module_id as string | null) ?? null,
+      item_id: null, measurement_id: null, opening_id: null,
+      previous_value: null, new_value: null,
+      notes: (r.module_name as string | null) ?? null,
+    });
+  }
+  out.sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
+  return out;
 }
 
 /** ---------- Roll-up ---------- */
