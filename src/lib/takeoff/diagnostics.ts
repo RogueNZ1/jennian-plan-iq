@@ -12,6 +12,8 @@
  */
 import type { ExtractedFile, ExtractedPage } from "./pdf-text";
 import type { ClassifiedPage } from "./classify";
+import { extractSpecRowsFromFile } from "./extract-spec";
+import type { IQModuleId } from "@/lib/iq-modules";
 
 /* --------------------------------- types --------------------------------- */
 
@@ -83,12 +85,25 @@ export type OpeningDiagnostics = {
   candidates: OpeningCandidate[];
 };
 
+export type SpecCheck = {
+  moduleId: IQModuleId | "iq-core" | "iq-framing" | "iq-roofing" | "iq-cladding" | "iq-linings" | "iq-electrical" | "iq-plumbing";
+  label: string;
+  found: boolean;
+  matchedText: string | null;
+  parsedValue: string | null;
+  fileName: string | null;
+  pageNumber: number | null;
+  rowCreated: boolean;
+  confidence: "high" | "mid" | "low" | null;
+};
+
 export type TakeoffDiagnostics = {
   jobId: string;
   uploadedFileCount: number;
   includedFileCount: number;
   files: FileDiagnostic[];
   quantityChecks: QuantityCheck[];
+  specChecks: SpecCheck[];
   openings: OpeningDiagnostics;
   totalCharsExtracted: number;
   pagesWithText: number;
@@ -100,6 +115,9 @@ export type TakeoffDiagnostics = {
     | "readable_text_no_matches"
     | "matches_no_module_rows"
     | "ok"
+    | "limited_specification"
+    | "specification_only"
+    | "flattened_plan"
     | "errors";
   outcomeMessage: string;
 };
