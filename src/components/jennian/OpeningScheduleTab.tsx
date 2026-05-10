@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
-import { Plus, Trash2, Check } from "lucide-react";
+import { Plus, Trash2, Check, Send } from "lucide-react";
 import { toast } from "sonner";
 import {
-  loadOpenings, createOpening, updateOpening, deleteOpening,
+  loadOpenings, createOpening, updateOpening, deleteOpening, pushMeasurementToModule,
   type Opening,
 } from "@/lib/iq-measurements";
+import { supabase } from "@/integrations/supabase/client";
+import { PushToModuleDialog } from "@/components/jennian/PushToModuleDialog";
+import type { IQModuleId } from "@/lib/iq-modules";
 
 const OPENING_TYPES: { value: string; label: string }[] = [
   { value: "window",          label: "Window" },
@@ -14,9 +17,21 @@ const OPENING_TYPES: { value: string; label: string }[] = [
   { value: "external_door",   label: "External Door" },
   { value: "garage_door",     label: "Garage Door" },
   { value: "slider",          label: "Slider" },
+  { value: "bifold",          label: "Bifold" },
   { value: "robe_opening",    label: "Robe Opening" },
   { value: "unknown_opening", label: "Unknown Opening" },
 ];
+
+const OPENING_TARGETS: Record<string, IQModuleId[]> = {
+  window:          ["iq-core", "iq-cladding"],
+  internal_door:   ["iq-core", "iq-linings", "iq-framing"],
+  external_door:   ["iq-core", "iq-cladding", "iq-framing"],
+  garage_door:     ["iq-core", "iq-cladding", "iq-framing"],
+  slider:          ["iq-core", "iq-cladding", "iq-framing"],
+  bifold:          ["iq-core", "iq-linings", "iq-framing"],
+  robe_opening:    ["iq-core", "iq-linings", "iq-framing"],
+  unknown_opening: ["iq-core"],
+};
 
 export function OpeningScheduleTab({ jobId }: { jobId: string }) {
   const { user } = useAuth();
@@ -26,11 +41,23 @@ export function OpeningScheduleTab({ jobId }: { jobId: string }) {
   const [loading, setLoading] = useState(true);
   const [draftWidth, setDraftWidth] = useState("");
   const [draftHeight, setDraftHeight] = useState("");
+  const [workingFileId, setWorkingFileId] = useState<string | null>(null);
+  const [workingPage, setWorkingPage] = useState<number>(1);
+  const [pushFor, setPushFor] = useState<Opening | null>(null);
 
   useEffect(() => {
     loadOpenings(jobId).then((r) => { setRows(r); setLoading(false); }).catch((e) => {
       toast.error(e.message); setLoading(false);
     });
+    supabase
+      .from("jobs")
+      .select("working_plan_file_id, working_plan_page_number")
+      .eq("id", jobId)
+      .maybeSingle()
+      .then(({ data }) => {
+        setWorkingFileId((data?.working_plan_file_id as string | null) ?? null);
+        setWorkingPage(Number(data?.working_plan_page_number ?? 1));
+      });
   }, [jobId]);
 
   async function addRow() {
@@ -41,6 +68,8 @@ export function OpeningScheduleTab({ jobId }: { jobId: string }) {
     try {
       const o = await createOpening({
         jobId, width_mm: w, height_mm: h ?? null,
+        page: workingPage,
+        fileId: workingFileId,
         opening_type: "unknown_opening",
         source: "User Override",
         confidence: "mid",
@@ -69,6 +98,43 @@ export function OpeningScheduleTab({ jobId }: { jobId: string }) {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not delete.");
     }
+  }
+
+  async function onPushOpening(
+    o: Opening,
+    payload: { moduleIds: IQModuleId[]; label: string; unit: string; value: number; basis: string | null; notes: string | null },
+  ) {
+    if (!user) return;
+    const evidence =
+      `Working Plan page ${o.plan_page_number}, opening ${o.id.slice(0, 8)} — ` +
+      `${o.opening_type} ${o.width_mm}${o.height_mm ? `x${o.height_mm}` : ""}mm`;
+    let inserted = 0;
+    let conflicts = 0;
+    for (const moduleId of payload.moduleIds) {
+      try {
+        const r = await pushMeasurementToModule({
+          jobId,
+          moduleId,
+          label: payload.label,
+          unit: payload.unit,
+          value: payload.value,
+          basis: payload.basis,
+          notes: payload.notes,
+          createdBy: user.id,
+          openingId: o.id,
+          page: o.plan_page_number,
+          fileId: (o as unknown as { file_id?: string | null }).file_id ?? null,
+          evidence,
+          confidence: o.confidence,
+        });
+        if (r.status === "conflict") conflicts++;
+        else inserted++;
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : `Could not push to ${moduleId}.`);
+      }
+    }
+    if (inserted) toast.success(`Pushed to ${inserted} module${inserted === 1 ? "" : "s"}.`);
+    if (conflicts) toast.warning(`${conflicts} conflict${conflicts === 1 ? "" : "s"} flagged Review Required.`);
   }
 
   return (
@@ -187,6 +253,14 @@ export function OpeningScheduleTab({ jobId }: { jobId: string }) {
                     )}
                     {canEdit && (
                       <button
+                        onClick={() => setPushFor(o)}
+                        disabled={o.review_status !== "confirmed"}
+                        title={o.review_status === "confirmed" ? "Push to module…" : "Confirm opening before pushing to modules."}
+                        className="h-6 w-6 grid place-items-center rounded-md border border-border bg-card hover:bg-accent text-primary disabled:opacity-40 disabled:cursor-not-allowed"
+                      ><Send className="h-3 w-3" /></button>
+                    )}
+                    {canEdit && (
+                      <button
                         onClick={() => remove(o)}
                         title="Delete"
                         className="h-6 w-6 grid place-items-center rounded-md border border-border bg-card hover:bg-accent text-confidence-low"
@@ -199,6 +273,26 @@ export function OpeningScheduleTab({ jobId }: { jobId: string }) {
           </tbody>
         </table>
       </div>
+
+      {pushFor && (() => {
+        const label =
+          (pushFor.room_name ? `${pushFor.room_name} — ` : "") +
+          `${pushFor.opening_type.replace("_", " ")} ${pushFor.width_mm}${pushFor.height_mm ? `x${pushFor.height_mm}` : ""}mm`;
+        const summary = `${pushFor.opening_type} · ${pushFor.width_mm}${pushFor.height_mm ? `x${pushFor.height_mm}` : ""}mm · qty ${pushFor.quantity} · page ${pushFor.plan_page_number}`;
+        return (
+          <PushToModuleDialog
+            open={true}
+            onOpenChange={(v) => { if (!v) setPushFor(null); }}
+            defaultLabel={label}
+            defaultUnit="qty"
+            defaultValue={pushFor.quantity}
+            defaultBasis="Opening schedule"
+            suggestedModules={OPENING_TARGETS[pushFor.opening_type] ?? ["iq-core"]}
+            sourceSummary={summary}
+            onSubmit={async (s) => { await onPushOpening(pushFor, s); setPushFor(null); }}
+          />
+        );
+      })()}
     </div>
   );
 }
