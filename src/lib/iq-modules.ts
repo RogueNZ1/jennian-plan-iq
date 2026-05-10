@@ -663,3 +663,93 @@ export async function exportApprovedQuantitiesCsv(job: JobMeta): Promise<void> {
     await logAudit({ job_id: job.id, action: "export_approved_quantities" });
   }
 }
+
+/* ---------- Legacy compat (to be removed after route refactor lands) ---------- */
+/* Keeps existing /modules, /modules/$moduleId, /review, /upload compiling
+   until they are migrated to the Supabase-backed API above. */
+
+export type IQModuleStatus = ModuleRunStatus;
+export type ReviewStatus = ItemReviewStatus;
+
+export type IQItem = {
+  key: string;
+  description: string;
+  unit: string;
+  extractedQuantity: number;
+  finalQuantity: number;
+  confidence: Confidence;
+  notes: string;
+  approved: boolean;
+};
+
+export function buildIQItems(jobKey: string, mod: IQModule): IQItem[] {
+  return mod.items.map((t) => {
+    const seed = hash(`${jobKey}::${mod.id}::${t.key}`);
+    const value = dummyValue(t, seed);
+    return {
+      key: t.key, description: t.description, unit: t.unit,
+      extractedQuantity: value, finalQuantity: value,
+      confidence: pickConfidence(seed), notes: "", approved: false,
+    };
+  });
+}
+
+type LegacyPersisted = { items: IQItem[]; status: IQModuleStatus; lastRunAt: string | null };
+const LK = (jobKey: string, moduleId: IQModuleId) => `iq:${jobKey}:${moduleId}`;
+
+export function loadModuleState(jobKey: string, mod: IQModule): LegacyPersisted {
+  if (typeof window === "undefined") return { items: buildIQItems(jobKey, mod), status: "not_started", lastRunAt: null };
+  try {
+    const raw = localStorage.getItem(LK(jobKey, mod.id));
+    if (raw) return JSON.parse(raw) as LegacyPersisted;
+  } catch { /* ignore */ }
+  return { items: buildIQItems(jobKey, mod), status: "not_started", lastRunAt: null };
+}
+
+export function saveModuleState(jobKey: string, moduleId: IQModuleId, state: LegacyPersisted) {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(LK(jobKey, moduleId), JSON.stringify(state)); } catch { /* ignore */ }
+}
+
+export async function runDummyExtraction(jobKey: string, mod: IQModule): Promise<IQItem[]> {
+  const nonce = Date.now().toString(36);
+  return mod.items.map((t) => {
+    const seed = hash(`${jobKey}::${mod.id}::${t.key}::${nonce}`);
+    const value = dummyValue(t, seed);
+    return {
+      key: t.key, description: t.description, unit: t.unit,
+      extractedQuantity: value, finalQuantity: value,
+      confidence: pickConfidence(seed), notes: "", approved: false,
+    };
+  });
+}
+
+export type ElectricalMode = "plan_count" | "template_allowance";
+export type ElectricalAllowanceRow = {
+  key: string; item: string; code: string; description: string; basis: string;
+  allowedQuantity: number; confirmedQuantity: number; reviewStatus: ItemReviewStatus; notes: string;
+};
+export const ELECTRICAL_ALLOWANCE_DEFAULTS: ElectricalAllowanceRow[] = [];
+const EL_KEY = (jobKey: string) => `iq:${jobKey}:iq-electrical:allowance`;
+const EL_MODE_KEY = (jobKey: string) => `iq:${jobKey}:iq-electrical:mode`;
+export function loadElectricalAllowance(jobKey: string): ElectricalAllowanceRow[] {
+  if (typeof window === "undefined") return [];
+  try { const raw = localStorage.getItem(EL_KEY(jobKey)); if (raw) return JSON.parse(raw); } catch { /* ignore */ }
+  return [];
+}
+export function saveElectricalAllowance(jobKey: string, rows: ElectricalAllowanceRow[]) {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(EL_KEY(jobKey), JSON.stringify(rows)); } catch { /* ignore */ }
+}
+export function loadElectricalMode(jobKey: string): ElectricalMode {
+  if (typeof window === "undefined") return "template_allowance";
+  try {
+    const raw = localStorage.getItem(EL_MODE_KEY(jobKey));
+    if (raw === "plan_count" || raw === "template_allowance") return raw;
+  } catch { /* ignore */ }
+  return "template_allowance";
+}
+export function saveElectricalMode(jobKey: string, mode: ElectricalMode) {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(EL_MODE_KEY(jobKey), mode); } catch { /* ignore */ }
+}
