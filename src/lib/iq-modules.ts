@@ -424,7 +424,7 @@ async function recomputeRunAggregates(runId: string): Promise<void> {
   }).eq("id", runId);
 }
 
-export function confidencePercent(items: ModuleItem[]): number {
+export function confidencePercent(items: Array<{ confidence: Confidence | null }>): number {
   if (!items.length) return 0;
   const highs = items.filter((i) => i.confidence === "high").length;
   return Math.round((highs / items.length) * 100);
