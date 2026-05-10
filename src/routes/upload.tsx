@@ -8,6 +8,7 @@ import { PlanThumbnail } from "@/components/jennian/PlanThumbnail";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { renderPdfThumbnail } from "@/lib/pdf-thumbnail";
+import { seedAllModulesForJob } from "@/lib/iq-modules";
 
 export const Route = createFileRoute("/upload")({ component: UploadPage });
 
@@ -125,6 +126,9 @@ function UploadPage() {
             ...(thumbnailPath ? { plan_thumbnail_url: thumbnailPath } : {}),
           })
           .eq("id", job.id);
+
+        // Activate every IQ module for this job with example data.
+        seedAllModulesForJob(job.id);
 
         toast.success("Plan reviewed — quantities ready.");
         navigate({ to: "/review", search: { job: job.id } });
