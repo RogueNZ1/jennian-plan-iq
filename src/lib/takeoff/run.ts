@@ -202,7 +202,8 @@ export async function runAutomaticTakeoff(args: {
       fileId: file.fileId,
       fileName: file.fileName,
       fileType: file.fileType,
-      pages: file.pages.map<ClassifiedPage>((p) => classifyPage(p)),
+      pages: file.pages.map<ClassifiedPage>((p) =>
+        classifyPageWithType(p, file.fileType)),
       rawPages: file.pages,
     }));
 
