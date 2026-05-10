@@ -104,7 +104,6 @@ function ModuleDetail() {
   }
 
   function exportCsv() {
-    if (!mod) return;
     const header = ["Item","Description","Unit","Extracted Quantity","Final Quantity","Confidence","Notes","Approved"];
     const rows = items.map((i) => [
       i.key, i.description, i.unit,
