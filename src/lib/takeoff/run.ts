@@ -429,27 +429,34 @@ export async function runAutomaticTakeoff(args: {
       }
     }
 
-    const specOnlyMatches = allSpecRows.length > 0 || quantityChecks.some((q) => q.found);
+    // "Useful" spec items: spec rows + quantity matches anchored in
+    // specification text or readable plan text.
+    const usefulSpecCount = allSpecRows.length + quantityChecks.filter((q) => q.found).length;
+    const specOnlyMatches = usefulSpecCount > 0;
     const planTextChars = extracted
       .filter((f) => f.fileType === "plan")
       .reduce((s, f) => s + f.pages.reduce((ss, p) => ss + (p.text?.length ?? 0), 0), 0);
     const planFiles = extracted.filter((f) => f.fileType === "plan");
     const hasPlanFiles = planFiles.length > 0;
     const planTextless = hasPlanFiles && planTextChars === 0;
+    const planUnreadable = flattenedPlanFiles.length > 0 || planTextless;
+    const isLimitedSpec = usefulSpecCount > 0 && usefulSpecCount < 5;
 
     let resultType: TakeoffSummary["resultType"];
-    if (flattenedPlanFiles.length > 0 && !specOnlyMatches) {
+    if (planUnreadable && !specOnlyMatches) {
       resultType = "flattened_plan_vision_review_required";
-    } else if (flattenedPlanFiles.length > 0 && specOnlyMatches) {
+    } else if (planUnreadable && isLimitedSpec) {
+      resultType = "limited_specification_takeoff";
+    } else if (planUnreadable && specOnlyMatches) {
       resultType = "specification_only_takeoff";
-    } else if (planTextless && specOnlyMatches) {
-      resultType = "specification_only_takeoff";
+    } else if (isLimitedSpec && mod.inserted < 5 && oInserted === 0) {
+      resultType = "limited_specification_takeoff";
     } else if (specOnlyMatches || mod.inserted > 0 || qInserted > 0 || oInserted > 0) {
       resultType = "text_takeoff_completed";
     } else {
       resultType = "no_usable_text_found";
     }
-    if (flattenedPlanFiles.length > 0 && resultType === "specification_only_takeoff") {
+    if (flattenedPlanFiles.length > 0 && (resultType === "specification_only_takeoff" || resultType === "limited_specification_takeoff")) {
       warnings.push(
         `${flattenedPlanFiles.length} plan ${flattenedPlanFiles.length === 1 ? "file appears" : "files appear"} to be flattened images — vision review required for plan measurements.`,
       );
@@ -458,6 +465,27 @@ export async function runAutomaticTakeoff(args: {
         "Plan pages appear to be flattened images. Text-based takeoff cannot read dimensions from these drawings. OCR / vision review is required.",
       );
     }
+    if (resultType === "limited_specification_takeoff") {
+      warnings.push(
+        `Only ${usefulSpecCount} useful specification ${usefulSpecCount === 1 ? "item was" : "items were"} extracted — review uploaded files or expand specification detail.`,
+      );
+    }
+    // Override outcome label when the high-level resultType is more specific
+    // than the base diagnostic outcome.
+    let finalOutcome: TakeoffDiagnostics["outcome"] = outcome;
+    let finalOutcomeMessage = outcomeMessage;
+    if (resultType === "flattened_plan_vision_review_required") {
+      finalOutcome = "flattened_plan";
+      finalOutcomeMessage = "Plan PDF is flattened (no text layer). Vision review required for plan measurements.";
+    } else if (resultType === "limited_specification_takeoff") {
+      finalOutcome = "limited_specification";
+      finalOutcomeMessage = `Only ${usefulSpecCount} useful specification ${usefulSpecCount === 1 ? "item" : "items"} extracted from readable text.`;
+    } else if (resultType === "specification_only_takeoff") {
+      finalOutcome = "specification_only";
+      finalOutcomeMessage = "Specification text was readable; plan drawings could not be read for measurements.";
+    }
+    diagnostics.outcome = finalOutcome;
+    diagnostics.outcomeMessage = finalOutcomeMessage;
     const hasWarnings2 = errors.length > 0 || warnings.length > 0;
 
     const summary: TakeoffSummary = {
