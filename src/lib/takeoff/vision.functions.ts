@@ -14,7 +14,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type {
   VisionPageResult,
   VisionRunSummary,
@@ -206,11 +205,8 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => InputSchema.parse(input))
   .handler(async ({ data, context }): Promise<VisionRunSummary> => {
-    const { supabase, userId } = context as {
-      supabase: typeof supabaseAdmin;
-      userId: string;
-      claims: unknown;
-    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { supabase, userId } = context as any;
 
     const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
     if (!LOVABLE_API_KEY) {
@@ -267,7 +263,7 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
 
       try {
         // Download the rendered page image (admin client bypasses RLS for server I/O).
-        const { data: blob, error: dlErr } = await supabaseAdmin.storage
+        const { data: blob, error: dlErr } = await supabase.storage
           .from(p.storageBucket)
           .download(p.storagePath);
         if (dlErr || !blob) {
