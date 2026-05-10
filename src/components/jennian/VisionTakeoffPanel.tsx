@@ -34,7 +34,7 @@ export function VisionTakeoffPanel({
   const runFn = useServerFn(runVisionTakeoff);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; operation?: string; technical?: string } | null>(null);
   const [result, setResult] = useState<VisionRunSummary | null>(null);
   const [candidates, setCandidates] = useState<PageCandidate[] | null>(null);
   const [totalPages, setTotalPages] = useState<number>(0);
@@ -218,62 +218,38 @@ export function VisionTakeoffPanel({
       setStatus(`Calling vision model on ${pageInputs.length} rendered pages…`);
       const response = await runFn({ data: { jobId, pages: pageInputs, specificationText, accessToken } });
 
-      // Structured error: server function returned { ok: false } instead of throwing.
+      // Structured error: server function returned { ok: false, error: {...} }.
+      // Use setError directly (not throw) so operation and technical are preserved.
       if (
         response != null &&
         typeof response === "object" &&
         "ok" in response &&
         (response as VisionTakeoffError).ok === false
       ) {
-        const norm = normaliseVisionError(response);
-        throw new Error(norm.message);
+        setError(normaliseVisionError(response));
+        setStatus(null);
+        return;
       }
 
-      // Guard against any unexpected response shape (framework error, shape mismatch, etc.)
+      // Guard against any unexpected response shape (framework error, shape mismatch).
       if (
         response == null ||
         typeof response !== "object" ||
         (response as { kind?: string }).kind !== "vision_takeoff"
       ) {
         let technical: string | undefined;
-        try {
-          technical = JSON.stringify(response).slice(0, 300);
-        } catch {
-          technical = String(response);
-        }
+        try { technical = JSON.stringify(response).slice(0, 300); } catch { technical = String(response); }
         console.error("[VisionTakeoff] Unexpected server response shape:", technical);
-        throw new Error(
-          `Vision Takeoff could not complete. Unexpected server response.${technical ? `\nDiagnostics: ${technical}` : ""}`,
-        );
+        setError({ operation: "unknown", message: "Vision Takeoff could not complete. Unexpected server response.", technical });
+        setStatus(null);
+        return;
       }
 
       setResult(response as VisionRunSummary);
       setStatus(null);
     } catch (e) {
-      let msg = "Vision takeoff failed.";
-      if (e instanceof Error) {
-        const raw = e.message;
-        // TanStack Start serialises a thrown Response as the string "[object Response]".
-        // Detect this and show a meaningful message rather than leaking the raw string.
-        if (!raw || raw === "[object Response]" || /^\[object /.test(raw)) {
-          msg = "Vision Takeoff could not connect to the server. Please refresh the page and try again.";
-        } else {
-          msg = raw;
-        }
-      } else if (e instanceof Response) {
-        try {
-          const text = await e.clone().text();
-          msg = `Vision takeoff failed (${e.status}${text ? `: ${text.slice(0, 160)}` : ""}).`;
-        } catch {
-          msg = `Vision takeoff failed (${e.status}).`;
-        }
-      } else {
-        const s = String(e);
-        msg = s && s !== "[object Object]" && s !== "[object Response]"
-          ? s
-          : "Vision Takeoff encountered an unexpected error. Please try again.";
-      }
-      setError(msg);
+      // normaliseVisionError handles Error, Response, string, null, and unknown shapes.
+      setError(normaliseVisionError(e));
       setStatus(null);
     } finally {
       setBusy(false);
@@ -374,7 +350,15 @@ export function VisionTakeoffPanel({
           {error && (
             <div className="mt-2 inline-flex items-start gap-1.5 text-[11px] text-destructive">
               <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" />
-              <span>{error}</span>
+              <span>
+                <span className="block">{error.message}</span>
+                {error.operation && error.operation !== "client_error" && (
+                  <span className="block text-muted-foreground">Operation: {error.operation}</span>
+                )}
+                {error.technical && error.operation !== "client_error" && (
+                  <span className="block text-muted-foreground break-all">{error.technical.slice(0, 240)}</span>
+                )}
+              </span>
             </div>
           )}
 
