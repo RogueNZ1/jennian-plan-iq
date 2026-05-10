@@ -72,7 +72,7 @@ export const IQ_MODULES: IQModule[] = [
   {
     id: "iq-core",
     name: "IQ Core",
-    shortDescription: "Architectural quantity extraction.",
+    shortDescription: "Architectural quantity review.",
     longDescription: "Core architectural geometry — areas, perimeters, schedules and pitches that drive every downstream trade package.",
     exportSheet: "Core",
     items: [
@@ -93,8 +93,8 @@ export const IQ_MODULES: IQModule[] = [
   {
     id: "iq-electrical",
     name: "IQ Electrical",
-    shortDescription: "Electrical symbol recognition and count.",
-    longDescription: "Symbol-aware electrical takeoff — power, lighting, low-voltage and appliance points across the plan set.",
+    shortDescription: "Electrical points, lighting and appliance schedule.",
+    longDescription: "Electrical takeoff for power, lighting, low-voltage and appliance points. Supports plan-counted quantities and template-based allowances when a marked-up electrical plan is not yet available.",
     exportSheet: "Electrical",
     items: [
       { key: "single_power",     description: "Single Power Points",   unit: "qty", range: [4, 14] },
@@ -117,7 +117,7 @@ export const IQ_MODULES: IQModule[] = [
   {
     id: "iq-plumbing",
     name: "IQ Plumbing",
-    shortDescription: "Fixture and plumbing extraction.",
+    shortDescription: "Fixture and plumbing schedule.",
     longDescription: "Fixture schedule across kitchen, bathroom, laundry and exterior — feeds the plumbing supplier RFQ.",
     exportSheet: "Plumbing",
     items: [
@@ -154,7 +154,7 @@ export const IQ_MODULES: IQModule[] = [
   {
     id: "iq-framing",
     name: "IQ Framing",
-    shortDescription: "Framing quantity extraction.",
+    shortDescription: "Framing quantity schedule.",
     longDescription: "Wall framing, openings, lintels, studs and noggings ready for the timber supplier RFQ.",
     exportSheet: "Framing",
     items: [
@@ -172,7 +172,7 @@ export const IQ_MODULES: IQModule[] = [
   {
     id: "iq-cladding",
     name: "IQ Cladding",
-    shortDescription: "Cladding and brick quantity extraction.",
+    shortDescription: "Cladding and brick quantity schedule.",
     longDescription: "Brick, weatherboard and feature cladding — areas, lineal metres, flashings, sills and corners.",
     exportSheet: "Cladding",
     items: [
@@ -188,7 +188,7 @@ export const IQ_MODULES: IQModule[] = [
   {
     id: "iq-roofing",
     name: "IQ Roofing",
-    shortDescription: "Roofing quantity extraction.",
+    shortDescription: "Roofing quantity schedule.",
     longDescription: "Roof areas, ridges, hips, valleys, fascia, spouting and downpipes for the roofing RFQ.",
     exportSheet: "Roofing",
     items: [
