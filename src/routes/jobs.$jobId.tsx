@@ -14,8 +14,16 @@ import {
 import {
   Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain,
   AlertTriangle, ShoppingCart, ClipboardCheck, Eye, FileSpreadsheet, ArrowRight, History,
+  Wand2, RefreshCw,
 } from "lucide-react";
 import { JobAuditTimeline } from "@/components/jennian/JobAuditTimeline";
+import { AutomaticTakeoffDialog } from "@/components/jennian/AutomaticTakeoffDialog";
+import { TakeoffSummary } from "@/components/jennian/TakeoffSummary";
+import { loadLatestTakeoffRun, type LatestTakeoffRun } from "@/lib/takeoff/run";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/jobs/$jobId")({ component: JobDetail });
 
@@ -32,6 +40,9 @@ function JobDetail() {
   const [loading, setLoading] = useState(true);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
+  const [takeoffOpen, setTakeoffOpen] = useState(false);
+  const [rerunConfirmOpen, setRerunConfirmOpen] = useState(false);
+  const [takeoffRun, setTakeoffRun] = useState<LatestTakeoffRun | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +55,8 @@ function JobDetail() {
         await seedAllModulesForJob(jobId);
         const r = await loadModuleRuns(jobId);
         if (!cancelled) setRuns(r);
+        const tr = await loadLatestTakeoffRun(jobId).catch(() => null);
+        if (!cancelled) setTakeoffRun(tr);
       } catch {
         /* ignore — modules will surface their own errors */
       }
@@ -69,6 +82,23 @@ function JobDetail() {
           subtitle={job ? `${job.client_name} · ${job.address}` : "Loading…"}
           actions={
             <div className="flex items-center gap-2">
+              {takeoffRun ? (
+                <button
+                  type="button"
+                  onClick={() => setRerunConfirmOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
+                >
+                  <RefreshCw className="h-4 w-4" /> Re-run Automatic Takeoff
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setTakeoffOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
+                >
+                  <Wand2 className="h-4 w-4" /> Run Automatic Takeoff
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setTimelineOpen(true)}
@@ -162,6 +192,12 @@ function JobDetail() {
             </div>
           </div>
         </div>
+
+        {takeoffRun && (
+          <div className="mb-6">
+            <TakeoffSummary run={takeoffRun} jobId={jobId} />
+          </div>
+        )}
       </div>
       <PlanViewer
         open={viewerOpen}
@@ -174,6 +210,37 @@ function JobDetail() {
         open={timelineOpen}
         onOpenChange={setTimelineOpen}
       />
+      <AutomaticTakeoffDialog
+        open={takeoffOpen}
+        onOpenChange={setTakeoffOpen}
+        jobId={jobId}
+        onCompleted={async () => {
+          const tr = await loadLatestTakeoffRun(jobId).catch(() => null);
+          setTakeoffRun(tr);
+          const r = await loadModuleRuns(jobId).catch(() => []);
+          setRuns(r);
+        }}
+      />
+      <AlertDialog open={rerunConfirmOpen} onOpenChange={setRerunConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Re-run Automatic Takeoff?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will create a new draft takeoff from the uploaded files. Confirmed,
+              approved, and user-overridden values will not be overwritten. Differences
+              will be marked Review Required.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { setRerunConfirmOpen(false); setTakeoffOpen(true); }}
+            >
+              Re-run Takeoff
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
