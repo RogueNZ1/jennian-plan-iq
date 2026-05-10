@@ -88,7 +88,7 @@ function ModulesIndex() {
           <div className="mb-6 rounded-xl border border-border bg-card overflow-hidden shadow-[0_1px_0_rgba(0,0,0,0.02)]">
             <div className="flex items-stretch">
               <div className="p-4 border-r border-border bg-muted/30 grid place-items-center">
-                <PlanThumbnail seed={job.id} size="md" />
+                <PlanThumbnail storagePath={job.plan_thumbnail_url} size="md" />
               </div>
               <div className="flex-1 px-5 py-4 flex items-center justify-between">
                 <div>

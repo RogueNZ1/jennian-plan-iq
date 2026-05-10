@@ -103,7 +103,7 @@ function Dashboard() {
                   <tr key={j.id} className="border-t border-border hover:bg-muted/25 transition-colors">
                     <td className="pl-6 py-3">
                       <Link to="/review" search={{ job: j.id }} aria-label={`Open ${j.job_number}`}>
-                        <PlanThumbnail seed={j.id} size="sm" className="hover:border-primary/40 transition-colors" />
+                        <PlanThumbnail storagePath={j.plan_thumbnail_url} size="sm" className="hover:border-primary/40 transition-colors" />
                       </Link>
                     </td>
                     <td className="px-2 py-3 font-medium">
