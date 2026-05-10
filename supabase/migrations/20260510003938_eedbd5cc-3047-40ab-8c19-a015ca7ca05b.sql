@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.protect_sole_owner() FROM PUBLIC, anon, authenticated;
