@@ -297,6 +297,63 @@ export function TakeoffSummary({
         )}
       </div>
 
+      {showVisionSection && (
+        <div className="px-5 py-3 border-t border-border bg-muted/20">
+          <div className="flex items-start gap-2">
+            <ScanEye className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="text-[12.5px] font-semibold tracking-tight">Plan Vision Review</div>
+                <span className="inline-flex h-4 items-center rounded-full border border-border bg-card px-1.5 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  {visionMarked ? "Marked" : "Not configured"}
+                </span>
+              </div>
+              <div className="mt-1 text-[11.5px] text-muted-foreground">
+                Flattened drawings require OCR / vision processing before Jennian IQ can automatically read dimensions, rooms, openings, and scale.
+              </div>
+              {s.flattenedPlanFiles.length > 0 && (
+                <ul className="mt-2 text-[11px] text-muted-foreground space-y-0.5">
+                  {s.flattenedPlanFiles.map((f) => (
+                    <li key={f.fileId} className="flex items-start gap-1.5">
+                      <span className="text-muted-foreground/60 mt-1.5 inline-block h-1 w-1 rounded-full bg-current flex-shrink-0" />
+                      <span className="break-all">
+                        <span className="font-medium text-foreground">{f.fileName}</span>{" "}
+                        — {f.pageCount} {f.pageCount === 1 ? "page" : "pages"}{" "}
+                        ({f.pageSizes.join(", ") || "unknown size"}), no text layer detected
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {visionMarked && visionMarkedAt && (
+                <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-emerald-700">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Marked for vision review on {(() => { try { return new Date(visionMarkedAt).toLocaleString(); } catch { return visionMarkedAt; } })()}.
+                </div>
+              )}
+              {visionError && (
+                <div className="mt-2 text-[11px] text-destructive">{visionError}</div>
+              )}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={markForVisionReview}
+                  disabled={visionBusy || visionMarked}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ScanEye className="h-3 w-3" />
+                  {visionMarked ? "Marked for Vision Review" : visionBusy ? "Marking…" : "Mark for Vision Review"}
+                </button>
+                <Link to="/jobs/$jobId" params={{ jobId }}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent">
+                  <Eye className="h-3 w-3" /> Open Working Plan for Manual Measurement
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="px-5 py-3 border-t border-border bg-muted/20">
         <div className="text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground mb-1.5">
           Not yet auto-detected — measure manually
