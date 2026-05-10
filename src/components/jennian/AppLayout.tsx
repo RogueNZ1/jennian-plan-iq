@@ -55,14 +55,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary/90" />
 
         <div className="px-6 pt-7 pb-5">
-          <div className="flex items-baseline gap-3">
-            <div className="leading-none">
-              <div className="text-[20px] font-semibold tracking-tight text-white">Jennian<span className="text-primary">.</span></div>
-              <div className="mt-1 text-[9.5px] uppercase tracking-[0.32em] text-sidebar-foreground/55 font-medium">Homes</div>
+          <div className="leading-none">
+            <div className="text-[22px] font-semibold tracking-tight text-white">
+              Jennian <span className="text-primary">IQ</span>
             </div>
-            <div className="ml-auto pl-3 border-l border-sidebar-border/80 leading-tight">
-              <div className="text-[13px] font-semibold tracking-tight text-white">Jennian IQ</div>
-              <div className="text-[9.5px] uppercase tracking-[0.22em] text-primary font-medium mt-0.5">Built Smarter.</div>
+            <div className="mt-1.5 text-[10px] uppercase tracking-[0.3em] text-primary/90 font-semibold">
+              Built Smarter.
+            </div>
+            <div className="mt-2 text-[11.5px] text-sidebar-foreground/55 leading-snug">
+              Quantity intelligence for better building.
             </div>
           </div>
           <div className="mt-5 h-px bg-sidebar-border/70" />

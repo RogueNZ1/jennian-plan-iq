@@ -14,6 +14,7 @@ export type Job = {
   created_by: string;
   created_at: string;
   updated_at: string;
+  plan_thumbnail_url?: string | null;
 };
 
 export type Quantity = {
