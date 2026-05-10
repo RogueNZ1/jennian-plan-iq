@@ -376,6 +376,21 @@ function ReviewPage() {
           </TabsContent>
         </Tabs>
       </div>
+      <AutomaticTakeoffDialog
+        open={takeoffOpen}
+        onOpenChange={setTakeoffOpen}
+        jobId={job.id}
+        onCompleted={async () => {
+          const q = await listQuantities(job.id).catch(() => []);
+          setRows(q);
+          const [m, o] = await Promise.all([
+            supabase.from("plan_measurements").select("id", { count: "exact", head: true }).eq("job_id", job.id),
+            supabase.from("opening_schedule").select("id", { count: "exact", head: true }).eq("job_id", job.id),
+          ]);
+          setMeasurementCount(m.count ?? 0);
+          setOpeningsCount(o.count ?? 0);
+        }}
+      />
     </AppLayout>
   );
 }
