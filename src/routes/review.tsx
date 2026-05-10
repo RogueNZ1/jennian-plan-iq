@@ -14,7 +14,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
-import { Download, FileSpreadsheet, History, CheckCircle2, ArrowRight,
+import { Download, FileSpreadsheet, History, CheckCircle2, ArrowRight, ArrowLeft,
+  Wand2, ScanEye,
   Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain, AlertTriangle, ShoppingCart, Layers } from "lucide-react";
 import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { toast } from "sonner";
@@ -28,6 +29,7 @@ const PlanCanvas = lazy(() =>
 import { OpeningScheduleTab } from "@/components/jennian/OpeningScheduleTab";
 import { ValidationTab } from "@/components/jennian/ValidationTab";
 import { loadMeasurements, type PlanMeasurement } from "@/lib/iq-measurements";
+import { AutomaticTakeoffDialog } from "@/components/jennian/AutomaticTakeoffDialog";
 
 const MODULE_ICONS: Record<IQModuleId, React.ComponentType<{ className?: string }>> = {
   "iq-core": Ruler, "iq-electrical": Zap, "iq-plumbing": Droplets,
@@ -37,11 +39,14 @@ const MODULE_ICONS: Record<IQModuleId, React.ComponentType<{ className?: string 
 
 export const Route = createFileRoute("/review")({
   component: ReviewPage,
-  validateSearch: (s: Record<string, unknown>) => ({ job: typeof s.job === "string" ? s.job : undefined }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    job: typeof s.job === "string" ? s.job : undefined,
+    tab: typeof s.tab === "string" ? s.tab : undefined,
+  }),
 });
 
 function ReviewPage() {
-  const { job: jobId } = Route.useSearch();
+  const { job: jobId, tab: initialTab } = Route.useSearch();
   const { user } = useAuth();
   const roles = useRoles();
   const [job, setJob] = useState<Job | null>(null);
@@ -49,6 +54,10 @@ function ReviewPage() {
   const [audit, setAudit] = useState<OverrideRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [rollup, setRollup] = useState<{ requiredApproved: number; required: number; allRequiredApproved: boolean } | null>(null);
+  const [measurementCount, setMeasurementCount] = useState<number>(0);
+  const [openingsCount, setOpeningsCount] = useState<number>(0);
+  const [tab, setTab] = useState<string>(initialTab && ["base","working","openings","walls","validation"].includes(initialTab) ? initialTab : "base");
+  const [takeoffOpen, setTakeoffOpen] = useState(false);
 
   useEffect(() => {
     if (!jobId) { setLoading(false); return; }
@@ -57,6 +66,14 @@ function ReviewPage() {
       .catch((e) => toast.error(e.message))
       .finally(() => setLoading(false));
     calculateJobModuleRollup(jobId).then((r) => setRollup(r)).catch(() => {});
+    (async () => {
+      const [m, o] = await Promise.all([
+        supabase.from("plan_measurements").select("id", { count: "exact", head: true }).eq("job_id", jobId),
+        supabase.from("opening_schedule").select("id", { count: "exact", head: true }).eq("job_id", jobId),
+      ]);
+      setMeasurementCount(m.count ?? 0);
+      setOpeningsCount(o.count ?? 0);
+    })();
   }, [jobId]);
 
   async function override(row: Quantity, raw: string, reason: string) {
