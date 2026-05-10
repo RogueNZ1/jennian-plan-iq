@@ -429,6 +429,44 @@ export async function updateModuleItem(
   await recomputeRunAggregates(item.run_id);
 }
 
+/**
+ * Manual override of an approved quantity. Requires a reason which is
+ * persisted as `source_evidence` and audit-logged. Stamps the row as a
+ * "User Override" with high confidence + confirmed status so downstream
+ * pricing knows the value is human-attested.
+ */
+export async function manualOverrideApprovedValue(
+  jobId: string,
+  item: ModuleItem,
+  newValue: string,
+  reason: string,
+): Promise<void> {
+  if (!reason.trim()) throw new Error("Reason required for manual override.");
+  const previous = item.approved_value;
+  const { error } = await supabase
+    .from("module_items")
+    .update({
+      approved_value: newValue,
+      data_source: "User Override",
+      source_evidence: reason.trim(),
+      confidence: "high",
+      review_status: "confirmed",
+    })
+    .eq("id", item.id);
+  if (error) throw error;
+  await logAudit({
+    job_id: jobId,
+    run_id: item.run_id,
+    item_id: item.id,
+    module_id: item.module_id,
+    action: "manual_override",
+    previous_value: previous,
+    new_value: newValue,
+    notes: reason.trim(),
+  });
+  await recomputeRunAggregates(item.run_id);
+}
+
 /** ---------- Module-level actions ---------- */
 
 export async function markModuleReviewed(jobId: string, moduleId: IQModuleId): Promise<void> {

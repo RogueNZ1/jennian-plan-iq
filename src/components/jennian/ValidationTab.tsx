@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import {
-  loadMeasurements, validateAgainstPrinted, type PlanMeasurement,
+  loadMeasurements, validateAgainstPrinted, loadPrintedQuantities, upsertPrintedQuantity,
+  type PlanMeasurement,
 } from "@/lib/iq-measurements";
+import { toast } from "sonner";
 
 /**
  * Shows printed-plan reference values vs measured values.
@@ -17,13 +19,113 @@ const REFERENCES: Array<{ key: string; label: string; unit: "m" | "m²"; matchTy
   { key: "garage_area",   label: "Garage Area",        unit: "m²", matchType: "area" },
 ];
 
+type RowState = {
+  value: string;
+  source: "Uploaded Plan Text" | "Uploaded Specification Text";
+  evidence: string;
+  saved: boolean;        // matches what's in DB
+  loadedValue: string;   // last persisted value
+  loadedSource: "Uploaded Plan Text" | "Uploaded Specification Text";
+  loadedEvidence: string;
+};
+
+function emptyRow(): RowState {
+  return {
+    value: "",
+    source: "Uploaded Plan Text",
+    evidence: "",
+    saved: true,
+    loadedValue: "",
+    loadedSource: "Uploaded Plan Text",
+    loadedEvidence: "",
+  };
+}
+
 export function ValidationTab({ jobId }: { jobId: string }) {
   const [measurements, setMeasurements] = useState<PlanMeasurement[]>([]);
-  const [printed, setPrinted] = useState<Record<string, string>>({});
+  const [rows, setRows] = useState<Record<string, RowState>>(() =>
+    Object.fromEntries(REFERENCES.map((r) => [r.key, emptyRow()])),
+  );
 
   useEffect(() => {
     loadMeasurements(jobId).then(setMeasurements).catch(() => {});
   }, [jobId]);
+
+  useEffect(() => {
+    loadPrintedQuantities(jobId)
+      .then((list) => {
+        setRows((prev) => {
+          const next = { ...prev };
+          for (const ref of REFERENCES) {
+            const match = list.find((p) => p.quantity_type === ref.key);
+            if (match) {
+              const value = match.extracted_value != null ? String(match.extracted_value) : "";
+              const source =
+                match.data_source === "Uploaded Specification Text"
+                  ? "Uploaded Specification Text"
+                  : "Uploaded Plan Text";
+              const evidence = match.source_evidence ?? "";
+              next[ref.key] = {
+                value, source, evidence,
+                saved: true,
+                loadedValue: value,
+                loadedSource: source,
+                loadedEvidence: evidence,
+              };
+            }
+          }
+          return next;
+        });
+      })
+      .catch(() => {});
+  }, [jobId]);
+
+  function update(key: string, patch: Partial<RowState>) {
+    setRows((prev) => {
+      const cur = prev[key] ?? emptyRow();
+      const merged = { ...cur, ...patch };
+      merged.saved =
+        merged.value === merged.loadedValue &&
+        merged.source === merged.loadedSource &&
+        merged.evidence === merged.loadedEvidence;
+      return { ...prev, [key]: merged };
+    });
+  }
+
+  async function persist(key: string) {
+    const ref = REFERENCES.find((r) => r.key === key);
+    if (!ref) return;
+    const row = rows[key];
+    if (!row || row.saved) return;
+    if (row.value.trim() === "") return;
+    const num = Number(row.value);
+    if (!Number.isFinite(num)) {
+      toast.error("Enter a valid number.");
+      return;
+    }
+    try {
+      await upsertPrintedQuantity({
+        jobId,
+        quantityType: key,
+        unit: ref.unit,
+        value: num,
+        source: row.source,
+        evidence: row.evidence.trim() || null,
+      });
+      setRows((prev) => ({
+        ...prev,
+        [key]: {
+          ...prev[key],
+          saved: true,
+          loadedValue: row.value,
+          loadedSource: row.source,
+          loadedEvidence: row.evidence,
+        },
+      }));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save printed value.");
+    }
+  }
 
   function bestMeasured(matchType: PlanMeasurement["measurement_type"] | "area"): number | null {
     const candidates = measurements.filter((m) =>
@@ -51,6 +153,8 @@ export function ValidationTab({ jobId }: { jobId: string }) {
           <tr className="text-left text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">
             <th className="px-5 py-2.5 font-medium">Quantity</th>
             <th className="px-5 py-2.5 font-medium">Printed</th>
+            <th className="px-5 py-2.5 font-medium">Source</th>
+            <th className="px-5 py-2.5 font-medium">Source Evidence</th>
             <th className="px-5 py-2.5 font-medium">Measured</th>
             <th className="px-5 py-2.5 font-medium">Result</th>
           </tr>
@@ -58,7 +162,8 @@ export function ValidationTab({ jobId }: { jobId: string }) {
         <tbody>
           {REFERENCES.map((ref) => {
             const measured = bestMeasured(ref.matchType);
-            const printedNum = printed[ref.key] ? Number(printed[ref.key]) : null;
+            const row = rows[ref.key] ?? emptyRow();
+            const printedNum = row.value ? Number(row.value) : null;
             const status = validateAgainstPrinted(printedNum, measured);
             return (
               <tr key={ref.key} className="border-t border-border">
@@ -66,14 +171,40 @@ export function ValidationTab({ jobId }: { jobId: string }) {
                 <td className="px-5 py-2.5">
                   <div className="inline-flex items-center gap-1.5">
                     <input
-                      value={printed[ref.key] ?? ""}
-                      onChange={(e) => setPrinted((p) => ({ ...p, [ref.key]: e.target.value }))}
+                      value={row.value}
+                      onChange={(e) => update(ref.key, { value: e.target.value })}
+                      onBlur={() => persist(ref.key)}
                       placeholder="—"
                       inputMode="decimal"
                       className="w-24 rounded-md border border-input bg-background px-2 py-1 text-sm tabular-nums"
                     />
                     <span className="text-[11px] text-muted-foreground">{ref.unit}</span>
+                    <span className={`ml-1 text-[10px] ${row.saved ? "text-confidence-high" : "text-confidence-mid"}`}>
+                      {row.value.trim() === "" ? "" : row.saved ? "Saved" : "Unsaved"}
+                    </span>
                   </div>
+                </td>
+                <td className="px-5 py-2.5">
+                  <select
+                    value={row.source}
+                    onChange={(e) =>
+                      update(ref.key, { source: e.target.value as RowState["source"] })
+                    }
+                    onBlur={() => persist(ref.key)}
+                    className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+                  >
+                    <option value="Uploaded Plan Text">Uploaded Plan Text</option>
+                    <option value="Uploaded Specification Text">Uploaded Specification Text</option>
+                  </select>
+                </td>
+                <td className="px-5 py-2.5">
+                  <input
+                    value={row.evidence}
+                    onChange={(e) => update(ref.key, { evidence: e.target.value })}
+                    onBlur={() => persist(ref.key)}
+                    placeholder="e.g. Area box on floorplan page"
+                    className="w-56 rounded-md border border-input bg-background px-2 py-1 text-xs"
+                  />
                 </td>
                 <td className="px-5 py-2.5 tabular-nums">
                   {measured == null

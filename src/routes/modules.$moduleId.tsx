@@ -5,6 +5,7 @@ import {
   IQ_MODULES, findIQModule,
   loadModuleRun, updateModuleItem, markModuleReviewed,
   approveModule, recalculateModule, exportModuleCsv,
+  manualOverrideApprovedValue,
   REVIEW_STATUS_LABEL, statusLabel, statusBadgeClass,
   type IQModuleId, type ItemReviewStatus, type ModuleItem, type ModuleRun,
 } from "@/lib/iq-modules";
@@ -17,6 +18,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { OverrideReasonDialog } from "@/components/jennian/OverrideReasonDialog";
 import {
   ArrowLeft, ClipboardCheck, CheckCircle2, FileSpreadsheet, RotateCcw, Info,
 } from "lucide-react";
@@ -45,6 +47,8 @@ function ModuleDetail() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<null | "recalculate" | "approve" | "review" | "export">(null);
   const [showRecalc, setShowRecalc] = useState(false);
+  const [overrideTarget, setOverrideTarget] = useState<{ item: ModuleItem; newValue: string } | null>(null);
+  const [overrideTick, setOverrideTick] = useState(0);
 
   const isPhase2 = mod ? PHASE2.has(mod.id) : false;
   const isCore = mod?.id === "iq-core";
@@ -276,6 +280,11 @@ function ModuleDetail() {
               </Link>
             </div>
           </div>
+        ) : isPhase2 ? (
+          <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+            This module is read-only in Phase 1. No editable quantities, manual
+            overrides, push targets, or exports are available yet.
+          </div>
         ) : (
           <div className="rounded-lg border border-border bg-card overflow-hidden">
             <div className="px-5 py-3 border-b border-border flex items-center justify-between">
@@ -322,6 +331,7 @@ function ModuleDetail() {
                       <td className="px-5 py-3 tabular-nums text-muted-foreground">{it.extracted_value}</td>
                       <td className="px-5 py-3">
                         <input
+                          key={`${it.id}-${overrideTick}`}
                           type="number"
                           step="any"
                           defaultValue={it.approved_value ?? ""}
@@ -330,7 +340,7 @@ function ModuleDetail() {
                             if (!canEdit) return;
                             const v = e.target.value;
                             if (v === (it.approved_value ?? "")) return;
-                            patchItem(it, { approved_value: v });
+                            setOverrideTarget({ item: it, newValue: v });
                           }}
                           className="w-28 rounded-md border border-input bg-background px-2 py-1 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60 disabled:cursor-not-allowed"
                         />
@@ -421,6 +431,29 @@ function ModuleDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <OverrideReasonDialog
+        open={overrideTarget !== null}
+        label={overrideTarget ? `${overrideTarget.item.label}${overrideTarget.item.unit ? ` (${overrideTarget.item.unit})` : ""}` : undefined}
+        currentValue={overrideTarget?.item.approved_value ?? ""}
+        newValue={overrideTarget?.newValue ?? ""}
+        onCancel={() => {
+          setOverrideTarget(null);
+          setOverrideTick((t) => t + 1);
+        }}
+        onConfirm={async (reason) => {
+          if (!overrideTarget || !jobId) return;
+          try {
+            await manualOverrideApprovedValue(jobId, overrideTarget.item, overrideTarget.newValue, reason);
+            toast.success("Quantity overridden.");
+            setOverrideTarget(null);
+            await refresh();
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Could not save override.");
+            setOverrideTick((t) => t + 1);
+          }
+        }}
+      />
     </AppLayout>
   );
 }
