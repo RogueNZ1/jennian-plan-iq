@@ -216,7 +216,7 @@ function ReviewPage() {
           <div className="space-y-5">
             {rows.length === 0 && (
               <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
-                No quantities yet for this job.
+                No quantities yet for this job. Quantities will appear here once they are read from the uploaded plan or specification, measured from the working plan, taken from a template allowance, or entered as a user override.
               </div>
             )}
             {MODULES.map((m) => {
@@ -242,7 +242,8 @@ function ReviewPage() {
                         <th className="px-5 py-2.5 font-medium">Extracted</th>
                         <th className="px-5 py-2.5 font-medium">Final</th>
                         <th className="px-5 py-2.5 font-medium">Confidence</th>
-                        <th className="px-5 py-2.5 font-medium">Notes</th>
+                        <th className="px-5 py-2.5 font-medium">Source</th>
+                        <th className="px-5 py-2.5 font-medium">Evidence</th>
                         <th className="px-5 py-2.5 font-medium text-right">Override</th>
                       </tr>
                     </thead>
@@ -254,7 +255,8 @@ function ReviewPage() {
                           <td className="px-5 py-3 tabular-nums text-muted-foreground">{r.extracted_value}</td>
                           <td className="px-5 py-3 tabular-nums font-medium">{r.approved_value ?? r.extracted_value}</td>
                           <td className="px-5 py-3"><ConfidencePill level={r.confidence} /></td>
-                          <td className="px-5 py-3 text-muted-foreground text-xs max-w-xs">{r.notes || "—"}</td>
+                          <td className="px-5 py-3 text-xs"><DataSourceBadge source={r.data_source} /></td>
+                          <td className="px-5 py-3 text-muted-foreground text-xs max-w-xs">{r.source_evidence || r.notes || "—"}</td>
                           <td className="px-5 py-3 text-right">
                             <OverrideInput row={r} onSave={override} />
                           </td>
