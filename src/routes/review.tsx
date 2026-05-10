@@ -6,12 +6,23 @@ import {
   type Job, type Quantity, type OverrideRow,
 } from "@/lib/jennian-data";
 import { MODULES, moduleForQuantity, type ModuleId } from "@/lib/takeoff-modules";
+import {
+  IQ_MODULES, loadModuleState, confidencePercent, STATUS_LABEL,
+  type IQModuleId, type IQModuleStatus,
+} from "@/lib/iq-modules";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Download, FileSpreadsheet, History, CheckCircle2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Download, FileSpreadsheet, History, CheckCircle2, ArrowRight,
+  Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain, AlertTriangle, ShoppingCart, Layers } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+
+const MODULE_ICONS: Record<IQModuleId, React.ComponentType<{ className?: string }>> = {
+  "iq-core": Ruler, "iq-electrical": Zap, "iq-plumbing": Droplets,
+  "iq-linings": PaintRoller, "iq-framing": Hammer, "iq-cladding": Square,
+  "iq-roofing": Mountain, "iq-margin": AlertTriangle, "iq-procurement": ShoppingCart,
+};
 
 export const Route = createFileRoute("/review")({
   component: ReviewPage,
@@ -133,7 +144,7 @@ function ReviewPage() {
     <AppLayout>
       <div className="px-8 py-8 max-w-7xl">
         <PageHeader
-          title="Quantity Review"
+          title="IQ Core Review"
           subtitle={`${job.job_number} · ${job.client_name} · ${job.address}`}
           actions={
             <div className="flex gap-2 items-center">
@@ -146,6 +157,8 @@ function ReviewPage() {
             </div>
           }
         />
+
+        <ModulesOverview jobId={job.id} />
 
         <div className="grid lg:grid-cols-[1fr_320px] gap-6">
           <div className="space-y-5">
