@@ -397,6 +397,58 @@ export async function runAutomaticTakeoff(args: {
       outcomeMessage,
     };
 
+    // Flattened plan detection: plan files where every plan page is A1/A2/A3
+    // and has zero extracted characters.
+    const flattenedPlanFiles: TakeoffSummary["flattenedPlanFiles"] = [];
+    for (const ef of extracted) {
+      if (ef.fileType !== "plan") continue;
+      if (ef.pages.length === 0) continue;
+      const planPages = ef.pages;
+      const allLargeFlatten = planPages.every(
+        (p) => (p.text?.length ?? 0) === 0 &&
+          (p.pageSize === "A1" || p.pageSize === "A2" || p.pageSize === "A3"),
+      );
+      if (allLargeFlatten) {
+        flattenedPlanFiles.push({
+          fileId: ef.fileId,
+          fileName: ef.fileName,
+          pageSizes: Array.from(new Set(planPages.map((p) => p.pageSize))),
+          pageCount: planPages.length,
+        });
+      }
+    }
+
+    const specOnlyMatches = allSpecRows.length > 0 || quantityChecks.some((q) => q.found);
+    const planTextChars = extracted
+      .filter((f) => f.fileType === "plan")
+      .reduce((s, f) => s + f.pages.reduce((ss, p) => ss + (p.text?.length ?? 0), 0), 0);
+    const planFiles = extracted.filter((f) => f.fileType === "plan");
+    const hasPlanFiles = planFiles.length > 0;
+    const planTextless = hasPlanFiles && planTextChars === 0;
+
+    let resultType: TakeoffSummary["resultType"];
+    if (flattenedPlanFiles.length > 0 && !specOnlyMatches) {
+      resultType = "flattened_plan_vision_review_required";
+    } else if (flattenedPlanFiles.length > 0 && specOnlyMatches) {
+      resultType = "specification_only_takeoff";
+    } else if (planTextless && specOnlyMatches) {
+      resultType = "specification_only_takeoff";
+    } else if (specOnlyMatches || mod.inserted > 0 || qInserted > 0 || oInserted > 0) {
+      resultType = "text_takeoff_completed";
+    } else {
+      resultType = "no_usable_text_found";
+    }
+    if (flattenedPlanFiles.length > 0 && resultType === "specification_only_takeoff") {
+      warnings.push(
+        `${flattenedPlanFiles.length} plan ${flattenedPlanFiles.length === 1 ? "file appears" : "files appear"} to be flattened images — vision review required for plan measurements.`,
+      );
+    } else if (resultType === "flattened_plan_vision_review_required") {
+      warnings.push(
+        "Plan pages appear to be flattened images. Text-based takeoff cannot read dimensions from these drawings. OCR / vision review is required.",
+      );
+    }
+    const hasWarnings2 = errors.length > 0 || warnings.length > 0;
+
     const summary: TakeoffSummary = {
       runId,
       filesScanned: extracted.length,
@@ -416,14 +468,18 @@ export async function runAutomaticTakeoff(args: {
       highCount, midCount, lowCount,
       errors,
       warnings,
-      hasWarnings,
+      hasWarnings: hasWarnings2,
       completedAt,
       pageClassifications,
       diagnostics,
+      resultType,
+      flattenedPlanFiles,
+      visionReviewRequired: false,
+      visionReviewMarkedAt: null,
     };
 
     await supabase.from("takeoff_runs").update({
-      status: hasWarnings ? "completed_with_warnings" : "completed",
+      status: hasWarnings2 ? "completed_with_warnings" : "completed",
       completed_at: completedAt,
       working_file_id: workingFileId,
       working_page_number: workingPageNumber,
