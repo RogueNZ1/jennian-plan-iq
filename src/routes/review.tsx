@@ -28,7 +28,7 @@ const PlanCanvas = lazy(() =>
 );
 import { OpeningScheduleTab } from "@/components/jennian/OpeningScheduleTab";
 import { ValidationTab } from "@/components/jennian/ValidationTab";
-import { loadMeasurements, type PlanMeasurement } from "@/lib/iq-measurements";
+import { loadMeasurements, loadOpenings, type PlanMeasurement } from "@/lib/iq-measurements";
 import { AutomaticTakeoffDialog } from "@/components/jennian/AutomaticTakeoffDialog";
 import { VisionTakeoffDialog } from "@/components/jennian/VisionTakeoffDialog";
 
@@ -151,11 +151,53 @@ function ReviewPage() {
   }
 
   async function exportExcel() {
-    if (!job) return;
-    const data = exportRows();
-    const ws = XLSX.utils.json_to_sheet(data);
+    if (!job || !jobId) return;
+    const [openings, measurements] = await Promise.all([
+      loadOpenings(jobId).catch(() => []),
+      loadMeasurements(jobId).catch(() => []),
+    ]);
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Quantities");
+
+    // Sheet 1 — IQ Core quantities
+    const wsQ = XLSX.utils.json_to_sheet(exportRows());
+    XLSX.utils.book_append_sheet(wb, wsQ, "IQ Core");
+
+    // Sheet 2 — Opening schedule
+    const openingData = openings.map((o) => ({
+      "Type": o.opening_type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+      "Width (mm)": o.width_mm,
+      "Height (mm)": o.height_mm ?? "",
+      "Room / Location": o.room_name ?? "",
+      "Quantity": o.quantity,
+      "Page": o.plan_page_number,
+      "Source": o.source,
+      "Confidence": o.confidence,
+      "Status": o.review_status === "confirmed" ? "Confirmed" : "Review Required",
+      "Notes": o.notes ?? "",
+    }));
+    const wsO = XLSX.utils.json_to_sheet(
+      openingData.length ? openingData : [{ "Type": "No openings recorded" }],
+    );
+    XLSX.utils.book_append_sheet(wb, wsO, "Openings");
+
+    // Sheet 3 — Plan measurements
+    const measurementData = measurements.map((m) => ({
+      "Type": m.measurement_type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+      "Label": m.label ?? "",
+      "Length (m)": m.calculated_length_m != null ? Number(m.calculated_length_m.toFixed(3)) : "",
+      "Area (m²)": m.calculated_area_m2 != null ? Number(m.calculated_area_m2.toFixed(3)) : "",
+      "Page": m.plan_page_number,
+      "Source": m.source,
+      "Confidence": m.confidence,
+      "Status": m.review_status === "confirmed" ? "Confirmed" : m.review_status === "excluded" ? "Excluded" : "Review Required",
+      "Notes": m.notes ?? "",
+    }));
+    const wsM = XLSX.utils.json_to_sheet(
+      measurementData.length ? measurementData : [{ "Type": "No measurements recorded" }],
+    );
+    XLSX.utils.book_append_sheet(wb, wsM, "Measurements");
+
     const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     triggerDownload(new Blob([buf], { type: "application/octet-stream" }), `${job.job_number}-quantities.xlsx`);
     await logExport("excel");
