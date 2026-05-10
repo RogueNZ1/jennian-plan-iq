@@ -246,11 +246,14 @@ export function findIQModule(id: string): IQModule | undefined {
   return IQ_MODULES.find((m) => m.id === id);
 }
 
-export const STATUS_LABEL: Record<ModuleRunStatus, string> = {
+export const STATUS_LABEL: Record<string, string> = {
   not_started: "Not Started",
   in_progress: "Ready for Review",
   reviewed: "Reviewed",
   approved: "Approved",
+  // legacy aliases
+  ready: "Ready",
+  in_review: "In Review",
 };
 
 export const REVIEW_STATUS_LABEL: Record<ItemReviewStatus, string> = {
