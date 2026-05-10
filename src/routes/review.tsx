@@ -16,13 +16,15 @@ import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
 import { Download, FileSpreadsheet, History, CheckCircle2, ArrowRight,
   Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain, AlertTriangle, ShoppingCart, Layers } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { OverrideReasonDialog } from "@/components/jennian/OverrideReasonDialog";
 import { Breadcrumbs } from "@/components/jennian/Breadcrumbs";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { PlanCanvas } from "@/components/jennian/PlanCanvas";
+const PlanCanvas = lazy(() =>
+  import("@/components/jennian/PlanCanvas").then((m) => ({ default: m.PlanCanvas })),
+);
 import { OpeningScheduleTab } from "@/components/jennian/OpeningScheduleTab";
 import { ValidationTab } from "@/components/jennian/ValidationTab";
 import { loadMeasurements, type PlanMeasurement } from "@/lib/iq-measurements";
@@ -299,7 +301,9 @@ function ReviewPage() {
           </TabsContent>
 
           <TabsContent value="working">
-            <PlanCanvas jobId={job.id} />
+            <Suspense fallback={<div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">Loading working plan…</div>}>
+              <PlanCanvas jobId={job.id} />
+            </Suspense>
           </TabsContent>
 
           <TabsContent value="openings">
