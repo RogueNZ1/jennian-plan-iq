@@ -68,6 +68,18 @@ function UploadPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Global safety: prevent the browser from opening files dropped outside
+  // any drop zone while the upload page is mounted.
+  useEffect(() => {
+    const prevent = (e: DragEvent) => { e.preventDefault(); };
+    window.addEventListener("dragover", prevent);
+    window.addEventListener("drop", prevent);
+    return () => {
+      window.removeEventListener("dragover", prevent);
+      window.removeEventListener("drop", prevent);
+    };
+  }, []);
+
   async function startPlanReviewSelection() {
     if (!planFile || !specFile) {
       toast.error("Plan and Specification PDFs are required to review quantities.");
