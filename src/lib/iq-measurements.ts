@@ -701,7 +701,11 @@ export async function upsertPrintedQuantity(args: {
   source: "Uploaded Plan Text" | "Uploaded Specification Text";
   evidence?: string | null;
   page?: number | null;
+  confidence?: "high" | "mid" | "low";
+  confidenceLabel?: "High" | "Medium" | "Low";
 }): Promise<void> {
+  const conf = args.confidence ?? "mid";
+  const confLabel = args.confidenceLabel ?? (conf === "high" ? "High" : conf === "low" ? "Low" : "Medium");
   // Find existing row of same type/source.
   const { data: existing } = await supabase
     .from("extracted_quantities")
@@ -718,7 +722,8 @@ export async function upsertPrintedQuantity(args: {
         unit: args.unit,
         source_evidence: args.evidence ?? null,
         plan_page_number: args.page ?? null,
-        confidence_label: "medium",
+        confidence: conf,
+        confidence_label: confLabel,
       })
       .eq("id", existing[0].id);
     if (error) throw error;
@@ -729,12 +734,12 @@ export async function upsertPrintedQuantity(args: {
     quantity_type: args.quantityType,
     unit: args.unit,
     extracted_value: args.value,
-    confidence: "mid",
+    confidence: conf,
     review_status: "review_required",
     data_source: args.source,
     source_evidence: args.evidence ?? null,
     plan_page_number: args.page ?? null,
-    confidence_label: "medium",
+    confidence_label: confLabel,
   });
   if (error) throw error;
 }
