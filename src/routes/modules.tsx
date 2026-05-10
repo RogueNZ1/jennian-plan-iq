@@ -5,7 +5,7 @@ import { MODULES } from "@/lib/takeoff-modules";
 import { listJobs, type Job } from "@/lib/jennian-data";
 import { useEffect, useState } from "react";
 import {
-  Layers, Ruler, DoorOpen, Layers3, Square, Frame, Mountain, Anchor, AlertTriangle,
+  Layers, Ruler, DoorOpen, Layers2, Square, Frame, Mountain, Anchor, AlertTriangle,
   ArrowRight,
 } from "lucide-react";
 
@@ -13,7 +13,7 @@ export const MODULE_ICONS = {
   "base-geometry": Ruler,
   "windows-doors": DoorOpen,
   "cladding": Square,
-  "interior-linings": Layers3,
+  "interior-linings": Layers2,
   "interior-trim": Frame,
   "roofing": Mountain,
   "foundation": Anchor,
