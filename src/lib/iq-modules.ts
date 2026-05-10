@@ -680,28 +680,8 @@ export function statusBadgeClass(status: IQModuleStatus | string): string {
 }
 export type ReviewStatus = ItemReviewStatus;
 
-export type IQItem = {
-  key: string;
-  description: string;
-  unit: string;
-  extractedQuantity: number;
-  finalQuantity: number;
-  confidence: Confidence;
-  notes: string;
-  approved: boolean;
-};
-
-export function buildIQItems(jobKey: string, mod: IQModule): IQItem[] {
-  return mod.items.map((t) => {
-    const seed = hash(`${jobKey}::${mod.id}::${t.key}`);
-    const value = dummyValue(t, seed);
-    return {
-      key: t.key, description: t.description, unit: t.unit,
-      extractedQuantity: value, finalQuantity: value,
-      confidence: pickConfidence(seed), notes: "", approved: false,
-    };
-  });
-}
+/* Legacy IQItem builder removed — module items are sourced from real
+ * measurement / parse / allowance flows, not synthetic seeds. */
 
 // Legacy localStorage helpers (loadModuleState/saveModuleState/
 // runDummyExtraction/electrical allowance) were removed. All module state
