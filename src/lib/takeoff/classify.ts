@@ -66,6 +66,21 @@ function countMatches(text: string, patterns: RegExp[]): number {
 }
 
 export function classifyPage(p: ExtractedPage): ClassifiedPage {
+  return classifyPageWithType(p, "plan");
+}
+
+/**
+ * File-type aware classifier. When `fileType === "specification"`, every
+ * page is treated as part of a specification document — drawing categories
+ * (Plumbing/Electrical/Floorplan/Site/Roof/Sections/Elevations) are
+ * suppressed even when the keyword appears, because spec schedules often
+ * mention "plumbing", "electrical", "floor plan" in section headings.
+ * Page-level subtype is encoded in the reason for transparency.
+ */
+export function classifyPageWithType(
+  p: ExtractedPage,
+  fileType: "plan" | "specification",
+): ClassifiedPage {
   const t = p.text.toLowerCase();
   const has = (s: string) => t.includes(s);
   const dimMatches = p.text.match(DIM_RE);
@@ -74,6 +89,44 @@ export function classifyPage(p: ExtractedPage): ClassifiedPage {
 
   const specCount = countMatches(p.text, SPEC_INDICATORS);
   const floorStrong = countMatches(p.text, FLOOR_STRONG_INDICATORS);
+
+  // ----- File is a specification PDF: clamp to Specification family -----
+  if (fileType === "specification") {
+    // Detect a likely section subtype to record in the reason, but the
+    // pageType stays Specification so downstream picks/scoring don't treat
+    // it as a drawing.
+    let subtype = "general";
+    if (/\bplumbing\b/i.test(p.text)) subtype = "plumbing";
+    else if (/\belectrical\b/i.test(p.text) || /\blighting\b/i.test(p.text)) subtype = "electrical";
+    else if (/interior\s+linings?|\bskirting|\bscotia|architraves?/i.test(p.text)) subtype = "linings";
+    else if (/cladding|fascia|spouting|soffit|downpipes?/i.test(p.text)) subtype = "exterior";
+    else if (/roof\s+(?:pitch|type|profile|underlay)/i.test(p.text)) subtype = "roofing";
+    else if (/preliminary|exclusions?|standard\s+inclusions/i.test(p.text)) subtype = "general";
+
+    if (has("schedule") && (has("door") || has("window") || has("joinery") || has("opening"))) {
+      return {
+        pageNumber: p.pageNumber, pageType: "Schedule", confidence: "high",
+        reason: reason("schedule keywords (in specification file)"),
+      };
+    }
+    if (has("legend") || has("symbols schedule") || has("abbreviation")) {
+      return {
+        pageNumber: p.pageNumber, pageType: "Legend", confidence: "high",
+        reason: reason("legend keywords (in specification file)"),
+      };
+    }
+    if (has("cover sheet") || has("title sheet") || has("drawing index")) {
+      return {
+        pageNumber: p.pageNumber, pageType: "Cover Page", confidence: "high",
+        reason: reason("cover/title keywords (in specification file)"),
+      };
+    }
+    return {
+      pageNumber: p.pageNumber, pageType: "Specification",
+      confidence: specCount >= 3 ? "high" : specCount >= 1 ? "mid" : "low",
+      reason: reason(`Specification — ${subtype} (file_type=specification, ${specCount} indicators)`),
+    };
+  }
 
   // Strong specification signal beats a passing "floor plan" mention.
   if (specCount >= 3 && floorStrong < 2) {
