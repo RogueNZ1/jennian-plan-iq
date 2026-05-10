@@ -523,6 +523,10 @@ function emptySummary(runId: string): TakeoffSummary {
     errors: [], warnings: [], hasWarnings: false, completedAt: null,
     pageClassifications: [],
     diagnostics: null,
+    resultType: "no_usable_text_found",
+    flattenedPlanFiles: [],
+    visionReviewRequired: false,
+    visionReviewMarkedAt: null,
   };
 }
 
