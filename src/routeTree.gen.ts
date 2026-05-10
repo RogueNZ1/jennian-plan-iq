@@ -21,6 +21,7 @@ import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ModulesModuleIdRouteImport } from './routes/modules.$moduleId'
 
 const UsersRoute = UsersRouteImport.update({
   id: '/users',
@@ -82,12 +83,17 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ModulesModuleIdRoute = ModulesModuleIdRouteImport.update({
+  id: '/$moduleId',
+  path: '/$moduleId',
+  getParentRoute: () => ModulesRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
-  '/modules': typeof ModulesRoute
+  '/modules': typeof ModulesRouteWithChildren
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
@@ -96,12 +102,13 @@ export interface FileRoutesByFullPath {
   '/templates': typeof TemplatesRoute
   '/upload': typeof UploadRoute
   '/users': typeof UsersRoute
+  '/modules/$moduleId': typeof ModulesModuleIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
-  '/modules': typeof ModulesRoute
+  '/modules': typeof ModulesRouteWithChildren
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
@@ -110,13 +117,14 @@ export interface FileRoutesByTo {
   '/templates': typeof TemplatesRoute
   '/upload': typeof UploadRoute
   '/users': typeof UsersRoute
+  '/modules/$moduleId': typeof ModulesModuleIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
-  '/modules': typeof ModulesRoute
+  '/modules': typeof ModulesRouteWithChildren
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
@@ -125,6 +133,7 @@ export interface FileRoutesById {
   '/templates': typeof TemplatesRoute
   '/upload': typeof UploadRoute
   '/users': typeof UsersRoute
+  '/modules/$moduleId': typeof ModulesModuleIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | '/templates'
     | '/upload'
     | '/users'
+    | '/modules/$moduleId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -155,6 +165,7 @@ export interface FileRouteTypes {
     | '/templates'
     | '/upload'
     | '/users'
+    | '/modules/$moduleId'
   id:
     | '__root__'
     | '/'
@@ -169,13 +180,14 @@ export interface FileRouteTypes {
     | '/templates'
     | '/upload'
     | '/users'
+    | '/modules/$moduleId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   JobsRoute: typeof JobsRoute
   LoginRoute: typeof LoginRoute
-  ModulesRoute: typeof ModulesRoute
+  ModulesRoute: typeof ModulesRouteWithChildren
   ReportsRoute: typeof ReportsRoute
   ReviewRoute: typeof ReviewRoute
   SettingsRoute: typeof SettingsRoute
@@ -272,14 +284,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/modules/$moduleId': {
+      id: '/modules/$moduleId'
+      path: '/$moduleId'
+      fullPath: '/modules/$moduleId'
+      preLoaderRoute: typeof ModulesModuleIdRouteImport
+      parentRoute: typeof ModulesRoute
+    }
   }
 }
+
+interface ModulesRouteChildren {
+  ModulesModuleIdRoute: typeof ModulesModuleIdRoute
+}
+
+const ModulesRouteChildren: ModulesRouteChildren = {
+  ModulesModuleIdRoute: ModulesModuleIdRoute,
+}
+
+const ModulesRouteWithChildren =
+  ModulesRoute._addFileChildren(ModulesRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   JobsRoute: JobsRoute,
   LoginRoute: LoginRoute,
-  ModulesRoute: ModulesRoute,
+  ModulesRoute: ModulesRouteWithChildren,
   ReportsRoute: ReportsRoute,
   ReviewRoute: ReviewRoute,
   SettingsRoute: SettingsRoute,
