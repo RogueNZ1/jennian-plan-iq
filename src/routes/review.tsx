@@ -429,6 +429,23 @@ function SummaryRow({ label, count, cls }: { label: string; count: number; cls: 
   );
 }
 
+function DataSourceBadge({ source }: { source: string | null | undefined }) {
+  const s = source || "Demo Value";
+  const isDemo = s === "Demo Value";
+  const cls = isDemo
+    ? "border-confidence-low/40 bg-confidence-low/10 text-confidence-low"
+    : s === "Measured From Plan"
+    ? "border-confidence-high/40 bg-confidence-high/10 text-confidence-high"
+    : s === "User Override"
+    ? "border-confidence-mid/40 bg-confidence-mid/10 text-confidence-mid"
+    : "border-border bg-muted/30 text-muted-foreground";
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${cls}`}>
+      {s}
+    </span>
+  );
+}
+
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
