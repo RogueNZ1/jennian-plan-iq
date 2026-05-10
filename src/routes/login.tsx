@@ -84,8 +84,8 @@ function LoginPage() {
             {busy ? "Signing in…" : "Sign in"}
           </button>
 
-          <div className="text-xs text-muted-foreground text-center">
-            No account? <Link to="/signup" className="text-primary font-medium hover:underline">Create one</Link>
+          <div className="text-[11px] text-muted-foreground text-center leading-relaxed">
+            Jennian IQ is invite-only. Contact your Jennian Homes administrator if you need access.
           </div>
         </form>
       </div>
