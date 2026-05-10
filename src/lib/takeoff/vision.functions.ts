@@ -265,6 +265,25 @@ const VISION_TOOL = {
 const PAGE_CAP = 6;
 const MIN_RESOLUTION_PX = 2500;
 
+// Minimal module definitions kept in sync with IQ_MODULES in src/lib/iq-modules.ts.
+// Cannot import that file here — it depends on the browser-side Supabase client.
+const MODULE_SEEDS = [
+  { id: "iq-core",        name: "IQ Core",        required: true  },
+  { id: "iq-electrical",  name: "IQ Electrical",  required: false },
+  { id: "iq-plumbing",    name: "IQ Plumbing",    required: false },
+  { id: "iq-linings",     name: "IQ Linings",     required: true  },
+  { id: "iq-framing",     name: "IQ Framing",     required: true  },
+  { id: "iq-cladding",    name: "IQ Cladding",    required: true  },
+  { id: "iq-roofing",     name: "IQ Roofing",     required: true  },
+  { id: "iq-margin",      name: "IQ Margin",      required: false },
+  { id: "iq-procurement", name: "IQ Procurement", required: false },
+] as const;
+
+// Modules that Vision Takeoff writes module_items to; hard-error guard after seed.
+const VISION_MODULE_IDS = new Set([
+  "iq-core", "iq-framing", "iq-linings", "iq-cladding", "iq-roofing",
+]);
+
 const FLOORPLAN_VISION_TYPES = new Set(["dimension_floorplan", "floorplan"]);
 
 function confToDbConfidence(c: VisionConfidence | null | undefined): "high" | "mid" | "low" {
@@ -447,13 +466,67 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
       .maybeSingle();
     const workingPlanFileId = jobRow?.working_plan_file_id ?? null;
 
-    // Pre-load the module_runs map (needed to insert module_items).
-    const { data: runs } = await supabase
+    // ---- Ensure module_runs exist before writing module_items (defensive seed) ----
+    // seedAllModulesForJob normally runs client-side when the job page mounts, but
+    // Vision Takeoff can be launched from any route. If module_runs are absent the
+    // server creates them here, making item creation route-independent.
+    let { data: runsData } = await supabase
       .from("module_runs")
       .select("id, module_id")
       .eq("job_id", data.jobId);
+
+    const haveModules = new Set(
+      (runsData ?? []).map((r) => (r as { module_id: string }).module_id),
+    );
+    const missingModules = MODULE_SEEDS.filter((m) => !haveModules.has(m.id));
+
+    if (missingModules.length > 0) {
+      const seedNow = new Date().toISOString();
+      const { error: seedErr } = await supabase.from("module_runs").upsert(
+        missingModules.map((m) => ({
+          job_id: data.jobId,
+          module_id: m.id,
+          module_name: m.name,
+          status: "not_started",
+          review_status: "review_required",
+          required: m.required,
+          last_run_at: seedNow,
+          item_count: 0,
+          confidence_avg: null,
+        })),
+        { onConflict: "job_id,module_id", ignoreDuplicates: true },
+      );
+      // Re-fetch after seeding so the map is current.
+      const { data: refetched } = await supabase
+        .from("module_runs")
+        .select("id, module_id")
+        .eq("job_id", data.jobId);
+      runsData = refetched;
+
+      // Hard error if any Vision Takeoff module is still absent — indicates an
+      // RLS or schema problem that would silently drop all module_items writes.
+      const haveAfter = new Set(
+        (runsData ?? []).map((r) => (r as { module_id: string }).module_id),
+      );
+      const criticalMissing = [...VISION_MODULE_IDS].filter((id) => !haveAfter.has(id));
+      if (criticalMissing.length > 0) {
+        return {
+          ok: false,
+          error: {
+            operation: "module_run_seed",
+            message:
+              "Vision Takeoff could not initialise module records for this job. " +
+              "Open the job page and try again, or contact support if the problem persists.",
+            technical:
+              `module_runs missing after seed attempt: ${criticalMissing.join(", ")}. ` +
+              `Seed error: ${seedErr?.message ?? "none recorded"}`,
+          },
+        };
+      }
+    }
+
     const moduleRunByModule: Record<string, string> = {};
-    for (const r of runs ?? []) {
+    for (const r of runsData ?? []) {
       moduleRunByModule[(r as { module_id: string }).module_id] = (r as { id: string }).id;
     }
 
@@ -1045,8 +1118,11 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
             const v = numStr(n);
             if (v != null) drafts.push({ moduleId, label, unit, value: v, confidence: conf });
           };
+          // Labels match IQ Core template keys. "House Area" = area_over_frame_m2
+          // (the Jennian primary metric, e.g. 216.3m² for Shaik). "Total Area" is
+          // whatever the plan prints as the total (may include eaves/porch overhang).
+          addNumeric("iq-core", "House Area", "m²", ab?.area_over_frame_m2, cs);
           addNumeric("iq-core", "Total Area", "m²", ab?.total_area_m2, cs);
-          addNumeric("iq-core", "Area Over Frame", "m²", ab?.area_over_frame_m2, cs);
           addNumeric("iq-core", "Coverage Area", "m²", ab?.coverage_area_m2, cs);
           addNumeric("iq-core", "Cladding Area", "m²", ab?.cladding_area_m2, cs);
           addNumeric("iq-core", "Porch Area", "m²", ab?.porch_area_m2, cs);
@@ -1054,7 +1130,9 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
             bg?.external_perimeter_m ?? ab?.perimeter_m ?? null, cs);
           addNumeric("iq-core", "Internal Wall Length", "lm", bg?.internal_wall_length_m, cs);
           addNumeric("iq-core", "Garage Area", "m²", bg?.garage_area_m2, cs);
-          addNumeric("iq-core", "Living Area Excluding Garage", "m²", bg?.living_area_excluding_garage_m2, cs);
+          addNumeric("iq-core", "Living Area", "m²", bg?.living_area_excluding_garage_m2, cs);
+          // Roof pitch also lands in IQ Core (architectural geometry) as well as IQ Roofing.
+          addNumeric("iq-core", "Roof Pitch", "°", parsed.roofing?.roof_pitch_degrees, cs);
           addNumeric("iq-framing", "External Walls", "lm", bg?.external_perimeter_m, cs);
           addNumeric("iq-framing", "Internal Walls", "lm", bg?.internal_wall_length_m, cs);
           addNumeric("iq-framing", "Wet Area Walls", "lm", wl?.wet_area_wall_length_m, cs);

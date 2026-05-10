@@ -83,6 +83,27 @@ export async function renderAndUploadPlanPage(args: {
     .eq("page_number", args.pageNumber)
     .maybeSingle();
 
+  const storagePath = `vision/${args.jobId}/${args.fileId}/page-${args.pageNumber}.png`;
+
+  // If a registry row already exists for this page the storage file is already
+  // uploaded. Reuse it rather than re-rendering and re-uploading, which would
+  // require an UPDATE policy on the storage bucket (avoids RLS "new row violates
+  // row-level security policy" on subsequent runs of the same pages).
+  if (existing) {
+    return {
+      pageId: existing.id as string,
+      jobId: args.jobId,
+      fileId: args.fileId,
+      pageNumber: args.pageNumber,
+      pageType: args.pageType ?? (existing.page_type as string | null) ?? null,
+      bucket: existing.storage_bucket as string,
+      storagePath: existing.storage_path as string,
+      renderResolution: existing.render_resolution as number,
+      widthPx: existing.render_resolution as number,
+      heightPx: existing.render_resolution as number,
+    };
+  }
+
   const pdfjs = await getPdfJs();
   const buf = await downloadPdfBytes(sourceBucket, args.fileStoragePath);
   const pdf = await pdfjs.getDocument({ data: buf }).promise;
@@ -107,38 +128,11 @@ export async function renderAndUploadPlanPage(args: {
   await (page as any).render({ canvasContext: ctx, viewport, canvas }).promise;
 
   const blob = await blobFromCanvas(canvas);
-  const storagePath = `vision/${args.jobId}/${args.fileId}/page-${args.pageNumber}.png`;
+  const renderResolution = Math.round(viewport.width);
   const { error: upErr } = await supabase.storage
     .from(targetBucket)
-    .upload(storagePath, blob, { contentType: "image/png", upsert: true });
+    .upload(storagePath, blob, { contentType: "image/png" });
   if (upErr) throw new Error(`Could not upload rendered page: ${upErr.message}`);
-
-  // Register / refresh the registry row.
-  const renderResolution = Math.round(viewport.width); // px width as an integer marker
-  if (existing) {
-    const { error: updErr } = await supabase
-      .from("vision_takeoff_pages")
-      .update({
-        storage_bucket: targetBucket,
-        storage_path: storagePath,
-        render_resolution: renderResolution,
-        page_type: args.pageType ?? existing.page_type ?? null,
-      })
-      .eq("id", existing.id);
-    if (updErr) throw new Error(`Could not update vision page record: ${updErr.message}`);
-    return {
-      pageId: existing.id as string,
-      jobId: args.jobId,
-      fileId: args.fileId,
-      pageNumber: args.pageNumber,
-      pageType: args.pageType ?? (existing.page_type as string | null) ?? null,
-      bucket: targetBucket,
-      storagePath,
-      renderResolution,
-      widthPx: canvas.width,
-      heightPx: canvas.height,
-    };
-  }
 
   const { data: ins, error: insErr } = await supabase
     .from("vision_takeoff_pages")
