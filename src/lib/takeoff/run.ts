@@ -15,6 +15,7 @@ import { classifyPage, pickWorkingPage, type ClassifiedPage } from "./classify";
 import { detectScaleFromText, writeCalibration } from "./scale";
 import { extractQuantitiesFromFile, persistQuantity, type ExtractedQty } from "./extract-quantities";
 import { extractOpeningsFromFile, persistOpening, type ExtractedOpening } from "./extract-openings";
+import { extractSpecRowsFromFile, type SpecRow } from "./extract-spec";
 import { populateModulesFromTakeoff } from "./populate-modules";
 import { seedAllModulesForJob } from "@/lib/iq-modules";
 import type { PageClassification } from "./summary";
@@ -66,6 +67,16 @@ export type TakeoffSummary = {
   completedAt: string | null;
   pageClassifications: PageClassification[];
   diagnostics: TakeoffDiagnostics | null;
+  /** High-level result classification for the user. */
+  resultType:
+    | "text_takeoff_completed"
+    | "specification_only_takeoff"
+    | "flattened_plan_vision_review_required"
+    | "no_usable_text_found";
+  /** Plan files (A1/A2/A3) where every plan page returned 0 chars. */
+  flattenedPlanFiles: Array<{ fileId: string; fileName: string; pageSizes: string[]; pageCount: number }>;
+  visionReviewRequired: boolean;
+  visionReviewMarkedAt: string | null;
 };
 
 async function logAudit(entry: {
