@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useRoles } from "@/hooks/use-roles";
 import { TakeoffDiagnosticsPanel } from "./TakeoffDiagnostics";
+import { VisionTakeoffPanel } from "./VisionTakeoffPanel";
 import { supabase } from "@/integrations/supabase/client";
 
 const GEOMETRY_DEFERRED = [
@@ -362,6 +363,15 @@ export function TakeoffSummary({
             </div>
           </div>
         </div>
+      )}
+
+      {showVisionSection && s.flattenedPlanFiles.length > 0 && (
+        <VisionTakeoffPanel
+          jobId={jobId}
+          flattenedFiles={s.flattenedPlanFiles.map((f) => ({
+            fileId: f.fileId, fileName: f.fileName, pageCount: f.pageCount,
+          }))}
+        />
       )}
 
       <div className="px-5 py-3 border-t border-border bg-muted/20">
