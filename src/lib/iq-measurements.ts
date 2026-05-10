@@ -409,3 +409,116 @@ export function validateAgainstPrinted(
   if (diff <= tolerance * 3) return "minor";
   return "review_required";
 }
+
+/* ---------- Plan-measurement audit log ---------- */
+
+export type PlanAuditAction =
+  | "calibration_created"
+  | "calibration_updated"
+  | "measurement_created"
+  | "measurement_updated"
+  | "measurement_deleted"
+  | "opening_created"
+  | "opening_updated"
+  | "opening_deleted"
+  | "pushed_to_module"
+  | "review_status_changed";
+
+export async function logPlanAudit(entry: {
+  jobId: string;
+  measurementId?: string | null;
+  openingId?: string | null;
+  calibrationId?: string | null;
+  action: PlanAuditAction;
+  previousValue?: string | null;
+  newValue?: string | null;
+  notes?: string | null;
+}): Promise<void> {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) return;
+  await supabase.from("plan_measurement_audit_logs").insert({
+    job_id: entry.jobId,
+    measurement_id: entry.measurementId ?? null,
+    opening_id: entry.openingId ?? null,
+    calibration_id: entry.calibrationId ?? null,
+    user_id: u.user.id,
+    action: entry.action,
+    previous_value: entry.previousValue ?? null,
+    new_value: entry.newValue ?? null,
+    notes: entry.notes ?? null,
+  });
+}
+
+/* ---------- Printed quantity persistence (Validation tab) ---------- */
+
+export type PrintedQuantity = {
+  id: string;
+  job_id: string;
+  quantity_type: string;
+  unit: string;
+  extracted_value: number;
+  data_source: string | null;
+  source_evidence: string | null;
+  plan_page_number: number | null;
+  confidence_label: string | null;
+  review_status: string;
+  notes: string | null;
+};
+
+export async function loadPrintedQuantities(
+  jobId: string,
+): Promise<PrintedQuantity[]> {
+  const { data, error } = await supabase
+    .from("extracted_quantities")
+    .select("*")
+    .eq("job_id", jobId)
+    .in("data_source", ["Uploaded Plan Text", "Uploaded Specification Text"]);
+  if (error) throw error;
+  return (data ?? []) as PrintedQuantity[];
+}
+
+export async function upsertPrintedQuantity(args: {
+  jobId: string;
+  quantityType: string;
+  unit: string;
+  value: number;
+  source: "Uploaded Plan Text" | "Uploaded Specification Text";
+  evidence?: string | null;
+  page?: number | null;
+}): Promise<void> {
+  // Find existing row of same type/source.
+  const { data: existing } = await supabase
+    .from("extracted_quantities")
+    .select("id")
+    .eq("job_id", args.jobId)
+    .eq("quantity_type", args.quantityType)
+    .eq("data_source", args.source)
+    .limit(1);
+  if (existing && existing[0]) {
+    const { error } = await supabase
+      .from("extracted_quantities")
+      .update({
+        extracted_value: args.value,
+        unit: args.unit,
+        source_evidence: args.evidence ?? null,
+        plan_page_number: args.page ?? null,
+        confidence_label: "medium",
+      })
+      .eq("id", existing[0].id);
+    if (error) throw error;
+    return;
+  }
+  const { error } = await supabase.from("extracted_quantities").insert({
+    job_id: args.jobId,
+    quantity_type: args.quantityType,
+    unit: args.unit,
+    extracted_value: args.value,
+    confidence: "mid",
+    review_status: "review_required",
+    data_source: args.source,
+    source_evidence: args.evidence ?? null,
+    plan_page_number: args.page ?? null,
+    confidence_label: "medium",
+  });
+  if (error) throw error;
+}
