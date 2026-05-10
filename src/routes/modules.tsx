@@ -3,7 +3,8 @@ import { AppLayout, PageHeader } from "@/components/jennian/AppLayout";
 import { HouseFrame } from "@/components/jennian/HouseFrame";
 import { PlanThumbnail } from "@/components/jennian/PlanThumbnail";
 import {
-  IQ_MODULES, loadModuleState, confidencePercent, STATUS_LABEL,
+  IQ_MODULES, loadModuleState, confidencePercent,
+  statusLabel, statusBadgeClass,
   type IQModuleId, type IQModuleStatus,
 } from "@/lib/iq-modules";
 import { listJobs, type Job } from "@/lib/jennian-data";
