@@ -54,6 +54,7 @@ export type PlanMeasurement = {
   plan_page_number: number;
   measurement_type: MeasurementType;
   label: string | null;
+  category: string | null;
   module_id: string | null;
   points_json: Pt[];
   calculated_length_mm: number | null;
@@ -195,6 +196,7 @@ export async function saveMeasurement(args: {
   page: number;
   type: MeasurementType;
   label?: string | null;
+  category?: string | null;
   moduleId?: string | null;
   points: Pt[];
   pixelsPerMm: number;
@@ -217,6 +219,7 @@ export async function saveMeasurement(args: {
       plan_page_number: args.page,
       measurement_type: args.type,
       label: args.label ?? null,
+      category: args.category ?? null,
       module_id: args.moduleId ?? null,
       points_json: args.points as unknown as never,
       calculated_length_mm: isArea ? null : lengthMm,
@@ -231,7 +234,7 @@ export async function saveMeasurement(args: {
     .select("*")
     .single();
   if (error) throw error;
-  return { ...(data as PlanMeasurement), points_json: args.points };
+  return { ...(data as unknown as PlanMeasurement), points_json: args.points };
 }
 
 export async function setMeasurementReviewStatus(

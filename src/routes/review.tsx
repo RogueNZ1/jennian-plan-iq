@@ -16,13 +16,15 @@ import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
 import { Download, FileSpreadsheet, History, CheckCircle2, ArrowRight,
   Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain, AlertTriangle, ShoppingCart, Layers } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { OverrideReasonDialog } from "@/components/jennian/OverrideReasonDialog";
 import { Breadcrumbs } from "@/components/jennian/Breadcrumbs";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { PlanCanvas } from "@/components/jennian/PlanCanvas";
+const PlanCanvas = lazy(() =>
+  import("@/components/jennian/PlanCanvas").then((m) => ({ default: m.PlanCanvas })),
+);
 import { OpeningScheduleTab } from "@/components/jennian/OpeningScheduleTab";
 import { ValidationTab } from "@/components/jennian/ValidationTab";
 import { loadMeasurements, type PlanMeasurement } from "@/lib/iq-measurements";
@@ -214,7 +216,7 @@ function ReviewPage() {
           <div className="space-y-5">
             {rows.length === 0 && (
               <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
-                No quantities yet for this job.
+                No quantities yet for this job. Quantities will appear here once they are read from the uploaded plan or specification, measured from the working plan, taken from a template allowance, or entered as a user override.
               </div>
             )}
             {MODULES.map((m) => {
@@ -240,7 +242,8 @@ function ReviewPage() {
                         <th className="px-5 py-2.5 font-medium">Extracted</th>
                         <th className="px-5 py-2.5 font-medium">Final</th>
                         <th className="px-5 py-2.5 font-medium">Confidence</th>
-                        <th className="px-5 py-2.5 font-medium">Notes</th>
+                        <th className="px-5 py-2.5 font-medium">Source</th>
+                        <th className="px-5 py-2.5 font-medium">Evidence</th>
                         <th className="px-5 py-2.5 font-medium text-right">Override</th>
                       </tr>
                     </thead>
@@ -252,7 +255,8 @@ function ReviewPage() {
                           <td className="px-5 py-3 tabular-nums text-muted-foreground">{r.extracted_value}</td>
                           <td className="px-5 py-3 tabular-nums font-medium">{r.approved_value ?? r.extracted_value}</td>
                           <td className="px-5 py-3"><ConfidencePill level={r.confidence} /></td>
-                          <td className="px-5 py-3 text-muted-foreground text-xs max-w-xs">{r.notes || "—"}</td>
+                          <td className="px-5 py-3 text-xs"><DataSourceBadge source={r.data_source} /></td>
+                          <td className="px-5 py-3 text-muted-foreground text-xs max-w-xs">{r.source_evidence || r.notes || "—"}</td>
                           <td className="px-5 py-3 text-right">
                             <OverrideInput row={r} onSave={override} />
                           </td>
@@ -299,7 +303,9 @@ function ReviewPage() {
           </TabsContent>
 
           <TabsContent value="working">
-            <PlanCanvas jobId={job.id} />
+            <Suspense fallback={<div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">Loading working plan…</div>}>
+              <PlanCanvas jobId={job.id} />
+            </Suspense>
           </TabsContent>
 
           <TabsContent value="openings">
@@ -420,6 +426,23 @@ function SummaryRow({ label, count, cls }: { label: string; count: number; cls: 
       <div className="flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${cls}`} /><span>{label}</span></div>
       <span className="tabular-nums font-medium">{count}</span>
     </div>
+  );
+}
+
+function DataSourceBadge({ source }: { source: string | null | undefined }) {
+  const s = source || "Demo Value";
+  const isDemo = s === "Demo Value";
+  const cls = isDemo
+    ? "border-confidence-low/40 bg-confidence-low/10 text-confidence-low"
+    : s === "Measured From Plan"
+    ? "border-confidence-high/40 bg-confidence-high/10 text-confidence-high"
+    : s === "User Override"
+    ? "border-confidence-mid/40 bg-confidence-mid/10 text-confidence-mid"
+    : "border-border bg-muted/30 text-muted-foreground";
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${cls}`}>
+      {s}
+    </span>
   );
 }
 

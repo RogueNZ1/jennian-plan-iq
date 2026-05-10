@@ -27,6 +27,11 @@ export type Quantity = {
   confidence: Confidence;
   notes: string | null;
   created_at: string;
+  data_source: string;
+  source_evidence: string | null;
+  plan_page_number: number | null;
+  confidence_label: string | null;
+  review_status: string;
 };
 
 export type OverrideRow = {
@@ -48,23 +53,9 @@ export const STATUS_LABEL: Record<JobStatus, string> = {
   exported: "Exported",
 };
 
-/** Russell Street test extraction data */
-export const RUSSELL_STREET_QUANTITIES: Array<{
-  quantity_type: string;
-  unit: string;
-  extracted_value: number;
-  confidence: Confidence;
-  notes: string;
-}> = [
-  { quantity_type: "House Area (over frame)", unit: "m²", extracted_value: 138.76, confidence: "high", notes: "Measured over frame" },
-  { quantity_type: "Foundation Area", unit: "m²", extracted_value: 143.47, confidence: "high", notes: "" },
-  { quantity_type: "Total Coverage", unit: "m²", extracted_value: 145.52, confidence: "high", notes: "" },
-  { quantity_type: "External Perimeter (over frame)", unit: "lm", extracted_value: 56.06, confidence: "high", notes: "" },
-  { quantity_type: "Internal Wall Length", unit: "lm", extracted_value: 67.00, confidence: "mid", notes: "Verify non-load-bearing walls" },
-  { quantity_type: "Garage Area", unit: "m²", extracted_value: 24.40, confidence: "mid", notes: "Confirm internal vs external" },
-  { quantity_type: "Living Area excluding garage", unit: "m²", extracted_value: 114.30, confidence: "mid", notes: "" },
-  { quantity_type: "Roof Pitch", unit: "°", extracted_value: 25, confidence: "high", notes: "" },
-];
+// Job-specific seed data has been removed. Quantities are populated from
+// uploaded plan/spec text, calibrated measurements, template allowances, or
+// user overrides — never from a hardcoded reference job.
 
 export const TEMPLATES = [
   { id: "t1", code: "SS-BW", name: "Single Storey – Brick & Weatherboard" },

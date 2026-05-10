@@ -95,34 +95,49 @@ export type Database = {
         Row: {
           approved_value: number | null
           confidence: Database["public"]["Enums"]["confidence_level"]
+          confidence_label: string | null
           created_at: string
+          data_source: string
           extracted_value: number
           id: string
           job_id: string
           notes: string | null
+          plan_page_number: number | null
           quantity_type: string
+          review_status: string
+          source_evidence: string | null
           unit: string
         }
         Insert: {
           approved_value?: number | null
           confidence?: Database["public"]["Enums"]["confidence_level"]
+          confidence_label?: string | null
           created_at?: string
+          data_source?: string
           extracted_value: number
           id?: string
           job_id: string
           notes?: string | null
+          plan_page_number?: number | null
           quantity_type: string
+          review_status?: string
+          source_evidence?: string | null
           unit: string
         }
         Update: {
           approved_value?: number | null
           confidence?: Database["public"]["Enums"]["confidence_level"]
+          confidence_label?: string | null
           created_at?: string
+          data_source?: string
           extracted_value?: number
           id?: string
           job_id?: string
           notes?: string | null
+          plan_page_number?: number | null
           quantity_type?: string
+          review_status?: string
+          source_evidence?: string | null
           unit?: string
         }
         Relationships: [
@@ -434,6 +449,7 @@ export type Database = {
           calibrated_at: string
           calibrated_by: string
           calibration_line_pixels: number
+          calibration_method: string
           calibration_real_mm: number
           calibration_source: string
           confidence: string
@@ -450,6 +466,7 @@ export type Database = {
           calibrated_at?: string
           calibrated_by: string
           calibration_line_pixels: number
+          calibration_method?: string
           calibration_real_mm: number
           calibration_source?: string
           confidence?: string
@@ -466,6 +483,7 @@ export type Database = {
           calibrated_at?: string
           calibrated_by?: string
           calibration_line_pixels?: number
+          calibration_method?: string
           calibration_real_mm?: number
           calibration_source?: string
           confidence?: string
@@ -485,6 +503,7 @@ export type Database = {
           calculated_area_m2: number | null
           calculated_length_m: number | null
           calculated_length_mm: number | null
+          category: string | null
           confidence: string
           count_value: number | null
           created_at: string
@@ -506,6 +525,7 @@ export type Database = {
           calculated_area_m2?: number | null
           calculated_length_m?: number | null
           calculated_length_mm?: number | null
+          category?: string | null
           confidence?: string
           count_value?: number | null
           created_at?: string
@@ -527,6 +547,7 @@ export type Database = {
           calculated_area_m2?: number | null
           calculated_length_m?: number | null
           calculated_length_mm?: number | null
+          category?: string | null
           confidence?: string
           count_value?: number | null
           created_at?: string
