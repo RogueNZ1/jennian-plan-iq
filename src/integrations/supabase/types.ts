@@ -174,6 +174,7 @@ export type Database = {
       profiles: {
         Row: {
           accepted_at: string | null
+          branch: string | null
           created_at: string
           email: string | null
           full_name: string | null
@@ -186,6 +187,7 @@ export type Database = {
         }
         Insert: {
           accepted_at?: string | null
+          branch?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -198,6 +200,7 @@ export type Database = {
         }
         Update: {
           accepted_at?: string | null
+          branch?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -283,6 +286,48 @@ export type Database = {
           },
         ]
       }
+      user_invitations: {
+        Row: {
+          branch: string | null
+          created_at: string
+          email: string
+          first_name: string | null
+          id: string
+          invited_by: string
+          last_name: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          status: string
+          updated_at: string
+          welcome_message: string | null
+        }
+        Insert: {
+          branch?: string | null
+          created_at?: string
+          email: string
+          first_name?: string | null
+          id?: string
+          invited_by: string
+          last_name?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          status?: string
+          updated_at?: string
+          welcome_message?: string | null
+        }
+        Update: {
+          branch?: string | null
+          created_at?: string
+          email?: string
+          first_name?: string | null
+          id?: string
+          invited_by?: string
+          last_name?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          status?: string
+          updated_at?: string
+          welcome_message?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -320,7 +365,7 @@ export type Database = {
       is_admin_or_owner: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      app_role: "owner" | "admin" | "estimator" | "viewer"
+      app_role: "owner" | "admin" | "estimator" | "viewer" | "project_manager"
       confidence_level: "high" | "mid" | "low"
       export_type: "csv" | "excel"
       file_type: "plan" | "specification"
@@ -459,7 +504,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["owner", "admin", "estimator", "viewer"],
+      app_role: ["owner", "admin", "estimator", "viewer", "project_manager"],
       confidence_level: ["high", "mid", "low"],
       export_type: ["csv", "excel"],
       file_type: ["plan", "specification"],
