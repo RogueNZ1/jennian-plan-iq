@@ -377,3 +377,144 @@ function Tile({ label, value, mono = true }: { label: string; value: string; mon
 void IQ_MODULES;
 void ({} as IQModule);
 void ({} as IQModuleId);
+
+function ElectricalModeControls({
+  mode, setMode,
+}: { mode: ElectricalMode; setMode: (m: ElectricalMode) => void }) {
+  const opts: Array<{ id: ElectricalMode; title: string; sub: string }> = [
+    { id: "plan_count",         title: "Plan Count Mode",         sub: "Count electrical points from an uploaded plan." },
+    { id: "template_allowance", title: "Template Allowance Mode", sub: "Use early-stage allowances when no electrical plan is available." },
+  ];
+  return (
+    <div className="mb-4 grid sm:grid-cols-2 gap-3">
+      {opts.map((o) => {
+        const active = mode === o.id;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            onClick={() => setMode(o.id)}
+            className={`text-left rounded-lg border px-4 py-3 transition-colors ${
+              active ? "border-primary/50 bg-primary/5" : "border-border bg-card hover:bg-accent"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className={`text-[13px] font-semibold tracking-tight ${active ? "text-primary" : ""}`}>{o.title}</span>
+              {active && <span className="text-[10px] uppercase tracking-[0.16em] text-primary">Active</span>}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{o.sub}</p>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ElectricalAllowanceTable({
+  rows, setRows, jobNumber,
+}: {
+  rows: ElectricalAllowanceRow[];
+  setRows: React.Dispatch<React.SetStateAction<ElectricalAllowanceRow[]>>;
+  jobNumber: string;
+}) {
+  function patch(key: string, p: Partial<ElectricalAllowanceRow>) {
+    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
+  }
+
+  function exportCsv() {
+    const header = ["Item","Code","Description","Basis","Allowed Quantity","Confirmed Quantity","Review Status","Notes"];
+    const out = rows.map((r) => [
+      r.item, r.code, r.description, r.basis,
+      r.allowedQuantity, r.confirmedQuantity, REVIEW_STATUS_LABEL[r.reviewStatus],
+      (r.notes ?? "").replace(/"/g, '""'),
+    ]);
+    const csv = [header, ...out]
+      .map((r) => r.map((c) => /[",\n]/.test(String(c)) ? `"${c}"` : String(c)).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${jobNumber}-electrical-allowance.csv`; a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Allowance CSV exported.");
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="px-5 py-3 border-b border-border flex items-start justify-between gap-4">
+        <div className="flex items-start gap-2">
+          <Info className="h-4 w-4 text-confidence-mid mt-0.5" />
+          <div className="text-[12px] text-muted-foreground leading-relaxed">
+            <span className="font-medium text-foreground">Early-stage quantities are allowances only.</span>{" "}
+            Confirm against electrical plan before procurement.
+          </div>
+        </div>
+        <button
+          onClick={exportCsv}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent shrink-0"
+        >
+          <FileSpreadsheet className="h-3 w-3" /> Export CSV
+        </button>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/40">
+            <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+              <th className="px-4 py-3 font-medium">Item</th>
+              <th className="px-4 py-3 font-medium">Code</th>
+              <th className="px-4 py-3 font-medium">Description</th>
+              <th className="px-4 py-3 font-medium">Basis</th>
+              <th className="px-4 py-3 font-medium text-right">Allowed Qty</th>
+              <th className="px-4 py-3 font-medium text-right">Confirmed Qty</th>
+              <th className="px-4 py-3 font-medium">Review Status</th>
+              <th className="px-4 py-3 font-medium">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.key} className="border-t border-border align-top">
+                <td className="px-4 py-3 font-medium">{r.item}</td>
+                <td className="px-4 py-3 text-muted-foreground tabular-nums">{r.code}</td>
+                <td className="px-4 py-3 text-muted-foreground max-w-[16rem]">{r.description}</td>
+                <td className="px-4 py-3 text-muted-foreground max-w-[14rem]">{r.basis}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{r.allowedQuantity}</td>
+                <td className="px-4 py-3 text-right">
+                  <input
+                    type="number"
+                    step="any"
+                    defaultValue={String(r.confirmedQuantity)}
+                    onBlur={(e) => {
+                      const v = Number(e.target.value);
+                      if (Number.isNaN(v)) { e.target.value = String(r.confirmedQuantity); return; }
+                      if (v !== r.confirmedQuantity) patch(r.key, { confirmedQuantity: v });
+                    }}
+                    className="w-24 rounded-md border border-input bg-background px-2 py-1 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <select
+                    value={r.reviewStatus}
+                    onChange={(e) => patch(r.key, { reviewStatus: e.target.value as ReviewStatus })}
+                    className="rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="review_required">Review Required</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="excluded">Excluded</option>
+                  </select>
+                </td>
+                <td className="px-4 py-3 min-w-[12rem]">
+                  <input
+                    defaultValue={r.notes}
+                    placeholder="Add note…"
+                    onBlur={(e) => { if (e.target.value !== r.notes) patch(r.key, { notes: e.target.value }); }}
+                    className="w-full rounded-md border border-transparent hover:border-input bg-transparent px-2 py-1 text-xs text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:bg-background focus:border-input"
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
