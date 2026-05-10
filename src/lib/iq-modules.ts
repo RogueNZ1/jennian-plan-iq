@@ -262,47 +262,9 @@ export const REVIEW_STATUS_LABEL: Record<ItemReviewStatus, string> = {
   excluded: "Excluded",
 };
 
-/** ---------- Deterministic dummy generator ---------- */
-
-function hash(str: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) h = (h ^ str.charCodeAt(i)) * 16777619;
-  return Math.abs(h | 0);
-}
-
-function pickConfidence(seed: number): Confidence {
-  const m = seed % 10;
-  if (m < 6) return "high";
-  if (m < 9) return "mid";
-  return "low";
-}
-
-function dummyValue(t: IQItemTemplate, seed: number): number {
-  const [min, max] = t.range;
-  const span = max - min;
-  const v = min + ((seed % 1000) / 1000) * span;
-  const d = t.decimals ?? 0;
-  return Number(v.toFixed(d));
-}
-
-function buildSeedItemsFor(jobKey: string, mod: IQModule, nonce = "") {
-  return mod.items.map((t, idx) => {
-    const seed = hash(`${jobKey}::${mod.id}::${t.key}::${nonce}`);
-    const value = dummyValue(t, seed);
-    return {
-      module_id: mod.id,
-      label: t.key,
-      description: t.description,
-      unit: t.unit,
-      extracted_value: String(value),
-      approved_value: String(value),
-      confidence: pickConfidence(seed),
-      review_status: "review_required" as ItemReviewStatus,
-      basis: t.basis ?? null,
-      sort_order: idx,
-    };
-  });
-}
+/* Dummy seeders removed. Module items are now created only from real
+ * sources (Measured From Plan, Uploaded Plan/Spec Text, Template Allowance,
+ * User Override). See pushMeasurementToModule and the printed-value flow. */
 
 /** ---------- Audit helper ---------- */
 
@@ -346,37 +308,25 @@ export async function seedAllModulesForJob(jobId: string): Promise<void> {
 
   for (const mod of IQ_MODULES) {
     if (have.has(mod.id)) continue;
-    const { data: run, error: runErr } = await supabase
+    const { error: runErr } = await supabase
       .from("module_runs")
       .insert({
         job_id: jobId,
         module_id: mod.id,
         module_name: mod.name,
-        status: "in_progress",
+        status: "not_started",
         review_status: "review_required",
         required: mod.required,
         last_run_at: now,
-        item_count: mod.id === "iq-core" ? 0 : mod.items.length,
+        item_count: 0,
         confidence_avg: null,
       })
       .select()
       .single();
     if (runErr) throw runErr;
-
-    if (mod.id === "iq-core") continue; // items handled by extracted_quantities
-
-    const seedItems = buildSeedItemsFor(jobId, mod).map((it) => ({
-      ...it,
-      job_id: jobId,
-      run_id: run.id,
-    }));
-    const { error: itemsErr } = await supabase.from("module_items").insert(seedItems);
-    if (itemsErr) throw itemsErr;
-
-    // Compute initial confidence_avg
-    const highs = seedItems.filter((s) => s.confidence === "high").length;
-    const conf = seedItems.length ? Math.round((highs / seedItems.length) * 100) : 0;
-    await supabase.from("module_runs").update({ confidence_avg: conf }).eq("id", run.id);
+    // No fake module_items are seeded. Items appear only when a real
+    // source (measurement, parsed plan/spec text, allowance, override)
+    // is pushed in.
   }
 }
 
@@ -517,35 +467,8 @@ export async function recalculateModule(jobId: string, moduleId: IQModuleId): Pr
   if (!mod || mod.id === "iq-core") return;
   const { data: run } = await supabase.from("module_runs").select("id").eq("job_id", jobId).eq("module_id", moduleId).maybeSingle();
   if (!run) return;
-  // Regenerate extracted_value with a fresh nonce, but PRESERVE approved_value
-  // for any item that has been confirmed/excluded or manually edited.
-  const nonce = Date.now().toString(36);
-  const seed = buildSeedItemsFor(jobId, mod, nonce);
-  const seedByLabel = new Map(seed.map((s) => [s.label, s]));
-  const { data: existing } = await supabase
-    .from("module_items").select("*").eq("run_id", run.id);
-  for (const it of existing ?? []) {
-    const s = seedByLabel.get(it.label);
-    if (!s) continue;
-    const wasUntouched =
-      it.review_status === "review_required" &&
-      String(it.approved_value ?? "") === String(it.extracted_value ?? "");
-    const patch: { extracted_value: string; confidence: Confidence; approved_value?: string } = {
-      extracted_value: s.extracted_value,
-      confidence: s.confidence,
-    };
-    if (wasUntouched) patch.approved_value = s.extracted_value;
-    await supabase.from("module_items").update(patch).eq("id", it.id);
-    seedByLabel.delete(it.label);
-  }
-  // Insert any newly-introduced items.
-  const inserts = Array.from(seedByLabel.values()).map((it) => ({
-    ...it, job_id: jobId, run_id: run.id,
-  }));
-  if (inserts.length) {
-    const { error: iErr } = await supabase.from("module_items").insert(inserts);
-    if (iErr) throw iErr;
-  }
+  // Real recalculation will reconcile module_items against measurements,
+  // openings, and parsed plan/spec values. For now, just bump the run.
   const now = new Date().toISOString();
   await supabase.from("module_runs").update({
     last_run_at: now,
@@ -757,28 +680,8 @@ export function statusBadgeClass(status: IQModuleStatus | string): string {
 }
 export type ReviewStatus = ItemReviewStatus;
 
-export type IQItem = {
-  key: string;
-  description: string;
-  unit: string;
-  extractedQuantity: number;
-  finalQuantity: number;
-  confidence: Confidence;
-  notes: string;
-  approved: boolean;
-};
-
-export function buildIQItems(jobKey: string, mod: IQModule): IQItem[] {
-  return mod.items.map((t) => {
-    const seed = hash(`${jobKey}::${mod.id}::${t.key}`);
-    const value = dummyValue(t, seed);
-    return {
-      key: t.key, description: t.description, unit: t.unit,
-      extractedQuantity: value, finalQuantity: value,
-      confidence: pickConfidence(seed), notes: "", approved: false,
-    };
-  });
-}
+/* Legacy IQItem builder removed — module items are sourced from real
+ * measurement / parse / allowance flows, not synthetic seeds. */
 
 // Legacy localStorage helpers (loadModuleState/saveModuleState/
 // runDummyExtraction/electrical allowance) were removed. All module state
