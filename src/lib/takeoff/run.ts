@@ -55,6 +55,10 @@ export type TakeoffSummary = {
   highCount: number;
   midCount: number;
   lowCount: number;
+  errors: string[];
+  warnings: string[];
+  hasWarnings: boolean;
+  completedAt: string | null;
 };
 
 async function logAudit(entry: {
@@ -106,9 +110,14 @@ export async function runAutomaticTakeoff(args: {
 
   try {
     progress("reviewing_files", "Reviewing uploaded files…");
+    const errors: string[] = [];
+    const warnings: string[] = [];
     const files = await loadJobFiles(jobId);
     if (files.length === 0) {
       const summary: TakeoffSummary = emptySummary(runId);
+      summary.warnings.push("No uploaded files found for this job.");
+      summary.hasWarnings = true;
+      summary.completedAt = new Date().toISOString();
       await supabase.from("takeoff_runs").update({
         status: "completed",
         completed_at: new Date().toISOString(),
@@ -129,8 +138,9 @@ export async function runAutomaticTakeoff(args: {
           storagePath: f.storage_url,
         });
         extracted.push(ef);
-      } catch {
-        // Continue on per-file errors — partial extraction is fine.
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "unknown error";
+        errors.push(`Failed to read file: ${f.file_name} — ${msg}`);
       }
     }
 
@@ -191,8 +201,9 @@ export async function runAutomaticTakeoff(args: {
               jobId, userId, action: "scale_detected",
               notes: `${scale.scaleText} · ${scale.status}`,
             });
-          } catch {
-            // calibration insert failed — leave status text in place
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : "unknown error";
+            errors.push(`Failed to persist scale calibration (${scale.scaleText}) — ${msg}`);
           }
         }
       }
@@ -216,8 +227,10 @@ export async function runAutomaticTakeoff(args: {
         if (r.status === "inserted") {
           await logAudit({ jobId, userId, action: "quantity_created", notes: `${q.label}=${q.value}${q.unit}` });
         }
-      } catch {
-        /* swallow per-row failure to keep run going */
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "unknown error";
+        const where = q.page != null ? ` on page ${q.page}` : "";
+        errors.push(`Failed to persist quantity: ${q.label} = ${q.value}${q.unit}${where} — ${msg}`);
       }
     }
 
@@ -231,15 +244,19 @@ export async function runAutomaticTakeoff(args: {
         } else {
           oSkipped++;
         }
-      } catch {
-        /* swallow per-row failure */
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "unknown error";
+        const dims = `${o.width_mm}${o.height_mm ? ` x ${o.height_mm}` : ""}`;
+        const where = o.page != null ? ` on page ${o.page}` : "";
+        errors.push(`Failed to persist opening: ${dims}${where} — ${msg}`);
       }
     }
 
     progress("preparing_modules", "Preparing module review items…");
     const mod = await populateModulesFromTakeoff({
-      jobId, quantities: allQty, openings: allOpenings,
+      jobId, quantities: allQty, openings: allOpenings, takeoffRunId: runId,
     });
+    if (mod.errors.length > 0) errors.push(...mod.errors);
     if (mod.inserted > 0) {
       await logAudit({ jobId, userId, action: "module_item_created", notes: `${mod.inserted} draft items` });
     }
@@ -260,6 +277,13 @@ export async function runAutomaticTakeoff(args: {
 
     progress("ready", "Ready for review.");
 
+    const totalRows = qInserted + oInserted + mod.inserted;
+    if (totalRows === 0) {
+      warnings.push("No quantities, openings, or module items were extracted from the uploaded files.");
+    }
+    const hasWarnings = errors.length > 0 || warnings.length > 0;
+    const completedAt = new Date().toISOString();
+
     const summary: TakeoffSummary = {
       runId,
       filesScanned: extracted.length,
@@ -277,11 +301,15 @@ export async function runAutomaticTakeoff(args: {
       moduleItemConflicts: mod.conflicts,
       reviewRequiredCount,
       highCount, midCount, lowCount,
+      errors,
+      warnings,
+      hasWarnings,
+      completedAt,
     };
 
     await supabase.from("takeoff_runs").update({
-      status: "completed",
-      completed_at: new Date().toISOString(),
+      status: hasWarnings ? "completed_with_warnings" : "completed",
+      completed_at: completedAt,
       working_file_id: workingFileId,
       working_page_number: workingPageNumber,
       working_page_type: workingPageType,
@@ -289,10 +317,11 @@ export async function runAutomaticTakeoff(args: {
       scale_text: scaleText,
       calibration_id: calibrationId,
       summary: summary as unknown as Json,
+      error_message: errors.length > 0 ? errors.slice(0, 5).join(" | ") : null,
     }).eq("id", runId);
 
     await logAudit({ jobId, userId, action: "automatic_takeoff_completed",
-      notes: `${qInserted} quantities · ${oInserted} openings · ${mod.inserted} module items` });
+      notes: `${qInserted} quantities · ${oInserted} openings · ${mod.inserted} module items${errors.length ? ` · ${errors.length} errors` : ""}` });
 
     return summary;
   } catch (err) {
@@ -320,6 +349,7 @@ function emptySummary(runId: string): TakeoffSummary {
     openingsInserted: 0, openingsSkipped: 0,
     moduleItemsInserted: 0, moduleItemsUpdated: 0, moduleItemConflicts: 0,
     reviewRequiredCount: 0, highCount: 0, midCount: 0, lowCount: 0,
+    errors: [], warnings: [], hasWarnings: false, completedAt: null,
   };
 }
 
