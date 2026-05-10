@@ -18,6 +18,7 @@ import { Download, FileSpreadsheet, History, CheckCircle2, ArrowRight,
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { OverrideReasonDialog } from "@/components/jennian/OverrideReasonDialog";
 
 const MODULE_ICONS: Record<IQModuleId, React.ComponentType<{ className?: string }>> = {
   "iq-core": Ruler, "iq-electrical": Zap, "iq-plumbing": Droplets,
@@ -254,17 +255,31 @@ function ReviewPage() {
 
 function OverrideInput({ row, onSave }: { row: Quantity; onSave: (r: Quantity, value: string, reason: string) => void }) {
   const [val, setVal] = useState(String(row.approved_value ?? row.extracted_value));
+  const [pending, setPending] = useState<{ value: string } | null>(null);
+  const original = String(row.approved_value ?? row.extracted_value);
   return (
-    <input
-      value={val}
-      onChange={(e) => setVal(e.target.value)}
-      onBlur={() => {
-        if (val === String(row.approved_value ?? row.extracted_value)) return;
-        const reason = window.prompt("Reason for override?") ?? "";
-        onSave(row, val, reason);
-      }}
-      className="w-24 rounded-md border border-input bg-background px-2 py-1 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
-    />
+    <>
+      <input
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={() => {
+          if (val === original) return;
+          setPending({ value: val });
+        }}
+        className="w-24 rounded-md border border-input bg-background px-2 py-1 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+      />
+      <OverrideReasonDialog
+        open={!!pending}
+        label={row.quantity_type}
+        currentValue={original}
+        newValue={pending?.value}
+        onCancel={() => { setPending(null); setVal(original); }}
+        onConfirm={(reason) => {
+          if (pending) onSave(row, pending.value, reason);
+          setPending(null);
+        }}
+      />
+    </>
   );
 }
 
