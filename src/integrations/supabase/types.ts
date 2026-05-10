@@ -716,6 +716,66 @@ export type Database = {
           },
         ]
       }
+      takeoff_runs: {
+        Row: {
+          calibration_id: string | null
+          classification_confidence: string | null
+          classification_reason: string | null
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          job_id: string
+          scale_text: string | null
+          started_at: string
+          started_by: string
+          status: string
+          summary: Json
+          updated_at: string
+          working_file_id: string | null
+          working_page_number: number | null
+          working_page_type: string | null
+        }
+        Insert: {
+          calibration_id?: string | null
+          classification_confidence?: string | null
+          classification_reason?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          job_id: string
+          scale_text?: string | null
+          started_at?: string
+          started_by: string
+          status?: string
+          summary?: Json
+          updated_at?: string
+          working_file_id?: string | null
+          working_page_number?: number | null
+          working_page_type?: string | null
+        }
+        Update: {
+          calibration_id?: string | null
+          classification_confidence?: string | null
+          classification_reason?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          job_id?: string
+          scale_text?: string | null
+          started_at?: string
+          started_by?: string
+          status?: string
+          summary?: Json
+          updated_at?: string
+          working_file_id?: string | null
+          working_page_number?: number | null
+          working_page_type?: string | null
+        }
+        Relationships: []
+      }
       uploaded_files: {
         Row: {
           file_name: string
