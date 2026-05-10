@@ -493,9 +493,59 @@ function Field({ label, placeholder, value, onChange }: { label: string; placeho
 }
 
 function Dropzone({ label, sub, file, onFile, previewUrl }: { label: string; sub: string; file: File | null; onFile: (f: File | null) => void; previewUrl?: string | null }) {
+  const [isDragging, setIsDragging] = useState(false);
+
+  function isPdf(f: File) {
+    return f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const dropped = Array.from(e.dataTransfer?.files ?? []);
+    if (dropped.length === 0) return;
+    const pdfs = dropped.filter(isPdf);
+    if (pdfs.length !== dropped.length || pdfs.length === 0) {
+      toast.error("Only PDF files are supported for plan/specification upload.");
+      if (pdfs.length === 0) return;
+    }
+    const next = pdfs[0];
+    if (file && file.name === next.name && file.size === next.size) return;
+    onFile(next);
+  }
+
+  function handleDragOver(e: React.DragEvent<HTMLElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  }
+
+  function handleDragEnter(e: React.DragEvent<HTMLElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent<HTMLElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    const related = e.relatedTarget as Node | null;
+    if (related && e.currentTarget.contains(related)) return;
+    setIsDragging(false);
+  }
+
   if (file) {
     return (
-      <div className="rounded-xl border border-border bg-card p-4 shadow-[0_1px_0_rgba(0,0,0,0.02)]">
+      <div
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`rounded-xl border bg-card p-4 shadow-[0_1px_0_rgba(0,0,0,0.02)] transition-colors ${
+          isDragging ? "border-primary/60 bg-accent/40" : "border-border"
+        }`}
+      >
         <div className="flex items-start gap-4">
           <PlanThumbnail storagePath={previewUrl ?? null} size="md" />
           <div className="flex-1 min-w-0">
@@ -527,7 +577,15 @@ function Dropzone({ label, sub, file, onFile, previewUrl }: { label: string; sub
     );
   }
   return (
-    <label className="relative block rounded-xl border-2 border-dashed border-border bg-card p-8 text-center cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/40 overflow-hidden">
+    <label
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={`relative block rounded-xl border-2 border-dashed bg-card p-8 text-center cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/40 overflow-hidden ${
+        isDragging ? "border-primary/60 bg-accent/40" : "border-border"
+      }`}
+    >
       {/* Architectural cue */}
       <svg viewBox="0 0 200 80" className="absolute inset-x-0 bottom-0 w-full h-16 text-foreground/[0.05] pointer-events-none" aria-hidden>
         <g stroke="currentColor" strokeWidth="0.5">
