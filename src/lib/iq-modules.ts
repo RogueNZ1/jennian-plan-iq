@@ -78,6 +78,7 @@ export type ModuleItem = {
   sort_order: number;
   updated_at: string;
   data_source: string | null;
+  source: string | null;
   source_evidence: string | null;
   measurement_id: string | null;
   opening_id: string | null;
@@ -396,6 +397,7 @@ export type ItemPatch = Partial<{
   notes: string;
   review_status: ItemReviewStatus;
   confidence: Confidence;
+  source: string;
 }>;
 
 export async function updateModuleItem(
@@ -454,6 +456,7 @@ export async function manualOverrideApprovedValue(
     .update({
       approved_value: newValue,
       data_source: "User Override",
+      source: "manual_override",
       source_evidence: reason.trim(),
       confidence: "high",
       review_status: "confirmed",
