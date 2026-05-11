@@ -515,6 +515,7 @@ export async function pushMeasurementToModule(args: {
           `Measured value differs from approved module value. ` +
           `Previous ${prev}, new ${args.value} (Δ${(diffPct * 100).toFixed(1)}%). Review before updating.`,
         data_source: "Measured From Plan",
+        source: "calibrated_geometry",
         source_evidence: args.evidence ?? null,
         measurement_id: args.measurementId ?? null,
         opening_id: args.openingId ?? null,
@@ -542,6 +543,7 @@ export async function pushMeasurementToModule(args: {
     await supabase.from("module_items").update({
       extracted_value: String(args.value),
       data_source: "Measured From Plan",
+      source: "calibrated_geometry",
       source_evidence: args.evidence ?? null,
       measurement_id: args.measurementId ?? null,
       opening_id: args.openingId ?? null,
@@ -583,6 +585,7 @@ export async function pushMeasurementToModule(args: {
     basis: args.basis ?? "Measured From Plan",
     sort_order: nextSort,
     data_source: "Measured From Plan",
+    source: "calibrated_geometry",
     source_evidence: args.evidence ?? null,
     measurement_id: args.measurementId ?? null,
     opening_id: args.openingId ?? null,

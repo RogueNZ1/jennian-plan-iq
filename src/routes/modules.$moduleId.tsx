@@ -22,6 +22,26 @@ import { OverrideReasonDialog } from "@/components/jennian/OverrideReasonDialog"
 import {
   ArrowLeft, ClipboardCheck, CheckCircle2, FileSpreadsheet, RotateCcw, Info,
 } from "lucide-react";
+
+type ProvenanceSource = "calibrated_geometry" | "ai_annotation" | "ai_inferred" | "manual_override";
+
+const PROVENANCE_META: Record<ProvenanceSource, { label: string; className: string }> = {
+  calibrated_geometry: { label: "Measured",  className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  ai_annotation:       { label: "Read",      className: "bg-blue-50 text-blue-700 border-blue-200" },
+  ai_inferred:         { label: "Inferred",  className: "bg-amber-50 text-amber-700 border-amber-200" },
+  manual_override:     { label: "Manual",    className: "bg-purple-50 text-purple-700 border-purple-200" },
+};
+
+function ProvenanceBadge({ source }: { source: string | null | undefined }) {
+  if (!source) return null;
+  const meta = PROVENANCE_META[source as ProvenanceSource];
+  if (!meta) return null;
+  return (
+    <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9.5px] font-medium ${meta.className}`}>
+      {meta.label}
+    </span>
+  );
+}
 import type { Confidence } from "@/lib/jennian-data";
 
 export const Route = createFileRoute("/modules/$moduleId")({
@@ -309,6 +329,7 @@ function ModuleDetail() {
                     <th className="px-5 py-3 font-medium">Item</th>
                     <th className="px-5 py-3 font-medium">Description</th>
                     <th className="px-5 py-3 font-medium">Unit</th>
+                    <th className="px-5 py-3 font-medium">Source</th>
                     <th className="px-5 py-3 font-medium">Extracted Quantity</th>
                     <th className="px-5 py-3 font-medium">Confirmed Quantity</th>
                     <th className="px-5 py-3 font-medium">Confidence</th>
@@ -318,16 +339,22 @@ function ModuleDetail() {
                 </thead>
                 <tbody>
                   {loading && (
-                    <tr><td colSpan={8} className="px-5 py-8 text-center text-xs text-muted-foreground">Loading…</td></tr>
+                    <tr><td colSpan={9} className="px-5 py-8 text-center text-xs text-muted-foreground">Loading…</td></tr>
                   )}
                   {!loading && items.length === 0 && (
-                    <tr><td colSpan={8} className="px-5 py-8 text-center text-xs text-muted-foreground">No items.</td></tr>
+                    <tr><td colSpan={9} className="px-5 py-8 text-center text-xs text-muted-foreground">No items.</td></tr>
                   )}
                   {items.map((it) => (
                     <tr key={it.id} className="border-t border-border align-top">
                       <td className="px-5 py-3 font-medium tabular-nums">{it.label}</td>
                       <td className="px-5 py-3">{it.description}</td>
                       <td className="px-5 py-3 text-muted-foreground">{it.unit}</td>
+                      <td className="px-5 py-3">
+                        <ProvenanceBadge source={it.source} />
+                        {!it.source && (it.data_source || it.source_evidence) && (
+                          <span className="text-[10px] text-muted-foreground">{it.data_source ?? "—"}</span>
+                        )}
+                      </td>
                       <td className="px-5 py-3 tabular-nums text-muted-foreground">
                         <div className="flex items-center gap-1.5">
                           <span>{it.extracted_value}</span>

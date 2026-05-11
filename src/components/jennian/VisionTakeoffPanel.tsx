@@ -39,6 +39,8 @@ export function VisionTakeoffPanel({
   const [candidates, setCandidates] = useState<PageCandidate[] | null>(null);
   const [totalPages, setTotalPages] = useState<number>(0);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  // Keyed by `${fileId}:${pageNumber}` → pixels_per_mm if calibrated, null if not.
+  const [calibrationMap, setCalibrationMap] = useState<Record<string, number | null>>({});
 
   const keyOf = (c: { fileId: string; pageNumber: number }) => `${c.fileId}:${c.pageNumber}`;
 
@@ -124,6 +126,25 @@ export function VisionTakeoffPanel({
     })();
     return () => { cancelled = true; };
   }, [flattenedFiles]);
+
+  // Load calibration status for all candidates whenever the candidate list changes.
+  useEffect(() => {
+    if (!candidates || candidates.length === 0) return;
+    (async () => {
+      const { data } = await supabase
+        .from("plan_calibrations")
+        .select("file_id, plan_page_number, pixels_per_mm")
+        .eq("job_id", jobId);
+      const map: Record<string, number | null> = {};
+      for (const c of candidates) map[keyOf(c)] = null;
+      for (const row of data ?? []) {
+        const fileId = (row.file_id as string | null) ?? "";
+        const key = `${fileId}:${row.plan_page_number}`;
+        if (key in map) map[key] = row.pixels_per_mm as number;
+      }
+      setCalibrationMap(map);
+    })();
+  }, [candidates, jobId]);
 
   const selectedCandidates = useMemo(
     () => (candidates ?? []).filter((c) => selectedKeys.has(keyOf(c))),
@@ -299,6 +320,7 @@ export function VisionTakeoffPanel({
                           <th className="px-2 py-1.5 text-left font-medium">Page</th>
                           <th className="px-2 py-1.5 text-left font-medium">Detected type</th>
                           <th className="px-2 py-1.5 text-left font-medium">Confidence</th>
+                          <th className="px-2 py-1.5 text-left font-medium">Cal.</th>
                           <th className="px-2 py-1.5 text-left font-medium">Reason</th>
                         </tr>
                       </thead>
@@ -320,6 +342,13 @@ export function VisionTakeoffPanel({
                               <td className="px-2 py-1.5 tabular-nums">{c.pageNumber}</td>
                               <td className="px-2 py-1.5">{c.clientPageType}</td>
                               <td className="px-2 py-1.5">{c.confidence}</td>
+                              <td className="px-2 py-1.5">
+                                {calibrationMap[k] != null ? (
+                                  <span title={`${calibrationMap[k]?.toFixed(2)} px/mm`} className="text-emerald-600">✓</span>
+                                ) : (
+                                  <span title="No calibration — measurements will be inferred only" className="text-amber-500">⚠</span>
+                                )}
+                              </td>
                               <td className="px-2 py-1.5 text-muted-foreground truncate max-w-[200px]" title={c.reason}>{c.reason}</td>
                             </tr>
                           );
@@ -330,6 +359,16 @@ export function VisionTakeoffPanel({
                 </div>
               )}
             </>
+          )}
+
+          {selectedCandidates.length > 0 && selectedCandidates.some((c) => calibrationMap[keyOf(c)] == null) && (
+            <div className="mt-2 flex items-start gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+              <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+              <span>
+                Some selected pages have no calibration. AI values will be marked <strong>Inferred</strong> — not measurement-grade.
+                Calibrate in the <strong>Plan Canvas</strong> (Review tab) first for confirmed geometry.
+              </span>
+            </div>
           )}
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
