@@ -900,7 +900,7 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
               .update({
                 confidence: args.confidence,
                 source_evidence: args.source_evidence,
-                review_status: wasConfirmed ? match.review_status : "review_required",
+                review_status: wasConfirmed ? (match.review_status ?? "review_required") : "review_required",
                 notes: args.notes,
               })
               .eq("id", match.id);
