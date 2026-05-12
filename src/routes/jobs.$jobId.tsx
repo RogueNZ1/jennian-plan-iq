@@ -14,14 +14,15 @@ import {
 } from "@/lib/iq-modules";
 import {
   Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain,
-  AlertTriangle, ShoppingCart, ClipboardCheck, Eye, FileSpreadsheet, ArrowRight, History,
+  AlertTriangle, ShoppingCart, ClipboardCheck, Eye, FileSpreadsheet, FileText, ArrowRight, History,
   Wand2, RefreshCw, Package, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  buildQSExportData, writeQSExport, writeQSExportFresh,
+  buildQSExportData, writeIQDataSheet,
   buildElectricalSchedule, electricalScheduleToCSV,
 } from "@/lib/iq-qs-export";
+import { exportSMWDocument } from "@/lib/iq-smw-export";
 import { exportCartersLoads } from "@/lib/iq-carters-loads";
 import { JobAuditTimeline } from "@/components/jennian/JobAuditTimeline";
 import { AutomaticTakeoffDialog } from "@/components/jennian/AutomaticTakeoffDialog";
@@ -60,6 +61,7 @@ function JobDetail() {
   const [startChooserOpen, setStartChooserOpen] = useState(false);
   const [hasTakeoffData, setHasTakeoffData] = useState<boolean | null>(null);
   const [exportingQS, setExportingQS] = useState(false);
+  const [exportingSMW, setExportingSMW] = useState(false);
   const [exportingElec, setExportingElec] = useState(false);
   const [exportingCarters, setExportingCarters] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -104,43 +106,39 @@ function JobDetail() {
 
   const showStartPanel = !loading && hasTakeoffData === false && !takeoffRun;
 
-  async function handleExportQS() {
+  async function handleExportIQData() {
     setExportingQS(true);
     try {
       const data = await buildQSExportData(jobId);
-
-      // Try the xlsm template first; fall back to a fresh xlsx if unavailable.
-      const { data: templateBlob, error: tplErr } = await supabase.storage
-        .from("qs-templates")
-        .download("jennian-qs-template.xlsm");
-
-      let fileBytes: Uint8Array;
-      let fileName: string;
-      let mimeType: string;
-
-      if (!tplErr && templateBlob) {
-        const buf = await templateBlob.arrayBuffer();
-        fileBytes = writeQSExport(buf, data);
-        fileName = `${data.jobNumber}-QS-Export.xlsm`;
-        mimeType = "application/vnd.ms-excel.sheet.macroEnabled.12";
-      } else {
-        fileBytes = writeQSExportFresh(data);
-        fileName = `${data.jobNumber}-QS-Export.xlsx`;
-        mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-      }
-
-      const blob = new Blob([fileBytes], { type: mimeType });
+      const bytes = writeIQDataSheet(data);
+      const surname = data.clientSurname || data.clientName.split(" ").pop() || "Client";
+      const filename = `${data.jmwNumber}-IQ-Data-${surname}.xlsx`;
+      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      a.click();
+      a.href = url; a.download = filename; a.click();
       URL.revokeObjectURL(url);
-      toast.success("QS spreadsheet exported");
+      toast.success("IQ data sheet exported — paste into your QS");
     } catch (err) {
       toast.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setExportingQS(false);
+    }
+  }
+
+  async function handleExportSMW() {
+    setExportingSMW(true);
+    try {
+      const { blob, filename } = await exportSMWDocument(jobId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      toast.success("SMW document exported");
+    } catch (err) {
+      toast.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setExportingSMW(false);
     }
   }
 
@@ -209,6 +207,7 @@ function JobDetail() {
     }
   }
 
+
   function openWorkingPlan() {
     navigate({ to: "/review", search: { job: jobId, tab: "working" } });
   }
@@ -275,14 +274,26 @@ function JobDetail() {
               >
                 <Eye className="h-4 w-4" /> View Plans
               </button>
+              <div className="flex flex-col items-end gap-0.5">
+                <button
+                  type="button"
+                  onClick={handleExportIQData}
+                  disabled={exportingQS}
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  {exportingQS ? "Exporting…" : "Export Excel"}
+                </button>
+                <span className="text-[10px] text-muted-foreground">Paste into your master QS spreadsheet</span>
+              </div>
               <button
                 type="button"
-                onClick={handleExportQS}
-                disabled={exportingQS}
+                onClick={handleExportSMW}
+                disabled={exportingSMW}
                 className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
               >
-                <FileSpreadsheet className="h-4 w-4" />
-                {exportingQS ? "Exporting…" : "Export to QS"}
+                <FileText className="h-4 w-4" />
+                {exportingSMW ? "Exporting…" : "Export SMW"}
               </button>
               <button
                 type="button"
