@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  buildQSExportData, writeQSExport,
+  buildQSExportData, writeQSExport, writeQSExportFresh,
   buildElectricalSchedule, electricalScheduleToCSV,
 } from "@/lib/iq-qs-export";
 import { exportCartersLoads } from "@/lib/iq-carters-loads";
@@ -108,19 +108,32 @@ function JobDetail() {
     setExportingQS(true);
     try {
       const data = await buildQSExportData(jobId);
+
+      // Try the xlsm template first; fall back to a fresh xlsx if unavailable.
       const { data: templateBlob, error: tplErr } = await supabase.storage
         .from("qs-templates")
         .download("jennian-qs-template.xlsm");
-      if (tplErr || !templateBlob) throw new Error("Could not download QS template");
-      const buf = await templateBlob.arrayBuffer();
-      const xlsmBytes = writeQSExport(buf, data);
-      const blob = new Blob([xlsmBytes as BlobPart], {
-        type: "application/vnd.ms-excel.sheet.macroEnabled.12",
-      });
+
+      let fileBytes: Uint8Array;
+      let fileName: string;
+      let mimeType: string;
+
+      if (!tplErr && templateBlob) {
+        const buf = await templateBlob.arrayBuffer();
+        fileBytes = writeQSExport(buf, data);
+        fileName = `${data.jobNumber}-QS-Export.xlsm`;
+        mimeType = "application/vnd.ms-excel.sheet.macroEnabled.12";
+      } else {
+        fileBytes = writeQSExportFresh(data);
+        fileName = `${data.jobNumber}-QS-Export.xlsx`;
+        mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      }
+
+      const blob = new Blob([fileBytes], { type: mimeType });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${data.jobNumber}-QS-Export.xlsm`;
+      a.download = fileName;
       a.click();
       URL.revokeObjectURL(url);
       toast.success("QS spreadsheet exported");

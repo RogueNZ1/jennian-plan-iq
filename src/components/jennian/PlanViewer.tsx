@@ -68,8 +68,14 @@ export function PlanViewer({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-5xl h-[85vh] rounded-xl bg-card border border-border shadow-2xl flex flex-col overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-5xl h-[85vh] rounded-xl bg-card border border-border shadow-2xl flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <div>
             <div className="text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground">Plan preview</div>
@@ -98,6 +104,7 @@ export function PlanViewer({
               </>
             )}
             <button
+              type="button"
               onClick={onClose}
               aria-label="Close"
               className="h-8 w-8 grid place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
