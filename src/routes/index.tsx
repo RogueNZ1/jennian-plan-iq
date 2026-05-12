@@ -66,7 +66,7 @@ function Dashboard() {
           <Stat label="Jobs uploaded"  value={total}    hint="Total uploaded"  Icon={Briefcase} />
           <Stat label="Pending review" value={review}   hint="Awaiting review" Icon={ClipboardCheck} />
           <Stat label="Approved jobs"  value={approved} hint="Approved"        Icon={CheckCircle2} />
-          <Stat label="Exported"       value={exported} hint="Ready for use"   accent Icon={FileSpreadsheet} />
+          <Stat label="Exported"       value={exported} hint="Ready for use"         Icon={FileSpreadsheet} />
         </div>
 
         <div className="mt-10 rounded-xl border border-border bg-card overflow-hidden shadow-[0_1px_0_rgba(0,0,0,0.02)]">
