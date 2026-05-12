@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Save, Lock } from "lucide-react";
+import { Save, Lock, FileUp } from "lucide-react";
 
 export const Route = createFileRoute("/settings")({ component: Page });
 
@@ -20,6 +20,8 @@ function Page() {
   const [displayName, setDisplayName] = useState("");
   const [originalName, setOriginalName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [smwFile, setSmwFile] = useState<File | null>(null);
+  const [uploadingSMW, setUploadingSMW] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -34,6 +36,17 @@ function Page() {
         setOriginalName(name);
       });
   }, [user]);
+
+  async function uploadSMWTemplate() {
+    if (!smwFile) return;
+    setUploadingSMW(true);
+    const { error } = await supabase.storage
+      .from("smw-templates")
+      .upload("Jennian_SMW_Template.docx", smwFile, { upsert: true });
+    setUploadingSMW(false);
+    if (error) toast.error(error.message);
+    else { setSmwFile(null); toast.success("SMW template uploaded"); }
+  }
 
   async function save() {
     if (!user) return;
@@ -89,6 +102,34 @@ function Page() {
               className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
             >
               <Save className="h-4 w-4" /> {saving ? "Saving…" : "Save Changes"}
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-6 rounded-xl border border-border bg-card p-5">
+          <div className="text-[10.5px] font-medium uppercase tracking-[0.16em] text-muted-foreground mb-4">SMW Template</div>
+          <p className="text-xs text-muted-foreground mb-4">
+            Upload the Jennian SMW Word template. This file is used when exporting SMW documents from job pages.
+          </p>
+          <div className="flex items-center gap-3">
+            <label className="flex-1">
+              <input
+                type="file"
+                accept=".docx"
+                onChange={(e) => setSmwFile(e.target.files?.[0] ?? null)}
+                className="sr-only"
+              />
+              <div className="flex items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground cursor-pointer hover:bg-muted/60">
+                <FileUp className="h-4 w-4 shrink-0" />
+                {smwFile ? smwFile.name : "Choose .docx file…"}
+              </div>
+            </label>
+            <button
+              onClick={uploadSMWTemplate}
+              disabled={!smwFile || uploadingSMW}
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
+            >
+              <FileUp className="h-4 w-4" /> {uploadingSMW ? "Uploading…" : "Upload"}
             </button>
           </div>
         </div>
