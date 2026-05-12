@@ -6,6 +6,10 @@
  */
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+
+type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
+type OpeningRow = Database["public"]["Tables"]["opening_schedule"]["Row"];
 
 /* ------------------------------------------------------------------ types */
 
@@ -73,11 +77,11 @@ export async function buildQSExportData(jobId: string): Promise<QSExportData> {
 
   if (jobRes.error) throw new Error(`Failed to load job: ${jobRes.error.message}`);
   const job = jobRes.data;
-  const items = itemsRes.data ?? [];
+  const items: ModuleItemRow[] = itemsRes.data ?? [];
 
   function getVal(label: string): string | null {
     const row = items.find(
-      (i) => i.label?.toLowerCase().includes(label.toLowerCase()),
+      (i: ModuleItemRow) => i.label?.toLowerCase().includes(label.toLowerCase()),
     );
     return row?.approved_value ?? row?.extracted_value ?? null;
   }
@@ -90,36 +94,36 @@ export async function buildQSExportData(jobId: string): Promise<QSExportData> {
   }
 
   // Openings grouped
-  const openings = openingsRes.data ?? [];
+  const openings: OpeningRow[] = openingsRes.data ?? [];
   const windows = openings
-    .filter((o) => o.opening_type === "window")
-    .map((o) => ({ type: o.room_name ?? "Window", qty: o.quantity ?? 1 }));
+    .filter((o: OpeningRow) => o.opening_type === "window")
+    .map((o: OpeningRow) => ({ type: o.room_name ?? "Window", qty: o.quantity ?? 1 }));
   const garageDoors = openings
-    .filter((o) => o.opening_type === "garage_door")
-    .map((o) => ({ type: o.room_name ?? "Garage Door", qty: o.quantity ?? 1 }));
+    .filter((o: OpeningRow) => o.opening_type === "garage_door")
+    .map((o: OpeningRow) => ({ type: o.room_name ?? "Garage Door", qty: o.quantity ?? 1 }));
   const interiorDoors = openings
-    .filter((o) => o.opening_type === "interior_door")
-    .map((o) => ({ type: o.room_name ?? "Interior Door", qty: o.quantity ?? 1 }));
+    .filter((o: OpeningRow) => o.opening_type === "interior_door")
+    .map((o: OpeningRow) => ({ type: o.room_name ?? "Interior Door", qty: o.quantity ?? 1 }));
   const skylights = openings
-    .filter((o) => o.opening_type === "skylight")
-    .map((o) => ({ type: o.room_name ?? "Skylight", qty: o.quantity ?? 1 }));
+    .filter((o: OpeningRow) => o.opening_type === "skylight")
+    .map((o: OpeningRow) => ({ type: o.room_name ?? "Skylight", qty: o.quantity ?? 1 }));
 
   // Downpipes from items
   const downpipeItems = items.filter(
-    (i) => i.label?.toLowerCase().includes("downpipe"),
+    (i: ModuleItemRow) => i.label?.toLowerCase().includes("downpipe"),
   );
-  const downpipes = downpipeItems.map((i) => ({
+  const downpipes = downpipeItems.map((i: ModuleItemRow) => ({
     size: i.approved_value ?? i.extracted_value ?? "90mm",
     qty: parseFloat(i.approved_value ?? i.extracted_value ?? "1") || 1,
   }));
 
   // Heat pumps from items
   const heatPumpItems = items.filter(
-    (i) =>
+    (i: ModuleItemRow) =>
       i.label?.toLowerCase().includes("heat pump") ||
       i.label?.toLowerCase().includes("heating"),
   );
-  const heatPumps = heatPumpItems.map((i) => ({
+  const heatPumps = heatPumpItems.map((i: ModuleItemRow) => ({
     model: i.approved_value ?? i.extracted_value ?? "Heat Pump",
     qty: 1,
   }));
@@ -135,11 +139,11 @@ export async function buildQSExportData(jobId: string): Promise<QSExportData> {
     "mirror",
   ];
   const extras = items
-    .filter((i) =>
+    .filter((i: ModuleItemRow) =>
       extraLabels.some((l) => i.label?.toLowerCase().includes(l)),
     )
     .slice(0, 6)
-    .map((i) => ({
+    .map((i: ModuleItemRow) => ({
       description: i.label ?? "Extra",
       value: parseFloat(i.approved_value ?? i.extracted_value ?? "0") || 0,
     }));
@@ -178,7 +182,7 @@ export async function buildQSExportData(jobId: string): Promise<QSExportData> {
  *
  * Cell mapping targets the "5. Data Input House" sheet.
  */
-export function writeQSExport(templateBuffer: ArrayBuffer, data: QSExportData): Uint8Array {
+export function writeQSExport(templateBuffer: ArrayBuffer, data: QSExportData): Uint8Array<ArrayBuffer> {
   const wb = XLSX.read(new Uint8Array(templateBuffer), { type: "array", cellStyles: true });
 
   const sheetName = wb.SheetNames.find((n) => n.includes("Data Input")) ?? wb.SheetNames[0];
@@ -186,7 +190,7 @@ export function writeQSExport(templateBuffer: ArrayBuffer, data: QSExportData): 
 
   function setCell(addr: string, value: string | number | null) {
     if (value === null || value === undefined) return;
-    const cell = ws[addr];
+    const cell = ws[addr] as XLSX.CellObject | undefined;
     if (cell) {
       cell.v = value;
       cell.t = typeof value === "number" ? "n" : "s";
@@ -254,7 +258,7 @@ export function writeQSExport(templateBuffer: ArrayBuffer, data: QSExportData): 
     setCell(`H${row}`, w.qty);
   });
 
-  return XLSX.write(wb, { type: "array", bookType: "xlsm" }) as Uint8Array;
+  return XLSX.write(wb, { type: "array", bookType: "xlsm" });
 }
 
 /* -------------------------------------------------- electrical schedule */
