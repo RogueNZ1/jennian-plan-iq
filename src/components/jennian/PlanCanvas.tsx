@@ -22,8 +22,12 @@ let _pdfjs: PdfJs | null = null;
 async function getPdfJs(): Promise<PdfJs> {
   if (_pdfjs) return _pdfjs;
   const pdfjs = await import("pdfjs-dist");
-  const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
-  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+  try {
+    const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+    pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+  } catch {
+    // Worker stub used in sandbox builds — pdfjs-dist itself is mocked.
+  }
   _pdfjs = pdfjs;
   return pdfjs;
 }
