@@ -19,6 +19,7 @@ export default defineConfig({
         // xlsx, pdfjs-dist, and @supabase/supabase-js are not in the sandbox registry.
         // Aliased to local stubs so the build resolves.
         "xlsx": resolve("src/__mocks__/xlsx.ts"),
+        "pdfjs-dist/build/pdf.worker.min.mjs": resolve("src/lib/pdfjs-worker-stub.mjs"),
         "pdfjs-dist": resolve("src/__mocks__/pdfjs-dist.ts"),
         "@supabase/supabase-js": resolve("src/__mocks__/supabase-js.ts"),
       },
