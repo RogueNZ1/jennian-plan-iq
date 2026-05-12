@@ -16,6 +16,11 @@ import {
   AlertTriangle, ShoppingCart, ClipboardCheck, Eye, FileSpreadsheet, ArrowRight, History,
   Wand2, RefreshCw,
 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  buildQSExportData, writeQSExport,
+  buildElectricalSchedule, electricalScheduleToCSV,
+} from "@/lib/iq-qs-export";
 import { JobAuditTimeline } from "@/components/jennian/JobAuditTimeline";
 import { AutomaticTakeoffDialog } from "@/components/jennian/AutomaticTakeoffDialog";
 import { TakeoffSummary } from "@/components/jennian/TakeoffSummary";
@@ -51,6 +56,8 @@ function JobDetail() {
   const [takeoffRun, setTakeoffRun] = useState<LatestTakeoffRun | null>(null);
   const [startChooserOpen, setStartChooserOpen] = useState(false);
   const [hasTakeoffData, setHasTakeoffData] = useState<boolean | null>(null);
+  const [exportingQS, setExportingQS] = useState(false);
+  const [exportingElec, setExportingElec] = useState(false);
 
   async function refreshHasData() {
     const counts = await Promise.all([
@@ -90,6 +97,54 @@ function JobDetail() {
   );
 
   const showStartPanel = !loading && hasTakeoffData === false && !takeoffRun;
+
+  async function handleExportQS() {
+    setExportingQS(true);
+    try {
+      const data = await buildQSExportData(jobId);
+      const { data: templateBlob, error: tplErr } = await supabase.storage
+        .from("qs-templates")
+        .download("jennian-qs-template.xlsm");
+      if (tplErr || !templateBlob) throw new Error("Could not download QS template");
+      const buf = await templateBlob.arrayBuffer();
+      const xlsmBytes = writeQSExport(buf, data);
+      const blob = new Blob([xlsmBytes], {
+        type: "application/vnd.ms-excel.sheet.macroEnabled.12",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${data.jobNumber}-QS-Export.xlsm`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("QS spreadsheet exported");
+    } catch (err) {
+      toast.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setExportingQS(false);
+    }
+  }
+
+  async function handleExportElectrical() {
+    setExportingElec(true);
+    try {
+      const data = await buildQSExportData(jobId);
+      const schedule = buildElectricalSchedule(data);
+      const csv = electricalScheduleToCSV(schedule);
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${data.jobNumber}-Electrical-Schedule.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Electrical schedule exported");
+    } catch (err) {
+      toast.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setExportingElec(false);
+    }
+  }
 
   function openWorkingPlan() {
     navigate({ to: "/review", search: { job: jobId, tab: "working" } });
@@ -147,6 +202,24 @@ function JobDetail() {
                 className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
               >
                 <Eye className="h-4 w-4" /> View Plans
+              </button>
+              <button
+                type="button"
+                onClick={handleExportQS}
+                disabled={exportingQS}
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                {exportingQS ? "Exporting…" : "Export to QS"}
+              </button>
+              <button
+                type="button"
+                onClick={handleExportElectrical}
+                disabled={exportingElec}
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+              >
+                <Zap className="h-4 w-4" />
+                {exportingElec ? "Exporting…" : "Electrical Schedule"}
               </button>
             </div>
           }
