@@ -15,14 +15,15 @@ export default defineConfig({
   },
   vite: {
     resolve: {
-      alias: {
+      alias: [
         // xlsx, pdfjs-dist, and @supabase/supabase-js are not in the sandbox registry.
-        // Aliased to local stubs so the build resolves.
-        "xlsx": resolve("src/__mocks__/xlsx.ts"),
-        "pdfjs-dist/build/pdf.worker.min.mjs": resolve("src/lib/pdfjs-worker-stub.mjs"),
-        "pdfjs-dist": resolve("src/__mocks__/pdfjs-dist.ts"),
-        "@supabase/supabase-js": resolve("src/__mocks__/supabase-js.ts"),
-      },
+        // Aliased to local stubs so the build resolves. Order matters — more
+        // specific entries must come first.
+        { find: /^pdfjs-dist\/build\/pdf\.worker\.min\.mjs$/, replacement: resolve("src/lib/pdfjs-worker-stub.mjs") },
+        { find: /^pdfjs-dist$/, replacement: resolve("src/__mocks__/pdfjs-dist.ts") },
+        { find: "xlsx", replacement: resolve("src/__mocks__/xlsx.ts") },
+        { find: "@supabase/supabase-js", replacement: resolve("src/__mocks__/supabase-js.ts") },
+      ],
     },
   },
 });
