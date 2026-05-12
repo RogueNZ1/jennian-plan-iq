@@ -86,7 +86,10 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-framing",
     label: "Foundation Type",
     unit: "",
-    patterns: [/foundation(?:\s+type)?[:\s]+([A-Za-z0-9 ,.\-/]{2,80})/i, /codemark\s+([A-Za-z0-9 ,.\-/]{2,60})/i],
+    patterns: [
+      /foundation(?:\s+type)?[:\s]+([A-Za-z0-9 ,.\-/]{2,80})/i,
+      /codemark\s+([A-Za-z0-9 ,.\-/]{2,60})/i,
+    ],
     maxValueLen: 80,
   },
   {
@@ -99,7 +102,7 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-framing",
     label: "Wind Zone",
     unit: "",
-    patterns: [/wind\s+zone[:\s]+([A-Za-z0-9 \-]{1,40})/i],
+    patterns: [/wind\s+zone[:\s]+([A-Za-z0-9 -]{1,40})/i],
     maxValueLen: 40,
   },
   {
@@ -138,7 +141,7 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-roofing",
     label: "Roof Profile",
     unit: "",
-    patterns: [/roof\s+profile[:\s]+([A-Za-z0-9 ,.\-/\-]{2,100})/i],
+    patterns: [/roof\s+profile[:\s]+([A-Za-z0-9 ,.\-/]{2,100})/i],
     maxValueLen: 100,
   },
   {
@@ -172,7 +175,7 @@ const SPEC_DEFS: SpecDef[] = [
     label: "Exterior Cladding Type 1",
     unit: "",
     patterns: [
-      /exterior\s+cladding\s+type\s*1[:\s]+([A-Za-z0-9 ,.\-/\-]{2,120})/i,
+      /exterior\s+cladding\s+type\s*1[:\s]+([A-Za-z0-9 ,.\-/]{2,120})/i,
       /exterior\s+cladding\s+type\s*one[:\s]+([A-Za-z0-9 ,.\-/]{2,120})/i,
     ],
     maxValueLen: 120,
@@ -182,8 +185,8 @@ const SPEC_DEFS: SpecDef[] = [
     label: "Exterior Cladding Type 2",
     unit: "",
     patterns: [
-      /exterior\s+cladding\s+type\s*2[:\s\(]+([A-Za-z0-9 ,.\-/\-]{2,120})/i,
-      /feature\s+cladding[:\s\)]+([A-Za-z0-9 ,.\-/]{2,120})/i,
+      /exterior\s+cladding\s+type\s*2[:\s(]+([A-Za-z0-9 ,.\-/]{2,120})/i,
+      /feature\s+cladding[:\s)]+([A-Za-z0-9 ,.\-/]{2,120})/i,
     ],
     maxValueLen: 120,
   },
@@ -204,28 +207,28 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-cladding",
     label: "Fascia",
     unit: "",
-    patterns: [/\bfascia[:\s]+([A-Za-z0-9 ,.\-/\-]{2,100})/i],
+    patterns: [/\bfascia[:\s]+([A-Za-z0-9 ,.\-/]{2,100})/i],
     maxValueLen: 100,
   },
   {
     moduleId: "iq-cladding",
     label: "Spouting",
     unit: "",
-    patterns: [/\bspouting[:\s]+([A-Za-z0-9 ,.\-/\-]{2,100})/i],
+    patterns: [/\bspouting[:\s]+([A-Za-z0-9 ,.\-/]{2,100})/i],
     maxValueLen: 100,
   },
   {
     moduleId: "iq-cladding",
     label: "Spouting Profile",
     unit: "",
-    patterns: [/spouting\s+profile[:\s]+([A-Za-z0-9 ,.\-/"\/]{2,80})/i],
+    patterns: [/spouting\s+profile[:\s]+([A-Za-z0-9 ,.\-/"]{2,80})/i],
     maxValueLen: 80,
   },
   {
     moduleId: "iq-cladding",
     label: "Downpipes",
     unit: "",
-    patterns: [/\bdownpipes?[:\s]+([A-Za-z0-9 ,.\-/\-]{2,100})/i],
+    patterns: [/\bdownpipes?[:\s]+([A-Za-z0-9 ,.\-/]{2,100})/i],
     maxValueLen: 100,
   },
   {
@@ -256,8 +259,8 @@ const SPEC_DEFS: SpecDef[] = [
     label: "Garage Door",
     unit: "",
     patterns: [
-      /garage\s+door[:\s]+(\d(?:\.\d)?\s*m\s*[x×]\s*\d(?:\.\d)?\s*m[A-Za-z0-9 ,.\-/\-]{0,80})/i,
-      /garage\s+door[:\s]+([A-Za-z0-9 ,.\-/\-]{4,120})/i,
+      /garage\s+door[:\s]+(\d(?:\.\d)?\s*m\s*[x×]\s*\d(?:\.\d)?\s*m[A-Za-z0-9 ,.\-/]{0,80})/i,
+      /garage\s+door[:\s]+([A-Za-z0-9 ,.\-/]{4,120})/i,
     ],
     maxValueLen: 120,
   },
@@ -272,7 +275,7 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-cladding",
     label: "Exterior Joinery",
     unit: "",
-    patterns: [/exterior\s+aluminium\s+joinery[:\s]+([A-Za-z0-9 ,.\-/\-]{2,120})/i],
+    patterns: [/exterior\s+aluminium\s+joinery[:\s]+([A-Za-z0-9 ,.\-/]{2,120})/i],
     maxValueLen: 120,
   },
   {
@@ -300,7 +303,7 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-cladding",
     label: "Low E Glazing",
     unit: "",
-    patterns: [/low[\s\-]?e(?:\s+max)?\s+glazing[:\s]+([A-Za-z0-9 ,.\-/]{2,60})/i],
+    patterns: [/low[\s-]?e(?:\s+max)?\s+glazing[:\s]+([A-Za-z0-9 ,.\-/]{2,60})/i],
     maxValueLen: 60,
   },
   {
@@ -335,7 +338,7 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-cladding",
     label: "Window Latches",
     unit: "",
-    patterns: [/window\s+latches?[:\s]+([A-Za-z0-9 ,.\-/\(\)]{2,120})/i],
+    patterns: [/window\s+latches?[:\s]+([A-Za-z0-9 ,.\-/()]{2,120})/i],
     maxValueLen: 120,
   },
   {
@@ -351,7 +354,7 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-framing",
     label: "Ceiling Insulation",
     unit: "",
-    patterns: [/ceiling\s+insulation[:\s]+([A-Za-z0-9 ,.\-/\.]{2,120})/i],
+    patterns: [/ceiling\s+insulation[:\s]+([A-Za-z0-9 ,.\-/.]{2,120})/i],
     maxValueLen: 120,
   },
   {
@@ -364,7 +367,7 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-framing",
     label: "Wall Insulation",
     unit: "",
-    patterns: [/(?:exterior\s+)?wall\s+insulation[:\s]+([A-Za-z0-9 ,.\-/\.]{2,120})/i],
+    patterns: [/(?:exterior\s+)?wall\s+insulation[:\s]+([A-Za-z0-9 ,.\-/.]{2,120})/i],
     maxValueLen: 120,
   },
   {
@@ -386,7 +389,9 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-linings",
     label: "Bathroom / Ensuite Ceiling Linings",
     unit: "",
-    patterns: [/bathroom(?:\s*\/?\s*ensuite)?\s+ceiling\s+linings?[:\s]+([A-Za-z0-9 ,.\-/]{2,120})/i],
+    patterns: [
+      /bathroom(?:\s*\/?\s*ensuite)?\s+ceiling\s+linings?[:\s]+([A-Za-z0-9 ,.\-/]{2,120})/i,
+    ],
     maxValueLen: 120,
   },
   {
@@ -442,7 +447,7 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-linings",
     label: "Scotia",
     unit: "",
-    patterns: [/\bscotia[:\s]+([A-Za-z0-9 ,.\-/\(\)]{2,160})/i],
+    patterns: [/\bscotia[:\s]+([A-Za-z0-9 ,.\-/()]{2,160})/i],
     maxValueLen: 160,
   },
 
@@ -451,14 +456,14 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-linings",
     label: "Interior Doors",
     unit: "",
-    patterns: [/interior\s+doors?[:\s]+([A-Za-z0-9 ,.\-/\(\)]{2,120})/i],
+    patterns: [/interior\s+doors?[:\s]+([A-Za-z0-9 ,.\-/()]{2,120})/i],
     maxValueLen: 120,
   },
   {
     moduleId: "iq-linings",
     label: "Interior Door Handles",
     unit: "",
-    patterns: [/interior\s+door\s+handles?[:\s]+([A-Za-z0-9 ,.\-/\-]{2,120})/i],
+    patterns: [/interior\s+door\s+handles?[:\s]+([A-Za-z0-9 ,.\-/]{2,120})/i],
     maxValueLen: 120,
   },
   {
@@ -531,14 +536,14 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-linings",
     label: "Linen Cupboard",
     unit: "",
-    patterns: [/linen\s+cupboard[:\s]+([A-Za-z0-9 ,.\-/\-]{2,100})/i],
+    patterns: [/linen\s+cupboard[:\s]+([A-Za-z0-9 ,.\-/]{2,100})/i],
     maxValueLen: 100,
   },
   {
     moduleId: "iq-linings",
     label: "Cupboards",
     unit: "",
-    patterns: [/\bcupboards?[:\s]+([A-Za-z0-9 ,.\-/\-]{2,100})/i],
+    patterns: [/\bcupboards?[:\s]+([A-Za-z0-9 ,.\-/]{2,100})/i],
     maxValueLen: 100,
   },
 
@@ -582,14 +587,14 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-plumbing",
     label: "Mirror",
     unit: "",
-    patterns: [/\bmirror[:\s]+([A-Za-z0-9 ,.\-/\-]{2,100})/i],
+    patterns: [/\bmirror[:\s]+([A-Za-z0-9 ,.\-/]{2,100})/i],
     maxValueLen: 100,
   },
   {
     moduleId: "iq-plumbing",
     label: "Shower",
     unit: "",
-    patterns: [/\bshower[:\s]+([A-Za-z0-9 ,.\-/×x\(\)]{2,120})/i],
+    patterns: [/\bshower[:\s]+([A-Za-z0-9 ,.\-/×x()]{2,120})/i],
     maxValueLen: 120,
   },
   {
@@ -638,7 +643,10 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-plumbing",
     label: "Exterior Taps",
     unit: "qty",
-    patterns: [/exterior\s+taps?[:\s]+(\d{1,2})\s+exterior\s+taps?/i, /exterior\s+taps?[:\s]+(\d{1,2})/i],
+    patterns: [
+      /exterior\s+taps?[:\s]+(\d{1,2})\s+exterior\s+taps?/i,
+      /exterior\s+taps?[:\s]+(\d{1,2})/i,
+    ],
   },
   {
     moduleId: "iq-plumbing",
@@ -707,7 +715,7 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-plumbing",
     label: "Fridge",
     unit: "",
-    patterns: [/\bfridge[:\s]+([A-Za-z0-9 ,.\-/\-]{2,80})/i],
+    patterns: [/\bfridge[:\s]+([A-Za-z0-9 ,.\-/]{2,80})/i],
     maxValueLen: 80,
   },
   {
@@ -746,14 +754,24 @@ const SPEC_DEFS: SpecDef[] = [
     unit: "qty",
     patterns: [/cat\s*6\s+data\s+points?[:\s]+(?:x\s*)?(\d{1,3})/i],
   },
-  { moduleId: "iq-electrical", label: "Floor TV", unit: "qty", patterns: [/floor\s+tv[:\s]+(?:x\s*)?(\d{1,3})/i] },
+  {
+    moduleId: "iq-electrical",
+    label: "Floor TV",
+    unit: "qty",
+    patterns: [/floor\s+tv[:\s]+(?:x\s*)?(\d{1,3})/i],
+  },
   {
     moduleId: "iq-electrical",
     label: "Wall Mounted TV",
     unit: "qty",
     patterns: [/wall\s*[-]?\s*mounted\s+tv[:\s]+(?:x\s*)?(\d{1,3})/i],
   },
-  { moduleId: "iq-electrical", label: "HDMI Cable", unit: "qty", patterns: [/hdmi\s+cable[:\s]+(?:x\s*)?(\d{1,3})/i] },
+  {
+    moduleId: "iq-electrical",
+    label: "HDMI Cable",
+    unit: "qty",
+    patterns: [/hdmi\s+cable[:\s]+(?:x\s*)?(\d{1,3})/i],
+  },
   {
     moduleId: "iq-electrical",
     label: "Recessed TV Box",
@@ -858,8 +876,8 @@ const SPEC_DEFS: SpecDef[] = [
     label: "Heat Pump",
     unit: "",
     patterns: [
-      /(?:home\s+)?heating[:\s]+([A-Za-z0-9 ,.\-/\-]{2,120})/i,
-      /heat\s+pump[:\s]+([A-Za-z0-9 ,.\-/\-]{2,120})/i,
+      /(?:home\s+)?heating[:\s]+([A-Za-z0-9 ,.\-/]{2,120})/i,
+      /heat\s+pump[:\s]+([A-Za-z0-9 ,.\-/]{2,120})/i,
     ],
     maxValueLen: 120,
   },
@@ -869,35 +887,37 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-linings",
     label: "Paint — Ceiling & Scotia",
     unit: "",
-    patterns: [/ceiling\s+and\s+scotia[:\s]+([A-Za-z0-9 ,.\-/\-\#]{2,120})/i],
+    patterns: [/ceiling\s+and\s+scotia[:\s]+([A-Za-z0-9 ,.\-/#]{2,120})/i],
     maxValueLen: 120,
   },
   {
     moduleId: "iq-linings",
     label: "Paint — Walls",
     unit: "",
-    patterns: [/\bwalls?[:\s]+((?:[A-Za-z0-9]+\s+){1,4}N\d{2}-\d{3}-\d{3}[A-Za-z0-9 ,.\-/\-]{0,80})/i],
+    patterns: [
+      /\bwalls?[:\s]+((?:[A-Za-z0-9]+\s+){1,4}N\d{2}-\d{3}-\d{3}[A-Za-z0-9 ,.\-/]{0,80})/i,
+    ],
     maxValueLen: 120,
   },
   {
     moduleId: "iq-linings",
     label: "Paint — Exterior Cladding 1",
     unit: "",
-    patterns: [/exterior\s+cladding\s+1[:\s]+([A-Za-z0-9 ,.\-/\-\#]{2,120})/i],
+    patterns: [/exterior\s+cladding\s+1[:\s]+([A-Za-z0-9 ,.\-/#]{2,120})/i],
     maxValueLen: 120,
   },
   {
     moduleId: "iq-linings",
     label: "Paint — Exterior Cladding 2",
     unit: "",
-    patterns: [/exterior\s+cladding\s+2[:\s]+([A-Za-z0-9 ,.\-/\-\#]{2,120})/i],
+    patterns: [/exterior\s+cladding\s+2[:\s]+([A-Za-z0-9 ,.\-/#]{2,120})/i],
     maxValueLen: 120,
   },
   {
     moduleId: "iq-linings",
     label: "Paint — Soffits",
     unit: "",
-    patterns: [/\bsoffits?[:\s]+([A-Za-z0-9 ,.\-/\-\#]{2,120})/i],
+    patterns: [/\bsoffits?[:\s]+([A-Za-z0-9 ,.\-/#]{2,120})/i],
     maxValueLen: 120,
   },
 
@@ -906,42 +926,44 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-linings",
     label: "Floor — Bedrooms",
     unit: "",
-    patterns: [/bedrooms?[:\s]+(?:carpet|vinyl|timber|concrete)[A-Za-z0-9 ,.\-/\-]{0,120}/i],
+    patterns: [/bedrooms?[:\s]+(?:carpet|vinyl|timber|concrete)[A-Za-z0-9 ,.\-/]{0,120}/i],
     maxValueLen: 140,
   },
   {
     moduleId: "iq-linings",
     label: "Floor — Lounge",
     unit: "",
-    patterns: [/lounge[:\s]+(?:carpet|vinyl|timber|concrete)[A-Za-z0-9 ,.\-/\-]{0,120}/i],
+    patterns: [/lounge[:\s]+(?:carpet|vinyl|timber|concrete)[A-Za-z0-9 ,.\-/]{0,120}/i],
     maxValueLen: 140,
   },
   {
     moduleId: "iq-linings",
     label: "Floor — Dining",
     unit: "",
-    patterns: [/dining[:\s]+(?:carpet|vinyl|timber|concrete)[A-Za-z0-9 ,.\-/\-]{0,120}/i],
+    patterns: [/dining[:\s]+(?:carpet|vinyl|timber|concrete)[A-Za-z0-9 ,.\-/]{0,120}/i],
     maxValueLen: 140,
   },
   {
     moduleId: "iq-linings",
     label: "Floor — Kitchen",
     unit: "",
-    patterns: [/kitchen(?:\/pantry)?[:\s]+(?:carpet|vinyl|timber|concrete)[A-Za-z0-9 ,.\-/\-]{0,120}/i],
+    patterns: [
+      /kitchen(?:\/pantry)?[:\s]+(?:carpet|vinyl|timber|concrete)[A-Za-z0-9 ,.\-/]{0,120}/i,
+    ],
     maxValueLen: 140,
   },
   {
     moduleId: "iq-linings",
     label: "Floor — Bathrooms",
     unit: "",
-    patterns: [/bathrooms?[:\s]+(?:carpet|vinyl|timber|concrete|tile)[A-Za-z0-9 ,.\-/\-]{0,120}/i],
+    patterns: [/bathrooms?[:\s]+(?:carpet|vinyl|timber|concrete|tile)[A-Za-z0-9 ,.\-/]{0,120}/i],
     maxValueLen: 140,
   },
   {
     moduleId: "iq-linings",
     label: "Floor — Hallways",
     unit: "",
-    patterns: [/hall(?:way)?[:\s]+(?:carpet|vinyl|timber|concrete)[A-Za-z0-9 ,.\-/\-]{0,120}/i],
+    patterns: [/hall(?:way)?[:\s]+(?:carpet|vinyl|timber|concrete)[A-Za-z0-9 ,.\-/]{0,120}/i],
     maxValueLen: 140,
   },
   {
@@ -969,7 +991,7 @@ const SPEC_DEFS: SpecDef[] = [
     moduleId: "iq-core",
     label: "Fencing",
     unit: "",
-    patterns: [/\bfencing[:\s]+([A-Za-z0-9 ,.\-/\.%]{2,120})/i],
+    patterns: [/\bfencing[:\s]+([A-Za-z0-9 ,.\-/.%]{2,120})/i],
     maxValueLen: 120,
   },
   {
@@ -1070,4 +1092,95 @@ export function extractSpecRowsFromFile(file: ExtractedFile): SpecRow[] {
   }
 
   return rows;
+}
+
+/* -------------------------------------------------------- job header extraction */
+
+export type JobHeader = {
+  clientName: string | null;
+  addressLine1: string | null;
+  city: string | null;
+  date: string | null;
+  jmwNumber: string | null;
+  jobNumber: string | null;
+  source: "smw" | "plans" | "unknown";
+};
+
+const JMW_NUMBER_RE = /\bJMW\d{4,6}(?!\d)/i;
+const JOB_HASH_RE = /job\s*#\s*(\d{4,6})/i;
+const NZ_DATE_RE = /\b(\d{1,2}\/\d{1,2}\/\d{4})\b/;
+const JENNIAN_HEADER = /jennian\s+homes/i;
+const SKIP_LINE_RE =
+  /^(drawings?\s+provided|copyright|circumstances|permission|www\.|T\s+06|manawatu@|275\s+broadway|palmerston\s+north\s+\d{4})/i;
+
+export function extractJobHeaderFromFile(file: ExtractedFile): JobHeader {
+  const result: JobHeader = {
+    clientName: null,
+    addressLine1: null,
+    city: null,
+    date: null,
+    jmwNumber: null,
+    jobNumber: null,
+    source: "unknown",
+  };
+
+  for (const page of file.pages) {
+    const text = page.text ?? "";
+
+    if (!result.jmwNumber) {
+      const m = JMW_NUMBER_RE.exec(text);
+      if (m) result.jmwNumber = m[0].toUpperCase();
+    }
+
+    if (!result.jobNumber) {
+      const m = JOB_HASH_RE.exec(text);
+      if (m) result.jobNumber = m[1];
+    }
+
+    if (!result.date) {
+      const m = NZ_DATE_RE.exec(text);
+      if (m) result.date = m[1];
+    }
+  }
+
+  const firstPage = file.pages[0]?.text ?? "";
+  const lines = firstPage
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 2)
+    .filter((l) => !SKIP_LINE_RE.test(l));
+
+  const isSMW = JENNIAN_HEADER.test(firstPage.slice(0, 500));
+  const isPlans = JOB_HASH_RE.test(firstPage.slice(0, 300));
+
+  result.source = isSMW ? "smw" : isPlans ? "plans" : "unknown";
+
+  if (isSMW) {
+    const contentLines = lines.filter(
+      (l) =>
+        !JENNIAN_HEADER.test(l) &&
+        !/^(feels like|your personality)/i.test(l) &&
+        !/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(l),
+    );
+
+    result.clientName = contentLines[0] ?? null;
+    result.addressLine1 = contentLines[1] ?? null;
+    result.city = contentLines[2] ?? null;
+  } else if (isPlans) {
+    const titleBlockMatch = firstPage.match(
+      /([A-Z][a-z]+(?: [A-Z][a-z]+){1,4})\s*\n\s*(\d+[^,\n]{4,40})\s*\n\s*([A-Z][a-z]+(?: [A-Z][a-z]+){0,3})/,
+    );
+    if (titleBlockMatch) {
+      result.clientName = titleBlockMatch[1].trim();
+      result.addressLine1 = titleBlockMatch[2].trim();
+      result.city = titleBlockMatch[3].trim();
+    }
+  }
+
+  if (!result.jmwNumber && file.fileName) {
+    const m = JMW_NUMBER_RE.exec(file.fileName);
+    if (m) result.jmwNumber = m[0].toUpperCase();
+  }
+
+  return result;
 }

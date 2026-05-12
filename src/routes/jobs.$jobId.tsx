@@ -14,13 +14,14 @@ import {
 import {
   Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain,
   AlertTriangle, ShoppingCart, ClipboardCheck, Eye, FileSpreadsheet, ArrowRight, History,
-  Wand2, RefreshCw,
+  Wand2, RefreshCw, Package,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   buildQSExportData, writeQSExport,
   buildElectricalSchedule, electricalScheduleToCSV,
 } from "@/lib/iq-qs-export";
+import { exportCartersLoads } from "@/lib/iq-carters-loads";
 import { JobAuditTimeline } from "@/components/jennian/JobAuditTimeline";
 import { AutomaticTakeoffDialog } from "@/components/jennian/AutomaticTakeoffDialog";
 import { TakeoffSummary } from "@/components/jennian/TakeoffSummary";
@@ -58,6 +59,7 @@ function JobDetail() {
   const [hasTakeoffData, setHasTakeoffData] = useState<boolean | null>(null);
   const [exportingQS, setExportingQS] = useState(false);
   const [exportingElec, setExportingElec] = useState(false);
+  const [exportingCarters, setExportingCarters] = useState(false);
 
   async function refreshHasData() {
     const counts = await Promise.all([
@@ -146,6 +148,24 @@ function JobDetail() {
     }
   }
 
+  async function handleExportCarters() {
+    setExportingCarters(true);
+    try {
+      const { blob, filename } = await exportCartersLoads(jobId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Carters stage loads exported — send to Kirsty");
+    } catch (err) {
+      toast.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setExportingCarters(false);
+    }
+  }
+
   function openWorkingPlan() {
     navigate({ to: "/review", search: { job: jobId, tab: "working" } });
   }
@@ -221,6 +241,17 @@ function JobDetail() {
                 <Zap className="h-4 w-4" />
                 {exportingElec ? "Exporting…" : "Electrical Schedule"}
               </button>
+              {hasTakeoffData && (
+                <button
+                  type="button"
+                  onClick={handleExportCarters}
+                  disabled={exportingCarters}
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+                >
+                  <Package className="h-4 w-4" />
+                  {exportingCarters ? "Exporting…" : "Carters Loads"}
+                </button>
+              )}
             </div>
           }
         />
