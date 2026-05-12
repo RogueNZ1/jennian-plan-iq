@@ -14,7 +14,7 @@ import {
 import {
   Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain,
   AlertTriangle, ShoppingCart, ClipboardCheck, Eye, FileSpreadsheet, ArrowRight, History,
-  Wand2, RefreshCw,
+  Wand2, RefreshCw, Package,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -158,7 +158,7 @@ function JobDetail() {
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success("Carters stage loads exported");
+      toast.success("Carters stage loads exported — send to Kirsty");
     } catch (err) {
       toast.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -241,15 +241,17 @@ function JobDetail() {
                 <Zap className="h-4 w-4" />
                 {exportingElec ? "Exporting…" : "Electrical Schedule"}
               </button>
-              <button
-                type="button"
-                onClick={handleExportCarters}
-                disabled={exportingCarters}
-                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
-              >
-                <ShoppingCart className="h-4 w-4" />
-                {exportingCarters ? "Exporting…" : "Carters Loads"}
-              </button>
+              {hasTakeoffData && (
+                <button
+                  type="button"
+                  onClick={handleExportCarters}
+                  disabled={exportingCarters}
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+                >
+                  <Package className="h-4 w-4" />
+                  {exportingCarters ? "Exporting…" : "Carters Loads"}
+                </button>
+              )}
             </div>
           }
         />
