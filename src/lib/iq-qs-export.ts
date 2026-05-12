@@ -79,7 +79,7 @@ export async function buildQSExportData(jobId: string): Promise<QSExportData> {
     const row = items.find(
       (i) => i.label?.toLowerCase().includes(label.toLowerCase()),
     );
-    return row?.approved_value ?? row?.ai_value ?? null;
+    return row?.approved_value ?? row?.extracted_value ?? null;
   }
 
   function getNum(label: string): number | null {
@@ -92,25 +92,25 @@ export async function buildQSExportData(jobId: string): Promise<QSExportData> {
   // Openings grouped
   const openings = openingsRes.data ?? [];
   const windows = openings
-    .filter((o) => o.type === "window")
-    .map((o) => ({ type: o.description ?? o.mark ?? "Window", qty: o.quantity ?? 1 }));
+    .filter((o) => o.opening_type === "window")
+    .map((o) => ({ type: o.room_name ?? "Window", qty: o.quantity ?? 1 }));
   const garageDoors = openings
-    .filter((o) => o.type === "garage_door")
-    .map((o) => ({ type: o.description ?? o.mark ?? "Garage Door", qty: o.quantity ?? 1 }));
+    .filter((o) => o.opening_type === "garage_door")
+    .map((o) => ({ type: o.room_name ?? "Garage Door", qty: o.quantity ?? 1 }));
   const interiorDoors = openings
-    .filter((o) => o.type === "interior_door")
-    .map((o) => ({ type: o.description ?? o.mark ?? "Interior Door", qty: o.quantity ?? 1 }));
+    .filter((o) => o.opening_type === "interior_door")
+    .map((o) => ({ type: o.room_name ?? "Interior Door", qty: o.quantity ?? 1 }));
   const skylights = openings
-    .filter((o) => o.type === "skylight")
-    .map((o) => ({ type: o.description ?? o.mark ?? "Skylight", qty: o.quantity ?? 1 }));
+    .filter((o) => o.opening_type === "skylight")
+    .map((o) => ({ type: o.room_name ?? "Skylight", qty: o.quantity ?? 1 }));
 
   // Downpipes from items
   const downpipeItems = items.filter(
     (i) => i.label?.toLowerCase().includes("downpipe"),
   );
   const downpipes = downpipeItems.map((i) => ({
-    size: i.approved_value ?? i.ai_value ?? "90mm",
-    qty: parseFloat(i.approved_value ?? i.ai_value ?? "1") || 1,
+    size: i.approved_value ?? i.extracted_value ?? "90mm",
+    qty: parseFloat(i.approved_value ?? i.extracted_value ?? "1") || 1,
   }));
 
   // Heat pumps from items
@@ -120,7 +120,7 @@ export async function buildQSExportData(jobId: string): Promise<QSExportData> {
       i.label?.toLowerCase().includes("heating"),
   );
   const heatPumps = heatPumpItems.map((i) => ({
-    model: i.approved_value ?? i.ai_value ?? "Heat Pump",
+    model: i.approved_value ?? i.extracted_value ?? "Heat Pump",
     qty: 1,
   }));
 
@@ -141,7 +141,7 @@ export async function buildQSExportData(jobId: string): Promise<QSExportData> {
     .slice(0, 6)
     .map((i) => ({
       description: i.label ?? "Extra",
-      value: parseFloat(i.approved_value ?? i.ai_value ?? "0") || 0,
+      value: parseFloat(i.approved_value ?? i.extracted_value ?? "0") || 0,
     }));
 
   return {

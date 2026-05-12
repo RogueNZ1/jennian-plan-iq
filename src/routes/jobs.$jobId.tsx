@@ -108,7 +108,7 @@ function JobDetail() {
       if (tplErr || !templateBlob) throw new Error("Could not download QS template");
       const buf = await templateBlob.arrayBuffer();
       const xlsmBytes = writeQSExport(buf, data);
-      const blob = new Blob([xlsmBytes], {
+      const blob = new Blob([xlsmBytes as BlobPart], {
         type: "application/vnd.ms-excel.sheet.macroEnabled.12",
       });
       const url = URL.createObjectURL(blob);
