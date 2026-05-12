@@ -79,7 +79,7 @@ export async function buildQSExportData(jobId: string): Promise<QSExportData> {
     const row = items.find(
       (i) => i.label?.toLowerCase().includes(label.toLowerCase()),
     );
-    return row?.approved_value ?? row?.ai_value ?? null;
+    return row?.approved_value ?? row?.extracted_value ?? null;
   }
 
   function getNum(label: string): number | null {
