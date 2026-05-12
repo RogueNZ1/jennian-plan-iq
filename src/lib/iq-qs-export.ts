@@ -7,6 +7,8 @@
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { extractJobHeaderFromFile } from "@/lib/takeoff/extract-spec";
+import type { ExtractedFile } from "@/lib/takeoff/pdf-text";
 
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
 type OpeningRow = Database["public"]["Tables"]["opening_schedule"]["Row"];
@@ -68,7 +70,10 @@ export type ElectricalSchedule = {
 
 /* -------------------------------------------------------------- data load */
 
-export async function buildQSExportData(jobId: string): Promise<QSExportData> {
+export async function buildQSExportData(
+  jobId: string,
+  files?: ExtractedFile[],
+): Promise<QSExportData> {
   const [jobRes, itemsRes, openingsRes] = await Promise.all([
     supabase.from("jobs").select("*").eq("id", jobId).single(),
     supabase.from("module_items").select("*").eq("job_id", jobId),
@@ -148,10 +153,29 @@ export async function buildQSExportData(jobId: string): Promise<QSExportData> {
       value: parseFloat(i.approved_value ?? i.extracted_value ?? "0") || 0,
     }));
 
+  // Merge job header from extracted files: Supabase > SMW > plans > fallback
+  const smwHeader = files?.map(extractJobHeaderFromFile).find((h) => h.source === "smw");
+  const plansHeader = files?.map(extractJobHeaderFromFile).find((h) => h.source === "plans");
+  const resolvedClientName =
+    (job.client_name as string | null) ??
+    smwHeader?.clientName ??
+    plansHeader?.clientName ??
+    "";
+  const resolvedAddress =
+    (job.address as string | null) ??
+    smwHeader?.addressLine1 ??
+    plansHeader?.addressLine1 ??
+    "";
+  const resolvedJobNumber =
+    (job.job_number as string | null) ??
+    smwHeader?.jmwNumber ??
+    plansHeader?.jobNumber ??
+    jobId;
+
   return {
-    jobNumber: job.job_number ?? jobId,
-    clientName: job.client_name ?? "",
-    address: job.address ?? "",
+    jobNumber: resolvedJobNumber,
+    clientName: resolvedClientName,
+    address: resolvedAddress,
     templateId: job.template ?? null,
     createdAt: job.created_at ?? new Date().toISOString(),
     floorAreaM2: getNum("floor area") ?? getNum("total area"),

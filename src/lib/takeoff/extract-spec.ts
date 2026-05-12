@@ -1093,3 +1093,94 @@ export function extractSpecRowsFromFile(file: ExtractedFile): SpecRow[] {
 
   return rows;
 }
+
+/* -------------------------------------------------------- job header extraction */
+
+export type JobHeader = {
+  clientName: string | null;
+  addressLine1: string | null;
+  city: string | null;
+  date: string | null;
+  jmwNumber: string | null;
+  jobNumber: string | null;
+  source: "smw" | "plans" | "unknown";
+};
+
+const JMW_NUMBER_RE = /\bJMW\d{4,6}(?!\d)/i;
+const JOB_HASH_RE = /job\s*#\s*(\d{4,6})/i;
+const NZ_DATE_RE = /\b(\d{1,2}\/\d{1,2}\/\d{4})\b/;
+const JENNIAN_HEADER = /jennian\s+homes/i;
+const SKIP_LINE_RE =
+  /^(drawings?\s+provided|copyright|circumstances|permission|www\.|T\s+06|manawatu@|275\s+broadway|palmerston\s+north\s+\d{4})/i;
+
+export function extractJobHeaderFromFile(file: ExtractedFile): JobHeader {
+  const result: JobHeader = {
+    clientName: null,
+    addressLine1: null,
+    city: null,
+    date: null,
+    jmwNumber: null,
+    jobNumber: null,
+    source: "unknown",
+  };
+
+  for (const page of file.pages) {
+    const text = page.text ?? "";
+
+    if (!result.jmwNumber) {
+      const m = JMW_NUMBER_RE.exec(text);
+      if (m) result.jmwNumber = m[0].toUpperCase();
+    }
+
+    if (!result.jobNumber) {
+      const m = JOB_HASH_RE.exec(text);
+      if (m) result.jobNumber = m[1];
+    }
+
+    if (!result.date) {
+      const m = NZ_DATE_RE.exec(text);
+      if (m) result.date = m[1];
+    }
+  }
+
+  const firstPage = file.pages[0]?.text ?? "";
+  const lines = firstPage
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 2)
+    .filter((l) => !SKIP_LINE_RE.test(l));
+
+  const isSMW = JENNIAN_HEADER.test(firstPage.slice(0, 500));
+  const isPlans = JOB_HASH_RE.test(firstPage.slice(0, 300));
+
+  result.source = isSMW ? "smw" : isPlans ? "plans" : "unknown";
+
+  if (isSMW) {
+    const contentLines = lines.filter(
+      (l) =>
+        !JENNIAN_HEADER.test(l) &&
+        !/^(feels like|your personality)/i.test(l) &&
+        !/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(l),
+    );
+
+    result.clientName = contentLines[0] ?? null;
+    result.addressLine1 = contentLines[1] ?? null;
+    result.city = contentLines[2] ?? null;
+  } else if (isPlans) {
+    const titleBlockMatch = firstPage.match(
+      /([A-Z][a-z]+(?: [A-Z][a-z]+){1,4})\s*\n\s*(\d+[^,\n]{4,40})\s*\n\s*([A-Z][a-z]+(?: [A-Z][a-z]+){0,3})/,
+    );
+    if (titleBlockMatch) {
+      result.clientName = titleBlockMatch[1].trim();
+      result.addressLine1 = titleBlockMatch[2].trim();
+      result.city = titleBlockMatch[3].trim();
+    }
+  }
+
+  if (!result.jmwNumber && file.fileName) {
+    const m = JMW_NUMBER_RE.exec(file.fileName);
+    if (m) result.jmwNumber = m[0].toUpperCase();
+  }
+
+  return result;
+}

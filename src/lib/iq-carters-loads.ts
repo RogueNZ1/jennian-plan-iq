@@ -17,6 +17,8 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
+import { extractJobHeaderFromFile } from "@/lib/takeoff/extract-spec";
+import type { ExtractedFile } from "@/lib/takeoff/pdf-text";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -565,7 +567,10 @@ export function calculateCartersLoads(inp: CartersInputs): CartersLoad[] {
 
 // ── Supabase data loader ───────────────────────────────────────────────────
 
-export async function buildCartersInputs(jobId: string): Promise<CartersInputs> {
+export async function buildCartersInputs(
+  jobId: string,
+  files?: ExtractedFile[],
+): Promise<CartersInputs> {
   const [jobRes, qtyRes, openingsRes, itemsRes] = await Promise.all([
     supabase.from("jobs").select("*").eq("id", jobId).single(),
     supabase.from("extracted_quantities").select("*").eq("job_id", jobId),
@@ -625,10 +630,29 @@ export async function buildCartersInputs(jobId: string): Promise<CartersInputs> 
         ? "xpod_firth"
         : "expol";
 
+  // Merge job header from extracted files: Supabase > SMW > plans > fallback
+  const smwHeader = files?.map(extractJobHeaderFromFile).find((h) => h.source === "smw");
+  const plansHeader = files?.map(extractJobHeaderFromFile).find((h) => h.source === "plans");
+  const resolvedJobName =
+    String(job?.["client_name"] ?? "") ||
+    smwHeader?.clientName ||
+    plansHeader?.clientName ||
+    "";
+  const resolvedJobNumber =
+    String(job?.["job_number"] ?? "") ||
+    smwHeader?.jmwNumber ||
+    plansHeader?.jobNumber ||
+    "";
+  const resolvedAddress =
+    String(job?.["address"] ?? "") ||
+    smwHeader?.addressLine1 ||
+    plansHeader?.addressLine1 ||
+    "";
+
   return {
-    jobName: String(job?.["client_name"] ?? ""),
-    jobNumber: String(job?.["job_number"] ?? ""),
-    deliveryAddress: String(job?.["address"] ?? ""),
+    jobName: resolvedJobName,
+    jobNumber: resolvedJobNumber,
+    deliveryAddress: resolvedAddress,
     builderContact: "STUD",
 
     floorAreaM2: floorArea,
