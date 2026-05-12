@@ -1,7 +1,7 @@
 import * as pdfjsLib from "pdfjs-dist";
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+// Worker runs inline (no separate thread) — acceptable for thumbnail use.
+pdfjsLib.GlobalWorkerOptions.workerSrc = "";
 
 /**
  * Render the first page of a PDF File into a JPEG Blob suitable for a thumbnail.

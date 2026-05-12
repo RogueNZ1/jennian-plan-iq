@@ -3,12 +3,6 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { ImageOff } from "lucide-react";
 
-/**
- * Plan thumbnail.
- * - If `storagePath` is provided, resolves a private signed URL from the
- *   `job-files` bucket and renders the actual rendered PDF page image.
- * - Otherwise renders a clean "No preview available" placeholder.
- */
 export function PlanThumbnail({
   storagePath,
   className,
@@ -28,35 +22,39 @@ export function PlanThumbnail({
   }[size];
 
   const [url, setUrl] = useState<string | null>(null);
-  const [errored, setErrored] = useState(false);
+  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   useEffect(() => {
     let active = true;
-    setErrored(false);
-    setUrl(null);
-    if (!storagePath) return;
+    if (!storagePath) { setStatus("idle"); setUrl(null); return; }
+
+    setStatus("loading");
+
     if (
       /^https?:\/\//i.test(storagePath) ||
       storagePath.startsWith("data:") ||
       storagePath.startsWith("blob:")
     ) {
       setUrl(storagePath);
+      setStatus("ready");
       return;
     }
+
     supabase.storage
       .from("job-files")
       .createSignedUrl(storagePath, 60 * 30)
       .then(({ data, error }) => {
         if (!active) return;
-        if (error || !data?.signedUrl) setErrored(true);
-        else setUrl(data.signedUrl);
+        if (error || !data?.signedUrl) {
+          setStatus("error");
+        } else {
+          setUrl(data.signedUrl);
+          setStatus("ready");
+        }
       });
-    return () => {
-      active = false;
-    };
-  }, [storagePath]);
 
-  const hasImage = !!storagePath && !!url && !errored;
+    return () => { active = false; };
+  }, [storagePath]);
 
   return (
     <div
@@ -66,15 +64,19 @@ export function PlanThumbnail({
         className,
       )}
     >
-      {hasImage ? (
+      {status === "loading" && (
+        <div className="absolute inset-0 bg-muted/60 animate-pulse" />
+      )}
+      {status === "ready" && url && (
         <img
-          src={url!}
+          src={url}
           alt={alt}
           loading="lazy"
-          onError={() => setErrored(true)}
+          onError={() => setStatus("error")}
           className="absolute inset-0 h-full w-full object-cover"
         />
-      ) : (
+      )}
+      {(status === "idle" || status === "error") && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-muted-foreground/70 p-1 text-center">
           <ImageOff className="h-3.5 w-3.5 opacity-70" aria-hidden />
           <span className="text-[8.5px] uppercase tracking-[0.12em] leading-tight">

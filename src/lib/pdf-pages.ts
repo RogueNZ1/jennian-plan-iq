@@ -1,7 +1,7 @@
 import * as pdfjsLib from "pdfjs-dist";
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+// Worker runs inline (no separate thread) — acceptable for takeoff processing.
+pdfjsLib.GlobalWorkerOptions.workerSrc = "";
 
 export type PageType =
   | "dimension_floor_plan"
