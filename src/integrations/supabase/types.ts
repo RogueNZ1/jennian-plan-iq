@@ -283,6 +283,7 @@ export type Database = {
           review_status: string
           run_id: string
           sort_order: number
+          source: string | null
           source_evidence: string | null
           unit: string | null
           updated_at: string
@@ -307,6 +308,7 @@ export type Database = {
           review_status?: string
           run_id: string
           sort_order?: number
+          source?: string | null
           source_evidence?: string | null
           unit?: string | null
           updated_at?: string
@@ -331,6 +333,7 @@ export type Database = {
           review_status?: string
           run_id?: string
           sort_order?: number
+          source?: string | null
           source_evidence?: string | null
           unit?: string | null
           updated_at?: string
