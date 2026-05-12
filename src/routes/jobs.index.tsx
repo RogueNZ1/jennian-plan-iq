@@ -4,8 +4,8 @@ import { StatusBadge } from "@/components/jennian/StatusBadge";
 import { PlanThumbnail } from "@/components/jennian/PlanThumbnail";
 import { PlanViewer } from "@/components/jennian/PlanViewer";
 import { listJobs, type Job } from "@/lib/jennian-data";
-import { Upload, FileSpreadsheet, ClipboardCheck, Eye } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Upload, FileSpreadsheet, ClipboardCheck, Eye, AlertTriangle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 export const Route = createFileRoute("/jobs/")({ component: JobsPage });
 
@@ -17,6 +17,19 @@ function JobsPage() {
   useEffect(() => {
     listJobs().then(setJobs).finally(() => setLoading(false));
   }, []);
+
+  const duplicateCount = useMemo(() => {
+    const numCount: Record<string, number> = {};
+    const caCount: Record<string, number> = {};
+    for (const j of jobs) {
+      numCount[j.job_number] = (numCount[j.job_number] ?? 0) + 1;
+      const ca = `${j.client_name}||${j.address}`;
+      caCount[ca] = (caCount[ca] ?? 0) + 1;
+    }
+    return jobs.filter(
+      (j) => numCount[j.job_number] > 1 || caCount[`${j.client_name}||${j.address}`] > 1,
+    ).length;
+  }, [jobs]);
 
   return (
     <AppLayout>
@@ -31,6 +44,12 @@ function JobsPage() {
           }
         />
 
+        {duplicateCount > 0 && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {duplicateCount} duplicate job{duplicateCount !== 1 ? "s" : ""} detected — review and delete
+          </div>
+        )}
         <div className="rounded-xl border border-border bg-card overflow-hidden shadow-[0_1px_0_rgba(0,0,0,0.02)]">
           {loading ? (
             <div className="p-10 text-sm text-muted-foreground text-center">Loading…</div>

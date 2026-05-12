@@ -132,11 +132,17 @@ function UsersPage() {
   }, [profiles]);
 
   const rows: UserListRow[] = useMemo(() => {
+    const inviteEmailByName = new Map<string, string>();
+    for (const i of invites) {
+      const name = [i.first_name, i.last_name].filter(Boolean).join(" ");
+      if (name) inviteEmailByName.set(name.toLowerCase(), i.email);
+    }
+
     const live: UserListRow[] = profiles.map((p) => ({
       kind: "profile",
       id: p.id,
       name: p.full_name || (p.email ?? "—"),
-      email: p.email ?? "",
+      email: p.email ?? inviteEmailByName.get((p.full_name ?? "").toLowerCase()) ?? "",
       role: roleByUser[p.id] ?? "viewer",
       status: p.status === "suspended" ? "disabled" : p.status === "invited" ? "pending" : "active",
       branch: p.branch,

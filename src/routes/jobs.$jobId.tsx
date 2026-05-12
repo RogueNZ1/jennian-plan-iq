@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppLayout, PageHeader } from "@/components/jennian/AppLayout";
+import { useRoles } from "@/hooks/use-roles";
 import { Breadcrumbs } from "@/components/jennian/Breadcrumbs";
 import { StatusBadge } from "@/components/jennian/StatusBadge";
 import { PlanThumbnail } from "@/components/jennian/PlanThumbnail";
@@ -14,7 +15,7 @@ import {
 import {
   Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain,
   AlertTriangle, ShoppingCart, ClipboardCheck, Eye, FileSpreadsheet, ArrowRight, History,
-  Wand2, RefreshCw, Package,
+  Wand2, RefreshCw, Package, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -46,6 +47,7 @@ const ICONS: Record<string, typeof Ruler> = {
 function JobDetail() {
   const { jobId } = Route.useParams();
   const navigate = useNavigate();
+  const { isOwner } = useRoles();
   const [job, setJob] = useState<Job | null>(null);
   const [runs, setRuns] = useState<ModuleRun[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +62,8 @@ function JobDetail() {
   const [exportingQS, setExportingQS] = useState(false);
   const [exportingElec, setExportingElec] = useState(false);
   const [exportingCarters, setExportingCarters] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function refreshHasData() {
     const counts = await Promise.all([
@@ -166,6 +170,32 @@ function JobDetail() {
     }
   }
 
+  async function handleDeleteJob() {
+    setDeleting(true);
+    try {
+      await Promise.all([
+        supabase.from("module_items").delete().eq("job_id", jobId),
+        supabase.from("module_runs").delete().eq("job_id", jobId),
+        supabase.from("extracted_quantities").delete().eq("job_id", jobId),
+        supabase.from("opening_schedule").delete().eq("job_id", jobId),
+        supabase.from("plan_measurements").delete().eq("job_id", jobId),
+        supabase.from("takeoff_runs").delete().eq("job_id", jobId),
+        supabase.from("export_logs").delete().eq("job_id", jobId),
+        supabase.from("uploaded_files").delete().eq("job_id", jobId),
+        supabase.from("vision_takeoff_pages").delete().eq("job_id", jobId),
+      ]);
+      const { error } = await supabase.from("jobs").delete().eq("id", jobId);
+      if (error) throw error;
+      toast.success("Job deleted");
+      navigate({ to: "/jobs" });
+    } catch (err) {
+      toast.error(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setDeleting(false);
+      setDeleteConfirmOpen(false);
+    }
+  }
+
   function openWorkingPlan() {
     navigate({ to: "/review", search: { job: jobId, tab: "working" } });
   }
@@ -183,6 +213,15 @@ function JobDetail() {
           subtitle={job ? `${job.client_name} · ${job.address}` : "Loading…"}
           actions={
             <div className="flex items-center gap-2">
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-md border border-destructive/40 bg-card px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="h-4 w-4" /> Delete Job
+                </button>
+              )}
               {takeoffRun ? (
                 <>
                   <button
@@ -377,6 +416,27 @@ function JobDetail() {
         onOpenChange={setVisionOpen}
         jobId={jobId}
       />
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this job?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{job?.job_number ?? jobId}</strong> and all related
+              quantities, openings, module items, and takeoff data. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteJob}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting…" : "Delete Job"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={rerunConfirmOpen} onOpenChange={setRerunConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

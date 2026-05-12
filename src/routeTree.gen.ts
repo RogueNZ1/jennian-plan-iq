@@ -20,8 +20,8 @@ import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as JobsIndexRouteImport } from './routes/jobs.index'
 import { Route as ModulesIndexRouteImport } from './routes/modules.index'
+import { Route as JobsIndexRouteImport } from './routes/jobs.index'
 import { Route as ModulesModuleIdRouteImport } from './routes/modules.$moduleId'
 import { Route as JobsJobIdRouteImport } from './routes/jobs.$jobId'
 
@@ -80,15 +80,15 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const JobsIndexRoute = JobsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => JobsRoute,
-} as any)
 const ModulesIndexRoute = ModulesIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => ModulesRoute,
+} as any)
+const JobsIndexRoute = JobsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => JobsRoute,
 } as any)
 const ModulesModuleIdRoute = ModulesModuleIdRouteImport.update({
   id: '/$moduleId',
@@ -121,7 +121,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/modules': typeof ModulesRouteWithChildren
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
@@ -174,7 +173,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
-    | '/modules'
     | '/reports'
     | '/review'
     | '/settings'
@@ -298,19 +296,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/jobs/': {
-      id: '/jobs/'
-      path: '/'
-      fullPath: '/jobs/'
-      preLoaderRoute: typeof JobsIndexRouteImport
-      parentRoute: typeof JobsRoute
-    }
     '/modules/': {
       id: '/modules/'
       path: '/'
       fullPath: '/modules/'
       preLoaderRoute: typeof ModulesIndexRouteImport
       parentRoute: typeof ModulesRoute
+    }
+    '/jobs/': {
+      id: '/jobs/'
+      path: '/'
+      fullPath: '/jobs/'
+      preLoaderRoute: typeof JobsIndexRouteImport
+      parentRoute: typeof JobsRoute
     }
     '/modules/$moduleId': {
       id: '/modules/$moduleId'
@@ -370,3 +368,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
