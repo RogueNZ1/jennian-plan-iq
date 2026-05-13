@@ -27,6 +27,7 @@ function UploadPage() {
   const [planFile, setPlanFile] = useState<File | null>(null);
   const [specFile, setSpecFile] = useState<File | null>(null);
   const [electricalFile, setElectricalFile] = useState<File | null>(null);
+  const [planType, setPlanType] = useState<"concept" | "detailed">("concept");
   const [busy, setBusy] = useState<null | "draft" | "extract">(null);
   const [planPreviewUrl, setPlanPreviewUrl] = useState<string | null>(null);
   const [planThumbBlob, setPlanThumbBlob] = useState<Blob | null>(null);
@@ -142,6 +143,7 @@ function UploadPage() {
           client_name: clientName,
           address,
           template,
+          plan_type: planType,
           status: "draft",
           created_by: user.id,
         })
@@ -450,6 +452,31 @@ function UploadPage() {
                 </select>
               </div>
             </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-card p-4">
+            <div className="text-xs font-medium text-muted-foreground mb-2">Plan Type</div>
+            <div className="flex gap-2">
+              {(["concept", "detailed"] as const).map((pt) => (
+                <button
+                  key={pt}
+                  type="button"
+                  onClick={() => setPlanType(pt)}
+                  className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                    planType === pt
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-card text-muted-foreground hover:bg-accent"
+                  }`}
+                >
+                  {pt === "concept" ? "Concept (Quick)" : "Detailed"}
+                </button>
+              ))}
+            </div>
+            {planType === "concept" && (
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Concept mode fills missing quantities with Jennian standard allowances — ideal for early estimates.
+              </p>
+            )}
           </div>
 
           <div className="flex justify-end gap-2">
