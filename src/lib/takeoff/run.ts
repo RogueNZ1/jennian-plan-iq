@@ -358,7 +358,7 @@ export async function runAutomaticTakeoff(args: {
 
     progress("ready", "Ready for review.");
 
-    const totalRows = qInserted + oInserted + mod.inserted;
+    const totalRows = qInserted + qUpdated + oInserted + mod.inserted + mod.updated;
     if (totalRows === 0) {
       warnings.push("No quantities, openings, or module items were extracted from the uploaded files.");
     }

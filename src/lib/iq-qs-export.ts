@@ -282,10 +282,10 @@ export async function buildQSExportData(
     });
     if (!opening) return undefined;
     return {
-      cladding: opening.notes ?? "",
+      cladding: (opening.opening_sub_type as string | null) ?? "",
       qty: opening.quantity ?? 1,
-      height: opening.height_mm != null ? opening.height_mm / 1000 : 1.2,
-      width: opening.width_mm != null ? opening.width_mm / 1000 : 0.9,
+      height: (opening.height_m as number | null) ?? 1.2,
+      width: (opening.width_m as number | null) ?? 0.9,
     };
   }
 
@@ -294,10 +294,10 @@ export async function buildQSExportData(
   function garageOpeningToEntry(o: OpeningRow | undefined): { cladding: string; qty: number; height: number; width: number } | undefined {
     if (!o) return undefined;
     return {
-      cladding: o.notes ?? "",
+      cladding: (o.opening_sub_type as string | null) ?? "",
       qty: o.quantity ?? 1,
-      height: o.height_mm != null ? o.height_mm / 1000 : 2.1,
-      width: o.width_mm != null ? o.width_mm / 1000 : 2.4,
+      height: (o.height_m as number | null) ?? 2.1,
+      width: (o.width_m as number | null) ?? 2.4,
     };
   }
 
@@ -326,19 +326,19 @@ export async function buildQSExportData(
   if (kitchenOpenings[0]) {
     const o = kitchenOpenings[0];
     windowsByRoom.kitchen = {
-      cladding: o.notes ?? "",
+      cladding: (o.opening_sub_type as string | null) ?? "",
       qty: o.quantity ?? 1,
-      height: o.height_mm != null ? o.height_mm / 1000 : 1.2,
-      width: o.width_mm != null ? o.width_mm / 1000 : 0.9,
+      height: (o.height_m as number | null) ?? 1.2,
+      width: (o.width_m as number | null) ?? 0.9,
     };
   }
   if (kitchenOpenings[1]) {
     const o = kitchenOpenings[1];
     windowsByRoom.kitchenExtra = {
-      cladding: o.notes ?? "",
+      cladding: (o.opening_sub_type as string | null) ?? "",
       qty: o.quantity ?? 1,
-      height: o.height_mm != null ? o.height_mm / 1000 : 1.2,
-      width: o.width_mm != null ? o.width_mm / 1000 : 0.9,
+      height: (o.height_m as number | null) ?? 1.2,
+      width: (o.width_m as number | null) ?? 0.9,
     };
   }
 
@@ -376,10 +376,12 @@ export async function buildQSExportData(
       } else if (label.includes("pvc")) {
         downpipesPvcColoured += qty;
       } else {
+        // No specific match, add to white as default
         downpipesWhite += qty;
       }
     }
   } else {
+    // Use total from downpipes array
     const total = downpipes.reduce((s, d) => s + d.qty, 0);
     downpipesWhite = total;
   }
@@ -409,11 +411,13 @@ export async function buildQSExportData(
         if (insulated) garageDoor27x21Insulated += qty;
         else garageDoor27x21Std += qty;
       } else {
+        // Default to 2.4
         if (insulated) garageDoor24x21Insulated += qty;
         else garageDoor24x21Std += qty;
       }
     }
   } else if (garageDoors.length > 0) {
+    // Fall back: put count in standard 2.4
     garageDoor24x21Std = garageDoors.reduce((s, d) => s + d.qty, 0);
   }
 
@@ -449,6 +453,7 @@ export async function buildQSExportData(
       }
     }
   } else if (interiorDoors.length > 0) {
+    // Fall back: put total in standard
     intDoorStandard = interiorDoors.reduce((s, d) => s + d.qty, 0);
   }
 
@@ -504,7 +509,7 @@ export async function buildQSExportData(
     createdAt: job.created_at ?? new Date().toISOString(),
     floorAreaM2: getNum("floor area") ?? getNum("total area"),
     perimeterLm,
-    perimeterM: perimeterLm,
+    perimeterM: perimeterLm, // backward compat alias
     firstFloorAreaM2: getNum("first floor") ?? getNum("upper floor"),
     studHeightMm: getNum("stud height"),
     alfrescoAreaM2: getNum("alfresco") ?? getNum("porch") ?? getNum("deck"),
@@ -520,6 +525,7 @@ export async function buildQSExportData(
     heatPumps: heatPumps.slice(0, 2),
     extras: extras,
     skylights: skylights.slice(0, 4),
+    // New fields
     clientFirstName,
     clientSurname,
     streetAddress,
@@ -585,6 +591,7 @@ export function writeIQDataSheet(data: QSExportData): Uint8Array {
     ws[addr] = cell;
   }
 
+  // Build header date string: DD Month YYYY
   const now = new Date();
   const months = [
     "January", "February", "March", "April", "May", "June",
@@ -592,9 +599,11 @@ export function writeIQDataSheet(data: QSExportData): Uint8Array {
   ];
   const dateStr = `${String(now.getDate()).padStart(2, "0")} ${months[now.getMonth()]} ${now.getFullYear()}`;
 
+  // A1: header (no fill)
   const headerText = `Jennian IQ Data Export — ${data.jmwNumber} ${data.clientFirstName} ${data.clientSurname} — ${dateStr}\nPaste this sheet into your master QS to auto-populate.`;
   setCell("A1", headerText, true);
 
+  // Client info (always write even if empty string)
   setCell("I1", data.clientFirstName);
   setCell("I2", data.clientSurname);
   setCell("I3", data.streetAddress);
@@ -604,6 +613,7 @@ export function writeIQDataSheet(data: QSExportData): Uint8Array {
   setCell("I7", data.phone ?? "");
   setCell("I8", data.jmwNumber);
 
+  // Core measurements — skip nulls
   if (data.floorAreaM2 !== null) setCell("D4", data.floorAreaM2);
   if (data.perimeterLm !== null) setCell("E4", data.perimeterLm);
   if (data.firstFloorAreaM2 !== null) setCell("F4", data.firstFloorAreaM2);
@@ -611,11 +621,24 @@ export function writeIQDataSheet(data: QSExportData): Uint8Array {
   if (data.exteriorWallLengthLm !== null) setCell("D15", data.exteriorWallLengthLm);
   setCell("D20", data.exteriorWallHeightM ?? 2.4);
 
+  // Windows per room
   const roomRows: Array<[keyof QSExportData["windowsByRoom"], number]> = [
-    ["bed1", 41], ["ensuite", 43], ["bed2", 45], ["bed3", 47], ["bed4", 49],
-    ["toilet", 51], ["bathroom", 52], ["kitchen", 54], ["kitchenExtra", 55],
-    ["familyLiving", 56], ["dining", 59], ["lounge", 62],
-    ["garageWindow", 65], ["garageDoor1", 67], ["garageDoor2", 68], ["entrance", 72],
+    ["bed1", 41],
+    ["ensuite", 43],
+    ["bed2", 45],
+    ["bed3", 47],
+    ["bed4", 49],
+    ["toilet", 51],
+    ["bathroom", 52],
+    ["kitchen", 54],
+    ["kitchenExtra", 55],
+    ["familyLiving", 56],
+    ["dining", 59],
+    ["lounge", 62],
+    ["garageWindow", 65],
+    ["garageDoor1", 67],
+    ["garageDoor2", 68],
+    ["entrance", 72],
   ];
 
   for (const [roomKey, row] of roomRows) {
@@ -627,10 +650,12 @@ export function writeIQDataSheet(data: QSExportData): Uint8Array {
     setCell(`F${row}`, room.width);
   }
 
+  // Downpipes — skip zeros
   if (data.downpipesWhite) setCell("H137", data.downpipesWhite);
   if (data.downpipesColourSteel) setCell("H138", data.downpipesColourSteel);
   if (data.downpipesPvcColoured) setCell("H139", data.downpipesPvcColoured);
 
+  // Garage doors
   if (data.garageDoor48x21Std) setCell("H175", data.garageDoor48x21Std);
   if (data.garageDoor48x21Insulated) setCell("H176", data.garageDoor48x21Insulated);
   if (data.garageDoor24x21Std) setCell("H177", data.garageDoor24x21Std);
@@ -638,6 +663,7 @@ export function writeIQDataSheet(data: QSExportData): Uint8Array {
   if (data.garageDoor27x21Std) setCell("H179", data.garageDoor27x21Std);
   if (data.garageDoor27x21Insulated) setCell("H180", data.garageDoor27x21Insulated);
 
+  // Interior doors
   if (data.intDoorStandard) setCell("H187", data.intDoorStandard);
   if (data.intDoorUGroove) setCell("H188", data.intDoorUGroove);
   if (data.intDoorVGroove) setCell("H189", data.intDoorVGroove);
@@ -645,17 +671,22 @@ export function writeIQDataSheet(data: QSExportData): Uint8Array {
   if (data.intDoorDouble) setCell("H192", data.intDoorDouble);
   if (data.intDoorCavitySlider) setCell("H193", data.intDoorCavitySlider);
 
+  // Carpentry extras
   if (data.ceilingHatch) setCell("H222", data.ceilingHatch);
   if (data.atticStair) setCell("H223", data.atticStair);
   if (data.letterboxUrban) setCell("H224", data.letterboxUrban);
   if (data.washingLine) setCell("H227", data.washingLine);
 
+  // Heating
   if (data.heatPumpWallUnit) setCell("H235", data.heatPumpWallUnit);
   if (data.heatPumpDucted) setCell("H236", data.heatPumpDucted);
 
+  // Concrete / exterior
   if (data.pathsPatioM2 !== null) setCell("E212", data.pathsPatioM2);
   if (data.drivewayM2 !== null) setCell("E213", data.drivewayM2);
 
+  // Set sheet ref range so xlsx knows the extent
+  // Find max row used
   const usedAddrs = Object.keys(ws).filter((k) => !k.startsWith("!"));
   if (usedAddrs.length > 0) {
     ws["!ref"] = "A1:I240";
@@ -666,10 +697,68 @@ export function writeIQDataSheet(data: QSExportData): Uint8Array {
   return XLSX.write(wb, { bookSST: false, type: "array", cellStyles: true }) as Uint8Array;
 }
 
+export function writeQSExportFresh(data: QSExportData): Uint8Array {
+  const wb = XLSX.utils.book_new();
+
+  const rows: (string | number | null)[][] = [
+    ["Jennian Homes — QS Export"],
+    [],
+    ["Job Number",  data.jobNumber],
+    ["Client",      data.clientName],
+    ["Address",     data.address],
+    ["Template",    data.templateId ?? ""],
+    ["Date",        data.createdAt.slice(0, 10)],
+    [],
+    ["GEOMETRY"],
+    ["Floor Area (m²)",         data.floorAreaM2],
+    ["Perimeter (lm)",          data.perimeterM],
+    ["First Floor Area (m²)",   data.firstFloorAreaM2],
+    ["Stud Height (mm)",        data.studHeightMm],
+    ["Alfresco Area (m²)",      data.alfrescoAreaM2],
+    [],
+    ["ROOF & CLADDING"],
+    ["Roof Pitch",    data.roofPitch],
+    ["Ridge Type",    data.ridgeType],
+    ["Underlay",      data.underlay],
+    ["Cladding 1",    data.claddingType1],
+    ["Cladding 2",    data.claddingType2],
+    [],
+    ["WINDOWS", "Type", "Qty"],
+    ...data.windows.map((w) => ["", w.type, w.qty]),
+    [],
+    ["GARAGE DOORS", "Type", "Qty"],
+    ...data.garageDoors.map((g) => ["", g.type, g.qty]),
+    [],
+    ["INTERIOR DOORS", "Type", "Qty"],
+    ...data.interiorDoors.map((d) => ["", d.type, d.qty]),
+    [],
+    ["DOWNPIPES", "Size", "Qty"],
+    ...data.downpipes.map((d) => ["", d.size, d.qty]),
+    [],
+    ["SKYLIGHTS", "Type", "Qty"],
+    ...data.skylights.map((s) => ["", s.type, s.qty]),
+    [],
+    ["HEAT PUMPS", "Model", "Qty"],
+    ...data.heatPumps.map((h) => ["", h.model, h.qty]),
+    [],
+    ["EXTRAS / PC ITEMS", "Description", "Value ($)"],
+    ...data.extras.map((e) => ["", e.description, e.value]),
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = [{ wch: 28 }, { wch: 36 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, ws, "QS Data");
+  return XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
+}
+
 /* -------------------------------------------------- electrical schedule */
 
 const BASE_AREA_M2 = 165;
 
+/**
+ * Builds a scaled electrical schedule from 165m² base quantities.
+ * All quantities are rounded to the nearest whole number.
+ */
 export function buildElectricalSchedule(data: QSExportData): ElectricalSchedule {
   const area = data.floorAreaM2 ?? BASE_AREA_M2;
   const sf = area / BASE_AREA_M2;
@@ -771,8 +860,8 @@ export function electricalScheduleToCSV(schedule: ElectricalSchedule): string {
   schedule.mechanical.forEach(itemRow);
   rows.push(``);
 
-  rows.push(`TOTAL ESTIMATE (excl. GST),,,, "${schedule.totalEstimate.toFixed(2)}"`);
-  rows.push(`TOTAL ESTIMATE (incl. 15% GST),,,, "${(schedule.totalEstimate * 1.15).toFixed(2)}"`);
+  rows.push(`TOTAL ESTIMATE (excl. GST),,,,"${schedule.totalEstimate.toFixed(2)}"`);
+  rows.push(`TOTAL ESTIMATE (incl. 15% GST),,,,"${(schedule.totalEstimate * 1.15).toFixed(2)}"`);
 
   return rows.join("\n");
 }

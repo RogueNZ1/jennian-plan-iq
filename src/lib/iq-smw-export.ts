@@ -34,7 +34,7 @@ async function decompressDeflate(data: Uint8Array): Promise<Uint8Array> {
   const ds = new DecompressionStream("deflate-raw");
   const writer = ds.writable.getWriter();
   const reader = ds.readable.getReader();
-  void writer.write(data as BufferSource);
+  void writer.write(data);
   void writer.close();
   const chunks: Uint8Array[] = [];
   for (;;) {
@@ -55,6 +55,7 @@ async function parseZip(buffer: ArrayBuffer): Promise<Map<string, Uint8Array>> {
   const view = new DataView(buffer);
   const entries = new Map<string, Uint8Array>();
 
+  // Find End of Central Directory by scanning backwards for signature 0x06054b50
   let eocdOffset = -1;
   for (let i = bytes.length - 22; i >= 0; i--) {
     if (view.getUint32(i, true) === 0x06054b50) {
@@ -78,6 +79,7 @@ async function parseZip(buffer: ArrayBuffer): Promise<Map<string, Uint8Array>> {
     const fileName = new TextDecoder("utf-8").decode(bytes.slice(cdPos + 46, cdPos + 46 + fileNameLen));
     cdPos += 46 + fileNameLen + extraLen + commentLen;
 
+    // Read local file header
     const lhPos = localHeaderOffset;
     if (view.getUint32(lhPos, true) !== 0x04034b50) continue;
     const method = view.getUint16(lhPos + 8, true);
@@ -93,13 +95,16 @@ async function parseZip(buffer: ArrayBuffer): Promise<Map<string, Uint8Array>> {
     } else if (method === 8) {
       fileData = await decompressDeflate(compData);
     } else {
+      // Unsupported method — skip
       continue;
     }
 
     entries.set(fileName, fileData);
   }
 
+  // Silence unused variable warning
   void cdSize;
+
   return entries;
 }
 
@@ -135,19 +140,20 @@ function buildZip(fileMap: Map<string, Uint8Array>): Uint8Array {
     const crc = crc32(data);
     const localOffset = offset;
 
+    // Local file header (30 bytes + name)
     const lh = new Uint8Array(30 + nameBytes.length);
     const lv = new DataView(lh.buffer);
-    lv.setUint32(0, 0x04034b50, true);
-    lv.setUint16(4, 20, true);
-    lv.setUint16(6, 0, true);
-    lv.setUint16(8, 0, true);
+    lv.setUint32(0, 0x04034b50, true);   // signature
+    lv.setUint16(4, 20, true);            // version needed
+    lv.setUint16(6, 0, true);             // flags
+    lv.setUint16(8, 0, true);             // method: STORED
     lv.setUint16(10, time, true);
     lv.setUint16(12, date, true);
     lv.setUint32(14, crc, true);
-    lv.setUint32(18, data.length, true);
-    lv.setUint32(22, data.length, true);
+    lv.setUint32(18, data.length, true);  // compressed size
+    lv.setUint32(22, data.length, true);  // uncompressed size
     lv.setUint16(26, nameBytes.length, true);
-    lv.setUint16(28, 0, true);
+    lv.setUint16(28, 0, true);            // extra field length
     lh.set(nameBytes, 30);
 
     chunks.push(lh);
@@ -159,25 +165,26 @@ function buildZip(fileMap: Map<string, Uint8Array>): Uint8Array {
 
   const cdStart = offset;
 
+  // Central directory
   for (const entry of localEntries) {
     const cd = new Uint8Array(46 + entry.name.length);
     const cv = new DataView(cd.buffer);
-    cv.setUint32(0, 0x02014b50, true);
-    cv.setUint16(4, 20, true);
-    cv.setUint16(6, 20, true);
-    cv.setUint16(8, 0, true);
-    cv.setUint16(10, 0, true);
+    cv.setUint32(0, 0x02014b50, true);   // signature
+    cv.setUint16(4, 20, true);            // version made by
+    cv.setUint16(6, 20, true);            // version needed
+    cv.setUint16(8, 0, true);             // flags
+    cv.setUint16(10, 0, true);            // method: STORED
     cv.setUint16(12, time, true);
     cv.setUint16(14, date, true);
     cv.setUint32(16, entry.crc, true);
-    cv.setUint32(20, entry.data.length, true);
-    cv.setUint32(24, entry.data.length, true);
+    cv.setUint32(20, entry.data.length, true); // compressed
+    cv.setUint32(24, entry.data.length, true); // uncompressed
     cv.setUint16(28, entry.name.length, true);
-    cv.setUint16(30, 0, true);
-    cv.setUint16(32, 0, true);
-    cv.setUint16(34, 0, true);
-    cv.setUint16(36, 0, true);
-    cv.setUint32(38, 0, true);
+    cv.setUint16(30, 0, true);            // extra
+    cv.setUint16(32, 0, true);            // comment
+    cv.setUint16(34, 0, true);            // disk start
+    cv.setUint16(36, 0, true);            // internal attr
+    cv.setUint32(38, 0, true);            // external attr
     cv.setUint32(42, entry.localOffset, true);
     cd.set(entry.name, 46);
     chunks.push(cd);
@@ -186,18 +193,20 @@ function buildZip(fileMap: Map<string, Uint8Array>): Uint8Array {
 
   const cdSize = offset - cdStart;
 
+  // End of Central Directory
   const eocd = new Uint8Array(22);
   const ev = new DataView(eocd.buffer);
   ev.setUint32(0, 0x06054b50, true);
-  ev.setUint16(4, 0, true);
-  ev.setUint16(6, 0, true);
+  ev.setUint16(4, 0, true);   // disk number
+  ev.setUint16(6, 0, true);   // cd start disk
   ev.setUint16(8, localEntries.length, true);
   ev.setUint16(10, localEntries.length, true);
   ev.setUint32(12, cdSize, true);
   ev.setUint32(16, cdStart, true);
-  ev.setUint16(20, 0, true);
+  ev.setUint16(20, 0, true);  // comment length
   chunks.push(eocd);
 
+  // Concatenate all chunks
   const totalLen = chunks.reduce((s, c) => s + c.length, 0);
   const out = new Uint8Array(totalLen);
   let pos = 0;
@@ -293,6 +302,7 @@ function applyPlaceholders(xml: string, data: QSExportData): string {
   rep("[HWC]", data.specItems["Hot Water Heating"] ?? "");
   rep("[MAINS CABLE]", data.specItems["Mains Cable"] ?? "");
 
+  // Window schedule placeholders
   const windowRooms: Array<{ code: string; roomLabel: string; key: keyof QSExportData["windowsByRoom"] }> = [
     { code: "W01", roomLabel: "Bed 1", key: "bed1" },
     { code: "W02", roomLabel: "Ensuite", key: "ensuite" },
@@ -392,14 +402,16 @@ export async function exportSMWDocument(jobId: string): Promise<{ blob: Blob; fi
   const surname = data.clientSurname || data.clientName.split(" ").pop() || "Client";
   const filename = `${data.jmwNumber}-SMW-${surname}.docx`;
 
+  // Try downloading template
   const { data: templateBlob, error } = await supabase.storage
     .from("smw-templates")
     .download("Jennian_SMW_Template.docx");
 
   if (error || !templateBlob) {
+    // No template uploaded yet — return minimal placeholder docx
     const minDocx = buildMinimalSMWDocx(data);
     return {
-      blob: new Blob([minDocx as BlobPart], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
+      blob: new Blob([minDocx], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
       filename,
     };
   }
@@ -417,7 +429,7 @@ export async function exportSMWDocument(jobId: string): Promise<{ blob: Blob; fi
   const zipBytes = buildZip(entries);
 
   return {
-    blob: new Blob([zipBytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
+    blob: new Blob([zipBytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
     filename,
   };
 }
