@@ -132,9 +132,9 @@ function JobDetail() {
     setExportingQS(true);
     try {
       const data = await buildQSExportData(jobId);
-      const bytes = writeIQDataSheet(data);
-      const surname = data.clientSurname || data.clientName.split(" ").pop() || "Client";
-      const filename = `${data.jmwNumber}-IQ-Data-${surname}.xlsx`;
+      const bytes = await writeIQDataSheet({ ...data, jobId });
+      const surname = data.clientName.split(" ").pop() || "Client";
+      const filename = `${data.jobNumber}-IQ-Data-${surname}.xlsx`;
       const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -294,6 +294,13 @@ function JobDetail() {
                   >
                     <ClipboardCheck className="h-4 w-4" /> Review Takeoff Results
                   </Link>
+                  <Link
+                    to="/jobs/$jobId/export"
+                    params={{ jobId }}
+                    className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" /> Quick Export
+                  </Link>
                 </>
               ) : (
                 <button
@@ -346,15 +353,17 @@ function JobDetail() {
                 </button>
                 <span className="text-[10px] text-muted-foreground">Paste into your master QS spreadsheet</span>
               </div>
-              <button
-                type="button"
-                onClick={handleExportSMW}
-                disabled={exportingSMW}
-                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
-              >
-                <FileText className="h-4 w-4" />
-                {exportingSMW ? "Exporting…" : "Export SMW"}
-              </button>
+              {job?.smw_enabled && (
+                <button
+                  type="button"
+                  onClick={handleExportSMW}
+                  disabled={exportingSMW}
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+                >
+                  <FileText className="h-4 w-4" />
+                  {exportingSMW ? "Exporting…" : "Export SMW"}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleExportElectrical}

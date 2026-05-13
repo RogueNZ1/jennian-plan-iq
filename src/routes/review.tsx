@@ -15,7 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
 import { Download, FileSpreadsheet, History, CheckCircle2, ArrowRight, ArrowLeft,
-  Wand2, ScanEye,
+  Wand2, ScanEye, Info,
   Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain, AlertTriangle, ShoppingCart, Layers } from "lucide-react";
 import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { toast } from "sonner";
@@ -59,9 +59,10 @@ function ReviewPage() {
   const [rollup, setRollup] = useState<{ requiredApproved: number; required: number; allRequiredApproved: boolean } | null>(null);
   const [measurementCount, setMeasurementCount] = useState<number>(0);
   const [openingsCount, setOpeningsCount] = useState<number>(0);
-  const [tab, setTab] = useState<string>(initialTab && ["base","working","openings","walls","validation"].includes(initialTab) ? initialTab : "base");
+  const [tab, setTab] = useState<string>(initialTab && ["base","working","openings","walls","validation","assumptions"].includes(initialTab) ? initialTab : "base");
   const [takeoffOpen, setTakeoffOpen] = useState(false);
   const [visionOpen, setVisionOpen] = useState(false);
+  const [moduleItems, setModuleItems] = useState<ModuleItemRow[]>([]);
 
   useEffect(() => {
     if (!jobId) { setLoading(false); return; }
@@ -78,6 +79,12 @@ function ReviewPage() {
       setMeasurementCount(m.count ?? 0);
       setOpeningsCount(o.count ?? 0);
     })();
+    supabase.from("module_items")
+      .select("id, module_id, label, extracted_value, unit, value_source, confidence, description, sort_order")
+      .eq("job_id", jobId)
+      .order("sort_order", { ascending: true })
+      .then(({ data }) => setModuleItems((data ?? []) as ModuleItemRow[]))
+      .catch(() => {});
   }, [jobId]);
 
   async function override(row: Quantity, raw: string, reason: string) {
@@ -102,6 +109,23 @@ function ReviewPage() {
     const fresh = await listOverrides(jobId!);
     setAudit(fresh);
     toast.success("Quantity updated.");
+  }
+
+  async function upgradeToDetailed() {
+    if (!job) return;
+    await supabase.from("jobs").update({ plan_type: "detailed" }).eq("id", job.id);
+    setJob({ ...job, plan_type: "detailed" });
+    toast.success("Upgraded to Detailed mode.");
+  }
+
+  async function confirmAssumedItem(itemId: string, newValue: string) {
+    await supabase.from("module_items")
+      .update({ approved_value: newValue, value_source: "confirmed", confidence: "high" })
+      .eq("id", itemId);
+    setModuleItems((prev) =>
+      prev.map((i) => i.id === itemId ? { ...i, approved_value: newValue, value_source: "confirmed", confidence: "high" } : i),
+    );
+    toast.success("Item confirmed.");
   }
 
   async function approve() {
@@ -263,6 +287,31 @@ function ReviewPage() {
           </div>
         )}
 
+        {job.plan_type === "concept" && (
+          <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/8 px-4 py-3 flex items-start justify-between gap-4">
+            <div className="flex items-start gap-2">
+              <Info className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <div className="text-[13px] font-semibold text-amber-800">Concept Plan Mode</div>
+                <div className="text-[12px] text-amber-700 mt-0.5">
+                  {moduleItems.filter((i) => i.value_source === "assumed").length} items use Jennian standard allowances.
+                  {job.confidence_score != null && (
+                    <span className="ml-2 font-medium">Extraction confidence: {job.confidence_score}%</span>
+                  )}
+                  {" "}Review the Assumptions tab to confirm or adjust values.
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={upgradeToDetailed}
+              className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-[12px] font-medium text-amber-800 hover:bg-amber-500/20"
+            >
+              Upgrade to Detailed
+            </button>
+          </div>
+        )}
+
         <ModulesOverview jobId={job.id} />
 
         {rows.length === 0 && measurementCount === 0 && openingsCount === 0 && (
@@ -310,6 +359,16 @@ function ReviewPage() {
             <TabsTrigger value="openings">Windows & Doors</TabsTrigger>
             <TabsTrigger value="walls">Internal Walls</TabsTrigger>
             <TabsTrigger value="validation">Validation</TabsTrigger>
+            {job.plan_type === "concept" && (
+              <TabsTrigger value="assumptions">
+                Assumptions
+                {moduleItems.filter((i) => i.value_source === "assumed").length > 0 && (
+                  <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                    {moduleItems.filter((i) => i.value_source === "assumed").length}
+                  </span>
+                )}
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="base">
@@ -420,6 +479,10 @@ function ReviewPage() {
           <TabsContent value="validation">
             <ValidationTab jobId={job.id} />
           </TabsContent>
+
+          <TabsContent value="assumptions">
+            <ConceptAssumptionsTab items={moduleItems} onConfirm={confirmAssumedItem} />
+          </TabsContent>
         </Tabs>
       </div>
       <AutomaticTakeoffDialog
@@ -446,6 +509,151 @@ function ReviewPage() {
   );
 }
 
+type ModuleItemRow = {
+  id: string;
+  module_id: string;
+  label: string;
+  extracted_value: string | null;
+  approved_value?: string | null;
+  unit: string | null;
+  value_source: string | null;
+  confidence: string | null;
+  description: string | null;
+  sort_order: number | null;
+};
+
+function ValueSourceBadge({ source }: { source: string | null }) {
+  if (source === "assumed") {
+    return (
+      <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+        Assumed
+      </span>
+    );
+  }
+  if (source === "confirmed") {
+    return (
+      <span className="inline-flex items-center rounded-full border border-confidence-high/40 bg-confidence-high/10 px-2 py-0.5 text-[10px] font-medium text-confidence-high">
+        Confirmed
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-full border border-border bg-muted/30 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+      Extracted
+    </span>
+  );
+}
+
+function AssumedItemRow({ item, onConfirm }: { item: ModuleItemRow; onConfirm: (id: string, value: string) => void }) {
+  const [editVal, setEditVal] = useState(item.approved_value ?? item.extracted_value ?? "");
+  const [editing, setEditing] = useState(false);
+  return (
+    <tr className="border-t border-border bg-amber-500/4">
+      <td className="px-4 py-2.5 text-[11px] text-muted-foreground uppercase tracking-wide">
+        {item.module_id.replace("iq-", "")}
+      </td>
+      <td className="px-4 py-2.5 text-sm font-medium">{item.label}</td>
+      <td className="px-4 py-2.5">
+        {editing ? (
+          <input
+            autoFocus
+            value={editVal}
+            onChange={(e) => setEditVal(e.target.value)}
+            className="w-28 rounded-md border border-input bg-background px-2 py-1 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        ) : (
+          <span className="tabular-nums text-sm">{item.approved_value ?? item.extracted_value ?? "—"}</span>
+        )}
+      </td>
+      <td className="px-4 py-2.5 text-xs text-muted-foreground">{item.unit ?? ""}</td>
+      <td className="px-4 py-2.5"><ValueSourceBadge source={item.value_source} /></td>
+      <td className="px-4 py-2.5 text-right">
+        {item.value_source !== "confirmed" && (
+          editing ? (
+            <div className="flex gap-1 justify-end">
+              <button
+                type="button"
+                onClick={() => { onConfirm(item.id, editVal); setEditing(false); }}
+                className="rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:opacity-90"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEditing(false); setEditVal(item.approved_value ?? item.extracted_value ?? ""); }}
+                className="rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:bg-accent"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:bg-accent"
+            >
+              Edit & Confirm
+            </button>
+          )
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function ConceptAssumptionsTab({
+  items,
+  onConfirm,
+}: {
+  items: ModuleItemRow[];
+  onConfirm: (id: string, value: string) => void;
+}) {
+  const assumed = items.filter((i) => i.value_source === "assumed");
+  const confirmed = items.filter((i) => i.value_source === "confirmed");
+  const extracted = items.filter((i) => !i.value_source || i.value_source === "extracted");
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-lg border border-amber-500/30 bg-amber-500/6 px-4 py-3 text-[12.5px] text-amber-700">
+        <strong>{assumed.length}</strong> items below use Jennian standard allowances. Edit and confirm each to improve accuracy.{" "}
+        <strong>{confirmed.length}</strong> confirmed · <strong>{extracted.length}</strong> extracted from plans.
+      </div>
+
+      {assumed.length === 0 ? (
+        <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+          All items have been confirmed or extracted from plans.
+        </div>
+      ) : (
+        <div className="rounded-lg border border-border bg-card overflow-hidden">
+          <div className="px-5 py-3 border-b border-border">
+            <div className="text-[13px] font-semibold tracking-tight">Assumed Items</div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">
+              These values were filled automatically using Jennian standard allowances. Review and confirm each.
+            </div>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-muted/30">
+              <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                <th className="px-4 py-2.5 font-medium">Module</th>
+                <th className="px-4 py-2.5 font-medium">Item</th>
+                <th className="px-4 py-2.5 font-medium">Value</th>
+                <th className="px-4 py-2.5 font-medium">Unit</th>
+                <th className="px-4 py-2.5 font-medium">Status</th>
+                <th className="px-4 py-2.5 font-medium text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {assumed.map((item) => (
+                <AssumedItemRow key={item.id} item={item} onConfirm={onConfirm} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function InternalWallsTab({ jobId }: { jobId: string }) {
   const [rows, setRows] = useState<PlanMeasurement[]>([]);
   useEffect(() => {
@@ -463,7 +671,7 @@ function InternalWallsTab({ jobId }: { jobId: string }) {
         <div>
           <div className="text-[13px] font-semibold tracking-tight">Internal Walls</div>
           <div className="text-[11px] text-muted-foreground mt-0.5">
-            Wall segments measured from the working plan. Use the Working Plan tab to add segments with the “Internal Wall” tool.
+            Wall segments measured from the working plan. Use the Working Plan tab to add segments with the "Internal Wall" tool.
           </div>
         </div>
         <div className="flex items-center gap-4 text-[11px]">
