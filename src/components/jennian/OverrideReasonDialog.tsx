@@ -15,7 +15,8 @@ export function OverrideReasonDialog({
   onConfirm: (reason: string) => void;
 }) {
   const [reason, setReason] = useState("");
-  useEffect(() => { if (open) setReason(""); }, [open]);
+  const [attempted, setAttempted] = useState(false);
+  useEffect(() => { if (open) { setReason(""); setAttempted(false); } }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onCancel(); }}>
@@ -36,17 +37,28 @@ export function OverrideReasonDialog({
             )}
           </div>
         )}
-        <textarea
-          autoFocus
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder="e.g. Plan dimension corrected after site walk."
-          rows={3}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-        />
+        <div>
+          <textarea
+            autoFocus
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. Plan dimension corrected after site walk."
+            rows={3}
+            className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring ${
+              attempted && !reason.trim() ? "border-destructive focus:ring-destructive/40" : "border-input"
+            }`}
+          />
+          {attempted && !reason.trim() && (
+            <p className="mt-1.5 text-xs text-destructive">Please enter a reason before saving.</p>
+          )}
+        </div>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button onClick={() => onConfirm(reason.trim())} disabled={!reason.trim()}>
+          <Button onClick={() => {
+            setAttempted(true);
+            if (!reason.trim()) return;
+            onConfirm(reason.trim());
+          }}>
             Save override
           </Button>
         </DialogFooter>

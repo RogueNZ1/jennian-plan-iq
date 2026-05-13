@@ -129,7 +129,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
         <nav className="px-3 flex-1 space-y-0.5 overflow-y-auto">
           {nav.filter((item) => {
-            if (rolesLoading) return !item.gate;
+            if (rolesLoading) return true;
             if (item.gate === "owner") return isOwner;
             if (item.gate === "admin") return isAdmin;
             return true;
