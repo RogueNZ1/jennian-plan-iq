@@ -93,7 +93,7 @@ function QuickExport() {
       const bytes = writeIQDataSheet(data);
       const surname = data.clientSurname || data.clientName.split(" ").pop() || "Client";
       const filename = `${data.jmwNumber}-IQ-Data-${surname}.xlsx`;
-      const blob = new Blob([bytes], {
+      const blob = new Blob([bytes as BlobPart], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
       const url = URL.createObjectURL(blob);

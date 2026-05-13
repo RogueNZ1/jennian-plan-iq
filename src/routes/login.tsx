@@ -25,7 +25,9 @@ function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (error) return toast.error(error.message);
-    navigate({ to: "/" });
+    // Don't navigate here — onAuthStateChange will update `user`, and the
+    // effect above will redirect to "/". Navigating immediately races the
+    // auth state propagation and AppLayout bounces us back to /login.
   }
 
   return (
