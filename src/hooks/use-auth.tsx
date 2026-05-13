@@ -1,30 +1,52 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import type { Session, User } from "@supabase/supabase-js";
+import type { AuthError, Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
 type AuthCtx = {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
 };
 
-const Ctx = createContext<AuthCtx>({ user: null, session: null, loading: true, signOut: async () => {} });
+const Ctx = createContext<AuthCtx>({
+  user: null,
+  session: null,
+  loading: true,
+  signIn: async () => ({ error: null }),
+  signOut: async () => {},
+});
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
+    let authEventSeen = false;
+
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      if (!active) return;
+      authEventSeen = true;
       setSession(s);
       setLoading(false);
     });
+
     supabase.auth.getSession().then(({ data }) => {
+      if (!active || authEventSeen) return;
       setSession(data.session);
       setLoading(false);
+    }).catch(() => {
+      if (!active) return;
+      setSession(null);
+      setLoading(false);
     });
-    return () => sub.subscription.unsubscribe();
+
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   return (
@@ -33,7 +55,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: session?.user ?? null,
         session,
         loading,
+        signIn: async (email, password) => {
+          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+          if (!error) setSession(data.session);
+          return { error };
+        },
         signOut: async () => {
+          setSession(null);
           await supabase.auth.signOut();
         },
       }}
