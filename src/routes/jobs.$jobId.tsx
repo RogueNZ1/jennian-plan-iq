@@ -36,6 +36,14 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import {
+  generateElectricalSchedule, buildRoomSpecsFromCounts, electricalScheduleToCSV as layoutToCSV,
+  type RoomCounts,
+} from "@/lib/iq-electrical-layout";
 
 export const Route = createFileRoute("/jobs/$jobId")({ component: JobDetail });
 
@@ -66,6 +74,13 @@ function JobDetail() {
   const [exportingCarters, setExportingCarters] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [electricalFile, setElectricalFile] = useState<{ id: string; file_name: string; storage_url: string } | null>(null);
+  const [generatorOpen, setGeneratorOpen] = useState(false);
+  const [roomCounts, setRoomCounts] = useState<RoomCounts>({
+    masterBedrooms: 1, bedrooms: 3, bathrooms: 1, ensuites: 1,
+    kitchen: 1, living: 1, dining: 1, study: 0,
+    laundry: true, garage: true, alfresco: false, hallway: true,
+  });
 
   async function refreshHasData() {
     const counts = await Promise.all([
@@ -92,6 +107,13 @@ function JobDetail() {
         const tr = await loadLatestTakeoffRun(jobId).catch(() => null);
         if (!cancelled) setTakeoffRun(tr);
         await refreshHasData();
+        const { data: efRows } = await supabase
+          .from("uploaded_files")
+          .select("id, file_name, storage_url")
+          .eq("job_id", jobId)
+          .eq("file_type", "electrical")
+          .limit(1);
+        if (!cancelled) setElectricalFile(efRows?.[0] ?? null);
       } catch {
         /* ignore — modules will surface their own errors */
       }
@@ -113,7 +135,7 @@ function JobDetail() {
       const bytes = writeIQDataSheet(data);
       const surname = data.clientSurname || data.clientName.split(" ").pop() || "Client";
       const filename = `${data.jmwNumber}-IQ-Data-${surname}.xlsx`;
-      const blob = new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url; a.download = filename; a.click();
@@ -207,6 +229,29 @@ function JobDetail() {
     }
   }
 
+
+  async function handleViewElectricalPlan() {
+    if (!electricalFile) return;
+    const { data } = await supabase.storage.from("job-files").createSignedUrl(electricalFile.storage_url, 3600);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+    else toast.error("Could not open electrical plan");
+  }
+
+  function handleGenerateElectrical() {
+    const rooms = buildRoomSpecsFromCounts(roomCounts);
+    const schedule = generateElectricalSchedule(rooms);
+    const csv = layoutToCSV(schedule);
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${job?.job_number ?? jobId}-Electrical-Layout.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Electrical layout generated and downloaded");
+    setGeneratorOpen(false);
+  }
+
   function openWorkingPlan() {
     navigate({ to: "/review", search: { job: jobId, tab: "working" } });
   }
@@ -272,6 +317,22 @@ function JobDetail() {
                 className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
               >
                 <Eye className="h-4 w-4" /> View Plans
+              </button>
+              {electricalFile && (
+                <button
+                  type="button"
+                  onClick={handleViewElectricalPlan}
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
+                >
+                  <Zap className="h-4 w-4" /> Electrical Plan
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setGeneratorOpen(true)}
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
+              >
+                <Zap className="h-4 w-4" /> Generate Electrical Layout
               </button>
               <div className="flex flex-col items-end gap-0.5">
                 <button
@@ -460,6 +521,54 @@ function JobDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <Dialog open={generatorOpen} onOpenChange={setGeneratorOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Generate Electrical Layout</DialogTitle>
+            <DialogDescription>
+              Enter room counts to generate the Jennian standard electrical schedule CSV.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <CountField label="Master Bedrooms" value={roomCounts.masterBedrooms}
+              onChange={(v) => setRoomCounts((p) => ({ ...p, masterBedrooms: v }))} />
+            <CountField label="Bedrooms" value={roomCounts.bedrooms}
+              onChange={(v) => setRoomCounts((p) => ({ ...p, bedrooms: v }))} />
+            <CountField label="Bathrooms" value={roomCounts.bathrooms}
+              onChange={(v) => setRoomCounts((p) => ({ ...p, bathrooms: v }))} />
+            <CountField label="Ensuites" value={roomCounts.ensuites}
+              onChange={(v) => setRoomCounts((p) => ({ ...p, ensuites: v }))} />
+            <CountField label="Kitchen" value={roomCounts.kitchen}
+              onChange={(v) => setRoomCounts((p) => ({ ...p, kitchen: v }))} />
+            <CountField label="Living" value={roomCounts.living}
+              onChange={(v) => setRoomCounts((p) => ({ ...p, living: v }))} />
+            <CountField label="Dining" value={roomCounts.dining}
+              onChange={(v) => setRoomCounts((p) => ({ ...p, dining: v }))} />
+            <CountField label="Study" value={roomCounts.study}
+              onChange={(v) => setRoomCounts((p) => ({ ...p, study: v }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {(["laundry", "garage", "alfresco", "hallway"] as const).map((key) => (
+              <label key={key} className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={roomCounts[key]}
+                  onChange={(e) => setRoomCounts((p) => ({ ...p, [key]: e.target.checked }))}
+                  className="h-4 w-4 rounded border-input accent-primary"
+                />
+                <span className="capitalize">{key}</span>
+              </label>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGeneratorOpen(false)}>Cancel</Button>
+            <Button onClick={handleGenerateElectrical}>
+              <Zap className="h-4 w-4 mr-1" /> Generate &amp; Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={rerunConfirmOpen} onOpenChange={setRerunConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -481,6 +590,22 @@ function JobDetail() {
         </AlertDialogContent>
       </AlertDialog>
     </AppLayout>
+  );
+}
+
+function CountField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <div>
+      <label className="text-[11px] font-medium text-muted-foreground">{label}</label>
+      <input
+        type="number"
+        min={0}
+        max={10}
+        value={value}
+        onChange={(e) => onChange(Math.max(0, parseInt(e.target.value, 10) || 0))}
+        className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+      />
+    </div>
   );
 }
 
