@@ -59,6 +59,7 @@ type AuditRow = {
   created_at: string;
 };
 
+/** Combined user row for the table (real profile or pending invite). */
 type UserListRow = {
   kind: "profile" | "invite";
   id: string;
@@ -115,6 +116,7 @@ function UsersPage() {
 
   const roleByUser = useMemo(() => {
     const m: Record<string, AppRole> = {};
+    // Take highest-privilege role per user
     const order: AppRole[] = ["owner", "admin", "estimator", "project_manager", "viewer"];
     for (const rr of roleRows) {
       const cur = m[rr.user_id];
@@ -135,6 +137,7 @@ function UsersPage() {
       const name = [i.first_name, i.last_name].filter(Boolean).join(" ");
       if (name) inviteEmailByName.set(name.toLowerCase(), i.email);
     }
+
     const live: UserListRow[] = profiles.map((p) => ({
       kind: "profile",
       id: p.id,
@@ -269,6 +272,8 @@ function UsersPage() {
             </div>
           }
         />
+
+        {/* Filters */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -292,6 +297,8 @@ function UsersPage() {
             options={[{ v: "all", label: "All branches" }, ...BRANCHES.map((b) => ({ v: b, label: b }))]} />
           <span className="ml-auto text-[11px] text-muted-foreground tabular-nums">{filtered.length} of {rows.length}</span>
         </div>
+
+        {/* Table */}
         <div className="rounded-xl border border-border bg-card overflow-hidden shadow-[0_1px_0_rgba(0,0,0,0.02)]">
           {loading ? (
             <div className="p-10 text-center text-sm text-muted-foreground">Loading users…</div>
@@ -373,8 +380,10 @@ function UsersPage() {
             </table>
           )}
         </div>
+
         {showActivity && <ActivityPanel rows={audit} profileById={profileById} onClose={() => setShowActivity(false)} />}
       </div>
+
       {showInvite && canManage && (
         <InviteModal
           onClose={() => setShowInvite(false)}
@@ -393,6 +402,7 @@ function UsersPage() {
           }}
         />
       )}
+
       {editing && (
         <RoleModal
           row={editing}
@@ -408,13 +418,25 @@ function UsersPage() {
 }
 
 function initials(name: string) {
-  return name.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? "").join("") || "U";
+  return name
+    .split(/[\s@.]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase() ?? "")
+    .join("") || "U";
 }
 
-function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: Array<{ v: string; label: string }> }) {
+function Select({ value, onChange, options }: {
+  value: string; onChange: (v: string) => void;
+  options: Array<{ v: string; label: string }>;
+}) {
   return (
     <div className="relative">
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="appearance-none pl-3 pr-8 py-2 rounded-md border border-input bg-card text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="appearance-none pl-3 pr-8 py-2 rounded-md border border-input bg-card text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+      >
         {options.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
       </select>
       <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -422,10 +444,17 @@ function Select({ value, onChange, options }: { value: string; onChange: (v: str
   );
 }
 
-function IconBtn({ children, onClick, title, disabled }: { children: React.ReactNode; onClick: () => void; title: string; disabled?: boolean }) {
+function IconBtn({ children, onClick, title, disabled }: {
+  children: React.ReactNode; onClick: () => void; title: string; disabled?: boolean;
+}) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled} title={title}
-      className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1.5 text-[11px] font-medium hover:bg-accent hover:border-primary/30 transition disabled:opacity-40 disabled:cursor-not-allowed">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1.5 text-[11px] font-medium hover:bg-accent hover:border-primary/30 transition disabled:opacity-40 disabled:cursor-not-allowed"
+    >
       {children}
     </button>
   );
@@ -433,11 +462,11 @@ function IconBtn({ children, onClick, title, disabled }: { children: React.React
 
 function RoleBadge({ role }: { role: AppRole }) {
   const cls: Record<AppRole, string> = {
-    owner: "bg-primary/10 text-primary border-transparent",
-    admin: "bg-primary/10 text-primary border-transparent",
-    estimator: "bg-confidence-high-bg text-confidence-high border-transparent",
+    owner:           "bg-primary/10 text-primary border-transparent",
+    admin:           "bg-primary/10 text-primary border-transparent",
+    estimator:       "bg-confidence-high-bg text-confidence-high border-transparent",
     project_manager: "bg-confidence-mid-bg text-confidence-mid border-transparent",
-    viewer: "bg-muted text-muted-foreground border-border",
+    viewer:          "bg-muted text-muted-foreground border-border",
   };
   return (
     <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-medium", cls[role])}>
@@ -449,26 +478,34 @@ function RoleBadge({ role }: { role: AppRole }) {
 
 function StatusBadge({ status }: { status: "active" | "disabled" | "pending" }) {
   const map = {
-    active: { cls: "bg-confidence-high-bg text-confidence-high", label: "Active" },
+    active:   { cls: "bg-confidence-high-bg text-confidence-high", label: "Active" },
     disabled: { cls: "bg-muted text-muted-foreground", label: "Inactive" },
-    pending: { cls: "bg-confidence-mid-bg text-confidence-mid", label: "Pending" },
+    pending:  { cls: "bg-confidence-mid-bg text-confidence-mid", label: "Pending" },
   } as const;
   const m = map[status];
-  return <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-medium", m.cls)}>{m.label}</span>;
+  return (
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-medium", m.cls)}>
+      {m.label}
+    </span>
+  );
 }
+
+/* ---------- Invite Modal ---------- */
 
 const inviteSchema = z.object({
   first_name: z.string().trim().min(1, "First name is required").max(80),
-  last_name: z.string().trim().min(1, "Last name is required").max(80),
-  email: z.string().trim().toLowerCase().email("Enter a valid email").max(255),
-  role: z.enum(["owner", "admin", "estimator", "project_manager", "viewer"]),
-  branch: z.string().trim().max(80).nullable(),
+  last_name:  z.string().trim().min(1, "Last name is required").max(80),
+  email:      z.string().trim().toLowerCase().email("Enter a valid email").max(255),
+  role:       z.enum(["owner", "admin", "estimator", "project_manager", "viewer"]),
+  branch:     z.string().trim().max(80).nullable(),
   welcome_message: z.string().trim().max(500).nullable(),
 });
 
 type InvitePayload = z.infer<typeof inviteSchema>;
 
-function InviteModal({ onClose, onCreated }: { onClose: () => void; onCreated: (p: InvitePayload) => Promise<void> | void }) {
+function InviteModal({ onClose, onCreated }: {
+  onClose: () => void; onCreated: (p: InvitePayload) => Promise<void> | void;
+}) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -479,8 +516,19 @@ function InviteModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
   async function submit() {
     setBusy(true);
-    const parsed = inviteSchema.safeParse({ first_name: firstName, last_name: lastName, email, role, branch: branch || null, welcome_message: welcome || null });
-    if (!parsed.success) { toast.error(parsed.error.issues[0]?.message ?? "Check the invite details."); setBusy(false); return; }
+    const parsed = inviteSchema.safeParse({
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      role,
+      branch: branch || null,
+      welcome_message: welcome || null,
+    });
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? "Check the invite details.");
+      setBusy(false);
+      return;
+    }
     await onCreated(parsed.data);
     setBusy(false);
   }
@@ -490,28 +538,48 @@ function InviteModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       <div className="grid sm:grid-cols-2 gap-3">
         <Field label="First Name" value={firstName} onChange={setFirstName} />
         <Field label="Last Name" value={lastName} onChange={setLastName} />
-        <div className="sm:col-span-2"><Field label="Email Address" value={email} onChange={setEmail} placeholder="name@jennian.co.nz" type="email" /></div>
+        <div className="sm:col-span-2">
+          <Field label="Email Address" value={email} onChange={setEmail} placeholder="name@jennian.co.nz" type="email" />
+        </div>
         <div>
           <Label>Role</Label>
-          <select value={role} onChange={(e) => setRole(e.target.value as AppRole)} className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value as AppRole)}
+            className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          >
             {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
           </select>
           <p className="mt-1 text-[11px] text-muted-foreground">{ROLE_DESCRIPTION[role]}</p>
         </div>
         <div>
           <Label>Branch</Label>
-          <select value={branch} onChange={(e) => setBranch(e.target.value)} className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+          <select
+            value={branch}
+            onChange={(e) => setBranch(e.target.value)}
+            className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          >
             {BRANCHES.map((b) => <option key={b} value={b}>{b}</option>)}
           </select>
         </div>
         <div className="sm:col-span-2">
           <Label>Welcome message <span className="text-muted-foreground/60 text-[10px]">(optional)</span></Label>
-          <textarea value={welcome} onChange={(e) => setWelcome(e.target.value)} rows={3} placeholder="Add a short note to include in the invitation." className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
+          <textarea
+            value={welcome}
+            onChange={(e) => setWelcome(e.target.value)}
+            rows={3}
+            placeholder="Add a short note to include in the invitation."
+            className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+          />
         </div>
       </div>
       <div className="mt-6 flex items-center justify-end gap-2">
         <button onClick={onClose} className="inline-flex items-center rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-accent">Cancel</button>
-        <button onClick={submit} disabled={busy} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60">
+        <button
+          onClick={submit}
+          disabled={busy}
+          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
+        >
           <Mail className="h-4 w-4" /> {busy ? "Sending…" : "Send Invitation"}
         </button>
       </div>
@@ -519,7 +587,11 @@ function InviteModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   );
 }
 
-function RoleModal({ row, onClose, onSave }: { row: UserListRow; onClose: () => void; onSave: (r: AppRole) => Promise<void> | void }) {
+/* ---------- Role Modal ---------- */
+
+function RoleModal({ row, onClose, onSave }: {
+  row: UserListRow; onClose: () => void; onSave: (r: AppRole) => Promise<void> | void;
+}) {
   const [role, setRole] = useState<AppRole>(row.role);
   return (
     <ModalShell title="Edit Role" subtitle={`${row.name} · ${row.email}`} onClose={onClose}>
@@ -528,9 +600,18 @@ function RoleModal({ row, onClose, onSave }: { row: UserListRow; onClose: () => 
           const active = role === r;
           const isOwnerRole = r === "owner";
           return (
-            <button key={r} type="button" onClick={() => setRole(r)} disabled={isOwnerRole && row.role !== "owner"}
-              className={cn("w-full text-left rounded-lg border px-4 py-3 transition", active ? "border-primary/60 bg-primary/5" : "border-border bg-card hover:bg-accent", isOwnerRole && row.role !== "owner" && "opacity-50 cursor-not-allowed")}
-              title={isOwnerRole && row.role !== "owner" ? "Owner role is restricted" : ""}>
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRole(r)}
+              disabled={isOwnerRole && row.role !== "owner"}
+              className={cn(
+                "w-full text-left rounded-lg border px-4 py-3 transition",
+                active ? "border-primary/60 bg-primary/5" : "border-border bg-card hover:bg-accent",
+                isOwnerRole && row.role !== "owner" && "opacity-50 cursor-not-allowed",
+              )}
+              title={isOwnerRole && row.role !== "owner" ? "Owner role is restricted" : ""}
+            >
               <div className="flex items-center justify-between">
                 <div className="text-[13px] font-semibold tracking-tight">{ROLE_LABEL[r]}</div>
                 {active && <CheckCircle2 className="h-4 w-4 text-primary" />}
@@ -542,18 +623,32 @@ function RoleModal({ row, onClose, onSave }: { row: UserListRow; onClose: () => 
       </div>
       <div className="mt-6 flex justify-end gap-2">
         <button onClick={onClose} className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-accent">Cancel</button>
-        <button onClick={() => onSave(role)} disabled={role === row.role} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60">Save Role</button>
+        <button
+          onClick={() => onSave(role)}
+          disabled={role === row.role}
+          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
+        >
+          Save Role
+        </button>
       </div>
     </ModalShell>
   );
 }
 
-function ActivityPanel({ rows, profileById, onClose }: { rows: AuditRow[]; profileById: Record<string, ProfileRow>; onClose: () => void }) {
+/* ---------- Activity Panel ---------- */
+
+function ActivityPanel({ rows, profileById, onClose }: {
+  rows: AuditRow[];
+  profileById: Record<string, ProfileRow>;
+  onClose: () => void;
+}) {
   return (
     <div className="mt-8 rounded-xl border border-border bg-card overflow-hidden">
       <div className="px-5 py-3 border-b border-border flex items-center justify-between">
         <div>
-          <div className="text-[13px] font-semibold tracking-tight inline-flex items-center gap-2"><History className="h-3.5 w-3.5" /> Audit trail</div>
+          <div className="text-[13px] font-semibold tracking-tight inline-flex items-center gap-2">
+            <History className="h-3.5 w-3.5" /> Audit trail
+          </div>
           <div className="text-[11px] text-muted-foreground mt-0.5">Latest 40 activity events.</div>
         </div>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
@@ -566,14 +661,24 @@ function ActivityPanel({ rows, profileById, onClose }: { rows: AuditRow[]; profi
             const actor = r.actor_user_id ? (profileById[r.actor_user_id]?.full_name ?? profileById[r.actor_user_id]?.email ?? "Unknown") : "System";
             return (
               <li key={r.id} className="px-5 py-3 text-sm flex items-start gap-3">
-                <div className="h-7 w-7 rounded-full bg-secondary grid place-items-center text-[10px] font-semibold mt-0.5">{initials(actor)}</div>
+                <div className="h-7 w-7 rounded-full bg-secondary grid place-items-center text-[10px] font-semibold mt-0.5">
+                  {initials(actor)}
+                </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[13px]"><span className="font-medium">{actor}</span>{" "}<span className="text-muted-foreground">{prettyAction(r.action)}</span>{r.table_name && <span className="text-muted-foreground"> · {r.table_name}</span>}</div>
+                  <div className="text-[13px]">
+                    <span className="font-medium">{actor}</span>{" "}
+                    <span className="text-muted-foreground">{prettyAction(r.action)}</span>
+                    {r.table_name && <span className="text-muted-foreground"> · {r.table_name}</span>}
+                  </div>
                   {r.metadata && Object.keys(r.metadata).length > 0 && (
-                    <div className="text-[11px] text-muted-foreground mt-0.5 break-words">{Object.entries(r.metadata).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(" · ")}</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5 break-words">
+                      {Object.entries(r.metadata).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(" · ")}
+                    </div>
                   )}
                 </div>
-                <div className="text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">{new Date(r.created_at).toLocaleString()}</div>
+                <div className="text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">
+                  {new Date(r.created_at).toLocaleString()}
+                </div>
               </li>
             );
           })}
@@ -584,11 +689,23 @@ function ActivityPanel({ rows, profileById, onClose }: { rows: AuditRow[]; profi
 }
 
 function prettyAction(a: string) {
-  const map: Record<string, string> = { role_change: "changed a user's role", user_disabled: "disabled a user", user_enabled: "enabled a user", user_removed: "removed a user", invite_created: "sent an invitation", invite_resent: "re-sent an invitation", invite_cancelled: "cancelled an invitation" };
+  const map: Record<string, string> = {
+    role_change:       "changed a user's role",
+    user_disabled:     "disabled a user",
+    user_enabled:      "enabled a user",
+    user_removed:      "removed a user",
+    invite_created:    "sent an invitation",
+    invite_resent:     "re-sent an invitation",
+    invite_cancelled:  "cancelled an invitation",
+  };
   return map[a] ?? a.replace(/_/g, " ");
 }
 
-function ModalShell({ title, subtitle, onClose, children }: { title: string; subtitle?: string; onClose: () => void; children: React.ReactNode }) {
+/* ---------- Modal scaffolding ---------- */
+
+function ModalShell({ title, subtitle, onClose, children }: {
+  title: string; subtitle?: string; onClose: () => void; children: React.ReactNode;
+}) {
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/40 backdrop-blur-sm p-4">
       <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-xl overflow-hidden">
@@ -605,11 +722,19 @@ function ModalShell({ title, subtitle, onClose, children }: { title: string; sub
   );
 }
 
-function Field({ label, value, onChange, placeholder, type = "text" }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
+function Field({ label, value, onChange, placeholder, type = "text" }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string;
+}) {
   return (
     <div>
       <Label>{label}</Label>
-      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} type={type} className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        type={type}
+        className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+      />
     </div>
   );
 }
