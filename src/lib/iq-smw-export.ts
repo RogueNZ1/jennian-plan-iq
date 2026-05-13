@@ -399,7 +399,7 @@ export async function exportSMWDocument(jobId: string): Promise<{ blob: Blob; fi
   if (error || !templateBlob) {
     const minDocx = buildMinimalSMWDocx(data);
     return {
-      blob: new Blob([minDocx], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
+      blob: new Blob([minDocx as BlobPart], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
       filename,
     };
   }
@@ -417,7 +417,7 @@ export async function exportSMWDocument(jobId: string): Promise<{ blob: Blob; fi
   const zipBytes = buildZip(entries);
 
   return {
-    blob: new Blob([zipBytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
+    blob: new Blob([zipBytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
     filename,
   };
 }
