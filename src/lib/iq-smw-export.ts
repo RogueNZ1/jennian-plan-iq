@@ -34,7 +34,7 @@ async function decompressDeflate(data: Uint8Array): Promise<Uint8Array> {
   const ds = new DecompressionStream("deflate-raw");
   const writer = ds.writable.getWriter();
   const reader = ds.readable.getReader();
-  void writer.write(data);
+  void writer.write(data as BufferSource);
   void writer.close();
   const chunks: Uint8Array[] = [];
   for (;;) {
@@ -411,7 +411,7 @@ export async function exportSMWDocument(jobId: string): Promise<{ blob: Blob; fi
     // No template uploaded yet — return minimal placeholder docx
     const minDocx = buildMinimalSMWDocx(data);
     return {
-      blob: new Blob([minDocx], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
+      blob: new Blob([minDocx as BlobPart], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
       filename,
     };
   }
@@ -429,7 +429,7 @@ export async function exportSMWDocument(jobId: string): Promise<{ blob: Blob; fi
   const zipBytes = buildZip(entries);
 
   return {
-    blob: new Blob([zipBytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
+    blob: new Blob([zipBytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
     filename,
   };
 }
