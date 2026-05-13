@@ -282,10 +282,10 @@ export async function buildQSExportData(
     });
     if (!opening) return undefined;
     return {
-      cladding: (opening.opening_sub_type as string | null) ?? "",
+      cladding: opening.notes ?? "",
       qty: opening.quantity ?? 1,
-      height: (opening.height_m as number | null) ?? 1.2,
-      width: (opening.width_m as number | null) ?? 0.9,
+      height: opening.height_mm != null ? opening.height_mm / 1000 : 1.2,
+      width: opening.width_mm != null ? opening.width_mm / 1000 : 0.9,
     };
   }
 
@@ -294,10 +294,10 @@ export async function buildQSExportData(
   function garageOpeningToEntry(o: OpeningRow | undefined): { cladding: string; qty: number; height: number; width: number } | undefined {
     if (!o) return undefined;
     return {
-      cladding: (o.opening_sub_type as string | null) ?? "",
+      cladding: o.notes ?? "",
       qty: o.quantity ?? 1,
-      height: (o.height_m as number | null) ?? 2.1,
-      width: (o.width_m as number | null) ?? 2.4,
+      height: o.height_mm != null ? o.height_mm / 1000 : 2.1,
+      width: o.width_mm != null ? o.width_mm / 1000 : 2.4,
     };
   }
 
@@ -326,19 +326,19 @@ export async function buildQSExportData(
   if (kitchenOpenings[0]) {
     const o = kitchenOpenings[0];
     windowsByRoom.kitchen = {
-      cladding: (o.opening_sub_type as string | null) ?? "",
+      cladding: o.notes ?? "",
       qty: o.quantity ?? 1,
-      height: (o.height_m as number | null) ?? 1.2,
-      width: (o.width_m as number | null) ?? 0.9,
+      height: o.height_mm != null ? o.height_mm / 1000 : 1.2,
+      width: o.width_mm != null ? o.width_mm / 1000 : 0.9,
     };
   }
   if (kitchenOpenings[1]) {
     const o = kitchenOpenings[1];
     windowsByRoom.kitchenExtra = {
-      cladding: (o.opening_sub_type as string | null) ?? "",
+      cladding: o.notes ?? "",
       qty: o.quantity ?? 1,
-      height: (o.height_m as number | null) ?? 1.2,
-      width: (o.width_m as number | null) ?? 0.9,
+      height: o.height_mm != null ? o.height_mm / 1000 : 1.2,
+      width: o.width_mm != null ? o.width_mm / 1000 : 0.9,
     };
   }
 
