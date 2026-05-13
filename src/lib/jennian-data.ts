@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 export type Confidence = "high" | "mid" | "low";
 export type JobStatus = "draft" | "uploaded" | "extracted" | "review_required" | "approved" | "exported";
 
+export type PlanType = "concept" | "detailed";
+
 export type Job = {
   id: string;
   job_number: string;
@@ -16,6 +18,9 @@ export type Job = {
   updated_at: string;
   plan_thumbnail_url?: string | null;
   electrical_plan_url?: string | null;
+  plan_type?: PlanType;
+  smw_enabled?: boolean;
+  confidence_score?: number | null;
 };
 
 export type Quantity = {
