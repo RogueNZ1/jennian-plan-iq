@@ -26,6 +26,7 @@ function UploadPage() {
   const [template, setTemplate] = useState(TEMPLATES[0].code + " — " + TEMPLATES[0].name);
   const [planFile, setPlanFile] = useState<File | null>(null);
   const [specFile, setSpecFile] = useState<File | null>(null);
+  const [electricalFile, setElectricalFile] = useState<File | null>(null);
   const [busy, setBusy] = useState<null | "draft" | "extract">(null);
   const [planPreviewUrl, setPlanPreviewUrl] = useState<string | null>(null);
   const [planThumbBlob, setPlanThumbBlob] = useState<Blob | null>(null);
@@ -149,12 +150,14 @@ function UploadPage() {
       if (jobErr) throw jobErr;
 
       // 2. Upload files
-      const uploads: Array<{ file: File; type: "plan" | "specification" }> = [];
+      const uploads: Array<{ file: File; type: "plan" | "specification" | "electrical" }> = [];
       if (planFile) uploads.push({ file: planFile, type: "plan" });
       if (specFile) uploads.push({ file: specFile, type: "specification" });
+      if (electricalFile) uploads.push({ file: electricalFile, type: "electrical" });
 
       for (const u of uploads) {
-        const path = `${user.id}/${job.id}/${u.type}-${Date.now()}-${u.file.name}`;
+        const prefix = u.type === "electrical" ? "electrical" : u.type;
+        const path = `${user.id}/${job.id}/${prefix}-${Date.now()}-${u.file.name}`;
         const { error: upErr } = await supabase.storage.from("job-files").upload(path, u.file);
         if (upErr) throw upErr;
         const { error: insErr } = await supabase.from("uploaded_files").insert({
@@ -416,6 +419,14 @@ function UploadPage() {
           <div className="grid md:grid-cols-2 gap-4">
             <Dropzone label="Plan PDF" sub="Architectural drawings" file={planFile} onFile={setPlanFile} previewUrl={planPreviewUrl} />
             <Dropzone label="Schedule of Materials & Works" sub="Specification PDF" file={specFile} onFile={setSpecFile} />
+          </div>
+          <div>
+            <Dropzone
+              label="Electrical / Lighting Plan (optional)"
+              sub="Couchmans / Laser Electrical PDF"
+              file={electricalFile}
+              onFile={setElectricalFile}
+            />
           </div>
 
           <div className="rounded-lg border border-border bg-card p-6 space-y-4">
