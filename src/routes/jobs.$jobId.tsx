@@ -113,7 +113,7 @@ function JobDetail() {
       const bytes = writeIQDataSheet(data);
       const surname = data.clientSurname || data.clientName.split(" ").pop() || "Client";
       const filename = `${data.jmwNumber}-IQ-Data-${surname}.xlsx`;
-      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const blob = new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url; a.download = filename; a.click();
