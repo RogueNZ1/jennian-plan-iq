@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppLayout, PageHeader } from "@/components/jennian/AppLayout";
+import { useRoles } from "@/hooks/use-roles";
 import { Breadcrumbs } from "@/components/jennian/Breadcrumbs";
 import { StatusBadge } from "@/components/jennian/StatusBadge";
 import { PlanThumbnail } from "@/components/jennian/PlanThumbnail";
@@ -13,14 +14,15 @@ import {
 } from "@/lib/iq-modules";
 import {
   Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain,
-  AlertTriangle, ShoppingCart, ClipboardCheck, Eye, FileSpreadsheet, ArrowRight, History,
-  Wand2, RefreshCw, Package,
+  AlertTriangle, ShoppingCart, ClipboardCheck, Eye, FileSpreadsheet, FileText, ArrowRight, History,
+  Wand2, RefreshCw, Package, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  buildQSExportData, writeQSExport,
+  buildQSExportData, writeIQDataSheet,
   buildElectricalSchedule, electricalScheduleToCSV,
 } from "@/lib/iq-qs-export";
+import { exportSMWDocument } from "@/lib/iq-smw-export";
 import { exportCartersLoads } from "@/lib/iq-carters-loads";
 import { JobAuditTimeline } from "@/components/jennian/JobAuditTimeline";
 import { AutomaticTakeoffDialog } from "@/components/jennian/AutomaticTakeoffDialog";
@@ -46,6 +48,7 @@ const ICONS: Record<string, typeof Ruler> = {
 function JobDetail() {
   const { jobId } = Route.useParams();
   const navigate = useNavigate();
+  const { isOwner } = useRoles();
   const [job, setJob] = useState<Job | null>(null);
   const [runs, setRuns] = useState<ModuleRun[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,8 +61,11 @@ function JobDetail() {
   const [startChooserOpen, setStartChooserOpen] = useState(false);
   const [hasTakeoffData, setHasTakeoffData] = useState<boolean | null>(null);
   const [exportingQS, setExportingQS] = useState(false);
+  const [exportingSMW, setExportingSMW] = useState(false);
   const [exportingElec, setExportingElec] = useState(false);
   const [exportingCarters, setExportingCarters] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function refreshHasData() {
     const counts = await Promise.all([
@@ -100,30 +106,39 @@ function JobDetail() {
 
   const showStartPanel = !loading && hasTakeoffData === false && !takeoffRun;
 
-  async function handleExportQS() {
+  async function handleExportIQData() {
     setExportingQS(true);
     try {
       const data = await buildQSExportData(jobId);
-      const { data: templateBlob, error: tplErr } = await supabase.storage
-        .from("qs-templates")
-        .download("jennian-qs-template.xlsm");
-      if (tplErr || !templateBlob) throw new Error("Could not download QS template");
-      const buf = await templateBlob.arrayBuffer();
-      const xlsmBytes = writeQSExport(buf, data);
-      const blob = new Blob([xlsmBytes as BlobPart], {
-        type: "application/vnd.ms-excel.sheet.macroEnabled.12",
-      });
+      const bytes = writeIQDataSheet(data);
+      const surname = data.clientSurname || data.clientName.split(" ").pop() || "Client";
+      const filename = `${data.jmwNumber}-IQ-Data-${surname}.xlsx`;
+      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
-      a.download = `${data.jobNumber}-QS-Export.xlsm`;
-      a.click();
+      a.href = url; a.download = filename; a.click();
       URL.revokeObjectURL(url);
-      toast.success("QS spreadsheet exported");
+      toast.success("IQ data sheet exported — paste into your QS");
     } catch (err) {
       toast.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setExportingQS(false);
+    }
+  }
+
+  async function handleExportSMW() {
+    setExportingSMW(true);
+    try {
+      const { blob, filename } = await exportSMWDocument(jobId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      toast.success("SMW document exported");
+    } catch (err) {
+      toast.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setExportingSMW(false);
     }
   }
 
@@ -166,6 +181,32 @@ function JobDetail() {
     }
   }
 
+  async function handleDeleteJob() {
+    setDeleting(true);
+    try {
+      await Promise.all([
+        supabase.from("module_items").delete().eq("job_id", jobId),
+        supabase.from("module_runs").delete().eq("job_id", jobId),
+        supabase.from("extracted_quantities").delete().eq("job_id", jobId),
+        supabase.from("opening_schedule").delete().eq("job_id", jobId),
+        supabase.from("plan_measurements").delete().eq("job_id", jobId),
+        supabase.from("takeoff_runs").delete().eq("job_id", jobId),
+        supabase.from("export_logs").delete().eq("job_id", jobId),
+        supabase.from("uploaded_files").delete().eq("job_id", jobId),
+        supabase.from("vision_takeoff_pages").delete().eq("job_id", jobId),
+      ]);
+      const { error } = await supabase.from("jobs").delete().eq("id", jobId);
+      if (error) throw error;
+      toast.success("Job deleted");
+      navigate({ to: "/jobs" });
+    } catch (err) {
+      toast.error(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setDeleting(false);
+      setDeleteConfirmOpen(false);
+    }
+  }
+
   function openWorkingPlan() {
     navigate({ to: "/review", search: { job: jobId, tab: "working" } });
   }
@@ -183,6 +224,15 @@ function JobDetail() {
           subtitle={job ? `${job.client_name} · ${job.address}` : "Loading…"}
           actions={
             <div className="flex items-center gap-2">
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-md border border-destructive/40 bg-card px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="h-4 w-4" /> Delete Job
+                </button>
+              )}
               {takeoffRun ? (
                 <>
                   <button
@@ -223,14 +273,26 @@ function JobDetail() {
               >
                 <Eye className="h-4 w-4" /> View Plans
               </button>
+              <div className="flex flex-col items-end gap-0.5">
+                <button
+                  type="button"
+                  onClick={handleExportIQData}
+                  disabled={exportingQS}
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  {exportingQS ? "Exporting…" : "Export Excel"}
+                </button>
+                <span className="text-[10px] text-muted-foreground">Paste into your master QS spreadsheet</span>
+              </div>
               <button
                 type="button"
-                onClick={handleExportQS}
-                disabled={exportingQS}
+                onClick={handleExportSMW}
+                disabled={exportingSMW}
                 className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
               >
-                <FileSpreadsheet className="h-4 w-4" />
-                {exportingQS ? "Exporting…" : "Export to QS"}
+                <FileText className="h-4 w-4" />
+                {exportingSMW ? "Exporting…" : "Export SMW"}
               </button>
               <button
                 type="button"
@@ -377,6 +439,27 @@ function JobDetail() {
         onOpenChange={setVisionOpen}
         jobId={jobId}
       />
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this job?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{job?.job_number ?? jobId}</strong> and all related
+              quantities, openings, module items, and takeoff data. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteJob}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting…" : "Delete Job"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={rerunConfirmOpen} onOpenChange={setRerunConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
