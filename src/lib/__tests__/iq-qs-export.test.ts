@@ -47,7 +47,7 @@ function makeData(overrides: Partial<QSExportData> = {}): QSExportData {
     extras: [],
     skylights: [],
     ...overrides,
-  };
+  } as QSExportData;
 }
 
 describe("buildElectricalSchedule", () => {
