@@ -362,7 +362,6 @@ export async function runAutomaticTakeoff(args: {
     if (totalRows === 0) {
       warnings.push("No quantities, openings, or module items were extracted from the uploaded files.");
     }
-    const hasWarnings = errors.length > 0 || warnings.length > 0;
     const completedAt = new Date().toISOString();
 
     // Diagnostics
@@ -520,15 +519,23 @@ export async function runAutomaticTakeoff(args: {
     // Concept mode: fill missing items with Jennian standard allowances
     const { data: jobRow } = await supabase.from("jobs").select("plan_type").eq("id", jobId).single();
     if (jobRow?.plan_type === "concept") {
-      const { data: existingItems } = await supabase.from("module_items").select("label").eq("job_id", jobId);
-      const existingLabels = new Set((existingItems ?? []).map((i: { label: string }) => i.label));
-      // Get floor area from extracted quantities if available
-      const { data: floorQty } = await supabase.from("extracted_quantities")
-        .select("extracted_value").eq("job_id", jobId).eq("quantity_type", "total_floor_area").maybeSingle();
-      const floorAreaM2 = typeof floorQty?.extracted_value === "number" ? floorQty.extracted_value : null;
-      const { applyConceptAssumptions } = await import("./concept-assumptions");
-      const assumptionResult = await applyConceptAssumptions({ jobId, runId, floorAreaM2, existingLabels });
-      await supabase.from("jobs").update({ confidence_score: assumptionResult.confidenceScore }).eq("id", jobId);
+      try {
+        const { data: existingItems } = await supabase.from("module_items")
+          .select("label, value_source").eq("job_id", jobId);
+        const existingLabels = new Set(
+          (existingItems ?? [])
+            .filter((i: { label: string; value_source: string | null }) => i.value_source === "extracted")
+            .map((i: { label: string }) => i.label),
+        );
+        const { data: floorQty } = await supabase.from("extracted_quantities")
+          .select("extracted_value").eq("job_id", jobId).eq("quantity_type", "total_floor_area").maybeSingle();
+        const floorAreaM2 = typeof floorQty?.extracted_value === "number" ? floorQty.extracted_value : null;
+        const { applyConceptAssumptions } = await import("./concept-assumptions");
+        const assumptionResult = await applyConceptAssumptions({ jobId, runId, floorAreaM2, existingLabels });
+        await supabase.from("jobs").update({ confidence_score: assumptionResult.confidenceScore }).eq("id", jobId);
+      } catch (assumptionErr) {
+        console.warn("[concept-mode] applyConceptAssumptions failed — run continues:", assumptionErr);
+      }
     }
 
     await supabase.from("takeoff_runs").update({
