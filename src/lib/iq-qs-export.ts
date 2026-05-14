@@ -575,6 +575,7 @@ const YELLOW_FILL = { fgColor: { rgb: "FFFF00" }, patternType: "solid" } as cons
 /**
  * Creates a fresh .xlsx file with a sheet named "5. Data Input House " (trailing space)
  * populated with the job data, ready to paste into the master QS spreadsheet.
+ * @deprecated Use writeIQDataSheetFull instead — it includes the Cover sheet, Source column, and amber fills for assumed items.
  */
 export function writeIQDataSheet(data: QSExportData): Uint8Array {
   const wb = XLSX.utils.book_new();
@@ -696,60 +697,6 @@ export function writeIQDataSheet(data: QSExportData): Uint8Array {
   return XLSX.write(wb, { bookSST: false, type: "array", cellStyles: true }) as Uint8Array;
 }
 
-
-export function writeQSExportFresh(data: QSExportData): Uint8Array {
-  const wb = XLSX.utils.book_new();
-
-  const rows: (string | number | null)[][] = [
-    ["Jennian Homes — QS Export"],
-    [],
-    ["Job Number",  data.jobNumber],
-    ["Client",      data.clientName],
-    ["Address",     data.address],
-    ["Template",    data.templateId ?? ""],
-    ["Date",        data.createdAt.slice(0, 10)],
-    [],
-    ["GEOMETRY"],
-    ["Floor Area (m²)",         data.floorAreaM2],
-    ["Perimeter (lm)",          data.perimeterM],
-    ["First Floor Area (m²)",   data.firstFloorAreaM2],
-    ["Stud Height (mm)",        data.studHeightMm],
-    ["Alfresco Area (m²)",      data.alfrescoAreaM2],
-    [],
-    ["ROOF & CLADDING"],
-    ["Roof Pitch",    data.roofPitch],
-    ["Ridge Type",    data.ridgeType],
-    ["Underlay",      data.underlay],
-    ["Cladding 1",    data.claddingType1],
-    ["Cladding 2",    data.claddingType2],
-    [],
-    ["WINDOWS", "Type", "Qty"],
-    ...data.windows.map((w) => ["", w.type, w.qty]),
-    [],
-    ["GARAGE DOORS", "Type", "Qty"],
-    ...data.garageDoors.map((g) => ["", g.type, g.qty]),
-    [],
-    ["INTERIOR DOORS", "Type", "Qty"],
-    ...data.interiorDoors.map((d) => ["", d.type, d.qty]),
-    [],
-    ["DOWNPIPES", "Size", "Qty"],
-    ...data.downpipes.map((d) => ["", d.size, d.qty]),
-    [],
-    ["SKYLIGHTS", "Type", "Qty"],
-    ...data.skylights.map((s) => ["", s.type, s.qty]),
-    [],
-    ["HEAT PUMPS", "Model", "Qty"],
-    ...data.heatPumps.map((h) => ["", h.model, h.qty]),
-    [],
-    ["EXTRAS / PC ITEMS", "Description", "Value ($)"],
-    ...data.extras.map((e) => ["", e.description, e.value]),
-  ];
-
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws["!cols"] = [{ wch: 28 }, { wch: 36 }, { wch: 12 }];
-  XLSX.utils.book_append_sheet(wb, ws, "QS Data");
-  return XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
-}
 
 /* -------------------------------------------------- electrical schedule */
 
