@@ -533,8 +533,18 @@ function Field({ label, placeholder, value, onChange }: { label: string; placeho
 function Dropzone({ label, sub, file, onFile, previewUrl }: { label: string; sub: string; file: File | null; onFile: (f: File | null) => void; previewUrl?: string | null }) {
   const [isDragging, setIsDragging] = useState(false);
 
+  const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+
   function isPdf(f: File) {
     return f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+  }
+
+  function acceptFile(f: File) {
+    if (f.size > MAX_BYTES) {
+      toast.error(`File "${f.name}" exceeds the 50 MB limit. Please compress or split the PDF.`);
+      return;
+    }
+    onFile(f);
   }
 
   function handleDrop(e: React.DragEvent<HTMLElement>) {
@@ -550,7 +560,7 @@ function Dropzone({ label, sub, file, onFile, previewUrl }: { label: string; sub
     }
     const next = pdfs[0];
     if (file && file.name === next.name && file.size === next.size) return;
-    onFile(next);
+    acceptFile(next);
   }
 
   function handleDragOver(e: React.DragEvent<HTMLElement>) {
@@ -599,7 +609,7 @@ function Dropzone({ label, sub, file, onFile, previewUrl }: { label: string; sub
               <label className="text-[11px] text-primary font-medium hover:underline cursor-pointer">
                 Replace file
                 <input type="file" accept="application/pdf" className="sr-only"
-                  onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) acceptFile(f); }} />
               </label>
               <button
                 type="button"
@@ -642,7 +652,7 @@ function Dropzone({ label, sub, file, onFile, previewUrl }: { label: string; sub
         type="file"
         accept="application/pdf"
         className="sr-only"
-        onChange={(e) => onFile(e.target.files?.[0] ?? null)}
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) acceptFile(f); }}
       />
     </label>
   );
