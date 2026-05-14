@@ -44,5 +44,6 @@ declare module "xlsx" {
     json_to_sheet(data: object[]): WorkSheet;
     book_append_sheet(wb: WorkBook, ws: WorkSheet, name?: string): void;
     sheet_to_csv(ws: WorkSheet): string;
+    encode_cell(cell: { r: number; c: number }): string;
   };
 }
