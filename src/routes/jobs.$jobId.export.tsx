@@ -92,7 +92,7 @@ function QuickExport() {
     try {
       const bytes = writeIQDataSheet(data);
       const surname = data.clientSurname || data.clientName.split(" ").pop() || "Client";
-      const filename = `${data.jmwNumber}-IQ-Data-${surname}.xlsx`;
+      const filename = `${data.jmwNumber || data.jobNumber}-IQ-Data-${surname}.xlsx`;
       const blob = new Blob([bytes as BlobPart], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
@@ -115,7 +115,7 @@ function QuickExport() {
   const job = data;
 
   const surname = job ? (job.clientSurname || job.clientName.split(" ").pop() || "Client") : "";
-  const filename = job ? `${job.jmwNumber}-IQ-Data-${surname}.xlsx` : "IQ-Data.xlsx";
+  const filename = job ? `${job.jmwNumber || job.jobNumber}-IQ-Data-${surname}.xlsx` : "IQ-Data.xlsx";
 
   return (
     <AppLayout>
