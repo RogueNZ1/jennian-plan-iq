@@ -83,8 +83,10 @@ function ReviewPage() {
       .select("id, module_id, label, extracted_value, unit, value_source, confidence, description, sort_order")
       .eq("job_id", jobId)
       .order("sort_order", { ascending: true })
-      .then(({ data }) => setModuleItems((data ?? []) as ModuleItemRow[]))
-      .catch(() => {});
+      .then(
+        ({ data }) => setModuleItems((data ?? []) as ModuleItemRow[]),
+        () => {},
+      );
   }, [jobId]);
 
   async function override(row: Quantity, raw: string, reason: string) {
