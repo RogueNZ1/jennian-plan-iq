@@ -168,7 +168,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="mx-4 my-2 h-px bg-sidebar-border/70" />
           <div className="px-4 pb-3.5">
             <div className="text-[9.5px] uppercase tracking-[0.22em] text-sidebar-foreground/45 font-medium">Workspace</div>
-            <div className="mt-0.5 text-[13px] font-medium text-white">Jennian Homes Manawatū</div>
+            <div className="mt-0.5 text-[13px] font-medium text-white">Jennian Homes Manawātū</div>
           </div>
         </div>
       </aside>

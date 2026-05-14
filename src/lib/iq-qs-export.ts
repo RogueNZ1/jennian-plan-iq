@@ -686,7 +686,6 @@ export function writeIQDataSheet(data: QSExportData): Uint8Array {
   if (data.drivewayM2 !== null) setCell("E213", data.drivewayM2);
 
   // Set sheet ref range so xlsx knows the extent
-  // Find max row used
   const usedAddrs = Object.keys(ws).filter((k) => !k.startsWith("!"));
   if (usedAddrs.length > 0) {
     ws["!ref"] = "A1:I240";
@@ -696,6 +695,7 @@ export function writeIQDataSheet(data: QSExportData): Uint8Array {
 
   return XLSX.write(wb, { bookSST: false, type: "array", cellStyles: true }) as Uint8Array;
 }
+
 
 export function writeQSExportFresh(data: QSExportData): Uint8Array {
   const wb = XLSX.utils.book_new();
@@ -868,3 +868,99 @@ export function electricalScheduleToCSV(schedule: ElectricalSchedule): string {
 
 // Re-export Carters loads so callers can import everything from one place
 export { exportCartersLoads } from "@/lib/iq-carters-loads";
+
+/* --------------------------------- concept mode IQ data sheet (async, full) */
+
+/**
+ * Generates an IQ data workbook with Cover + Data sheets, loading plan type,
+ * confidence score, and module_items from Supabase when jobId is provided.
+ * Cover sheet: job info, plan type, confidence %, and assumed items list.
+ * Data sheet: module_items with amber fill for assumed rows.
+ */
+export async function writeIQDataSheetFull(
+  data: QSExportData & { jobId?: string },
+): Promise<Uint8Array> {
+  const wb = XLSX.utils.book_new();
+
+  let planType: string | null = null;
+  let confidenceScore: number | null = null;
+  let allItems: Array<{ module_id: string; label: string; extracted_value: string | null; approved_value: string | null; unit: string | null; value_source: string | null }> = [];
+
+  if (data.jobId) {
+    const [jobRes, itemsRes] = await Promise.all([
+      supabase.from("jobs").select("plan_type, confidence_score").eq("id", data.jobId).single(),
+      supabase.from("module_items")
+        .select("module_id, label, extracted_value, approved_value, unit, value_source")
+        .eq("job_id", data.jobId)
+        .order("sort_order", { ascending: true }),
+    ]);
+    planType = (jobRes.data?.plan_type as string | null) ?? null;
+    confidenceScore = (jobRes.data?.confidence_score as number | null) ?? null;
+    allItems = (itemsRes.data ?? []) as typeof allItems;
+  }
+
+  const assumedItems = allItems.filter((i) => i.value_source === "assumed");
+
+  // Cover sheet
+  const coverRows: (string | number | null)[][] = [
+    ["Jennian Homes — IQ Data Sheet"],
+    [],
+    ["Job Number", data.jobNumber],
+    ["Client", data.clientName],
+    ["Address", data.address],
+    ["Date", new Date().toLocaleDateString("en-NZ")],
+    ["Plan Type", planType ?? "detailed"],
+    ...(confidenceScore != null ? [["Confidence Score", `${confidenceScore}%`]] : []),
+    [],
+  ];
+
+  if (assumedItems.length > 0) {
+    coverRows.push(["ASSUMED ITEMS (Jennian standard allowances)"]);
+    coverRows.push(["Module", "Label", "Value", "Unit"]);
+    for (const item of assumedItems) {
+      coverRows.push([
+        item.module_id.replace("iq-", "").toUpperCase(),
+        item.label,
+        item.approved_value ?? item.extracted_value ?? "—",
+        item.unit ?? "",
+      ]);
+    }
+  }
+
+  const wsCover = XLSX.utils.aoa_to_sheet(coverRows);
+  wsCover["!cols"] = [{ wch: 20 }, { wch: 40 }, { wch: 20 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, wsCover, "Cover");
+
+  // Data sheet with amber fill for assumed rows
+  const dataHeader = ["Module", "Label", "Value", "Unit", "Source"];
+  const dataRows: (string | number | null)[][] = [dataHeader];
+  for (const item of allItems) {
+    dataRows.push([
+      item.module_id.replace("iq-", "").toUpperCase(),
+      item.label,
+      item.approved_value ?? item.extracted_value ?? "—",
+      item.unit ?? "",
+      item.value_source ?? "extracted",
+    ]);
+  }
+
+  const wsData = XLSX.utils.aoa_to_sheet(dataRows);
+  wsData["!cols"] = [{ wch: 16 }, { wch: 40 }, { wch: 20 }, { wch: 10 }, { wch: 12 }];
+
+  // Apply amber fill style to assumed rows
+  const amberFill = { patternType: "solid", fgColor: { rgb: "FFF3CD" } };
+  for (let r = 1; r < dataRows.length; r++) {
+    const src = dataRows[r][4];
+    if (src === "assumed") {
+      for (let c = 0; c < 5; c++) {
+        const addr = XLSX.utils.encode_cell({ r, c });
+        if (!wsData[addr]) wsData[addr] = { v: "", t: "s" };
+        (wsData[addr] as XLSX.CellObject).s = { fill: amberFill };
+      }
+    }
+  }
+
+  XLSX.utils.book_append_sheet(wb, wsData, "5. Data Input House ");
+
+  return XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
+}
