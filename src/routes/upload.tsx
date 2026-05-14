@@ -278,12 +278,12 @@ function UploadPage() {
       return;
     }
 
-    // Immediately kick off scale extraction
+    // Immediately kick off scale extraction — use the just-rendered blob directly to avoid stale state
     setConceptBusy("scale");
     setStep("scale");
     setScaleResult(null);
     try {
-      const blob = highResBlob ?? await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex].pageNumber);
+      const blob = await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex].pageNumber);
       setHighResBlob(blob);
       if (!blob) throw new Error("No page image.");
       const b64 = await blobToBase64(blob);

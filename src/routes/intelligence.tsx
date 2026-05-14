@@ -171,8 +171,13 @@ function IntelligencePage() {
           )}
 
           {brief && (
-            // eslint-disable-next-line react/no-danger
-            <div dangerouslySetInnerHTML={{ __html: brief.html_content }} />
+            <pre style={{
+              whiteSpace: "pre-wrap", wordBreak: "break-word",
+              color: "#e8eaed", fontFamily: "inherit", fontSize: 14, lineHeight: 1.7,
+              margin: 0,
+            }}>
+              {brief.text_content}
+            </pre>
           )}
         </div>
 

@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  buildQSExportData, writeIQDataSheet,
+  buildQSExportData, writeIQDataSheetFull,
   buildElectricalSchedule, electricalScheduleToCSV,
   type QSExportData,
 } from "@/lib/iq-qs-export";
@@ -18,7 +18,7 @@ import { IQ_MODULES, type IQModuleId } from "@/lib/iq-modules";
 import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import {
-  FileSpreadsheet, FileDown, Zap, DoorOpen, Download, ArrowLeft, Loader2,
+  FileSpreadsheet, Zap, DoorOpen, Download, ArrowLeft, Loader2,
 } from "lucide-react";
 
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
@@ -159,17 +159,8 @@ function QSExportPage() {
 
   function exportIQData() {
     if (!data) return;
-    void withExport("iq", () => {
-      const bytes = writeIQDataSheet(data);
-      downloadBlob(bytes as BlobPart, `${fileBase}-IQ-Data.xlsx`,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-      toast.success("IQ Data Sheet downloaded");
-    });
-  }
-  function exportFresh() {
-    if (!data) return;
-    void withExport("fresh", () => {
-      const bytes = writeIQDataSheet(data);
+    void withExport("iq", async () => {
+      const bytes = await writeIQDataSheetFull({ ...data, jobId: jobParam });
       downloadBlob(bytes as BlobPart, `${fileBase}-QS-Export.xlsx`,
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       toast.success("QS Export downloaded");
@@ -370,16 +361,7 @@ function QSExportPage() {
                     className="w-full justify-start"
                   >
                     <FileSpreadsheet className="h-4 w-4" />
-                    {exporting === "iq" ? "Preparing…" : "IQ Data Sheet (.xlsx)"}
-                  </Button>
-                  <Button
-                    onClick={exportFresh}
-                    disabled={exporting !== null}
-                    variant="secondary"
-                    className="w-full justify-start"
-                  >
-                    <FileDown className="h-4 w-4" />
-                    {exporting === "fresh" ? "Preparing…" : "QS Master Export (.xlsx)"}
+                    {exporting === "iq" ? "Preparing…" : "QS Export (.xlsx)"}
                   </Button>
                   <Button
                     onClick={exportElectrical}

@@ -1,1 +1,0 @@
-ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS smw_enabled boolean NOT NULL DEFAULT false;

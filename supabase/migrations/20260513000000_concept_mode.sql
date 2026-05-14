@@ -5,7 +5,7 @@
 -- ── jobs ─────────────────────────────────────────────────────────────────────
 
 ALTER TABLE public.jobs
-  ADD COLUMN IF NOT EXISTS plan_type text NOT NULL DEFAULT 'concept'
+  ADD COLUMN IF NOT EXISTS plan_type text NOT NULL DEFAULT 'detailed'
     CHECK (plan_type IN ('concept', 'detailed'));
 
 COMMENT ON COLUMN public.jobs.plan_type IS

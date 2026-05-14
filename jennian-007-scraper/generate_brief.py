@@ -147,7 +147,7 @@ def save_brief(brief: dict):
     print(f"Brief saved for {today}.")
 
 
-def send_brief_email(brief: dict):
+def send_brief_email(brief: dict, brief_date: str):
     """Send the brief to all active email recipients via Resend (optional)."""
     import httpx
 
@@ -169,7 +169,7 @@ def send_brief_email(brief: dict):
             json={
                 "from": "007 Intel <intel@jennian.co.nz>",
                 "to": recipient["email"],
-                "subject": f"Jennian 007 Brief — {brief['brief_date']}",
+                "subject": f"Jennian 007 Brief — {brief_date}",
                 "html": brief["html_content"],
                 "text": brief["text_content"],
             },
@@ -188,5 +188,5 @@ if __name__ == "__main__":
     print("Generating brief with Claude...")
     brief = generate_brief(data)
     save_brief(brief)
-    send_brief_email(brief)
+    send_brief_email(brief, data["scan_date"])
     print("Done.")
