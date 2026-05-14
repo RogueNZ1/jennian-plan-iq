@@ -83,8 +83,10 @@ function ReviewPage() {
       .select("id, module_id, label, extracted_value, unit, value_source, confidence, description, sort_order")
       .eq("job_id", jobId)
       .order("sort_order", { ascending: true })
-      .then(({ data }) => setModuleItems((data ?? []) as ModuleItemRow[]))
-      .catch(() => {});
+      .then(
+        ({ data }) => setModuleItems((data ?? []) as ModuleItemRow[]),
+        () => {},
+      );
   }, [jobId]);
 
   async function override(row: Quantity, raw: string, reason: string) {
@@ -114,6 +116,11 @@ function ReviewPage() {
   async function upgradeToDetailed() {
     if (!job) return;
     await supabase.from("jobs").update({ plan_type: "detailed" }).eq("id", job.id);
+    await supabase
+      .from("module_items")
+      .update({ value_source: "extracted" })
+      .eq("job_id", job.id)
+      .eq("value_source", "assumed");
     setJob({ ...job, plan_type: "detailed" });
     toast.success("Upgraded to Detailed mode.");
   }
