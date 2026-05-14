@@ -17,7 +17,7 @@ import { useRoles } from "@/hooks/use-roles";
 import { Download, FileSpreadsheet, History, CheckCircle2, ArrowRight, ArrowLeft,
   Wand2, ScanEye, Info,
   Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain, AlertTriangle, ShoppingCart, Layers } from "lucide-react";
-import { useEffect, useMemo, useState, lazy, Suspense } from "react";
+import { useEffect, useMemo, useState, useRef, lazy, Suspense } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { OverrideReasonDialog } from "@/components/jennian/OverrideReasonDialog";
@@ -80,13 +80,11 @@ function ReviewPage() {
       setOpeningsCount(o.count ?? 0);
     })();
     supabase.from("module_items")
-      .select("id, module_id, label, extracted_value, unit, value_source, confidence, description, sort_order")
+      .select("id, module_id, label, extracted_value, approved_value, unit, value_source, confidence, description, sort_order")
       .eq("job_id", jobId)
       .order("sort_order", { ascending: true })
-      .then(
-        ({ data }) => setModuleItems((data ?? []) as ModuleItemRow[]),
-        () => {},
-      );
+      .then(({ data }) => { setModuleItems((data ?? []) as ModuleItemRow[]); })
+      .catch(() => {});
   }, [jobId]);
 
   async function override(row: Quantity, raw: string, reason: string) {
@@ -115,20 +113,23 @@ function ReviewPage() {
 
   async function upgradeToDetailed() {
     if (!job) return;
-    await supabase.from("jobs").update({ plan_type: "detailed" }).eq("id", job.id);
-    await supabase
+    const { error: jobErr } = await supabase.from("jobs").update({ plan_type: "detailed" }).eq("id", job.id);
+    if (jobErr) { toast.error(jobErr.message); return; }
+    const { error: itemsErr } = await supabase
       .from("module_items")
       .update({ value_source: "extracted" })
       .eq("job_id", job.id)
       .eq("value_source", "assumed");
+    if (itemsErr) { toast.error(itemsErr.message); return; }
     setJob({ ...job, plan_type: "detailed" });
     toast.success("Upgraded to Detailed mode.");
   }
 
   async function confirmAssumedItem(itemId: string, newValue: string) {
-    await supabase.from("module_items")
+    const { error } = await supabase.from("module_items")
       .update({ approved_value: newValue, value_source: "confirmed", confidence: "high" })
       .eq("id", itemId);
+    if (error) { toast.error(error.message); return; }
     setModuleItems((prev) =>
       prev.map((i) => i.id === itemId ? { ...i, approved_value: newValue, value_source: "confirmed", confidence: "high" } : i),
     );
@@ -554,6 +555,13 @@ function ValueSourceBadge({ source }: { source: string | null }) {
 function AssumedItemRow({ item, onConfirm }: { item: ModuleItemRow; onConfirm: (id: string, value: string) => void }) {
   const [editVal, setEditVal] = useState(item.approved_value ?? item.extracted_value ?? "");
   const [editing, setEditing] = useState(false);
+  const prevApprovedRef = useRef(item.approved_value);
+  useEffect(() => {
+    if (item.approved_value !== prevApprovedRef.current) {
+      prevApprovedRef.current = item.approved_value;
+      setEditVal(item.approved_value ?? item.extracted_value ?? "");
+    }
+  }, [item.approved_value, item.extracted_value]);
   return (
     <tr className="border-t border-border bg-amber-500/4">
       <td className="px-4 py-2.5 text-[11px] text-muted-foreground uppercase tracking-wide">

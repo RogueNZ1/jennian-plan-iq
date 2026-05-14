@@ -522,7 +522,7 @@ export async function runAutomaticTakeoff(args: {
       try {
         const { data: existingItems } = await supabase.from("module_items")
           .select("label, value_source").eq("job_id", jobId);
-        const existingLabels = new Set(
+        const existingLabels = new Set<string>(
           (existingItems ?? [])
             .filter((i: { label: string; value_source: string | null }) => i.value_source === "extracted")
             .map((i: { label: string }) => i.label),

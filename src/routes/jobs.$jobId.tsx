@@ -303,6 +303,13 @@ function JobDetail() {
                   >
                     <ClipboardCheck className="h-4 w-4" /> Review Takeoff Results
                   </Link>
+                  <Link
+                    to="/jobs/$jobId/export"
+                    params={{ jobId }}
+                    className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" /> Quick Export
+                  </Link>
                 </>
               ) : (
                 <button
