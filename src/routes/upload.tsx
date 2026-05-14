@@ -411,7 +411,7 @@ function UploadPage() {
     URL.revokeObjectURL(url);
   }
 
-  // ── Loading screen ────────────────────────────────────────────────────────────────────
+  // ── Loading screen ──────────────────────────────────────────────────────────
 
   if (busy === "extract") {
     return (
@@ -438,7 +438,7 @@ function UploadPage() {
     );
   }
 
-  // ── Concept pipeline: scale step ────────────────────────────────────────────────
+  // ── Concept pipeline: scale step ────────────────────────────────────────────
 
   if (step === "scale") {
     const isLoading = conceptBusy === "scale" || conceptBusy === "rendering";
@@ -532,7 +532,7 @@ function UploadPage() {
     );
   }
 
-  // ── Concept pipeline: plan check step ────────────────────────────────────
+  // ── Concept pipeline: plan check step ──────────────────────────────────────
 
   if (step === "check") {
     const isLoading = conceptBusy === "check";
@@ -718,7 +718,7 @@ function UploadPage() {
     );
   }
 
-  // ── Page selection step ─────────────────────────────────────────────────────────
+  // ── Page selection step ─────────────────────────────────────────────────────
 
   if (step === "select") {
     return (
@@ -875,7 +875,7 @@ function UploadPage() {
     );
   }
 
-  // ── Upload form ───────────────────────────────────────────────────────────────────
+  // ── Upload form ─────────────────────────────────────────────────────────────
 
   return (
     <AppLayout>
@@ -992,7 +992,7 @@ function UploadPage() {
   );
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
