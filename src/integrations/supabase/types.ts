@@ -221,7 +221,7 @@ export type Database = {
           job_number: string
           plan_thumbnail_url: string | null
           plan_type: string | null
-          smw_enabled: boolean | null
+          smw_enabled: boolean
           status: Database["public"]["Enums"]["job_status"]
           template: string | null
           updated_at: string
@@ -239,7 +239,7 @@ export type Database = {
           job_number: string
           plan_thumbnail_url?: string | null
           plan_type?: string | null
-          smw_enabled?: boolean | null
+          smw_enabled?: boolean
           status?: Database["public"]["Enums"]["job_status"]
           template?: string | null
           updated_at?: string
@@ -257,7 +257,7 @@ export type Database = {
           job_number?: string
           plan_thumbnail_url?: string | null
           plan_type?: string | null
-          smw_enabled?: boolean | null
+          smw_enabled?: boolean
           status?: Database["public"]["Enums"]["job_status"]
           template?: string | null
           updated_at?: string
