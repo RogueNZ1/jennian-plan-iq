@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { AppLayout, PageHeader } from "@/components/jennian/AppLayout";
 import { Breadcrumbs } from "@/components/jennian/Breadcrumbs";
 import {
-  buildQSExportData, writeIQDataSheet, buildElectricalSchedule,
+  buildQSExportData, writeIQDataSheetFull, buildElectricalSchedule,
   type QSExportData, type ElectricalSchedule,
 } from "@/lib/iq-qs-export";
 import { supabase } from "@/integrations/supabase/client";
@@ -90,7 +90,7 @@ function QuickExport() {
     if (!data) return;
     setExporting(true);
     try {
-      const bytes = writeIQDataSheet(data);
+      const bytes = await writeIQDataSheetFull({ ...data, jobId });
       const surname = data.clientSurname || data.clientName.split(" ").pop() || "Client";
       const filename = `${data.jmwNumber || data.jobNumber}-IQ-Data-${surname}.xlsx`;
       const blob = new Blob([bytes as BlobPart], {

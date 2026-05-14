@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  buildQSExportData, writeIQDataSheet,
+  buildQSExportData, writeIQDataSheetFull,
   buildElectricalSchedule, electricalScheduleToCSV,
 } from "@/lib/iq-qs-export";
 import { exportSMWDocument } from "@/lib/iq-smw-export";
@@ -132,7 +132,7 @@ function JobDetail() {
     setExportingQS(true);
     try {
       const data = await buildQSExportData(jobId);
-      const bytes = writeIQDataSheet(data);
+      const bytes = await writeIQDataSheetFull({ ...data, jobId });
       const surname = data.clientSurname || data.clientName.split(" ").pop() || "Client";
       const filename = `${data.jmwNumber || data.jobNumber}-IQ-Data-${surname}.xlsx`;
       const blob = new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -252,6 +252,15 @@ function JobDetail() {
     setGeneratorOpen(false);
   }
 
+  async function handleToggleSMW() {
+    if (!job) return;
+    const next = !job.smw_enabled;
+    const { error } = await supabase.from("jobs").update({ smw_enabled: next }).eq("id", jobId);
+    if (error) { toast.error("Failed to update SMW setting"); return; }
+    setJob({ ...job, smw_enabled: next });
+    toast.success(next ? "SMW enabled" : "SMW disabled");
+  }
+
   function openWorkingPlan() {
     navigate({ to: "/review", search: { job: jobId, tab: "working" } });
   }
@@ -293,13 +302,6 @@ function JobDetail() {
                     className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
                   >
                     <ClipboardCheck className="h-4 w-4" /> Review Takeoff Results
-                  </Link>
-                  <Link
-                    to="/jobs/$jobId/export"
-                    params={{ jobId }}
-                    className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
-                  >
-                    <FileSpreadsheet className="h-4 w-4" /> Quick Export
                   </Link>
                 </>
               ) : (
@@ -474,6 +476,32 @@ function JobDetail() {
             </div>
           </div>
         </div>
+
+        {isOwner && (
+          <div className="mb-6 rounded-lg border border-border bg-card p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[13px] font-semibold tracking-tight">SMW Export</div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">
+                  Enable to show the SMW export button for this job
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleSMW}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${job?.smw_enabled ? "bg-primary" : "bg-muted"}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${job?.smw_enabled ? "translate-x-6" : "translate-x-1"}`} />
+              </button>
+            </div>
+            {job?.smw_enabled && job?.plan_type === "concept" && (
+              <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                SMW requires detailed plans for accurate output. Using concept plans will produce a partial SMW.
+              </div>
+            )}
+          </div>
+        )}
 
         {takeoffRun && (
           <div className="mb-6">
