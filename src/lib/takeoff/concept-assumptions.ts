@@ -89,8 +89,9 @@ export async function applyConceptAssumptions(
   const skipped = specs.length - toInsert.length;
 
   if (toInsert.length === 0) {
-    const score = Math.round((ctx.existingLabels.size / (ctx.existingLabels.size + 1)) * 100);
-    return { inserted: 0, skipped, confidenceScore: Math.min(score, 95) };
+    // All items already extracted — 100% confidence (guard for empty set)
+    const score = ctx.existingLabels.size > 0 ? 100 : 0;
+    return { inserted: 0, skipped, confidenceScore: score };
   }
 
   const rows = toInsert.map((s) => {
@@ -115,6 +116,7 @@ export async function applyConceptAssumptions(
   const { error } = await supabase.from("module_items").insert(rows);
   if (error) {
     console.warn("concept-assumptions insert error:", error.message);
+    return { inserted: 0, skipped, confidenceScore: 0 };
   }
 
   const totalExtracted = ctx.existingLabels.size;
