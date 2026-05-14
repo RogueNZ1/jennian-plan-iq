@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -33,6 +33,9 @@ export function AutomaticTakeoffDialog({
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<TakeoffSummary | null>(null);
 
+  const onCompletedRef = useRef(onCompleted);
+  useEffect(() => { onCompletedRef.current = onCompleted; }, [onCompleted]);
+
   useEffect(() => {
     if (!open) {
       setRunning(false); setDone(false); setStep("reviewing_files");
@@ -55,7 +58,7 @@ export function AutomaticTakeoffDialog({
         setSummary(s);
         setDone(true);
         setRunning(false);
-        onCompleted?.(s);
+        onCompletedRef.current?.(s);
       })
       .catch((e) => {
         if (cancelled) return;
@@ -63,7 +66,7 @@ export function AutomaticTakeoffDialog({
         setRunning(false);
       });
     return () => { cancelled = true; };
-  }, [open, jobId, onCompleted]);
+  }, [open, jobId]);
 
   const stepIndex = STEPS.findIndex((s) => s.key === step);
   const progress = done ? 100 : Math.max(5, ((stepIndex + 1) / STEPS.length) * 100);
