@@ -21,7 +21,6 @@ export default defineConfig({
         { find: /^pdfjs-dist\/build\/pdf\.worker\.min\.mjs$/, replacement: resolve("src/lib/pdfjs-worker-stub.mjs") },
         { find: /^pdfjs-dist$/, replacement: resolve("src/__mocks__/pdfjs-dist.ts") },
         { find: "xlsx", replacement: resolve("src/__mocks__/xlsx.ts") },
-        { find: "@supabase/supabase-js", replacement: resolve("src/__mocks__/supabase-js.ts") },
       ],
     },
   },
