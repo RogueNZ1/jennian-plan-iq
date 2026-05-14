@@ -2,7 +2,7 @@ import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, Briefcase, Upload, ClipboardCheck, FileText,
   LayoutTemplate, BarChart3, Users, Settings, Search, Bell, LogOut, Layers,
-  CheckCircle2, FileSpreadsheet, AlertTriangle, X,
+  CheckCircle2, FileSpreadsheet, AlertTriangle, X, Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth, initialsFor } from "@/hooks/use-auth";
@@ -21,6 +21,7 @@ const nav: NavItem[] = [
   { to: "/specifications", label: "Specifications",  icon: FileText },
   { to: "/templates",      label: "Templates",       icon: LayoutTemplate },
   { to: "/reports",        label: "Reports",         icon: BarChart3 },
+  { to: "/intelligence",   label: "007 Intelligence",icon: Zap,      gate: "owner" },
   { to: "/users",          label: "Users",           icon: Users,    gate: "admin" },
   { to: "/settings",       label: "Settings",        icon: Settings, gate: "owner" },
 ];
