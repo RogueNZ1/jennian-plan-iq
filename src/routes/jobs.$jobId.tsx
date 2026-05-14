@@ -132,10 +132,10 @@ function JobDetail() {
     setExportingQS(true);
     try {
       const data = await buildQSExportData(jobId);
-      const bytes = await writeIQDataSheet({ ...data, jobId });
-      const surname = data.clientName.split(" ").pop() || "Client";
-      const filename = `${data.jobNumber}-IQ-Data-${surname}.xlsx`;
-      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const bytes = writeIQDataSheet(data);
+      const surname = data.clientSurname || data.clientName.split(" ").pop() || "Client";
+      const filename = `${data.jmwNumber || data.jobNumber}-IQ-Data-${surname}.xlsx`;
+      const blob = new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url; a.download = filename; a.click();
@@ -341,6 +341,13 @@ function JobDetail() {
               >
                 <Zap className="h-4 w-4" /> Generate Electrical Layout
               </button>
+              <Link
+                to="/jobs/$jobId/export"
+                params={{ jobId }}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+              >
+                <FileSpreadsheet className="h-4 w-4" /> Quick Export
+              </Link>
               <div className="flex flex-col items-end gap-0.5">
                 <button
                   type="button"

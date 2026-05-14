@@ -2,122 +2,105 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppLayout, PageHeader } from "@/components/jennian/AppLayout";
 import { Breadcrumbs } from "@/components/jennian/Breadcrumbs";
-import { getJob, type Job } from "@/lib/jennian-data";
-import { buildQSExportData, writeIQDataSheet } from "@/lib/iq-qs-export";
+import {
+  buildQSExportData, writeIQDataSheet, buildElectricalSchedule,
+  type QSExportData, type ElectricalSchedule,
+} from "@/lib/iq-qs-export";
 import { supabase } from "@/integrations/supabase/client";
-import { FileSpreadsheet, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import {
+  FileSpreadsheet, Ruler, Mountain, Square, Zap, Droplets,
+  Hammer, PaintRoller, DoorOpen, ArrowLeft,
+} from "lucide-react";
+import type { Database } from "@/integrations/supabase/types";
 
-export const Route = createFileRoute("/jobs/$jobId/export")({
-  component: QuickExport,
-});
+type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
+type OpeningRow = Database["public"]["Tables"]["opening_schedule"]["Row"];
 
-type ModuleItem = {
-  id: string;
-  module_id: string;
-  label: string;
-  extracted_value: string | null;
-  approved_value: string | null;
-  unit: string | null;
-  value_source: string;
-  sort_order: number | null;
-};
+export const Route = createFileRoute("/jobs/$jobId/export")({ component: QuickExport });
 
-type Opening = {
-  id: string;
-  opening_type: string;
-  room_name: string | null;
-  width_mm: number | null;
-  height_mm: number | null;
-  quantity: number | null;
-  notes: string | null;
-  confidence: string;
-  review_status: string;
-};
+function fmt(v: number | null | undefined, unit = ""): string {
+  if (v === null || v === undefined) return "—";
+  return `${v.toLocaleString("en-NZ", { maximumFractionDigits: 2 })}${unit ? " " + unit : ""}`;
+}
 
-const SECTION_MODULES = [
-  { id: "iq-core", label: "Core Measurements" },
-  { id: "iq-framing", label: "Framing" },
-  { id: "iq-roofing", label: "Roofing" },
-  { id: "iq-cladding", label: "Cladding" },
-  { id: "iq-electrical", label: "Electrical" },
-  { id: "iq-plumbing", label: "Plumbing" },
-  { id: "iq-linings", label: "Linings" },
-  { id: "iq-margin", label: "Margin & Contingency" },
-];
-
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+function SectionCard({ icon: Icon, title, children }: {
+  icon: React.ElementType;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
-      <div className="px-5 py-3 border-b border-border">
-        <div className="text-[13px] font-semibold tracking-tight">{title}</div>
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/30">
+        <Icon className="h-4 w-4 text-primary" />
+        <span className="text-[13px] font-semibold tracking-tight">{title}</span>
       </div>
-      <div className="px-5 py-3">{children}</div>
+      <div className="p-4">{children}</div>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
+      <span className="text-[12px] text-muted-foreground">{label}</span>
+      <span className="text-[12px] font-medium tabular-nums">{value}</span>
     </div>
   );
 }
 
 function EmptyNote({ text }: { text: string }) {
-  return <p className="text-xs text-muted-foreground">{text}</p>;
-}
-
-function ItemRow({ item }: { item: ModuleItem }) {
-  const value = item.approved_value ?? item.extracted_value ?? "—";
-  const isAssumed = item.value_source === "assumed";
-  return (
-    <div className={`flex items-center justify-between py-1.5 border-b border-border/50 last:border-0 ${isAssumed ? "opacity-70" : ""}`}>
-      <span className="text-sm">{item.label}{isAssumed && <span className="ml-1.5 text-[10px] text-amber-600">(assumed)</span>}</span>
-      <span className="text-sm tabular-nums font-medium">{value}{item.unit ? ` ${item.unit}` : ""}</span>
-    </div>
-  );
+  return <p className="text-[12px] text-muted-foreground italic">{text}</p>;
 }
 
 function QuickExport() {
   const { jobId } = Route.useParams();
-  const [job, setJob] = useState<Job | null>(null);
-  const [items, setItems] = useState<ModuleItem[]>([]);
-  const [openings, setOpenings] = useState<Opening[]>([]);
+  const [data, setData] = useState<QSExportData | null>(null);
+  const [items, setItems] = useState<ModuleItemRow[]>([]);
+  const [openings, setOpenings] = useState<OpeningRow[]>([]);
+  const [electrical, setElectrical] = useState<ElectricalSchedule | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      getJob(jobId),
-      supabase.from("module_items")
-        .select("id, module_id, label, extracted_value, approved_value, unit, value_source, sort_order")
-        .eq("job_id", jobId)
-        .order("sort_order", { ascending: true }),
-      supabase.from("opening_schedule")
-        .select("id, opening_type, room_name, width_mm, height_mm, quantity, notes, confidence, review_status")
-        .eq("job_id", jobId),
-    ])
-      .then(([j, itemsRes, openingsRes]) => {
-        setJob(j);
-        setItems((itemsRes.data ?? []) as ModuleItem[]);
-        setOpenings((openingsRes.data ?? []) as Opening[]);
-      })
-      .catch((e) => toast.error(e.message))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    (async () => {
+      try {
+        const [exportData, itemsRes, openingsRes] = await Promise.all([
+          buildQSExportData(jobId),
+          supabase.from("module_items").select("*").eq("job_id", jobId),
+          supabase.from("opening_schedule").select("*").eq("job_id", jobId),
+        ]);
+        if (cancelled) return;
+        setData(exportData);
+        setItems(itemsRes.data ?? []);
+        setOpenings(openingsRes.data ?? []);
+        setElectrical(buildElectricalSchedule(exportData));
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [jobId]);
 
-  function getItemsByModule(moduleId: string): ModuleItem[] {
-    return items.filter((i) => i.module_id === moduleId);
-  }
-
-  async function handleExport() {
-    if (!job) return;
+  async function handleExportExcel() {
+    if (!data) return;
     setExporting(true);
     try {
-      const data = await buildQSExportData(jobId);
-      const bytes = await writeIQDataSheet({ ...data, jobId });
-      const surname = job.client_name.split(" ").pop() || "Client";
-      const filename = `${job.job_number}-IQ-Data-${surname}.xlsx`;
-      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const bytes = writeIQDataSheet(data);
+      const surname = data.clientSurname || data.clientName.split(" ").pop() || "Client";
+      const filename = `${data.jmwNumber || data.jobNumber}-IQ-Data-${surname}.xlsx`;
+      const blob = new Blob([bytes as BlobPart], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url; a.download = filename; a.click();
       URL.revokeObjectURL(url);
-      toast.success("IQ data sheet exported.");
+      toast.success(`Downloaded ${filename}`);
     } catch (err) {
       toast.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -125,109 +108,253 @@ function QuickExport() {
     }
   }
 
-  if (loading) {
-    return <AppLayout><div className="p-10 text-sm text-muted-foreground">Loading…</div></AppLayout>;
+  function getItemsByModule(moduleId: string): ModuleItemRow[] {
+    return items.filter((i) => i.module_id === moduleId);
   }
 
-  if (!job) {
-    return <AppLayout><div className="p-10 text-sm text-muted-foreground">Job not found.</div></AppLayout>;
-  }
+  const job = data;
 
-  const windows = openings.filter((o) => o.opening_type === "window");
-  const doors = openings.filter((o) => ["exterior_door", "interior_door", "entry_door"].includes(o.opening_type));
+  const surname = job ? (job.clientSurname || job.clientName.split(" ").pop() || "Client") : "";
+  const filename = job ? `${job.jmwNumber || job.jobNumber}-IQ-Data-${surname}.xlsx` : "IQ-Data.xlsx";
 
   return (
     <AppLayout>
       <div className="px-8 py-8 max-w-5xl">
         <Breadcrumbs items={[
           { label: "Jobs", to: "/jobs" },
-          { label: job.job_number, to: "/jobs/$jobId", params: { jobId: job.id } },
+          { label: job?.jmwNumber ?? jobId, to: "/jobs/$jobId", params: { jobId } },
           { label: "Quick Export" },
         ]} />
+
         <PageHeader
           title="Quick Export"
-          subtitle={`${job.job_number} · ${job.client_name} · ${job.address}`}
+          subtitle={job ? `${job.clientName} · ${job.address}` : "Loading…"}
           actions={
-            <div className="flex gap-2 items-center">
+            <div className="flex items-center gap-2">
               <Link
                 to="/jobs/$jobId"
-                params={{ jobId: job.id }}
+                params={{ jobId }}
                 className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
               >
                 <ArrowLeft className="h-4 w-4" /> Back to Job
               </Link>
               <button
-                onClick={handleExport}
-                disabled={exporting}
-                className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
+                type="button"
+                onClick={handleExportExcel}
+                disabled={exporting || !data}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
               >
                 <FileSpreadsheet className="h-4 w-4" />
-                {exporting ? "Exporting…" : "Export to Excel"}
+                {exporting ? "Exporting…" : `Export to Excel — ${filename}`}
               </button>
             </div>
           }
         />
 
-        {job.plan_type === "concept" && (
-          <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/8 px-4 py-3 text-[12.5px] text-amber-700">
-            Concept plan — {items.filter((i) => i.value_source === "assumed").length} items use Jennian standard allowances.
-            {job.confidence_score != null && <span className="ml-2 font-medium">Confidence: {job.confidence_score}%</span>}
+        {loading && (
+          <div className="py-12 text-center text-[13px] text-muted-foreground">Loading quantities…</div>
+        )}
+
+        {error && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-[13px] text-destructive">
+            Failed to load data: {error}
           </div>
         )}
 
-        <div className="space-y-5">
-          {/* Windows & Doors */}
-          <SectionCard title="Windows & Doors">
-            {windows.length === 0 && doors.length === 0 ? (
-              <EmptyNote text="No windows or doors extracted yet." />
-            ) : (
-              <div className="space-y-3">
-                {windows.length > 0 && (
-                  <div>
-                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium mb-1">Windows</div>
-                    {windows.map((o) => (
-                      <div key={o.id} className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
-                        <span className="text-sm">{o.room_name ?? o.opening_type}</span>
-                        <span className="text-sm tabular-nums">
-                          {o.width_mm && o.height_mm ? `${o.width_mm}×${o.height_mm}mm` : o.width_mm ? `${o.width_mm}mm W` : "—"}
-                          {o.quantity && o.quantity > 1 ? ` ×${o.quantity}` : ""}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {doors.length > 0 && (
-                  <div>
-                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium mb-1">Doors</div>
-                    {doors.map((o) => (
-                      <div key={o.id} className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
-                        <span className="text-sm">{o.room_name ?? o.opening_type.replace(/_/g, " ")}</span>
-                        <span className="text-sm tabular-nums">
-                          {o.width_mm ? `${o.width_mm}mm W` : "—"}
-                          {o.quantity && o.quantity > 1 ? ` ×${o.quantity}` : ""}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </SectionCard>
+        {!loading && !error && data && (
+          <div className="grid gap-4 mt-2">
 
-          {/* Module sections */}
-          {SECTION_MODULES.map(({ id, label }) => {
-            const moduleItems = getItemsByModule(id);
-            return (
-              <SectionCard key={id} title={label}>
-                {moduleItems.length === 0 ? (
-                  <EmptyNote text="Not extracted yet." />
-                ) : (
-                  moduleItems.map((item) => <ItemRow key={item.id} item={item} />)
-                )}
-              </SectionCard>
-            );
-          })}
-        </div>
+            {/* Core Measurements */}
+            <SectionCard icon={Ruler} title="Core Measurements">
+              <Row label="Floor Area" value={fmt(data.floorAreaM2, "m²")} />
+              <Row label="Perimeter" value={fmt(data.perimeterLm, "lm")} />
+              <Row label="Stud Height" value={data.studHeightMm ? fmt(data.studHeightMm, "mm") : "—"} />
+              <Row label="Roof Pitch" value={data.roofPitch ?? "—"} />
+              <Row label="Alfresco / Deck Area" value={fmt(data.alfrescoAreaM2, "m²")} />
+              <Row label="First Floor Area" value={fmt(data.firstFloorAreaM2, "m²")} />
+              <Row label="Exterior Wall Length" value={fmt(data.exteriorWallLengthLm, "lm")} />
+              <Row label="Exterior Wall Height" value={fmt(data.exteriorWallHeightM, "m")} />
+              <Row label="Paths / Patio" value={fmt(data.pathsPatioM2, "m²")} />
+              <Row label="Driveway" value={fmt(data.drivewayM2, "m²")} />
+            </SectionCard>
+
+            {/* Windows & Doors */}
+            <SectionCard icon={DoorOpen} title="Windows & Doors">
+              {openings.length === 0 ? (
+                <EmptyNote text="No opening schedule data — run a takeoff to extract windows and doors." />
+              ) : (
+                <table className="w-full text-[12px]">
+                  <thead>
+                    <tr className="border-b border-border text-left">
+                      <th className="pb-2 font-semibold text-muted-foreground">Type</th>
+                      <th className="pb-2 font-semibold text-muted-foreground">Room</th>
+                      <th className="pb-2 font-semibold text-muted-foreground text-right">Qty</th>
+                      <th className="pb-2 font-semibold text-muted-foreground text-right">H (mm)</th>
+                      <th className="pb-2 font-semibold text-muted-foreground text-right">W (mm)</th>
+                      <th className="pb-2 font-semibold text-muted-foreground">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {openings.map((o) => (
+                      <tr key={o.id} className="border-b border-border/40 last:border-0">
+                        <td className="py-1.5 pr-3 capitalize">{o.opening_type.replace(/_/g, " ")}</td>
+                        <td className="py-1.5 pr-3">{o.room_name ?? "—"}</td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">{o.quantity}</td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">{o.height_mm ?? "—"}</td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">{o.width_mm}</td>
+                        <td className="py-1.5">{o.notes ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </SectionCard>
+
+            {/* Roofing */}
+            <SectionCard icon={Mountain} title="Roofing">
+              {(() => {
+                const roofItems = getItemsByModule("iq-roofing");
+                if (roofItems.length === 0) {
+                  return (
+                    <>
+                      <Row label="Roof Pitch" value={data.roofPitch ?? "—"} />
+                      <Row label="Ridge Type" value={data.ridgeType ?? "—"} />
+                      <Row label="Underlay" value={data.underlay ?? "—"} />
+                      <EmptyNote text="No detailed roofing data extracted yet." />
+                    </>
+                  );
+                }
+                return (
+                  <>
+                    <Row label="Roof Pitch" value={data.roofPitch ?? "—"} />
+                    <Row label="Ridge Type" value={data.ridgeType ?? "—"} />
+                    <Row label="Underlay" value={data.underlay ?? "—"} />
+                    {roofItems.map((i) => (
+                      <Row
+                        key={i.id}
+                        label={i.label ?? ""}
+                        value={i.approved_value ?? i.extracted_value ?? "—"}
+                      />
+                    ))}
+                  </>
+                );
+              })()}
+            </SectionCard>
+
+            {/* Cladding */}
+            <SectionCard icon={Square} title="Cladding">
+              {(() => {
+                const claddingItems = getItemsByModule("iq-cladding");
+                return (
+                  <>
+                    <Row label="Cladding Type 1" value={data.claddingType1 ?? "—"} />
+                    <Row label="Cladding Type 2" value={data.claddingType2 ?? "—"} />
+                    {claddingItems.length === 0 ? (
+                      <EmptyNote text="No detailed cladding area data extracted yet." />
+                    ) : claddingItems.map((i) => (
+                      <Row
+                        key={i.id}
+                        label={i.label ?? ""}
+                        value={i.approved_value ?? i.extracted_value ?? "—"}
+                      />
+                    ))}
+                  </>
+                );
+              })()}
+            </SectionCard>
+
+            {/* Electrical */}
+            <SectionCard icon={Zap} title="Electrical">
+              {electrical ? (
+                <div className="space-y-3">
+                  {(
+                    [
+                      { label: "Lighting", items: electrical.lighting },
+                      { label: "Power", items: electrical.power },
+                      { label: "Communications", items: electrical.communications },
+                      { label: "Mechanical", items: electrical.mechanical },
+                    ] as const
+                  ).map(({ label, items: eitems }) => (
+                    <div key={label}>
+                      <div className="text-[11px] uppercase tracking-widest text-muted-foreground mb-1">{label}</div>
+                      {eitems.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between py-1 border-b border-border/40 last:border-0">
+                          <span className="text-[12px]">{item.description}</span>
+                          <span className="text-[12px] font-medium tabular-nums">{item.qty} {item.unit}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  <div className="pt-2 border-t border-border flex justify-between">
+                    <span className="text-[12px] font-semibold">Total Estimate (excl. GST)</span>
+                    <span className="text-[12px] font-semibold tabular-nums">
+                      ${electrical.totalEstimate.toLocaleString("en-NZ", { maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <EmptyNote text="No floor area available for electrical schedule." />
+              )}
+            </SectionCard>
+
+            {/* Plumbing */}
+            <SectionCard icon={Droplets} title="Plumbing">
+              {(() => {
+                const plumbingItems = getItemsByModule("iq-plumbing");
+                if (plumbingItems.length === 0) {
+                  return <EmptyNote text="No plumbing data extracted yet — run a takeoff with a specification document." />;
+                }
+                return plumbingItems.map((i) => (
+                  <Row
+                    key={i.id}
+                    label={i.label ?? ""}
+                    value={i.approved_value ?? i.extracted_value ?? "—"}
+                  />
+                ));
+              })()}
+            </SectionCard>
+
+            {/* Framing */}
+            <SectionCard icon={Hammer} title="Framing">
+              {(() => {
+                const framingItems = getItemsByModule("iq-framing");
+                if (framingItems.length === 0) {
+                  return (
+                    <>
+                      <Row label="Exterior Wall Length" value={fmt(data.exteriorWallLengthLm, "lm")} />
+                      <EmptyNote text="No detailed framing data extracted yet." />
+                    </>
+                  );
+                }
+                return framingItems.map((i) => (
+                  <Row
+                    key={i.id}
+                    label={i.label ?? ""}
+                    value={i.approved_value ?? i.extracted_value ?? "—"}
+                  />
+                ));
+              })()}
+            </SectionCard>
+
+            {/* Linings */}
+            <SectionCard icon={PaintRoller} title="Linings">
+              {(() => {
+                const liningItems = getItemsByModule("iq-linings");
+                if (liningItems.length === 0) {
+                  return <EmptyNote text="No linings data extracted yet." />;
+                }
+                return liningItems.map((i) => (
+                  <Row
+                    key={i.id}
+                    label={i.label ?? ""}
+                    value={i.approved_value ?? i.extracted_value ?? "—"}
+                  />
+                ));
+              })()}
+            </SectionCard>
+
+          </div>
+        )}
       </div>
     </AppLayout>
   );

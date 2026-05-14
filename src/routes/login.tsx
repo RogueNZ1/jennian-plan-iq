@@ -1,6 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -10,7 +9,7 @@ export const Route = createFileRoute("/login")({ component: LoginPage });
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
+  const { user, loading, signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -22,10 +21,12 @@ function LoginPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await signIn(email, password);
     setBusy(false);
     if (error) return toast.error(error.message);
-    navigate({ to: "/" });
+    // Don't navigate here — onAuthStateChange will update `user`, and the
+    // effect above will redirect to "/". Navigating immediately races the
+    // auth state propagation and AppLayout bounces us back to /login.
   }
 
   return (

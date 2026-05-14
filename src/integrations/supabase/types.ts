@@ -962,7 +962,7 @@ export type Database = {
       app_role: "owner" | "admin" | "estimator" | "viewer" | "project_manager"
       confidence_level: "high" | "mid" | "low"
       export_type: "csv" | "excel"
-      file_type: "plan" | "specification"
+      file_type: "plan" | "specification" | "electrical"
       job_status:
         | "draft"
         | "uploaded"
@@ -1101,7 +1101,7 @@ export const Constants = {
       app_role: ["owner", "admin", "estimator", "viewer", "project_manager"],
       confidence_level: ["high", "mid", "low"],
       export_type: ["csv", "excel"],
-      file_type: ["plan", "specification"],
+      file_type: ["plan", "specification", "electrical"],
       job_status: [
         "draft",
         "uploaded",
