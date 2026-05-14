@@ -517,6 +517,20 @@ export async function runAutomaticTakeoff(args: {
       visionReviewMarkedAt: null,
     };
 
+    // Concept mode: fill missing items with Jennian standard allowances
+    const { data: jobRow } = await supabase.from("jobs").select("plan_type").eq("id", jobId).single();
+    if (jobRow?.plan_type === "concept") {
+      const { data: existingItems } = await supabase.from("module_items").select("label").eq("job_id", jobId);
+      const existingLabels = new Set((existingItems ?? []).map((i: { label: string }) => i.label));
+      // Get floor area from extracted quantities if available
+      const { data: floorQty } = await supabase.from("extracted_quantities")
+        .select("extracted_value").eq("job_id", jobId).eq("quantity_type", "total_floor_area").maybeSingle();
+      const floorAreaM2 = typeof floorQty?.extracted_value === "number" ? floorQty.extracted_value : null;
+      const { applyConceptAssumptions } = await import("./concept-assumptions");
+      const assumptionResult = await applyConceptAssumptions({ jobId, runId, floorAreaM2, existingLabels });
+      await supabase.from("jobs").update({ confidence_score: assumptionResult.confidenceScore }).eq("id", jobId);
+    }
+
     await supabase.from("takeoff_runs").update({
       status: hasWarnings2 ? "completed_with_warnings" : "completed",
       completed_at: completedAt,
