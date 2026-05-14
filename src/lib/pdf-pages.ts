@@ -226,6 +226,22 @@ export function pickPrimaryFloorplan(pages: PageAnalysis[]): {
   return { index: top.i, certainty };
 }
 
+/**
+ * Render a single PDF page at high resolution for AI analysis.
+ * Returns a JPEG blob suitable for base64 encoding and sending to a vision model.
+ * maxWidth defaults to 1400px — a good balance between detail and payload size.
+ */
+export async function renderPageForAnalysis(
+  file: File,
+  pageNumber: number,
+  maxWidth = 1400,
+): Promise<Blob | null> {
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const page = await pdf.getPage(pageNumber);
+  return renderPageThumbnail(page, maxWidth, 0.92);
+}
+
 export function disposePageAnalyses(pages: PageAnalysis[]) {
   for (const p of pages) URL.revokeObjectURL(p.thumbnailUrl);
 }
