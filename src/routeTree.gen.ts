@@ -16,6 +16,7 @@ import { Route as SpecificationsRouteImport } from './routes/specifications'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as QsExportRouteImport } from './routes/qs-export'
 import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as JobsRouteImport } from './routes/jobs'
@@ -59,6 +60,11 @@ const ReviewRoute = ReviewRouteImport.update({
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QsExportRoute = QsExportRouteImport.update({
+  id: '/qs-export',
+  path: '/qs-export',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ModulesRoute = ModulesRouteImport.update({
@@ -112,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/jobs': typeof JobsRouteWithChildren
   '/login': typeof LoginRoute
   '/modules': typeof ModulesRouteWithChildren
+  '/qs-export': typeof QsExportRoute
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
@@ -128,6 +135,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/qs-export': typeof QsExportRoute
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
@@ -147,6 +155,7 @@ export interface FileRoutesById {
   '/jobs': typeof JobsRouteWithChildren
   '/login': typeof LoginRoute
   '/modules': typeof ModulesRouteWithChildren
+  '/qs-export': typeof QsExportRoute
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
@@ -167,6 +176,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/login'
     | '/modules'
+    | '/qs-export'
     | '/reports'
     | '/review'
     | '/settings'
@@ -183,6 +193,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/qs-export'
     | '/reports'
     | '/review'
     | '/settings'
@@ -201,6 +212,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/login'
     | '/modules'
+    | '/qs-export'
     | '/reports'
     | '/review'
     | '/settings'
@@ -220,6 +232,7 @@ export interface RootRouteChildren {
   JobsRoute: typeof JobsRouteWithChildren
   LoginRoute: typeof LoginRoute
   ModulesRoute: typeof ModulesRouteWithChildren
+  QsExportRoute: typeof QsExportRoute
   ReportsRoute: typeof ReportsRoute
   ReviewRoute: typeof ReviewRoute
   SettingsRoute: typeof SettingsRoute
@@ -278,6 +291,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/qs-export': {
+      id: '/qs-export'
+      path: '/qs-export'
+      fullPath: '/qs-export'
+      preLoaderRoute: typeof QsExportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/modules': {
@@ -388,6 +408,7 @@ const rootRouteChildren: RootRouteChildren = {
   JobsRoute: JobsRouteWithChildren,
   LoginRoute: LoginRoute,
   ModulesRoute: ModulesRouteWithChildren,
+  QsExportRoute: QsExportRoute,
   ReportsRoute: ReportsRoute,
   ReviewRoute: ReviewRoute,
   SettingsRoute: SettingsRoute,
