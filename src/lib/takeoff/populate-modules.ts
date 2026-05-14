@@ -5,7 +5,7 @@
  * source data.
  */
 import { supabase } from "@/integrations/supabase/client";
-import type { IQModuleId } from "@/lib/iq-modules";
+import { IQ_MODULES, type IQModuleId } from "@/lib/iq-modules";
 import type { ExtractedQty } from "./extract-quantities";
 import type { ExtractedOpening } from "./extract-openings";
 import type { SpecRow } from "./extract-spec";
@@ -132,13 +132,31 @@ async function persistDraft(
   if (runsErr) {
     return { status: "error", ...tag, error: `Could not load module run: ${runsErr.message}` };
   }
-  const runId = runs?.[0]?.id;
+  let runId = runs?.[0]?.id as string | undefined;
   if (!runId) {
-    return {
-      status: "error",
-      ...tag,
-      error: `Missing module_runs row for ${draft.moduleId} — module_items.run_id cannot be set.`,
-    };
+    const moduleDef = IQ_MODULES.find((m) => m.id === draft.moduleId);
+    const { data: created, error: createErr } = await supabase
+      .from("module_runs")
+      .insert({
+        job_id: jobId,
+        module_id: draft.moduleId,
+        module_name: moduleDef?.name ?? draft.moduleId,
+        status: "in_progress",
+        review_status: "review_required",
+        required: moduleDef?.required ?? true,
+        item_count: 0,
+        last_run_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+    if (createErr || !created?.id) {
+      return {
+        status: "error",
+        ...tag,
+        error: `Could not create module_runs row for ${draft.moduleId}: ${createErr?.message ?? "no id returned"}`,
+      };
+    }
+    runId = created.id as string;
   }
 
   const { data: matching, error: matchErr } = await supabase
