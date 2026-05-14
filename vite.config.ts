@@ -16,11 +16,12 @@ export default defineConfig({
   vite: {
     resolve: {
       alias: [
-        // xlsx and pdfjs-dist are aliased to local stubs so the build resolves.
+        // Aliased to local stubs so the build resolves without the packages.
         // Order matters — more specific entries must come first.
         { find: /^pdfjs-dist\/build\/pdf\.worker\.min\.mjs$/, replacement: resolve("src/lib/pdfjs-worker-stub.mjs") },
         { find: /^pdfjs-dist$/, replacement: resolve("src/__mocks__/pdfjs-dist.ts") },
         { find: "xlsx", replacement: resolve("src/__mocks__/xlsx.ts") },
+        { find: "@supabase/supabase-js", replacement: resolve("src/__mocks__/supabase-js.ts") },
       ],
     },
   },

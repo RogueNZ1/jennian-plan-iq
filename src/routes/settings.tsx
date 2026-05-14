@@ -48,6 +48,7 @@ function Page() {
     else { setSmwFile(null); toast.success("SMW template uploaded"); }
   }
 
+
   async function save() {
     if (!user) return;
     setSaving(true);
@@ -133,6 +134,7 @@ function Page() {
             </button>
           </div>
         </div>
+
 
         <div className="space-y-3">
           {READ_ONLY_SETTINGS.map((s) => (
