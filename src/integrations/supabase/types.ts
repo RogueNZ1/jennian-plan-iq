@@ -154,14 +154,11 @@ export type Database = {
         Row: {
           address: string
           client_name: string
-          confidence_score: number | null
           created_at: string
           created_by: string
           id: string
           job_number: string
           plan_thumbnail_url: string | null
-          plan_type: string | null
-          smw_enabled: boolean | null
           status: Database["public"]["Enums"]["job_status"]
           template: string | null
           updated_at: string
@@ -172,14 +169,11 @@ export type Database = {
         Insert: {
           address: string
           client_name: string
-          confidence_score?: number | null
           created_at?: string
           created_by: string
           id?: string
           job_number: string
           plan_thumbnail_url?: string | null
-          plan_type?: string | null
-          smw_enabled?: boolean | null
           status?: Database["public"]["Enums"]["job_status"]
           template?: string | null
           updated_at?: string
@@ -190,14 +184,11 @@ export type Database = {
         Update: {
           address?: string
           client_name?: string
-          confidence_score?: number | null
           created_at?: string
           created_by?: string
           id?: string
           job_number?: string
           plan_thumbnail_url?: string | null
-          plan_type?: string | null
-          smw_enabled?: boolean | null
           status?: Database["public"]["Enums"]["job_status"]
           template?: string | null
           updated_at?: string
@@ -296,7 +287,6 @@ export type Database = {
           source_evidence: string | null
           unit: string | null
           updated_at: string
-          value_source: string | null
         }
         Insert: {
           approved_value?: string | null
@@ -322,7 +312,6 @@ export type Database = {
           source_evidence?: string | null
           unit?: string | null
           updated_at?: string
-          value_source?: string | null
         }
         Update: {
           approved_value?: string | null
@@ -348,7 +337,6 @@ export type Database = {
           source_evidence?: string | null
           unit?: string | null
           updated_at?: string
-          value_source?: string | null
         }
         Relationships: [
           {
