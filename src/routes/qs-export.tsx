@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  buildQSExportData, writeIQDataSheet, writeQSExportFresh,
+  buildQSExportData, writeIQDataSheet,
   buildElectricalSchedule, electricalScheduleToCSV,
   type QSExportData,
 } from "@/lib/iq-qs-export";
@@ -169,7 +169,7 @@ function QSExportPage() {
   function exportFresh() {
     if (!data) return;
     void withExport("fresh", () => {
-      const bytes = writeQSExportFresh(data);
+      const bytes = writeIQDataSheet(data);
       downloadBlob(bytes as BlobPart, `${fileBase}-QS-Export.xlsx`,
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       toast.success("QS Export downloaded");
