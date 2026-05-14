@@ -411,7 +411,7 @@ function UploadPage() {
     URL.revokeObjectURL(url);
   }
 
-  // ── Loading screen ──────────────────────────────────────────────────────────
+  // ── Loading screen ────────────────────────────────────────────────────────────────────
 
   if (busy === "extract") {
     return (
@@ -438,7 +438,7 @@ function UploadPage() {
     );
   }
 
-  // ── Concept pipeline: scale step ────────────────────────────────────────────
+  // ── Concept pipeline: scale step ────────────────────────────────────────────────
 
   if (step === "scale") {
     const isLoading = conceptBusy === "scale" || conceptBusy === "rendering";
@@ -532,7 +532,7 @@ function UploadPage() {
     );
   }
 
-  // ── Concept pipeline: plan check step ──────────────────────────────────────
+  // ── Concept pipeline: plan check step ────────────────────────────────────
 
   if (step === "check") {
     const isLoading = conceptBusy === "check";
@@ -718,7 +718,7 @@ function UploadPage() {
     );
   }
 
-  // ── Page selection step ─────────────────────────────────────────────────────
+  // ── Page selection step ─────────────────────────────────────────────────────────
 
   if (step === "select") {
     return (
@@ -875,7 +875,7 @@ function UploadPage() {
     );
   }
 
-  // ── Upload form ─────────────────────────────────────────────────────────────
+  // ── Upload form ───────────────────────────────────────────────────────────────────
 
   return (
     <AppLayout>
@@ -992,7 +992,7 @@ function UploadPage() {
   );
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────────────────
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -1156,8 +1156,18 @@ function Dropzone({ label, sub, file, onFile, previewUrl }: {
 }) {
   const [isDragging, setIsDragging] = useState(false);
 
+  const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+
   function isPdf(f: File) {
     return f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+  }
+
+  function acceptFile(f: File) {
+    if (f.size > MAX_BYTES) {
+      toast.error(`File "${f.name}" exceeds the 50 MB limit. Please compress or split the PDF.`);
+      return;
+    }
+    onFile(f);
   }
 
   function handleDrop(e: React.DragEvent<HTMLElement>) {
@@ -1173,7 +1183,7 @@ function Dropzone({ label, sub, file, onFile, previewUrl }: {
     }
     const next = pdfs[0];
     if (file && file.name === next.name && file.size === next.size) return;
-    onFile(next);
+    acceptFile(next);
   }
 
   function handleDragOver(e: React.DragEvent<HTMLElement>) {
@@ -1222,7 +1232,7 @@ function Dropzone({ label, sub, file, onFile, previewUrl }: {
               <label className="text-[11px] text-primary font-medium hover:underline cursor-pointer">
                 Replace file
                 <input type="file" accept="application/pdf" className="sr-only"
-                  onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) acceptFile(f); }} />
               </label>
               <button
                 type="button"
@@ -1265,7 +1275,7 @@ function Dropzone({ label, sub, file, onFile, previewUrl }: {
         type="file"
         accept="application/pdf"
         className="sr-only"
-        onChange={(e) => onFile(e.target.files?.[0] ?? null)}
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) acceptFile(f); }}
       />
     </label>
   );
