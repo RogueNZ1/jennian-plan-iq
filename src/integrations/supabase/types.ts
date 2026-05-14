@@ -53,6 +53,66 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_briefs: {
+        Row: {
+          id: string
+          brief_date: string
+          html_content: string
+          text_content: string
+          summary: string | null
+          alert_count: number
+          new_listing_count: number
+          price_change_count: number
+          generated_at: string
+        }
+        Insert: {
+          id?: string
+          brief_date: string
+          html_content: string
+          text_content: string
+          summary?: string | null
+          alert_count?: number
+          new_listing_count?: number
+          price_change_count?: number
+          generated_at?: string
+        }
+        Update: {
+          id?: string
+          brief_date?: string
+          html_content?: string
+          text_content?: string
+          summary?: string | null
+          alert_count?: number
+          new_listing_count?: number
+          price_change_count?: number
+          generated_at?: string
+        }
+        Relationships: []
+      }
+      email_recipients: {
+        Row: {
+          id: string
+          email: string
+          name: string | null
+          active: boolean
+          added_at: string
+        }
+        Insert: {
+          id?: string
+          email: string
+          name?: string | null
+          active?: boolean
+          added_at?: string
+        }
+        Update: {
+          id?: string
+          email?: string
+          name?: string | null
+          active?: boolean
+          added_at?: string
+        }
+        Relationships: []
+      }
       export_logs: {
         Row: {
           export_type: Database["public"]["Enums"]["export_type"]
@@ -204,6 +264,110 @@ export type Database = {
           uploaded_at?: string | null
           working_plan_file_id?: string | null
           working_plan_page_number?: number | null
+        }
+        Relationships: []
+      }
+      listing_changes: {
+        Row: {
+          id: string
+          listing_id: string | null
+          change_type: string
+          old_value: string | null
+          new_value: string | null
+          detected_at: string
+        }
+        Insert: {
+          id?: string
+          listing_id?: string | null
+          change_type: string
+          old_value?: string | null
+          new_value?: string | null
+          detected_at?: string
+        }
+        Update: {
+          id?: string
+          listing_id?: string | null
+          change_type?: string
+          old_value?: string | null
+          new_value?: string | null
+          detected_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listing_changes_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      listings: {
+        Row: {
+          id: string
+          source: string
+          external_id: string | null
+          builder: string | null
+          title: string | null
+          location: string | null
+          suburb: string | null
+          city: string | null
+          bedrooms: number | null
+          bathrooms: number | null
+          floor_area_m2: number | null
+          land_area_m2: number | null
+          price: number | null
+          price_display: string | null
+          listing_url: string | null
+          image_url: string | null
+          status: string
+          first_seen_at: string
+          last_seen_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          source: string
+          external_id?: string | null
+          builder?: string | null
+          title?: string | null
+          location?: string | null
+          suburb?: string | null
+          city?: string | null
+          bedrooms?: number | null
+          bathrooms?: number | null
+          floor_area_m2?: number | null
+          land_area_m2?: number | null
+          price?: number | null
+          price_display?: string | null
+          listing_url?: string | null
+          image_url?: string | null
+          status?: string
+          first_seen_at?: string
+          last_seen_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          source?: string
+          external_id?: string | null
+          builder?: string | null
+          title?: string | null
+          location?: string | null
+          suburb?: string | null
+          city?: string | null
+          bedrooms?: number | null
+          bathrooms?: number | null
+          floor_area_m2?: number | null
+          land_area_m2?: number | null
+          price?: number | null
+          price_display?: string | null
+          listing_url?: string | null
+          image_url?: string | null
+          status?: string
+          first_seen_at?: string
+          last_seen_at?: string
+          created_at?: string
         }
         Relationships: []
       }
