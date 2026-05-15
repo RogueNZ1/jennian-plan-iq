@@ -19,7 +19,10 @@ interface DailyBrief {
 
 function parseDailyBrief(value: unknown): DailyBrief | null {
   if (!value || typeof value !== "object") return null;
-  const row = value as Record<string, unknown>;
+  const row = Object.entries(value).reduce<Record<string, unknown>>((acc, [key, entry]) => {
+    acc[key] = entry;
+    return acc;
+  }, {});
   if (
     typeof row.id !== "string" ||
     typeof row.brief_date !== "string" ||
