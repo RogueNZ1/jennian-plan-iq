@@ -8,7 +8,7 @@
 import { createServerFn } from "@tanstack/react-start";
 
 const AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const AI_MODEL = "openai/gpt-5";
+const AI_MODEL = "google/gemini-2.5-pro";
 
 function getApiKey(): string {
   const key = process.env.LOVABLE_API_KEY;
