@@ -55,6 +55,7 @@ const VisionPageResultSchema = z.object({
   base_geometry: z.object({
     external_perimeter_m: z.number().nullable(),
     internal_wall_length_m: z.number().nullable(),
+    internal_wall_segments_m: z.array(z.number()).optional().default([]),
     garage_area_m2: z.number().nullable(),
     living_area_excluding_garage_m2: z.number().nullable(),
   }),
@@ -85,6 +86,7 @@ const VisionPageResultSchema = z.object({
   wall_lengths: z.object({
     external_wall_length_m: z.number().nullable(),
     internal_wall_length_m: z.number().nullable(),
+    internal_wall_segments_m: z.array(z.number()).optional().default([]),
     wet_area_wall_length_m: z.number().nullable(),
     garage_internal_wall_length_m: z.number().nullable(),
     robe_wall_length_m: z.number().nullable(),
