@@ -155,7 +155,10 @@ export async function buildQSExportData(
   function getNum(label: string): number | null {
     const v = getVal(label);
     if (!v) return null;
-    const n = parseFloat(v.replace(/[^\d.]/g, ""));
+    // Strip commas (thousand separators) and any chars except digits, dot, minus.
+    // Preserve a leading minus so negative values survive.
+    const cleaned = v.replace(/,/g, "").replace(/[^\d.\-]/g, "");
+    const n = parseFloat(cleaned);
     return isNaN(n) ? null : n;
   }
 
