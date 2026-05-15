@@ -573,11 +573,6 @@ export async function buildQSExportData(
   };
 }
 
-/* ----------------------------------------------------- IQ data sheet write */
-
-const YELLOW_FILL = { fgColor: { rgb: "FFFF00" }, patternType: "solid" } as const;
-
-
 /* -------------------------------------------------- electrical schedule */
 
 const BASE_AREA_M2 = 165;
