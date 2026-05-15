@@ -199,10 +199,18 @@ function ReviewPage() {
 
   async function exportExcel() {
     if (!job || !jobId) return;
-    const [openings, measurements] = await Promise.all([
-      loadOpenings(jobId).catch(() => []),
-      loadMeasurements(jobId).catch(() => []),
-    ]);
+    let openings: Awaited<ReturnType<typeof loadOpenings>> = [];
+    let measurements: Awaited<ReturnType<typeof loadMeasurements>> = [];
+    try {
+      openings = await loadOpenings(jobId);
+    } catch {
+      openings = [];
+    }
+    try {
+      measurements = await loadMeasurements(jobId);
+    } catch {
+      measurements = [];
+    }
 
     const wb = XLSX.utils.book_new();
 
@@ -513,7 +521,12 @@ function ReviewPage() {
         onOpenChange={setTakeoffOpen}
         jobId={job.id}
         onCompleted={async () => {
-          const q = await listQuantities(job.id).catch(() => []);
+          let q: Awaited<ReturnType<typeof listQuantities>> = [];
+          try {
+            q = await listQuantities(job.id);
+          } catch {
+            q = [];
+          }
           setRows(q);
           const [m, o] = await Promise.all([
             supabase.from("plan_measurements").select("id", { count: "exact", head: true }).eq("job_id", job.id),
