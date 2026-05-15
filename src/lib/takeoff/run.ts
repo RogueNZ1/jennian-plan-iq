@@ -10,6 +10,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
+import { toJson } from "@/lib/type-helpers";
 import { extractFile, loadJobFiles, type ExtractedFile } from "./pdf-text";
 import { classifyPageWithType, pickWorkingPage, type ClassifiedPage } from "./classify";
 import { detectScaleFromText, writeCalibration } from "./scale";
@@ -149,7 +150,7 @@ export async function runAutomaticTakeoff(args: {
       await supabase.from("takeoff_runs").update({
         status: "completed",
         completed_at: new Date().toISOString(),
-        summary: summary as unknown as Json,
+        summary: toJson(summary),
         error_message: "No uploaded files found.",
       }).eq("id", runId);
       await logAudit({ jobId, userId, action: "automatic_takeoff_completed", notes: "no files" });
@@ -547,7 +548,7 @@ export async function runAutomaticTakeoff(args: {
       classification_confidence: workingPageConf,
       scale_text: scaleText,
       calibration_id: calibrationId,
-      summary: summary as unknown as Json,
+      summary: toJson(summary),
       error_message: errors.length > 0 ? errors.slice(0, 5).join(" | ") : null,
     }).eq("id", runId);
 
@@ -613,7 +614,7 @@ export async function loadLatestTakeoffRun(jobId: string): Promise<LatestTakeoff
     status: row.status as string,
     started_at: row.started_at as string,
     completed_at: (row.completed_at as string | null) ?? null,
-    summary: (row.summary as unknown as TakeoffSummary | null) ?? null,
+    summary: (row.summary ?? null) as TakeoffSummary | null,
     error_message: (row.error_message as string | null) ?? null,
   };
 }
