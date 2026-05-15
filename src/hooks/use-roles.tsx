@@ -42,12 +42,16 @@ export function useRoles() {
     return () => { cancelled = true; };
   }, [user, authLoading]);
 
-  const has = (r: AppRole) => roles.includes(r);
-  const hasAny = (...rs: AppRole[]) => rs.some((r) => roles.includes(r));
+  const isLoading = loading || authLoading;
+  // While roles are still loading we MUST default every capability flag to
+  // `false`. Otherwise admin/owner-only menu items can flash for users who
+  // do not have the role before the fetch resolves.
+  const has = (r: AppRole) => !isLoading && roles.includes(r);
+  const hasAny = (...rs: AppRole[]) => !isLoading && rs.some((r) => roles.includes(r));
 
   return {
     roles,
-    loading: loading || authLoading,
+    loading: isLoading,
     has,
     hasAny,
     isOwner:          has("owner"),
