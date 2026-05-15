@@ -733,6 +733,13 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
         const wlSum = sumSegments(wlSegs);
         if (bgSum !== null) parsed.base_geometry.internal_wall_length_m = bgSum;
         if (wlSum !== null) parsed.wall_lengths.internal_wall_length_m = wlSum;
+        // Cross-fill: if one side has a value (from segments OR direct AI output)
+        // and the other is null, mirror it across so downstream consumers that
+        // read either field get the same number.
+        const bgVal = parsed.base_geometry.internal_wall_length_m;
+        const wlVal = parsed.wall_lengths.internal_wall_length_m;
+        if (bgVal == null && wlVal != null) parsed.base_geometry.internal_wall_length_m = wlVal;
+        if (wlVal == null && bgVal != null) parsed.wall_lengths.internal_wall_length_m = bgVal;
 
         pageOutcome.result = parsed;
         pageOutcome.warnings = [...pageOutcome.warnings, ...(parsed.warnings ?? [])];
