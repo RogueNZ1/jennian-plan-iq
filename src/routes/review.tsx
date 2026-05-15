@@ -700,9 +700,14 @@ function ConceptAssumptionsTab({
 function InternalWallsTab({ jobId }: { jobId: string }) {
   const [rows, setRows] = useState<PlanMeasurement[]>([]);
   useEffect(() => {
-    loadMeasurements(jobId).then((all) => {
-      setRows(all.filter((m) => m.measurement_type === "internal_wall"));
-    }).catch(() => {});
+    (async () => {
+      try {
+        const all = await loadMeasurements(jobId);
+        setRows(all.filter((m) => m.measurement_type === "internal_wall"));
+      } catch {
+        // Keep the tab empty if measurements cannot be loaded.
+      }
+    })();
   }, [jobId]);
   const totalM = rows.reduce((s, r) => s + (r.calculated_length_m ?? 0), 0);
   const confirmedM = rows
@@ -833,7 +838,14 @@ function ModulesOverview({ jobId }: { jobId: string }) {
   const [runs, setRuns] = useState<ModuleRun[]>([]);
   useEffect(() => {
     let cancelled = false;
-    loadModuleRuns(jobId).then((r) => { if (!cancelled) setRuns(r); }).catch(() => {});
+    (async () => {
+      try {
+        const r = await loadModuleRuns(jobId);
+        if (!cancelled) setRuns(r);
+      } catch {
+        // Keep the overview empty if module runs cannot be loaded.
+      }
+    })();
     return () => { cancelled = true; };
   }, [jobId]);
   const runByModule: Record<string, ModuleRun | undefined> = useMemo(
