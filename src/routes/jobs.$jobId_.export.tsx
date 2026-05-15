@@ -17,7 +17,7 @@ import type { Database } from "@/integrations/supabase/types";
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
 type OpeningRow = Database["public"]["Tables"]["opening_schedule"]["Row"];
 
-export const Route = createFileRoute("/jobs/$jobId/export")({ component: QuickExport });
+export const Route = createFileRoute("/jobs/$jobId_/export")({ component: QuickExport });
 
 function fmt(v: number | null | undefined, unit = ""): string {
   if (v === null || v === undefined) return "—";

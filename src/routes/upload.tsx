@@ -42,6 +42,21 @@ function UploadPage() {
   const { user } = useAuth();
   const [jobNumber, setJobNumber] = useState("");
   const [clientName, setClientName] = useState("");
+
+  // Auto-generate next JM-XXXX number on mount
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("jobs").select("job_number");
+      const nums = (data ?? [])
+        .map((j) => {
+          const m = (j.job_number as string)?.match(/^JM-(\d+)$/i);
+          return m ? parseInt(m[1], 10) : 0;
+        })
+        .filter(Boolean);
+      const next = nums.length ? Math.max(...nums) + 1 : 1;
+      setJobNumber(`JM-${String(next).padStart(4, "0")}`);
+    })();
+  }, []);
   const [address, setAddress] = useState("");
   const [template, setTemplate] = useState(TEMPLATES[0].code + " — " + TEMPLATES[0].name);
   const [planFile, setPlanFile] = useState<File | null>(null);

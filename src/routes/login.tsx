@@ -15,7 +15,7 @@ function LoginPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) navigate({ to: "/" });
+    if (!loading && user) navigate({ to: "/jobs" });
   }, [user, loading, navigate]);
 
   async function submit(e: React.FormEvent) {

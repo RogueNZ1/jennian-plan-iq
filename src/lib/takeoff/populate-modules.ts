@@ -5,7 +5,7 @@
  * source data.
  */
 import { supabase } from "@/integrations/supabase/client";
-import { IQ_MODULES, type IQModuleId } from "@/lib/iq-modules";
+import { IQ_MODULES, recomputeRunAggregates, type IQModuleId } from "@/lib/iq-modules";
 import type { ExtractedQty } from "./extract-quantities";
 import type { ExtractedOpening } from "./extract-openings";
 import type { SpecRow } from "./extract-spec";
@@ -274,5 +274,9 @@ export async function populateModulesFromTakeoff(args: {
       errors.push(`Failed to insert module item: ${d.moduleId} / ${d.label} — ${msg}`);
     }
   }
+  // Refresh item_count and confidence_avg on all module_runs for this job
+  const { data: runs } = await supabase.from("module_runs").select("id").eq("job_id", args.jobId);
+  await Promise.all((runs ?? []).map((r) => recomputeRunAggregates(r.id)));
+
   return { inserted, updated, conflicts, skipped, errors };
 }

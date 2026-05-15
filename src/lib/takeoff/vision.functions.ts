@@ -115,12 +115,23 @@ type AiResponse = {
 
 const SYSTEM_PROMPT = `You are reviewing a single rendered page from a construction plan PDF for a residential takeoff.
 
+STEP 1 — SCALE (do this first, before anything else):
+Look for a printed scale in the title block. It will be in a format like:
+  "1:100 @ A3", "SCALE 1:100", "1 : 100 @ A1", "Scale: 1/100"
+Read the title block area (usually bottom-right or bottom-left of the page).
+If you find a scale ratio, return it in scale_text as "1:NNN @AX" (e.g. "1:100 @A3").
+Set scale_confidence to "high" if the text is clear, "medium" if partially legible.
+DO NOT ask the user for scale — if you can read it, report it in scale_text.
+
+STEP 2 — SUMMARY BOX:
+Look for a printed summary box or area schedule (often top-right or title block area) that lists:
+  Living Area / Area Over Frame, Cladding Area, Perimeter / External Perimeter, Coverage Area, Garage Area.
+If found, populate area_box with those exact printed values. These are more reliable than measured values.
+
 Strict rules:
 - Extract VISIBLE information only.
 - Do NOT invent quantities. Do NOT guess hidden dimensions.
 - If a value is not visible, return null. Do not make one up.
-- Use printed dimensions and any printed scale where available.
-- Use the visible Area / Perimeter box if present.
 - Read window and door sizes only from labels visible on the plan.
 - Mark uncertain values as low confidence.
 - Keep these quantity concepts SEPARATE — do not merge them:
@@ -766,6 +777,32 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
               pageOutcome.warnings.push(
                 `internal_wall_length_m estimated from room perimeters (${rounded} m); review recommended.`,
               );
+            }
+          }
+        }
+
+        // Persist scale calibration from vision-extracted scale_text if present.
+        if (parsed.scale_text) {
+          const scaleMatch = parsed.scale_text.match(/1\s*[:/]\s*(\d{2,4})/i);
+          if (scaleMatch) {
+            const den = Number(scaleMatch[1]);
+            if (Number.isFinite(den) && den > 0) {
+              const pixelsPerMm = 2.83465 / den;
+              const conf = parsed.scale_confidence === "high" ? "high"
+                : parsed.scale_confidence === "medium" ? "mid" : "low";
+              await supabase.from("plan_calibrations").upsert({
+                job_id: data.jobId,
+                file_id: p.fileId,
+                plan_page_number: p.pageNumber,
+                calibration_line_pixels: 1,
+                calibration_real_mm: 1 / pixelsPerMm,
+                pixels_per_mm: pixelsPerMm,
+                scale_text: parsed.scale_text,
+                calibration_method: "auto_text",
+                calibration_source: "vision_takeoff",
+                confidence: conf,
+                calibrated_by: userId,
+              }, { onConflict: "job_id,file_id,plan_page_number", ignoreDuplicates: true });
             }
           }
         }

@@ -377,7 +377,7 @@ export async function loadModuleAudit(jobId: string, runId?: string, limit = 20)
 
 /** ---------- Aggregation ---------- */
 
-async function recomputeRunAggregates(runId: string): Promise<void> {
+export async function recomputeRunAggregates(runId: string): Promise<void> {
   const { data: items } = await supabase.from("module_items").select("confidence").eq("run_id", runId);
   const list = items ?? [];
   const highs = list.filter((i) => i.confidence === "high").length;
