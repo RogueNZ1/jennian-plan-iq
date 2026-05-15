@@ -161,10 +161,15 @@ const VISION_TOOL = {
           properties: {
             external_perimeter_m: { type: ["number","null"] },
             internal_wall_length_m: { type: ["number","null"] },
+            internal_wall_segments_m: {
+              type: "array",
+              description: "List of EACH individual internal wall segment length in metres. The server will sum these to compute internal_wall_length_m. Required when internal walls are visible — do NOT attempt to sum them yourself.",
+              items: { type: "number" },
+            },
             garage_area_m2: { type: ["number","null"] },
             living_area_excluding_garage_m2: { type: ["number","null"] },
           },
-          required: ["external_perimeter_m","internal_wall_length_m","garage_area_m2","living_area_excluding_garage_m2"],
+          required: ["external_perimeter_m","internal_wall_length_m","internal_wall_segments_m","garage_area_m2","living_area_excluding_garage_m2"],
         },
         rooms: {
           type: "array",
@@ -225,11 +230,16 @@ const VISION_TOOL = {
           properties: {
             external_wall_length_m: { type: ["number","null"] },
             internal_wall_length_m: { type: ["number","null"] },
+            internal_wall_segments_m: {
+              type: "array",
+              description: "List of EACH individual internal wall segment length in metres. The server will sum these to compute internal_wall_length_m. Do NOT attempt to sum them yourself.",
+              items: { type: "number" },
+            },
             wet_area_wall_length_m: { type: ["number","null"] },
             garage_internal_wall_length_m: { type: ["number","null"] },
             robe_wall_length_m: { type: ["number","null"] },
           },
-          required: ["external_wall_length_m","internal_wall_length_m","wet_area_wall_length_m","garage_internal_wall_length_m","robe_wall_length_m"],
+          required: ["external_wall_length_m","internal_wall_length_m","internal_wall_segments_m","wet_area_wall_length_m","garage_internal_wall_length_m","robe_wall_length_m"],
         },
         cladding: {
           type: "object",
