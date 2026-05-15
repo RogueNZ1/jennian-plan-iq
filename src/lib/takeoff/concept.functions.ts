@@ -53,7 +53,10 @@ async function callVisionModel(
 
   const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
   const content = json.choices?.[0]?.message?.content ?? "";
-  if (!content) throw new Error("AI returned an empty response.");
+  if (!content) {
+    console.error("AI returned empty content. Full response:", JSON.stringify(json, null, 2));
+    throw new Error("AI returned an empty response.");
+  }
   return content;
 }
 
