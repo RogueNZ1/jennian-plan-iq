@@ -68,6 +68,11 @@ function stripFences(text: string): string {
 
 // ── Scale Extraction ──────────────────────────────────────────────────────────
 
+// Landscape width in mm for each A-series paper size.
+const PAPER_WIDTH_MM: Record<string, number> = {
+  A0: 1189, A1: 841, A2: 594, A3: 420, A4: 297,
+};
+
 export type ScaleResult = {
   scaleFactor: number | null;
   confidence: "high" | "low";
@@ -75,42 +80,72 @@ export type ScaleResult = {
 };
 
 export const extractScaleFactor = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => input as { imageBase64: string })
+  .inputValidator((input: unknown) => input as { imageBase64: string; imageWidth: number; imageHeight: number })
   .handler(async ({ data }): Promise<ScaleResult> => {
     const apiKey = getApiKey();
     const system = `You are a plan reading assistant for a New Zealand residential builder.
-Your job is to extract the printed scale from an architectural plan image.
+Extract the printed scale from an architectural plan image.
 
-Look for:
-- A printed scale bar or scale ratio (e.g. "1:100", "Scale 1:75", "NTS")
-- Annotated dimensions on the plan (millimetres are standard in NZ)
-- Any textual scale reference in the title block
+PRIORITY ORDER — stop at the first method that succeeds:
+
+1. Title block text (highest priority): Look in the bottom-right corner and border area for text like:
+   "1:100 @ A3", "Scale 1:50", "1:75 @ A1", "SCALE 1:100", "Drawn to scale: 1:100", etc.
+   Common NZ drawing scales: 1:50, 1:75, 1:100, 1:200.
+   Common paper sizes: A4, A3, A2, A1, A0.
+   If you find this, return scaleRatio (the denominator, e.g. 100 for "1:100") and paperSize (e.g. "A3").
+
+2. Dimension annotation measurement: Find a dimension line with a known mm value visible on the plan.
+   Count the pixel length of that line and compute scaleFactor = pixels / mm.
+
+3. Scale bar: If a graphical scale bar is present, use it to derive scaleFactor in pixels per mm.
 
 Return a JSON object with exactly these keys:
 {
-  "scaleFactor": <number or null>,  // pixels per millimetre, or null if cannot determine
+  "scaleRatio": <number or null>,   // denominator X of 1:X (e.g. 100), from title block text
+  "paperSize": <string or null>,    // e.g. "A3", "A1" — only if found in title block text
+  "scaleFactor": <number or null>,  // pixels per mm — only populate if you measured from annotations or scale bar
   "confidence": "high" | "low",
-  "rationale": "<brief explanation of what you found>"
+  "rationale": "<brief explanation of exactly what text/annotation you found>"
 }
 
-To calculate scaleFactor: if you can identify that a specific pixel distance corresponds to a known real-world distance, divide pixels by millimetres.
-If you can only read the scale ratio (e.g. 1:100) but cannot measure pixel distance, return scaleFactor: null with rationale explaining the ratio found.
-If nothing is found, return scaleFactor: null, confidence: "low".
+If you found a title block scale like "1:100 @ A3", set scaleRatio=100, paperSize="A3", scaleFactor=null (the server will compute it from image size).
+If you measured from annotations, set scaleFactor to the calculated value, scaleRatio=null.
+If you found nothing at all, return all nulls with confidence="low".
 
 Return ONLY the JSON object. No markdown fences.`;
 
     const raw = await callVisionModel(
       apiKey,
       system,
-      "Extract the scale factor from this architectural plan.",
+      "Extract the printed scale from this architectural plan. Check the title block in the bottom-right corner first.",
       data.imageBase64,
     );
 
     try {
-      const parsed = JSON.parse(stripFences(raw)) as ScaleResult;
+      const parsed = JSON.parse(stripFences(raw)) as {
+        scaleRatio?: number | null;
+        paperSize?: string | null;
+        scaleFactor?: number | null;
+        confidence?: string;
+        rationale?: string;
+      };
+
+      let scaleFactor = parsed.scaleFactor ?? null;
+      const confidence = parsed.confidence === "high" ? "high" : "low";
+
+      // Derive scaleFactor from title block ratio + paper size + image dimensions.
+      if (scaleFactor === null && parsed.scaleRatio && parsed.paperSize) {
+        const paperKey = String(parsed.paperSize).toUpperCase().trim();
+        const paperWidthMm = PAPER_WIDTH_MM[paperKey];
+        if (paperWidthMm) {
+          const imgWidth = Math.max(data.imageWidth, data.imageHeight); // use longer edge (landscape)
+          scaleFactor = imgWidth / (paperWidthMm * parsed.scaleRatio);
+        }
+      }
+
       return {
-        scaleFactor: parsed.scaleFactor ?? null,
-        confidence: parsed.confidence === "high" ? "high" : "low",
+        scaleFactor,
+        confidence: scaleFactor !== null ? "high" : confidence,
         rationale: parsed.rationale ?? "No rationale provided.",
       };
     } catch {
@@ -218,24 +253,37 @@ Extract quantity takeoff data from the supplied floor plan image.
 
 ${scaleNote}
 
+PRIORITY — read pre-calculated summary boxes FIRST:
+Many NZ residential plans include a summary table or schedule printed on the drawing, often in a border panel, title block area, or separate box. These may be labelled:
+  "Area Schedule", "Room Schedule", "Floor Areas", "Living Area", "Total Floor Area",
+  "Cladding Area", "Perimeter", "External Wall Length", "Roof Area", "GFA", "NFA".
+If any such table exists, read the values directly from it — these are exact and should be preferred over any estimation you do from counting/measuring.
+
+After reading any summary box, also count and extract:
+- window_count: Count all window symbols visible on the plan
+- external_door_count: Count external entry/exit door symbols
+- internal_door_count: Count internal room door symbols
+- bathroom_count, ensuite_count, laundry_count, kitchen_count: Count labelled rooms
+
 Standard NZ residential construction categories to extract:
-- floor_area_m2: Total habitable floor area (exclude garage)
-- garage_area_m2: Garage area (null if no garage)
-- alfresco_area_m2: Outdoor covered area / deck / alfresco (null if none)
-- external_wall_lm: External wall perimeter in linear metres
+- floor_area_m2: Total habitable floor area (exclude garage) — read from summary if shown
+- garage_area_m2: Garage area (null if no garage) — read from summary if shown
+- alfresco_area_m2: Outdoor covered area / deck / alfresco — read from summary if shown
+- external_wall_lm: External wall perimeter in linear metres — read from summary if shown, otherwise estimate from floor plan outline
 - internal_wall_lm: Internal wall total length in linear metres
-- roof_area_m2: Roof area (estimate from floor area + eaves if visible)
+- roof_area_m2: Roof area — read from summary if shown, otherwise estimate from floor area + eaves
 - window_count: Total number of windows
 - external_door_count: External entry/exit doors (not including garage door)
 - internal_door_count: Internal room doors
 - bathroom_count: Full bathrooms (bath or shower + toilet)
 - ensuite_count: Ensuites
-- laundry_count: Laundry rooms (usually 1)
-- kitchen_count: Kitchens (usually 1)
-- ceiling_height_m: Standard ceiling height in metres (2.4m if not shown)
-- foundation_type: Note if shown on plan (e.g. "slab on grade", "pile"), otherwise null
+- laundry_count: Laundry rooms
+- kitchen_count: Kitchens
+- ceiling_height_m: Ceiling height in metres (read from annotations or notes; default 2.4m)
+- foundation_type: e.g. "slab on grade", "pile" (null if not shown)
 
-Return a JSON object with exactly these keys. Use null for any value you cannot determine with reasonable confidence. Include all caveats and assumptions in the "notes" field.
+Return a JSON object with exactly these keys. Use null for any value you cannot determine with reasonable confidence.
+In the "notes" field, list which values came from a summary box vs which were estimated, and note any assumptions.
 
 Return ONLY the JSON object. No markdown fences.`;
 
@@ -251,7 +299,7 @@ Return ONLY the JSON object. No markdown fences.`;
     const raw = await callVisionModel(
       apiKey,
       system,
-      "Extract quantity takeoffs from this floor plan.",
+      "Extract quantity takeoffs from this floor plan. Check for any pre-calculated area schedules, summary boxes or room schedules printed on the drawing first — read those values directly.",
       data.imageBase64,
     );
 
