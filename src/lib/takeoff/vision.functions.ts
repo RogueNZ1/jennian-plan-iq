@@ -125,6 +125,7 @@ Strict rules:
 - Keep these quantity concepts SEPARATE — do not merge them:
     Area Over Frame, Total Area, Coverage Area, Cladding Area,
     Porch Area, Garage Area, External Perimeter, Internal Wall Length.
+- For INTERNAL WALLS: do NOT attempt to sum total internal wall length yourself — vision models cannot reliably total many short segments. Instead, identify EACH individual internal wall segment visible on the floor plan and list its length in metres in the "internal_wall_segments_m" arrays (in both base_geometry and wall_lengths). The server will sum them. If you cannot identify individual segments, return an empty array and set internal_wall_length_m to null.
 - Return structured JSON only via the tool call. No prose.`;
 
 const VISION_TOOL = {
@@ -716,6 +717,22 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
         }
         // Use the schema-validated data from here on — all enum values and field types are confirmed.
         parsed = validation.data as VisionPageResult;
+
+        // Sum internal wall segments server-side — vision models cannot reliably
+        // total many short wall segments themselves. Override internal_wall_length_m
+        // with the computed sum whenever segments were provided.
+        const sumSegments = (segs: unknown): number | null => {
+          if (!Array.isArray(segs) || segs.length === 0) return null;
+          const nums = segs.filter((n): n is number => typeof n === "number" && Number.isFinite(n) && n > 0);
+          if (nums.length === 0) return null;
+          return Math.round(nums.reduce((a, b) => a + b, 0) * 100) / 100;
+        };
+        const bgSegs = (validation.data.base_geometry as { internal_wall_segments_m?: number[] }).internal_wall_segments_m;
+        const wlSegs = (validation.data.wall_lengths as { internal_wall_segments_m?: number[] }).internal_wall_segments_m;
+        const bgSum = sumSegments(bgSegs);
+        const wlSum = sumSegments(wlSegs);
+        if (bgSum !== null) parsed.base_geometry.internal_wall_length_m = bgSum;
+        if (wlSum !== null) parsed.wall_lengths.internal_wall_length_m = wlSum;
 
         pageOutcome.result = parsed;
         pageOutcome.warnings = [...pageOutcome.warnings, ...(parsed.warnings ?? [])];
