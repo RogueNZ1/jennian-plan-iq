@@ -24,6 +24,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { toJson } from "@/lib/type-helpers";
 import type {
   VisionPageResult,
   VisionRunSummary,
@@ -1393,7 +1394,7 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
       job_id: data.jobId,
       started_by: userId,
       status: summary.errors.length > 0 ? "completed_with_warnings" : "completed",
-      summary: { kind: "vision_takeoff", vision: summary } as unknown as never,
+      summary: toJson({ kind: "vision_takeoff", vision: summary }),
       completed_at: new Date().toISOString(),
       error_message: summary.errors.length > 0 ? summary.errors.slice(0, 5).join(" | ") : null,
     });

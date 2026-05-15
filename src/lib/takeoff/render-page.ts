@@ -210,9 +210,7 @@ export async function renderAndUploadPlanPage(args: {
   // White background so flat plans don't render transparent voids.
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  // pdfjs typings vary across versions — pass the canvas explicitly.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (page as any).render({ canvasContext: ctx, viewport, canvas }).promise;
+  await page.render({ canvasContext: ctx, viewport, canvas }).promise;
 
   const blob = await blobFromCanvas(canvas);
   const renderResolution = canvas.width;

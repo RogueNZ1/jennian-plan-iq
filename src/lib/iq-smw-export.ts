@@ -30,7 +30,6 @@ function crc32(data: Uint8Array): number {
 /* --------------------------------------------------------- inflate (raw) */
 
 async function decompressDeflate(data: Uint8Array): Promise<Uint8Array> {
-  // @ts-ignore DecompressionStream is available in modern browsers and Cloudflare Workers
   const ds = new DecompressionStream("deflate-raw");
   const writer = ds.writable.getWriter();
   const reader = ds.readable.getReader();
