@@ -6,7 +6,18 @@
  * `as unknown as X` throughout the codebase. They do not perform runtime
  * validation — they are documented escape hatches.
  */
-import type { Json } from "@/integrations/supabase/types";
+/**
+ * Local mirror of the Supabase-generated `Json` column type. Duplicated here
+ * (instead of imported) so this module has ZERO dependencies on
+ * `@/integrations/supabase/*` and remains a pure, side-effect-free utility.
+ */
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
 
 /** Cast a plain object/array into the database's `Json` column type. */
 export function toJson<T>(val: T): Json {
