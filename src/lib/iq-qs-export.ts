@@ -451,7 +451,7 @@ export async function buildQSExportData(
         intDoorUGroove += qty;
       } else if (label.includes("v groove") || label.includes("v-groove")) {
         intDoorVGroove += qty;
-      } else if (label.includes("barn") || label.includes("slider") && !label.includes("cavity")) {
+      } else if ((label.includes("barn") || label.includes("slider")) && !label.includes("cavity")) {
         intDoorBarnSlider += qty;
       } else if (label.includes("double")) {
         intDoorDouble += qty;
