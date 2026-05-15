@@ -23,13 +23,13 @@ function IntelligencePage() {
   const [sent, setSent] = useState(false);
 
   useEffect(() => {
-    supabase
+    (supabase as any)
       .from("daily_briefs")
       .select("*")
       .order("brief_date", { ascending: false })
       .limit(1)
       .single()
-      .then(({ data, error }) => {
+      .then(({ data, error }: { data: any; error: any }) => {
         if (!error && data) setBrief(data as DailyBrief);
         setLoading(false);
       });
