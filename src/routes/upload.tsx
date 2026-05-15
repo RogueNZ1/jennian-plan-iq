@@ -278,22 +278,32 @@ function UploadPage() {
       return;
     }
 
-    // Immediately kick off scale extraction — use the just-rendered blob directly to avoid stale state
+    // Kick off scale extraction — show the scale step with a spinner while we work.
+    // If a scale is found automatically, we skip the user-confirmation screen.
     setConceptBusy("scale");
     setStep("scale");
     setScaleResult(null);
+    let foundResult: typeof scaleResult = null;
     try {
       const blob = await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex].pageNumber);
       setHighResBlob(blob);
       if (!blob) throw new Error("No page image.");
-      const b64 = await blobToBase64(blob);
-      const result = await extractScaleFactor({ data: { imageBase64: b64 } });
+      const [b64, dims] = await Promise.all([blobToBase64(blob), getBlobDimensions(blob)]);
+      const result = await extractScaleFactor({ data: { imageBase64: b64, imageWidth: dims.width, imageHeight: dims.height } });
       setScaleResult(result);
+      foundResult = result;
     } catch (e) {
       console.error(e);
-      setScaleResult({ scaleFactor: null, confidence: "low", rationale: "Scale extraction failed. Enter a known dimension below." });
+      const fallback = { scaleFactor: null, confidence: "low" as const, rationale: "Scale extraction failed. Enter a known dimension below." };
+      setScaleResult(fallback);
+      foundResult = fallback;
     } finally {
       setConceptBusy(null);
+    }
+
+    // Auto-advance: if we found a scale, skip the confirmation screen entirely.
+    if (foundResult?.scaleFactor !== null && foundResult?.scaleFactor !== undefined) {
+      await proceedToCheck(foundResult.scaleFactor);
     }
   }
 
@@ -993,6 +1003,16 @@ function UploadPage() {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+function getBlobDimensions(blob: Blob): Promise<{ width: number; height: number }> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => { resolve({ width: img.naturalWidth, height: img.naturalHeight }); URL.revokeObjectURL(url); };
+    img.onerror = () => { resolve({ width: 0, height: 0 }); URL.revokeObjectURL(url); };
+    img.src = url;
+  });
+}
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
