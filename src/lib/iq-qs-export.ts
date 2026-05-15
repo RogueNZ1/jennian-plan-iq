@@ -148,10 +148,13 @@ export async function buildQSExportData(
   const items: ModuleItemRow[] = itemsRes.data ?? [];
 
   function getVal(label: string): string | null {
-    const row = items.find(
-      (i: ModuleItemRow) => i.label?.toLowerCase().includes(label.toLowerCase()),
-    );
-    return row?.extracted_value ?? null;
+    const needle = label.toLowerCase();
+    // Prefer exact label match to avoid collisions
+    // (e.g. "wall length" matching both "external wall length" and "internal wall length").
+    const exact = items.find((i: ModuleItemRow) => i.label?.toLowerCase() === needle);
+    if (exact) return exact.extracted_value ?? null;
+    const partial = items.find((i: ModuleItemRow) => i.label?.toLowerCase().includes(needle));
+    return partial?.extracted_value ?? null;
   }
 
   function getNum(label: string): number | null {
@@ -259,7 +262,8 @@ export async function buildQSExportData(
   const planVersion = getVal("plan version") ?? "1";
 
   // Wall measurements
-  const exteriorWallLengthLm = getNum("exterior wall length") ?? getNum("wall length");
+  const exteriorWallLengthLm =
+    getNum("exterior wall length") ?? getNum("external wall length");
 
   // Wall height - handle mm conversion
   let exteriorWallHeightM: number | null = getNum("wall height");
