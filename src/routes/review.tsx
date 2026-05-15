@@ -66,11 +66,24 @@ function ReviewPage() {
 
   useEffect(() => {
     if (!jobId) { setLoading(false); return; }
-    Promise.all([getJob(jobId), listQuantities(jobId), listOverrides(jobId)])
-      .then(([j, q, o]) => { setJob(j); setRows(q); setAudit(o); })
-      .catch((e) => toast.error(e.message))
-      .finally(() => setLoading(false));
-    calculateJobModuleRollup(jobId).then((r) => setRollup(r)).catch(() => {});
+    (async () => {
+      try {
+        const [j, q, o] = await Promise.all([getJob(jobId), listQuantities(jobId), listOverrides(jobId)]);
+        setJob(j); setRows(q); setAudit(o);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed to load review data.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+    (async () => {
+      try {
+        const r = await calculateJobModuleRollup(jobId);
+        setRollup(r);
+      } catch {
+        // Keep the page usable if the rollup cannot be calculated.
+      }
+    })();
     (async () => {
       const [m, o] = await Promise.all([
         supabase.from("plan_measurements").select("id", { count: "exact", head: true }).eq("job_id", jobId),
@@ -79,7 +92,7 @@ function ReviewPage() {
       setMeasurementCount(m.count ?? 0);
       setOpeningsCount(o.count ?? 0);
     })();
-    supabase.from("module_items")
+    void supabase.from("module_items")
       .select("id, module_id, label, extracted_value, approved_value, unit, value_source, confidence, description, sort_order")
       .eq("job_id", jobId)
       .order("sort_order", { ascending: true })
@@ -186,10 +199,18 @@ function ReviewPage() {
 
   async function exportExcel() {
     if (!job || !jobId) return;
-    const [openings, measurements] = await Promise.all([
-      loadOpenings(jobId).catch(() => []),
-      loadMeasurements(jobId).catch(() => []),
-    ]);
+    let openings: Awaited<ReturnType<typeof loadOpenings>> = [];
+    let measurements: Awaited<ReturnType<typeof loadMeasurements>> = [];
+    try {
+      openings = await loadOpenings(jobId);
+    } catch {
+      openings = [];
+    }
+    try {
+      measurements = await loadMeasurements(jobId);
+    } catch {
+      measurements = [];
+    }
 
     const wb = XLSX.utils.book_new();
 
@@ -500,7 +521,12 @@ function ReviewPage() {
         onOpenChange={setTakeoffOpen}
         jobId={job.id}
         onCompleted={async () => {
-          const q = await listQuantities(job.id).catch(() => []);
+          let q: Awaited<ReturnType<typeof listQuantities>> = [];
+          try {
+            q = await listQuantities(job.id);
+          } catch {
+            q = [];
+          }
           setRows(q);
           const [m, o] = await Promise.all([
             supabase.from("plan_measurements").select("id", { count: "exact", head: true }).eq("job_id", job.id),
@@ -674,9 +700,14 @@ function ConceptAssumptionsTab({
 function InternalWallsTab({ jobId }: { jobId: string }) {
   const [rows, setRows] = useState<PlanMeasurement[]>([]);
   useEffect(() => {
-    loadMeasurements(jobId).then((all) => {
-      setRows(all.filter((m) => m.measurement_type === "internal_wall"));
-    }).catch(() => {});
+    (async () => {
+      try {
+        const all = await loadMeasurements(jobId);
+        setRows(all.filter((m) => m.measurement_type === "internal_wall"));
+      } catch {
+        // Keep the tab empty if measurements cannot be loaded.
+      }
+    })();
   }, [jobId]);
   const totalM = rows.reduce((s, r) => s + (r.calculated_length_m ?? 0), 0);
   const confirmedM = rows
@@ -807,7 +838,14 @@ function ModulesOverview({ jobId }: { jobId: string }) {
   const [runs, setRuns] = useState<ModuleRun[]>([]);
   useEffect(() => {
     let cancelled = false;
-    loadModuleRuns(jobId).then((r) => { if (!cancelled) setRuns(r); }).catch(() => {});
+    (async () => {
+      try {
+        const r = await loadModuleRuns(jobId);
+        if (!cancelled) setRuns(r);
+      } catch {
+        // Keep the overview empty if module runs cannot be loaded.
+      }
+    })();
     return () => { cancelled = true; };
   }, [jobId]);
   const runByModule: Record<string, ModuleRun | undefined> = useMemo(
