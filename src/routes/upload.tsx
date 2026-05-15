@@ -288,8 +288,8 @@ function UploadPage() {
       const blob = await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex].pageNumber);
       setHighResBlob(blob);
       if (!blob) throw new Error("No page image.");
-      const [b64, dims] = await Promise.all([blobToBase64(blob), getBlobDimensions(blob)]);
-      const result = await extractScaleFactor({ data: { imageBase64: b64, imageWidth: dims.width, imageHeight: dims.height } });
+      const [imageUrl, dims] = await Promise.all([uploadPlanFrame(blob, "scale"), getBlobDimensions(blob)]);
+      const result = await extractScaleFactor({ data: { imageUrl, imageWidth: dims.width, imageHeight: dims.height } });
       setScaleResult(result);
       foundResult = result;
     } catch (e) {
@@ -316,8 +316,8 @@ function UploadPage() {
     try {
       const blob = highResBlob ?? (planFile ? await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex!]?.pageNumber ?? 1) : null);
       if (!blob) throw new Error("No plan image available.");
-      const b64 = await blobToBase64(blob);
-      const result = await checkPlanIssues({ data: { imageBase64: b64 } });
+      const imageUrl = await uploadPlanFrame(blob, "check");
+      const result = await checkPlanIssues({ data: { imageUrl } });
       setPlanIssues(result.issues);
     } catch (e) {
       console.error(e);
@@ -341,8 +341,8 @@ function UploadPage() {
     try {
       const blob = highResBlob ?? (planFile ? await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex!]?.pageNumber ?? 1) : null);
       if (!blob) throw new Error("No plan image available.");
-      const b64 = await blobToBase64(blob);
-      const result = await extractConceptTakeoffs({ data: { imageBase64: b64, scaleFactor: scaleResult?.scaleFactor ?? null } });
+      const imageUrl = await uploadPlanFrame(blob, "takeoff");
+      const result = await extractConceptTakeoffs({ data: { imageUrl, scaleFactor: scaleResult?.scaleFactor ?? null } });
       setTakeoffData(result);
       setEditedTakeoff(result);
     } catch (e) {
