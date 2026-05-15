@@ -9,6 +9,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { narrowRow } from "@/lib/type-helpers";
 import type { Confidence } from "./jennian-data";
 
 export type IQModuleId =
@@ -343,7 +344,7 @@ export async function loadModuleRuns(jobId: string): Promise<ModuleRun[]> {
   const { data, error } = await supabase
     .from("module_runs").select("*").eq("job_id", jobId);
   if (error) throw error;
-  return (data ?? []) as unknown as ModuleRun[];
+  return narrowRow<ModuleRun[]>(data ?? []);
 }
 
 export async function loadModuleRun(
@@ -360,7 +361,10 @@ export async function loadModuleRun(
     .eq("run_id", (run as { id: string }).id)
     .order("sort_order", { ascending: true });
   if (iErr) throw iErr;
-  return { run: run as unknown as ModuleRun, items: (items ?? []) as unknown as ModuleItem[] };
+  return {
+    run: narrowRow<ModuleRun>(run),
+    items: narrowRow<ModuleItem[]>(items ?? []),
+  };
 }
 
 export async function loadModuleAudit(jobId: string, runId?: string, limit = 20): Promise<ModuleAuditLog[]> {
@@ -368,7 +372,7 @@ export async function loadModuleAudit(jobId: string, runId?: string, limit = 20)
   if (runId) q = q.eq("run_id", runId);
   const { data, error } = await q.order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
-  return (data ?? []) as unknown as ModuleAuditLog[];
+  return narrowRow<ModuleAuditLog[]>(data ?? []);
 }
 
 /** ---------- Aggregation ---------- */
@@ -531,7 +535,7 @@ export async function recalculateModule(jobId: string, moduleId: IQModuleId): Pr
 
   const { data: itemsRaw } = await supabase
     .from("module_items").select("*").eq("run_id", run.id);
-  const items = (itemsRaw ?? []) as unknown as ModuleItem[];
+  const items = narrowRow<ModuleItem[]>(itemsRaw ?? []);
 
   const measurementIds = Array.from(new Set(
     items.map((i) => i.measurement_id).filter((v): v is string => !!v),
@@ -691,7 +695,7 @@ export async function flagDependentModuleItems(args: {
   else if (args.openingId) q = q.eq("opening_id", args.openingId);
   else return 0;
   const { data } = await q;
-  const items = (data ?? []) as unknown as ModuleItem[];
+  const items = narrowRow<ModuleItem[]>(data ?? []);
   for (const it of items) {
     await supabase.from("module_items").update({
       review_status: "review_required",
