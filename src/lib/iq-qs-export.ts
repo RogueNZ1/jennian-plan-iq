@@ -142,6 +142,8 @@ export async function buildQSExportData(
   ]);
 
   if (jobRes.error) throw new Error(`Failed to load job: ${jobRes.error.message}`);
+  if (itemsRes.error) throw new Error(`Failed to load module items: ${itemsRes.error.message}`);
+  if (openingsRes.error) throw new Error(`Failed to load opening schedule: ${openingsRes.error.message}`);
   const job = jobRes.data;
   const items: ModuleItemRow[] = itemsRes.data ?? [];
 
@@ -844,6 +846,8 @@ export async function writeIQDataSheetFull(
         .eq("job_id", data.jobId)
         .order("sort_order", { ascending: true }),
     ]);
+    if (jobRes.error) throw new Error(`Failed to load job: ${jobRes.error.message}`);
+    if (itemsRes.error) throw new Error(`Failed to load module items: ${itemsRes.error.message}`);
     planType = (jobRes.data?.plan_type as string | null) ?? null;
     confidenceScore = (jobRes.data?.confidence_score as number | null) ?? null;
     allItems = (itemsRes.data ?? []) as typeof allItems;
