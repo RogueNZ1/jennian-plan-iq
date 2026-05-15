@@ -149,7 +149,7 @@ export async function buildQSExportData(
     const row = items.find(
       (i: ModuleItemRow) => i.label?.toLowerCase().includes(label.toLowerCase()),
     );
-    return row?.approved_value ?? row?.extracted_value ?? null;
+    return row?.extracted_value ?? null;
   }
 
   function getNum(label: string): number | null {
@@ -179,8 +179,8 @@ export async function buildQSExportData(
     (i: ModuleItemRow) => i.label?.toLowerCase().includes("downpipe"),
   );
   const downpipes = downpipeItems.map((i: ModuleItemRow) => ({
-    size: i.approved_value ?? i.extracted_value ?? "90mm",
-    qty: parseFloat(i.approved_value ?? i.extracted_value ?? "1") || 1,
+    size: i.extracted_value ?? "90mm",
+    qty: parseFloat(i.extracted_value ?? "1") || 1,
   }));
 
   // Heat pumps from items
@@ -190,7 +190,7 @@ export async function buildQSExportData(
       i.label?.toLowerCase().includes("heating"),
   );
   const heatPumps = heatPumpItems.map((i: ModuleItemRow) => ({
-    model: i.approved_value ?? i.extracted_value ?? "Heat Pump",
+    model: i.extracted_value ?? "Heat Pump",
     qty: 1,
   }));
 
@@ -211,7 +211,7 @@ export async function buildQSExportData(
     .slice(0, 6)
     .map((i: ModuleItemRow) => ({
       description: i.label ?? "Extra",
-      value: parseFloat(i.approved_value ?? i.extracted_value ?? "0") || 0,
+      value: parseFloat(i.extracted_value ?? "0") || 0,
     }));
 
   // Merge job header from extracted files: Supabase > SMW > plans > fallback
@@ -368,7 +368,7 @@ export async function buildQSExportData(
   if (dpItems.length > 0) {
     for (const item of dpItems) {
       const label = (item.label ?? "").toLowerCase();
-      const qty = parseFloat(item.approved_value ?? item.extracted_value ?? "0") || 0;
+      const qty = parseFloat(item.extracted_value ?? "0") || 0;
       if (label.includes("white")) {
         downpipesWhite += qty;
       } else if (label.includes("colour steel") || label.includes("colorsteel")) {
@@ -402,7 +402,7 @@ export async function buildQSExportData(
   if (gdItems.length > 0) {
     for (const item of gdItems) {
       const label = (item.label ?? "").toLowerCase();
-      const qty = parseFloat(item.approved_value ?? item.extracted_value ?? "1") || 1;
+      const qty = parseFloat(item.extracted_value ?? "1") || 1;
       const insulated = label.includes("insulated");
       if (label.includes("4.8") || label.includes("48")) {
         if (insulated) garageDoor48x21Insulated += qty;
@@ -437,7 +437,7 @@ export async function buildQSExportData(
   if (idItems.length > 0) {
     for (const item of idItems) {
       const label = (item.label ?? "").toLowerCase();
-      const qty = parseFloat(item.approved_value ?? item.extracted_value ?? "1") || 1;
+      const qty = parseFloat(item.extracted_value ?? "1") || 1;
       if (label.includes("u groove") || label.includes("u-groove")) {
         intDoorUGroove += qty;
       } else if (label.includes("v groove") || label.includes("v-groove")) {
@@ -475,7 +475,7 @@ export async function buildQSExportData(
   if (hpItems.length > 0) {
     for (const item of hpItems) {
       const label = (item.label ?? "").toLowerCase();
-      const qty = parseFloat(item.approved_value ?? item.extracted_value ?? "1") || 1;
+      const qty = parseFloat(item.extracted_value ?? "1") || 1;
       if (label.includes("ducted")) {
         heatPumpDucted += qty;
       } else {
@@ -495,7 +495,7 @@ export async function buildQSExportData(
   const specItems: Record<string, string> = {};
   for (const item of items) {
     if (item.label) {
-      specItems[item.label] = item.approved_value ?? item.extracted_value ?? "";
+      specItems[item.label] = item.extracted_value ?? "";
     }
   }
 
@@ -868,7 +868,7 @@ export async function writeIQDataSheetFull(
       coverRows.push([
         item.module_id.replace("iq-", "").toUpperCase(),
         item.label,
-        item.approved_value ?? item.extracted_value ?? "—",
+        item.extracted_value ?? "—",
         item.unit ?? "",
       ]);
     }
@@ -885,7 +885,7 @@ export async function writeIQDataSheetFull(
     dataRows.push([
       item.module_id.replace("iq-", "").toUpperCase(),
       item.label,
-      item.approved_value ?? item.extracted_value ?? "—",
+      item.extracted_value ?? "—",
       item.unit ?? "",
       item.value_source ?? "extracted",
     ]);
