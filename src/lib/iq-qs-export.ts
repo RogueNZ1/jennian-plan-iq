@@ -104,9 +104,6 @@ export type QSExportData = {
   washingLine: number;
   heatPumpWallUnit: number;
   heatPumpDucted: number;
-  housePrice: number | null;
-  landPrice: number | null;
-  totalPrice: number | null;
   specItems: Record<string, string>;
 };
 
@@ -495,11 +492,6 @@ export async function buildQSExportData(
     heatPumpWallUnit = heatPumps.length;
   }
 
-  // Prices
-  const housePrice = getNum("house price");
-  const landPrice = getNum("land price");
-  const totalPrice = getNum("total price");
-
   // All spec items as key-value
   const specItems: Record<string, string> = {};
   for (const item of items) {
@@ -570,9 +562,6 @@ export async function buildQSExportData(
     washingLine,
     heatPumpWallUnit,
     heatPumpDucted,
-    housePrice,
-    landPrice,
-    totalPrice,
     specItems,
   };
 }
