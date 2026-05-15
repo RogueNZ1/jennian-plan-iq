@@ -24,6 +24,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { toJson } from "@/lib/type-helpers";
 import type {
   VisionPageResult,
   VisionRunSummary,
@@ -55,6 +56,7 @@ const VisionPageResultSchema = z.object({
   base_geometry: z.object({
     external_perimeter_m: z.number().nullable(),
     internal_wall_length_m: z.number().nullable(),
+    internal_wall_segments_m: z.array(z.number()).optional().default([]),
     garage_area_m2: z.number().nullable(),
     living_area_excluding_garage_m2: z.number().nullable(),
   }),
@@ -85,6 +87,7 @@ const VisionPageResultSchema = z.object({
   wall_lengths: z.object({
     external_wall_length_m: z.number().nullable(),
     internal_wall_length_m: z.number().nullable(),
+    internal_wall_segments_m: z.array(z.number()).optional().default([]),
     wet_area_wall_length_m: z.number().nullable(),
     garage_internal_wall_length_m: z.number().nullable(),
     robe_wall_length_m: z.number().nullable(),
@@ -123,6 +126,7 @@ Strict rules:
 - Keep these quantity concepts SEPARATE — do not merge them:
     Area Over Frame, Total Area, Coverage Area, Cladding Area,
     Porch Area, Garage Area, External Perimeter, Internal Wall Length.
+- For INTERNAL WALLS: do NOT attempt to sum total internal wall length yourself — vision models cannot reliably total many short segments. Instead, identify EACH individual internal wall segment visible on the floor plan and list its length in metres in the "internal_wall_segments_m" arrays (in both base_geometry and wall_lengths). The server will sum them. If you cannot identify individual segments, return an empty array and set internal_wall_length_m to null.
 - Return structured JSON only via the tool call. No prose.`;
 
 const VISION_TOOL = {
@@ -159,10 +163,15 @@ const VISION_TOOL = {
           properties: {
             external_perimeter_m: { type: ["number","null"] },
             internal_wall_length_m: { type: ["number","null"] },
+            internal_wall_segments_m: {
+              type: "array",
+              description: "List of EACH individual internal wall segment length in metres. The server will sum these to compute internal_wall_length_m. Required when internal walls are visible — do NOT attempt to sum them yourself.",
+              items: { type: "number" },
+            },
             garage_area_m2: { type: ["number","null"] },
             living_area_excluding_garage_m2: { type: ["number","null"] },
           },
-          required: ["external_perimeter_m","internal_wall_length_m","garage_area_m2","living_area_excluding_garage_m2"],
+          required: ["external_perimeter_m","internal_wall_length_m","internal_wall_segments_m","garage_area_m2","living_area_excluding_garage_m2"],
         },
         rooms: {
           type: "array",
@@ -223,11 +232,16 @@ const VISION_TOOL = {
           properties: {
             external_wall_length_m: { type: ["number","null"] },
             internal_wall_length_m: { type: ["number","null"] },
+            internal_wall_segments_m: {
+              type: "array",
+              description: "List of EACH individual internal wall segment length in metres. The server will sum these to compute internal_wall_length_m. Do NOT attempt to sum them yourself.",
+              items: { type: "number" },
+            },
             wet_area_wall_length_m: { type: ["number","null"] },
             garage_internal_wall_length_m: { type: ["number","null"] },
             robe_wall_length_m: { type: ["number","null"] },
           },
-          required: ["external_wall_length_m","internal_wall_length_m","wet_area_wall_length_m","garage_internal_wall_length_m","robe_wall_length_m"],
+          required: ["external_wall_length_m","internal_wall_length_m","internal_wall_segments_m","wet_area_wall_length_m","garage_internal_wall_length_m","robe_wall_length_m"],
         },
         cladding: {
           type: "object",
@@ -704,6 +718,57 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
         }
         // Use the schema-validated data from here on — all enum values and field types are confirmed.
         parsed = validation.data as VisionPageResult;
+
+        // Sum internal wall segments server-side — vision models cannot reliably
+        // total many short wall segments themselves. Override internal_wall_length_m
+        // with the computed sum whenever segments were provided.
+        const sumSegments = (segs: unknown): number | null => {
+          if (!Array.isArray(segs) || segs.length === 0) return null;
+          const nums = segs.filter((n): n is number => typeof n === "number" && Number.isFinite(n) && n > 0);
+          if (nums.length === 0) return null;
+          return Math.round(nums.reduce((a, b) => a + b, 0) * 100) / 100;
+        };
+        const bgSegs = (validation.data.base_geometry as { internal_wall_segments_m?: number[] }).internal_wall_segments_m;
+        const wlSegs = (validation.data.wall_lengths as { internal_wall_segments_m?: number[] }).internal_wall_segments_m;
+        const bgSum = sumSegments(bgSegs);
+        const wlSum = sumSegments(wlSegs);
+        if (bgSum !== null) parsed.base_geometry.internal_wall_length_m = bgSum;
+        if (wlSum !== null) parsed.wall_lengths.internal_wall_length_m = wlSum;
+        // Cross-fill: if one side has a value (from segments OR direct AI output)
+        // and the other is null, mirror it across so downstream consumers that
+        // read either field get the same number.
+        const bgVal = parsed.base_geometry.internal_wall_length_m;
+        const wlVal = parsed.wall_lengths.internal_wall_length_m;
+        if (bgVal == null && wlVal != null) parsed.base_geometry.internal_wall_length_m = wlVal;
+        if (wlVal == null && bgVal != null) parsed.wall_lengths.internal_wall_length_m = bgVal;
+        // Room-perimeter fallback. If still null, estimate from room dimensions:
+        //   internal_walls ≈ (Σ room perimeters − external perimeter) / 2
+        // (each internal wall is shared between two rooms).
+        if (parsed.base_geometry.internal_wall_length_m == null) {
+          const roomPerimSum = (parsed.rooms ?? []).reduce((sum, r) => {
+            const w = r.dimensions_mm?.width;
+            const l = r.dimensions_mm?.length;
+            if (typeof w === "number" && typeof l === "number" && w > 0 && l > 0) {
+              return sum + 2 * (w + l) / 1000; // mm -> m
+            }
+            return sum;
+          }, 0);
+          const ext =
+            parsed.base_geometry.external_perimeter_m ??
+            parsed.wall_lengths.external_wall_length_m ??
+            0;
+          if (roomPerimSum > 0) {
+            const estimate = Math.max(0, (roomPerimSum - ext) / 2);
+            const rounded = Math.round(estimate * 100) / 100;
+            if (rounded > 0) {
+              parsed.base_geometry.internal_wall_length_m = rounded;
+              parsed.wall_lengths.internal_wall_length_m = rounded;
+              pageOutcome.warnings.push(
+                `internal_wall_length_m estimated from room perimeters (${rounded} m); review recommended.`,
+              );
+            }
+          }
+        }
 
         pageOutcome.result = parsed;
         pageOutcome.warnings = [...pageOutcome.warnings, ...(parsed.warnings ?? [])];
@@ -1329,7 +1394,7 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
       job_id: data.jobId,
       started_by: userId,
       status: summary.errors.length > 0 ? "completed_with_warnings" : "completed",
-      summary: { kind: "vision_takeoff", vision: summary } as unknown as never,
+      summary: toJson({ kind: "vision_takeoff", vision: summary }),
       completed_at: new Date().toISOString(),
       error_message: summary.errors.length > 0 ? summary.errors.slice(0, 5).join(" | ") : null,
     });

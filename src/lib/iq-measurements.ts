@@ -11,6 +11,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { toJson } from "@/lib/type-helpers";
 
 export type Pt = { x: number; y: number };
 
@@ -227,7 +228,7 @@ export async function saveMeasurement(args: {
       label: args.label ?? null,
       category: args.category ?? null,
       module_id: args.moduleId ?? null,
-      points_json: args.points as unknown as never,
+      points_json: toJson(args.points),
       calculated_length_mm: isArea ? null : lengthMm,
       calculated_length_m: isArea ? null : lengthM,
       calculated_area_m2: areaM2,

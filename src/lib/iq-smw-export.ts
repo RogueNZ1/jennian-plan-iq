@@ -30,7 +30,6 @@ function crc32(data: Uint8Array): number {
 /* --------------------------------------------------------- inflate (raw) */
 
 async function decompressDeflate(data: Uint8Array): Promise<Uint8Array> {
-  // @ts-ignore DecompressionStream is available in modern browsers and Cloudflare Workers
   const ds = new DecompressionStream("deflate-raw");
   const writer = ds.writable.getWriter();
   const reader = ds.readable.getReader();
@@ -233,9 +232,9 @@ function applyPlaceholders(xml: string, data: QSExportData): string {
   rep("[CITY]", data.city ?? "");
   rep("[DATE]", dateStr);
   rep("[JMW NUMBER]", data.jmwNumber);
-  rep("[HOUSE PRICE]", data.housePrice?.toLocaleString("en-NZ") ?? "");
-  rep("[LAND PRICE]", data.landPrice?.toLocaleString("en-NZ") ?? "");
-  rep("[TOTAL PRICE]", data.totalPrice?.toLocaleString("en-NZ") ?? "");
+  rep("[HOUSE PRICE]", "");
+  rep("[LAND PRICE]", "");
+  rep("[TOTAL PRICE]", "");
   rep("[VERSION]", data.planVersion);
   rep("[AREA]", data.floorAreaM2?.toString() ?? "");
   rep("[PERIMETER]", data.perimeterLm?.toString() ?? "");
@@ -363,9 +362,6 @@ function buildMinimalSMWDocx(data: QSExportData): Uint8Array {
     `Floor Area: ${data.floorAreaM2 ?? "—"} m²`,
     `Perimeter: ${data.perimeterLm ?? "—"} lm`,
     ``,
-    data.housePrice ? `House Price: $${data.housePrice.toLocaleString("en-NZ")}` : "",
-    data.landPrice ? `Land Price: $${data.landPrice.toLocaleString("en-NZ")}` : "",
-    data.totalPrice ? `Total Price: $${data.totalPrice.toLocaleString("en-NZ")}` : "",
     ``,
     `NOTE: Upload Jennian_SMW_Template.docx to Supabase Storage (smw-templates bucket) to enable full template export.`,
   ].filter((l) => l !== null);

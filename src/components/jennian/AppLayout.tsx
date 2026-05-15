@@ -91,7 +91,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     if (searchQuery.length < 2) { setSearchResults([]); setSearchOpen(false); return; }
     searchTimer.current = setTimeout(async () => {
-      const q = searchQuery.replace(/'/g, "''");
+      const q = searchQuery;
       const { data } = await supabase
         .from("jobs")
         .select("id, job_number, client_name, address")

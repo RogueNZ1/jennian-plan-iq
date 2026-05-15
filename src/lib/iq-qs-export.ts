@@ -104,9 +104,6 @@ export type QSExportData = {
   washingLine: number;
   heatPumpWallUnit: number;
   heatPumpDucted: number;
-  housePrice: number | null;
-  landPrice: number | null;
-  totalPrice: number | null;
   specItems: Record<string, string>;
 };
 
@@ -142,20 +139,28 @@ export async function buildQSExportData(
   ]);
 
   if (jobRes.error) throw new Error(`Failed to load job: ${jobRes.error.message}`);
+  if (itemsRes.error) throw new Error(`Failed to load module items: ${itemsRes.error.message}`);
+  if (openingsRes.error) throw new Error(`Failed to load opening schedule: ${openingsRes.error.message}`);
   const job = jobRes.data;
   const items: ModuleItemRow[] = itemsRes.data ?? [];
 
   function getVal(label: string): string | null {
-    const row = items.find(
-      (i: ModuleItemRow) => i.label?.toLowerCase().includes(label.toLowerCase()),
-    );
-    return row?.approved_value ?? row?.extracted_value ?? null;
+    const needle = label.toLowerCase();
+    // Prefer exact label match to avoid collisions
+    // (e.g. "wall length" matching both "external wall length" and "internal wall length").
+    const exact = items.find((i: ModuleItemRow) => i.label?.toLowerCase() === needle);
+    if (exact) return exact.extracted_value ?? null;
+    const partial = items.find((i: ModuleItemRow) => i.label?.toLowerCase().includes(needle));
+    return partial?.extracted_value ?? null;
   }
 
   function getNum(label: string): number | null {
     const v = getVal(label);
     if (!v) return null;
-    const n = parseFloat(v.replace(/[^\d.]/g, ""));
+    // Strip commas (thousand separators) and any chars except digits, dot, minus.
+    // Preserve a leading minus so negative values survive.
+    const cleaned = v.replace(/,/g, "").replace(/[^\d.\-]/g, "");
+    const n = parseFloat(cleaned);
     return isNaN(n) ? null : n;
   }
 
@@ -179,8 +184,8 @@ export async function buildQSExportData(
     (i: ModuleItemRow) => i.label?.toLowerCase().includes("downpipe"),
   );
   const downpipes = downpipeItems.map((i: ModuleItemRow) => ({
-    size: i.approved_value ?? i.extracted_value ?? "90mm",
-    qty: parseFloat(i.approved_value ?? i.extracted_value ?? "1") || 1,
+    size: i.extracted_value ?? "90mm",
+    qty: parseFloat(i.extracted_value ?? "1") || 1,
   }));
 
   // Heat pumps from items
@@ -190,7 +195,7 @@ export async function buildQSExportData(
       i.label?.toLowerCase().includes("heating"),
   );
   const heatPumps = heatPumpItems.map((i: ModuleItemRow) => ({
-    model: i.approved_value ?? i.extracted_value ?? "Heat Pump",
+    model: i.extracted_value ?? "Heat Pump",
     qty: 1,
   }));
 
@@ -211,7 +216,7 @@ export async function buildQSExportData(
     .slice(0, 6)
     .map((i: ModuleItemRow) => ({
       description: i.label ?? "Extra",
-      value: parseFloat(i.approved_value ?? i.extracted_value ?? "0") || 0,
+      value: parseFloat(i.extracted_value ?? "0") || 0,
     }));
 
   // Merge job header from extracted files: Supabase > SMW > plans > fallback
@@ -254,7 +259,8 @@ export async function buildQSExportData(
   const planVersion = getVal("plan version") ?? "1";
 
   // Wall measurements
-  const exteriorWallLengthLm = getNum("exterior wall length") ?? getNum("wall length");
+  const exteriorWallLengthLm =
+    getNum("exterior wall length") ?? getNum("external wall length");
 
   // Wall height - handle mm conversion
   let exteriorWallHeightM: number | null = getNum("wall height");
@@ -368,7 +374,7 @@ export async function buildQSExportData(
   if (dpItems.length > 0) {
     for (const item of dpItems) {
       const label = (item.label ?? "").toLowerCase();
-      const qty = parseFloat(item.approved_value ?? item.extracted_value ?? "0") || 0;
+      const qty = parseFloat(item.extracted_value ?? "0") || 0;
       if (label.includes("white")) {
         downpipesWhite += qty;
       } else if (label.includes("colour steel") || label.includes("colorsteel")) {
@@ -402,7 +408,7 @@ export async function buildQSExportData(
   if (gdItems.length > 0) {
     for (const item of gdItems) {
       const label = (item.label ?? "").toLowerCase();
-      const qty = parseFloat(item.approved_value ?? item.extracted_value ?? "1") || 1;
+      const qty = parseFloat(item.extracted_value ?? "1") || 1;
       const insulated = label.includes("insulated");
       if (label.includes("4.8") || label.includes("48")) {
         if (insulated) garageDoor48x21Insulated += qty;
@@ -437,12 +443,12 @@ export async function buildQSExportData(
   if (idItems.length > 0) {
     for (const item of idItems) {
       const label = (item.label ?? "").toLowerCase();
-      const qty = parseFloat(item.approved_value ?? item.extracted_value ?? "1") || 1;
+      const qty = parseFloat(item.extracted_value ?? "1") || 1;
       if (label.includes("u groove") || label.includes("u-groove")) {
         intDoorUGroove += qty;
       } else if (label.includes("v groove") || label.includes("v-groove")) {
         intDoorVGroove += qty;
-      } else if (label.includes("barn") || label.includes("slider") && !label.includes("cavity")) {
+      } else if ((label.includes("barn") || label.includes("slider")) && !label.includes("cavity")) {
         intDoorBarnSlider += qty;
       } else if (label.includes("double")) {
         intDoorDouble += qty;
@@ -475,7 +481,7 @@ export async function buildQSExportData(
   if (hpItems.length > 0) {
     for (const item of hpItems) {
       const label = (item.label ?? "").toLowerCase();
-      const qty = parseFloat(item.approved_value ?? item.extracted_value ?? "1") || 1;
+      const qty = parseFloat(item.extracted_value ?? "1") || 1;
       if (label.includes("ducted")) {
         heatPumpDucted += qty;
       } else {
@@ -486,16 +492,11 @@ export async function buildQSExportData(
     heatPumpWallUnit = heatPumps.length;
   }
 
-  // Prices
-  const housePrice = getNum("house price");
-  const landPrice = getNum("land price");
-  const totalPrice = getNum("total price");
-
   // All spec items as key-value
   const specItems: Record<string, string> = {};
   for (const item of items) {
     if (item.label) {
-      specItems[item.label] = item.approved_value ?? item.extracted_value ?? "";
+      specItems[item.label] = item.extracted_value ?? "";
     }
   }
 
@@ -561,142 +562,9 @@ export async function buildQSExportData(
     washingLine,
     heatPumpWallUnit,
     heatPumpDucted,
-    housePrice,
-    landPrice,
-    totalPrice,
     specItems,
   };
 }
-
-/* ----------------------------------------------------- IQ data sheet write */
-
-const YELLOW_FILL = { fgColor: { rgb: "FFFF00" }, patternType: "solid" } as const;
-
-/**
- * Creates a fresh .xlsx file with a sheet named "5. Data Input House " (trailing space)
- * populated with the job data, ready to paste into the master QS spreadsheet.
- * @deprecated Use writeIQDataSheetFull instead — it includes the Cover sheet, Source column, and amber fills for assumed items.
- */
-export function writeIQDataSheet(data: QSExportData): Uint8Array {
-  const wb = XLSX.utils.book_new();
-  const ws: XLSX.WorkSheet = {};
-
-  function setCell(addr: string, value: string | number, noFill?: boolean) {
-    const cell: XLSX.CellObject = {
-      v: value,
-      t: typeof value === "number" ? "n" : "s",
-    };
-    if (!noFill) {
-      (cell as XLSX.CellObject & { s: unknown }).s = { fill: YELLOW_FILL };
-    }
-    ws[addr] = cell;
-  }
-
-  // Build header date string: DD Month YYYY
-  const now = new Date();
-  const months = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-  ];
-  const dateStr = `${String(now.getDate()).padStart(2, "0")} ${months[now.getMonth()]} ${now.getFullYear()}`;
-
-  // A1: header (no fill)
-  const headerText = `Jennian IQ Data Export — ${data.jmwNumber} ${data.clientFirstName} ${data.clientSurname} — ${dateStr}\nPaste this sheet into your master QS to auto-populate.`;
-  setCell("A1", headerText, true);
-
-  // Client info (always write even if empty string)
-  setCell("I1", data.clientFirstName);
-  setCell("I2", data.clientSurname);
-  setCell("I3", data.streetAddress);
-  setCell("I4", data.addressLine2 ?? "");
-  setCell("I5", data.city ?? "");
-  setCell("I6", data.email ?? "");
-  setCell("I7", data.phone ?? "");
-  setCell("I8", data.jmwNumber);
-
-  // Core measurements — skip nulls
-  if (data.floorAreaM2 !== null) setCell("D4", data.floorAreaM2);
-  if (data.perimeterLm !== null) setCell("E4", data.perimeterLm);
-  if (data.firstFloorAreaM2 !== null) setCell("F4", data.firstFloorAreaM2);
-  if (data.alfrescoAreaM2 !== null) setCell("D13", data.alfrescoAreaM2);
-  if (data.exteriorWallLengthLm !== null) setCell("D15", data.exteriorWallLengthLm);
-  setCell("D20", data.exteriorWallHeightM ?? 2.4);
-
-  // Windows per room
-  const roomRows: Array<[keyof QSExportData["windowsByRoom"], number]> = [
-    ["bed1", 41],
-    ["ensuite", 43],
-    ["bed2", 45],
-    ["bed3", 47],
-    ["bed4", 49],
-    ["toilet", 51],
-    ["bathroom", 52],
-    ["kitchen", 54],
-    ["kitchenExtra", 55],
-    ["familyLiving", 56],
-    ["dining", 59],
-    ["lounge", 62],
-    ["garageWindow", 65],
-    ["garageDoor1", 67],
-    ["garageDoor2", 68],
-    ["entrance", 72],
-  ];
-
-  for (const [roomKey, row] of roomRows) {
-    const room = data.windowsByRoom[roomKey];
-    if (!room) continue;
-    setCell(`C${row}`, room.cladding);
-    setCell(`D${row}`, room.qty);
-    setCell(`E${row}`, room.height);
-    setCell(`F${row}`, room.width);
-  }
-
-  // Downpipes — skip zeros
-  if (data.downpipesWhite) setCell("H137", data.downpipesWhite);
-  if (data.downpipesColourSteel) setCell("H138", data.downpipesColourSteel);
-  if (data.downpipesPvcColoured) setCell("H139", data.downpipesPvcColoured);
-
-  // Garage doors
-  if (data.garageDoor48x21Std) setCell("H175", data.garageDoor48x21Std);
-  if (data.garageDoor48x21Insulated) setCell("H176", data.garageDoor48x21Insulated);
-  if (data.garageDoor24x21Std) setCell("H177", data.garageDoor24x21Std);
-  if (data.garageDoor24x21Insulated) setCell("H178", data.garageDoor24x21Insulated);
-  if (data.garageDoor27x21Std) setCell("H179", data.garageDoor27x21Std);
-  if (data.garageDoor27x21Insulated) setCell("H180", data.garageDoor27x21Insulated);
-
-  // Interior doors
-  if (data.intDoorStandard) setCell("H187", data.intDoorStandard);
-  if (data.intDoorUGroove) setCell("H188", data.intDoorUGroove);
-  if (data.intDoorVGroove) setCell("H189", data.intDoorVGroove);
-  if (data.intDoorBarnSlider) setCell("H190", data.intDoorBarnSlider);
-  if (data.intDoorDouble) setCell("H192", data.intDoorDouble);
-  if (data.intDoorCavitySlider) setCell("H193", data.intDoorCavitySlider);
-
-  // Carpentry extras
-  if (data.ceilingHatch) setCell("H222", data.ceilingHatch);
-  if (data.atticStair) setCell("H223", data.atticStair);
-  if (data.letterboxUrban) setCell("H224", data.letterboxUrban);
-  if (data.washingLine) setCell("H227", data.washingLine);
-
-  // Heating
-  if (data.heatPumpWallUnit) setCell("H235", data.heatPumpWallUnit);
-  if (data.heatPumpDucted) setCell("H236", data.heatPumpDucted);
-
-  // Concrete / exterior
-  if (data.pathsPatioM2 !== null) setCell("E212", data.pathsPatioM2);
-  if (data.drivewayM2 !== null) setCell("E213", data.drivewayM2);
-
-  // Set sheet ref range so xlsx knows the extent
-  const usedAddrs = Object.keys(ws).filter((k) => !k.startsWith("!"));
-  if (usedAddrs.length > 0) {
-    ws["!ref"] = "A1:I240";
-  }
-
-  XLSX.utils.book_append_sheet(wb, ws, "5. Data Input House ");
-
-  return XLSX.write(wb, { bookSST: false, type: "array", cellStyles: true }) as Uint8Array;
-}
-
 
 /* -------------------------------------------------- electrical schedule */
 
@@ -841,6 +709,8 @@ export async function writeIQDataSheetFull(
         .eq("job_id", data.jobId)
         .order("sort_order", { ascending: true }),
     ]);
+    if (jobRes.error) throw new Error(`Failed to load job: ${jobRes.error.message}`);
+    if (itemsRes.error) throw new Error(`Failed to load module items: ${itemsRes.error.message}`);
     planType = (jobRes.data?.plan_type as string | null) ?? null;
     confidenceScore = (jobRes.data?.confidence_score as number | null) ?? null;
     allItems = (itemsRes.data ?? []) as typeof allItems;
@@ -868,7 +738,7 @@ export async function writeIQDataSheetFull(
       coverRows.push([
         item.module_id.replace("iq-", "").toUpperCase(),
         item.label,
-        item.approved_value ?? item.extracted_value ?? "—",
+        item.extracted_value ?? "—",
         item.unit ?? "",
       ]);
     }
@@ -885,7 +755,7 @@ export async function writeIQDataSheetFull(
     dataRows.push([
       item.module_id.replace("iq-", "").toUpperCase(),
       item.label,
-      item.approved_value ?? item.extracted_value ?? "—",
+      item.extracted_value ?? "—",
       item.unit ?? "",
       item.value_source ?? "extracted",
     ]);
