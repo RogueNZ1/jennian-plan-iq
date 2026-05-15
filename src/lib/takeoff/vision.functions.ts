@@ -740,6 +740,34 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
         const wlVal = parsed.wall_lengths.internal_wall_length_m;
         if (bgVal == null && wlVal != null) parsed.base_geometry.internal_wall_length_m = wlVal;
         if (wlVal == null && bgVal != null) parsed.wall_lengths.internal_wall_length_m = bgVal;
+        // Room-perimeter fallback. If still null, estimate from room dimensions:
+        //   internal_walls ≈ (Σ room perimeters − external perimeter) / 2
+        // (each internal wall is shared between two rooms).
+        if (parsed.base_geometry.internal_wall_length_m == null) {
+          const roomPerimSum = (parsed.rooms ?? []).reduce((sum, r) => {
+            const w = r.dimensions_mm?.width;
+            const l = r.dimensions_mm?.length;
+            if (typeof w === "number" && typeof l === "number" && w > 0 && l > 0) {
+              return sum + 2 * (w + l) / 1000; // mm -> m
+            }
+            return sum;
+          }, 0);
+          const ext =
+            parsed.base_geometry.external_perimeter_m ??
+            parsed.wall_lengths.external_wall_length_m ??
+            0;
+          if (roomPerimSum > 0) {
+            const estimate = Math.max(0, (roomPerimSum - ext) / 2);
+            const rounded = Math.round(estimate * 100) / 100;
+            if (rounded > 0) {
+              parsed.base_geometry.internal_wall_length_m = rounded;
+              parsed.wall_lengths.internal_wall_length_m = rounded;
+              pageOutcome.warnings.push(
+                `internal_wall_length_m estimated from room perimeters (${rounded} m); review recommended.`,
+              );
+            }
+          }
+        }
 
         pageOutcome.result = parsed;
         pageOutcome.warnings = [...pageOutcome.warnings, ...(parsed.warnings ?? [])];
