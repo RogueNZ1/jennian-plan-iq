@@ -24,13 +24,13 @@ function IntelligencePage() {
 
   useEffect(() => {
     supabase
-      .from("daily_briefs")
+      .from("daily_briefs" as never)
       .select("*")
       .order("brief_date", { ascending: false })
       .limit(1)
       .single()
       .then(({ data, error }) => {
-        if (!error && data) setBrief(data as DailyBrief);
+        if (!error && data) setBrief(data as unknown as DailyBrief);
         setLoading(false);
       });
   }, []);
