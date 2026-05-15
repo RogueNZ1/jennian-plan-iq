@@ -20,7 +20,7 @@ async function callVisionModel(
   apiKey: string,
   systemPrompt: string,
   userText: string,
-  imageBase64: string,
+  imageUrl: string,
 ): Promise<string> {
   const res = await fetch(AI_GATEWAY, {
     method: "POST",
@@ -36,7 +36,7 @@ async function callVisionModel(
           role: "user",
           content: [
             { type: "text", text: userText },
-            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "high" } },
+            { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
           ],
         },
       ],
@@ -83,7 +83,7 @@ export type ScaleResult = {
 };
 
 export const extractScaleFactor = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => input as { imageBase64: string; imageWidth: number; imageHeight: number })
+  .inputValidator((input: unknown) => input as { imageUrl: string; imageWidth: number; imageHeight: number })
   .handler(async ({ data }): Promise<ScaleResult> => {
     const apiKey = getApiKey();
     const system = `You are a plan reading assistant for a New Zealand residential builder.
@@ -121,7 +121,7 @@ Return ONLY the JSON object. No markdown fences.`;
       apiKey,
       system,
       "Extract the printed scale from this architectural plan. Check the title block in the bottom-right corner first.",
-      data.imageBase64,
+      data.imageUrl,
     );
 
     try {
@@ -169,7 +169,7 @@ export type CheckResult = {
 };
 
 export const checkPlanIssues = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => input as { imageBase64: string })
+  .inputValidator((input: unknown) => input as { imageUrl: string })
   .handler(async ({ data }): Promise<CheckResult> => {
     const apiKey = getApiKey();
     const system = `You are a plan checker for a New Zealand residential builder (Jennian Homes Manawatū).
@@ -206,7 +206,7 @@ Return ONLY the JSON object. No markdown fences.`;
       apiKey,
       system,
       "Check this floor plan for any issues that would affect quantity takeoffs.",
-      data.imageBase64,
+      data.imageUrl,
     );
 
     try {
@@ -244,7 +244,7 @@ export type TakeoffData = {
 };
 
 export const extractConceptTakeoffs = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => input as { imageBase64: string; scaleFactor: number | null })
+  .inputValidator((input: unknown) => input as { imageUrl: string; scaleFactor: number | null })
   .handler(async ({ data }): Promise<TakeoffData> => {
     const apiKey = getApiKey();
     const scaleNote = data.scaleFactor
@@ -303,7 +303,7 @@ Return ONLY the JSON object. No markdown fences.`;
       apiKey,
       system,
       "Extract quantity takeoffs from this floor plan. Check for any pre-calculated area schedules, summary boxes or room schedules printed on the drawing first — read those values directly.",
-      data.imageBase64,
+      data.imageUrl,
     );
 
     try {

@@ -288,8 +288,8 @@ function UploadPage() {
       const blob = await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex].pageNumber);
       setHighResBlob(blob);
       if (!blob) throw new Error("No page image.");
-      const [b64, dims] = await Promise.all([blobToBase64(blob), getBlobDimensions(blob)]);
-      const result = await extractScaleFactor({ data: { imageBase64: b64, imageWidth: dims.width, imageHeight: dims.height } });
+      const [imageUrl, dims] = await Promise.all([uploadPlanFrame(blob, "scale"), getBlobDimensions(blob)]);
+      const result = await extractScaleFactor({ data: { imageUrl, imageWidth: dims.width, imageHeight: dims.height } });
       setScaleResult(result);
       foundResult = result;
     } catch (e) {
@@ -316,8 +316,8 @@ function UploadPage() {
     try {
       const blob = highResBlob ?? (planFile ? await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex!]?.pageNumber ?? 1) : null);
       if (!blob) throw new Error("No plan image available.");
-      const b64 = await blobToBase64(blob);
-      const result = await checkPlanIssues({ data: { imageBase64: b64 } });
+      const imageUrl = await uploadPlanFrame(blob, "check");
+      const result = await checkPlanIssues({ data: { imageUrl } });
       setPlanIssues(result.issues);
     } catch (e) {
       console.error(e);
@@ -341,8 +341,8 @@ function UploadPage() {
     try {
       const blob = highResBlob ?? (planFile ? await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex!]?.pageNumber ?? 1) : null);
       if (!blob) throw new Error("No plan image available.");
-      const b64 = await blobToBase64(blob);
-      const result = await extractConceptTakeoffs({ data: { imageBase64: b64, scaleFactor: scaleResult?.scaleFactor ?? null } });
+      const imageUrl = await uploadPlanFrame(blob, "takeoff");
+      const result = await extractConceptTakeoffs({ data: { imageUrl, scaleFactor: scaleResult?.scaleFactor ?? null } });
       setTakeoffData(result);
       setEditedTakeoff(result);
     } catch (e) {
@@ -1024,6 +1024,19 @@ function blobToBase64(blob: Blob): Promise<string> {
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
+}
+
+// Upload a rendered plan page to the public `plan-frames` bucket and return its public URL.
+// The AI gateway requires a public HTTPS URL (it does not accept inline base64 data URLs).
+async function uploadPlanFrame(blob: Blob, tag: string): Promise<string> {
+  const path = `${crypto.randomUUID()}-${tag}.jpg`;
+  const { error } = await supabase.storage
+    .from("plan-frames")
+    .upload(path, blob, { contentType: "image/jpeg", upsert: false });
+  if (error) throw new Error(`Failed to upload plan frame: ${error.message}`);
+  const { data } = supabase.storage.from("plan-frames").getPublicUrl(path);
+  if (!data?.publicUrl) throw new Error("Could not resolve public URL for plan frame.");
+  return data.publicUrl;
 }
 
 const TAKEOFF_ROWS: { key: keyof TakeoffData; label: string; unit: string }[] = [

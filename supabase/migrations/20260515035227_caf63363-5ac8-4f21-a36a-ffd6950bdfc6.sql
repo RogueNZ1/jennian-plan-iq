@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Plan frames are publicly readable" ON storage.objects;
