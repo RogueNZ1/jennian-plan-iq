@@ -98,9 +98,20 @@ export async function listQuantities(jobId: string): Promise<Quantity[]> {
 export async function listOverrides(jobId: string): Promise<OverrideRow[]> {
   const { data, error } = await supabase
     .from("quantity_overrides")
-    .select("*, extracted_quantities!inner(job_id)")
+    .select(
+      "id, quantity_id, original_value, new_value, edited_by, reason, timestamp, extracted_quantities!inner(job_id)",
+    )
     .eq("extracted_quantities.job_id", jobId)
     .order("timestamp", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as unknown as OverrideRow[];
+  // Strip the nested join column so the result matches OverrideRow exactly.
+  return (data ?? []).map((row): OverrideRow => ({
+    id: row.id,
+    quantity_id: row.quantity_id,
+    original_value: row.original_value,
+    new_value: row.new_value,
+    edited_by: row.edited_by,
+    reason: row.reason,
+    timestamp: row.timestamp,
+  }));
 }
