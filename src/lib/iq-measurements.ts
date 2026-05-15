@@ -11,6 +11,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { toJson } from "@/lib/type-helpers";
 
 export type Pt = { x: number; y: number };
 
