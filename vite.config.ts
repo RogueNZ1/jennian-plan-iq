@@ -23,5 +23,14 @@ export default defineConfig({
         { find: "@supabase/supabase-js", replacement: resolve("src/__mocks__/supabase-js.ts") },
       ],
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            "vendor-react": ["react", "react-dom"],
+          },
+        },
+      },
+    },
   },
 });
