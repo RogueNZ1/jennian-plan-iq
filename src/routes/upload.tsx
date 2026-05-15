@@ -1026,6 +1026,19 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+// Upload a rendered plan page to the public `plan-frames` bucket and return its public URL.
+// The AI gateway requires a public HTTPS URL (it does not accept inline base64 data URLs).
+async function uploadPlanFrame(blob: Blob, tag: string): Promise<string> {
+  const path = `${crypto.randomUUID()}-${tag}.jpg`;
+  const { error } = await supabase.storage
+    .from("plan-frames")
+    .upload(path, blob, { contentType: "image/jpeg", upsert: false });
+  if (error) throw new Error(`Failed to upload plan frame: ${error.message}`);
+  const { data } = supabase.storage.from("plan-frames").getPublicUrl(path);
+  if (!data?.publicUrl) throw new Error("Could not resolve public URL for plan frame.");
+  return data.publicUrl;
+}
+
 const TAKEOFF_ROWS: { key: keyof TakeoffData; label: string; unit: string }[] = [
   { key: "floor_area_m2",        label: "Floor area",          unit: "m²" },
   { key: "garage_area_m2",       label: "Garage area",         unit: "m²" },
