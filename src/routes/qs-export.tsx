@@ -309,7 +309,7 @@ function QSExportPage() {
                               </thead>
                               <tbody>
                                 {rows.map((r) => {
-                                  const value = r.approved_value ?? r.extracted_value ?? "—";
+                                  const value = r.extracted_value ?? "—";
                                   return (
                                     <tr key={r.id} className="border-b border-border/40 last:border-0 hover:bg-muted/20">
                                       <td className="px-3 py-2">
