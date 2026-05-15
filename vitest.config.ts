@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       xlsx: resolve(__dirname, "src/__mocks__/xlsx.ts"),
+      "@supabase/supabase-js": resolve(__dirname, "src/__mocks__/supabase-js.ts"),
     },
   },
   test: {
