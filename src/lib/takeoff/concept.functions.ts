@@ -8,7 +8,7 @@
 import { createServerFn } from "@tanstack/react-start";
 
 const AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const AI_MODEL = "google/gemini-2.5-pro";
+const AI_MODEL = "openai/gpt-4o";
 
 function getApiKey(): string {
   const key = process.env.LOVABLE_API_KEY;
@@ -20,7 +20,7 @@ async function callVisionModel(
   apiKey: string,
   systemPrompt: string,
   userText: string,
-  imageUrl: string,
+  imageBase64: string,
 ): Promise<string> {
   const res = await fetch(AI_GATEWAY, {
     method: "POST",
@@ -36,11 +36,11 @@ async function callVisionModel(
           role: "user",
           content: [
             { type: "text", text: userText },
-            { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
+            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
           ],
         },
       ],
-      max_completion_tokens: 16000,
+      max_tokens: 2000,
     }),
   });
 
@@ -53,10 +53,7 @@ async function callVisionModel(
 
   const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
   const content = json.choices?.[0]?.message?.content ?? "";
-  if (!content) {
-    console.error("AI returned empty content. Full response:", JSON.stringify(json, null, 2));
-    throw new Error("AI returned an empty response.");
-  }
+  if (!content) throw new Error("AI returned an empty response.");
   return content;
 }
 
@@ -83,7 +80,7 @@ export type ScaleResult = {
 };
 
 export const extractScaleFactor = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => input as { imageUrl: string; imageWidth: number; imageHeight: number })
+  .inputValidator((input: unknown) => input as { imageBase64: string; imageWidth: number; imageHeight: number })
   .handler(async ({ data }): Promise<ScaleResult> => {
     const apiKey = getApiKey();
     const system = `You are a plan reading assistant for a New Zealand residential builder.
@@ -121,7 +118,7 @@ Return ONLY the JSON object. No markdown fences.`;
       apiKey,
       system,
       "Extract the printed scale from this architectural plan. Check the title block in the bottom-right corner first.",
-      data.imageUrl,
+      data.imageBase64,
     );
 
     try {
@@ -169,7 +166,7 @@ export type CheckResult = {
 };
 
 export const checkPlanIssues = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => input as { imageUrl: string })
+  .inputValidator((input: unknown) => input as { imageBase64: string })
   .handler(async ({ data }): Promise<CheckResult> => {
     const apiKey = getApiKey();
     const system = `You are a plan checker for a New Zealand residential builder (Jennian Homes Manawatū).
@@ -206,7 +203,7 @@ Return ONLY the JSON object. No markdown fences.`;
       apiKey,
       system,
       "Check this floor plan for any issues that would affect quantity takeoffs.",
-      data.imageUrl,
+      data.imageBase64,
     );
 
     try {
@@ -244,7 +241,7 @@ export type TakeoffData = {
 };
 
 export const extractConceptTakeoffs = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => input as { imageUrl: string; scaleFactor: number | null })
+  .inputValidator((input: unknown) => input as { imageBase64: string; scaleFactor: number | null })
   .handler(async ({ data }): Promise<TakeoffData> => {
     const apiKey = getApiKey();
     const scaleNote = data.scaleFactor
@@ -303,7 +300,7 @@ Return ONLY the JSON object. No markdown fences.`;
       apiKey,
       system,
       "Extract quantity takeoffs from this floor plan. Check for any pre-calculated area schedules, summary boxes or room schedules printed on the drawing first — read those values directly.",
-      data.imageUrl,
+      data.imageBase64,
     );
 
     try {

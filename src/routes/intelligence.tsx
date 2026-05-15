@@ -17,70 +17,22 @@ interface DailyBrief {
   generated_at: string;
 }
 
-function parseDailyBrief(value: unknown): DailyBrief | null {
-  if (!value || typeof value !== "object") return null;
-  const row = Object.entries(value).reduce<Record<string, unknown>>((acc, [key, entry]) => {
-    acc[key] = entry;
-    return acc;
-  }, {});
-  if (
-    typeof row.id !== "string" ||
-    typeof row.brief_date !== "string" ||
-    typeof row.html_content !== "string" ||
-    typeof row.text_content !== "string" ||
-    typeof row.summary !== "string" ||
-    typeof row.alert_count !== "number" ||
-    typeof row.new_listing_count !== "number" ||
-    typeof row.price_change_count !== "number" ||
-    typeof row.generated_at !== "string"
-  ) {
-    return null;
-  }
-  return {
-    id: row.id,
-    brief_date: row.brief_date,
-    html_content: row.html_content,
-    text_content: row.text_content,
-    summary: row.summary,
-    alert_count: row.alert_count,
-    new_listing_count: row.new_listing_count,
-    price_change_count: row.price_change_count,
-    generated_at: row.generated_at,
-  };
-}
-
-async function loadLatestBrief(): Promise<DailyBrief | null> {
-  const { data } = await supabase.auth.getSession();
-  const url = new URL(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/daily_briefs`);
-  url.searchParams.set("select", "id,brief_date,html_content,text_content,summary,alert_count,new_listing_count,price_change_count,generated_at");
-  url.searchParams.set("order", "brief_date.desc");
-  url.searchParams.set("limit", "1");
-
-  const response = await fetch(url.toString(), {
-    headers: {
-      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-      Authorization: `Bearer ${data.session?.access_token ?? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-    },
-  });
-
-  if (!response.ok) return null;
-  const payload: unknown = await response.json();
-  return Array.isArray(payload) ? parseDailyBrief(payload[0]) : null;
-}
-
 function IntelligencePage() {
   const [brief, setBrief] = useState<DailyBrief | null>(null);
   const [loading, setLoading] = useState(true);
   const [sent, setSent] = useState(false);
 
   useEffect(() => {
-    let active = true;
-    loadLatestBrief().then((latest) => {
-      if (active) setBrief(latest);
-    }).finally(() => {
-      if (active) setLoading(false);
-    });
-    return () => { active = false; };
+    supabase
+      .from("daily_briefs")
+      .select("*")
+      .order("brief_date", { ascending: false })
+      .limit(1)
+      .single()
+      .then(({ data, error }) => {
+        if (!error && data) setBrief(data as DailyBrief);
+        setLoading(false);
+      });
   }, []);
 
   function handleEmailSend() {
