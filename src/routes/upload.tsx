@@ -310,12 +310,16 @@ function UploadPage() {
     } catch (e) {
       console.error(e);
       const detail = e instanceof Error ? e.message : String(e);
+      if (detail.includes("LOVABLE_API_KEY")) {
+        toast.error("AI is not configured on this server. Contact support.");
+      } else {
+        toast.error(`Scale extraction failed: ${detail}`);
+      }
       const fallback = {
         scaleFactor: null,
         confidence: "low" as const,
         rationale: `Scale extraction failed: ${detail}. Enter a known dimension below to calibrate manually.`,
       };
-      toast.error(`Scale extraction failed: ${detail}`);
       setScaleResult(fallback);
       foundResult = fallback;
     } finally {
@@ -386,7 +390,10 @@ function UploadPage() {
 
   function exportToExcel() {
     const t = editedTakeoff ?? takeoffData;
-    if (!t) return;
+    if (!t) {
+      toast.error("No takeoff data available to export.");
+      return;
+    }
 
     const today = new Date().toISOString().split("T")[0];
     const fileName = `${jobNumber || "JM"}-${(clientName || "client").replace(/\s+/g, "-")}-takeoffs-${today}.xlsx`;
