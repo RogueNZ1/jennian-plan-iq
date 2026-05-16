@@ -65,7 +65,7 @@ async function callVisionModel(
     "";
   if (!content) {
     console.error("[callVisionModel] Empty response. Full body:", JSON.stringify(json).slice(0, 500));
-    throw new Error("AI returned an empty response.");
+    return "";
   }
   return content;
 }
