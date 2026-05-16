@@ -1,65 +1,32 @@
-## Goal
+## Problem
 
-Fix the upload drop zone in `src/routes/upload.tsx` so dragging PDFs onto it adds the files instead of letting the browser open them. No visual redesign — the existing `<label>` dropzone keeps its current look.
+`src/lib/takeoff/concept.functions.ts` throws `LOVABLE_API_KEY is not configured` because `process.env.LOVABLE_API_KEY` is `undefined` in the server runtime — even though the Cloud > Secrets panel shows an entry from May 10, 2026.
 
-## Changes (single file: `src/routes/upload.tsx`)
+`LOVABLE_API_KEY` is a **managed** secret provisioned by the Lovable AI Gateway, not a user secret. The panel row can exist while the runtime binding is missing or stale. The application code is correct (it reads the env var inside `.handler()`, which is the right pattern for TanStack server functions).
 
-### 1. Global safety listeners while `/upload` is mounted
+## Fix
 
-In `UploadPage`, add a `useEffect` that attaches `dragover` and `drop` listeners to `window` which call `preventDefault()`. Remove them on unmount. This stops a stray drop anywhere on the page from navigating the browser to the PDF.
+Rotate the managed key via the AI Gateway. This regenerates the credential and re-injects it into the Worker runtime in a single step.
 
-```ts
-useEffect(() => {
-  const prevent = (e: DragEvent) => { e.preventDefault(); };
-  window.addEventListener("dragover", prevent);
-  window.addEventListener("drop", prevent);
-  return () => {
-    window.removeEventListener("dragover", prevent);
-    window.removeEventListener("drop", prevent);
-  };
-}, []);
-```
+### Steps
 
-### 2. Make `Dropzone` actually a drop target
+1. Run `ai_gateway--rotate_lovable_api_key` — regenerates `LOVABLE_API_KEY` and updates the server runtime binding.
+2. Verify by re-running the failing flow (Upload → continue from page selection). The server function should now reach `https://ai.gateway.lovable.dev/v1/chat/completions` and return a scale result.
+3. If the error persists after rotation, check `stack_modern--server-function-logs` for the actual server-side error (rotation issue vs. gateway 402/429 vs. network).
 
-The current `Dropzone` is a `<label>` wrapping a hidden `<input type="file">`. It has zero drag handlers, which is why the browser falls back to its default "open the file" behaviour.
+### No code changes required
 
-Update `Dropzone` to:
+The existing `getApiKey()` helper in `concept.functions.ts` is correct:
+- Reads `process.env.LOVABLE_API_KEY` inside the handler (not module scope) ✓
+- Throws a clear error when missing ✓
+- Uses the correct gateway URL and OpenAI-compatible payload ✓
 
-- Accept the same props plus nothing new externally — drag handling stays internal.
-- Track an `isDragging` state for the highlight.
-- Handle `onDragEnter`, `onDragOver`, `onDragLeave`, `onDrop`:
-  - All four call `e.preventDefault()` and `e.stopPropagation()`.
-  - `dragenter` / `dragover` → set `isDragging = true`.
-  - `dragleave` → set `isDragging = false` (only when leaving the element, not children — use `e.currentTarget.contains(relatedTarget)` guard).
-  - `drop` → set `isDragging = false`, read `e.dataTransfer.files`, validate, hand off to `onFile`.
+### What NOT to do
 
-- Validation:
-  - Filter to `application/pdf` (also accept files whose name ends with `.pdf` as a fallback for browsers that drop without a MIME type).
-  - If any dropped file is non-PDF (or none are PDF), call `toast.error("Only PDF files are supported for plan/specification upload.")` and do not accept the drop.
-  - If valid PDFs were dropped, pass the first one to `onFile` (the existing single-file API per zone).
+- Don't add the key via `secrets--add_secret` — `LOVABLE_API_KEY` is managed and that tool can't write it.
+- Don't edit `.env` — managed secrets aren't sourced from there in the Worker runtime.
+- Don't change the code to read from a different env var name — the name is correct.
 
-- Duplicate guard: if a dropped file has the same `name` and `size` as the currently selected `file`, skip it silently (do not re-add or toast).
+### Why rotation works
 
-- Highlight: when `isDragging`, swap the dashed border colour to the existing `border-primary/60` and background to `bg-accent/40`. No new tokens, no new colors — uses tokens already in the file.
-
-### 3. Keep Browse working
-
-The existing hidden `<input type="file">` inside the `<label>` is untouched. Clicking the dropzone still opens the picker because the wrapping element remains a `<label htmlFor>`-style click target. The drop handlers are added to the same `<label>` element; they do not interfere with click-to-browse.
-
-### 4. Out of scope (per instructions)
-
-- No changes to `persist()`, job/file insert logic, storage paths, the `test job` flag handling, or any business logic.
-- No changes to styles.css, colors, layout, sidebar, typography.
-- Both Plan and Spec dropzones get the fix because they both use the same `Dropzone` component.
-
-## Acceptance check after implementation
-
-1. `bunx tsc --noEmit` passes.
-2. Drag PDF onto Plan zone → file is added; browser does not navigate.
-3. Drag two PDFs onto the same zone → first is accepted (single-file zone), no crash.
-4. Drag a `.png` onto a zone → toast: "Only PDF files are supported for plan/specification upload."
-5. Drop a PDF outside any zone → nothing happens (global listener prevents default).
-6. Click the zone → file picker still opens and works.
-7. No console errors.
-8. Visual style unchanged except a subtle border/background highlight while dragging.
+The rotate tool talks to the AI Gateway control plane, which (a) issues a fresh credential and (b) writes it into the project's runtime environment binding. This resolves the "panel row exists but runtime is empty" mismatch.
