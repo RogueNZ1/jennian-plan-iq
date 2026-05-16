@@ -20,7 +20,10 @@ export type ScaleResult = {
   evidence: string;
 };
 
-const SCALE_RE = /(?:scale[:\s]*)?1\s*[:/]\s*(\d{2,4})(?:\s*@\s*(a\d))?/i;
+// Matches NZ architectural scale strings, including:
+//   "1:100", "1/100", "Scale 1:100", "SCALE: 1:100", "SCALE - 1:100",
+//   "1:100 @ A3", "1:100 (A3)"
+const SCALE_RE = /(?:scale\s*[:–\-]?\s*)?1\s*[:/]\s*(\d{2,4})(?:\s*[@(]\s*(a[0-4])\s*\)?)?/i;
 
 export function detectScaleFromText(p: ExtractedPage): ScaleResult {
   const m = p.text.match(SCALE_RE);
