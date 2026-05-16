@@ -1,23 +1,21 @@
 /**
  * Concept pipeline server functions — scale extraction, plan check, and takeoffs.
  *
- * Server-only: reads LOVABLE_API_KEY from process.env.
- * All three functions call the Lovable AI gateway (OpenAI-compatible endpoint)
- * with the same LOVABLE_API_KEY credential used by the existing Vision Takeoff.
+ * Server-only: reads ANTHROPIC_API_KEY from process.env.
+ * All three functions call the Anthropic Messages API directly.
  */
 import { createServerFn } from "@tanstack/react-start";
 
-const AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 // !! DO NOT CHANGE THIS MODEL !!
-// GPT-4o and gpt-5 DO NOT work on the Lovable gateway for this project.
-// Gemini 2.5 Pro is the ONLY model that reliably reads NZ architectural
-// plan text (title blocks, dimension annotations) at the required accuracy.
-// Switching to any OpenAI model WILL break scale extraction and takeoffs.
-const AI_MODEL = "google/gemini-2.5-pro";
+// claude-opus-4-5 handles architectural vision reliably.
+// Do NOT switch to any OpenAI model — they do not work for NZ plan reading.
+const ANTHROPIC_MODEL = "claude-opus-4-5";
+const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
+const ANTHROPIC_VERSION = "2023-06-01";
 
 function getApiKey(): string {
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("LOVABLE_API_KEY is not configured.");
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw new Error("ANTHROPIC_API_KEY is not configured.");
   return key;
 }
 
@@ -27,45 +25,47 @@ async function callVisionModel(
   userText: string,
   imageBase64: string,
 ): Promise<string> {
-  const res = await fetch(AI_GATEWAY, {
+  const res = await fetch(ANTHROPIC_API, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": ANTHROPIC_VERSION,
+      "content-type": "application/json",
     },
     body: JSON.stringify({
-      model: AI_MODEL,
+      model: ANTHROPIC_MODEL,
+      max_tokens: 4000,
+      system: systemPrompt,
       messages: [
-        { role: "system", content: systemPrompt },
         {
           role: "user",
           content: [
             { type: "text", text: userText },
-            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
+            {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: "image/jpeg",
+                data: imageBase64,
+              },
+            },
           ],
         },
       ],
-      max_tokens: 4000,
     }),
   });
 
   if (res.status === 429) throw new Error("AI rate-limited. Please try again in a moment.");
-  if (res.status === 402) throw new Error("AI workspace credits exhausted. Contact support.");
+  if (res.status === 402 || res.status === 529) throw new Error("Anthropic API credits exhausted or overloaded. Contact support.");
+  if (res.status === 401) throw new Error("ANTHROPIC_API_KEY is invalid or not authorised.");
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`AI model error ${res.status}: ${text.slice(0, 200)}`);
+    throw new Error(`Anthropic API error ${res.status}: ${text.slice(0, 200)}`);
   }
 
-  const json = await res.json() as {
-    choices?: Array<{ message?: { content?: string } }>;
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-  // OpenAI-compatible format (gpt-4o, etc.) vs Gemini native format.
-  // Gemini can split a single response across multiple parts — concatenate all of them.
-  const content =
-    json.choices?.[0]?.message?.content ??
-    json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ??
-    "";
+  // Anthropic response: { content: [{ type: "text", text: "..." }] }
+  const json = await res.json() as { content?: Array<{ type: string; text?: string }> };
+  const content = json.content?.filter((b) => b.type === "text").map((b) => b.text ?? "").join("") ?? "";
   if (!content) {
     console.error("[callVisionModel] Empty response. Full body:", JSON.stringify(json).slice(0, 500));
     return "";
@@ -74,26 +74,21 @@ async function callVisionModel(
 }
 
 function extractJson(text: string): string {
-  // Strip ALL markdown fences (```json, ```, etc.) anywhere in the text —
-  // Gemini sometimes emits multiple fences or stray ``` markers.
+  // Strip ALL markdown fences anywhere in the text.
   let cleaned = text.replace(/```(?:json|JSON)?/g, "").trim();
-  // Find the first { and last } to extract the JSON object even if Gemini
-  // adds preamble text or a trailing explanation around the JSON block.
+  // Extract the JSON object from first { to last }.
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
   if (start !== -1 && end > start) cleaned = cleaned.slice(start, end + 1);
-  // Repair common issues: trailing commas, control chars.
+  // Repair trailing commas and control characters.
   cleaned = cleaned
     .replace(/,(\s*[}\]])/g, "$1")
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
   return cleaned;
 }
 
-// Attempt to repair truncated JSON by balancing braces/brackets and
-// closing an unterminated string. Returns null if unrecoverable.
 function tryRepairTruncatedJson(text: string): string | null {
   let s = text;
-  // Track string state and bracket stack across the string.
   const stack: string[] = [];
   let inString = false;
   let escape = false;
@@ -108,36 +103,25 @@ function tryRepairTruncatedJson(text: string): string | null {
     else if (ch === "]") { if (stack[stack.length - 1] === "[") stack.pop(); }
   }
   if (inString) s += '"';
-  // Strip trailing comma (now possibly visible at end after truncation).
   s = s.replace(/,\s*$/, "");
   while (stack.length) {
     const open = stack.pop();
     s += open === "{" ? "}" : "]";
   }
-  try {
-    JSON.parse(s);
-    return s;
-  } catch {
-    return null;
-  }
+  try { JSON.parse(s); return s; } catch { return null; }
 }
 
 function safeParseJson<T>(raw: string): T | null {
   const cleaned = extractJson(raw);
-  try {
-    return JSON.parse(cleaned) as T;
-  } catch {
+  try { return JSON.parse(cleaned) as T; } catch {
     const repaired = tryRepairTruncatedJson(cleaned);
-    if (repaired) {
-      try { return JSON.parse(repaired) as T; } catch { /* fall through */ }
-    }
+    if (repaired) { try { return JSON.parse(repaired) as T; } catch { /* fall through */ } }
     return null;
   }
 }
 
 // ── Scale Extraction ──────────────────────────────────────────────────────────
 
-// Landscape width in mm for each A-series paper size.
 const PAPER_WIDTH_MM: Record<string, number> = {
   A0: 1189, A1: 841, A2: 594, A3: 420, A4: 297,
 };
@@ -170,14 +154,14 @@ PRIORITY ORDER — stop at the first method that succeeds:
 
 Return a JSON object with exactly these keys:
 {
-  "scaleRatio": <number or null>,   // denominator X of 1:X (e.g. 100), from title block text
-  "paperSize": <string or null>,    // e.g. "A3", "A1" — only if found in title block text
-  "scaleFactor": <number or null>,  // pixels per mm — only populate if you measured from annotations or scale bar
+  "scaleRatio": <number or null>,
+  "paperSize": <string or null>,
+  "scaleFactor": <number or null>,
   "confidence": "high" | "low",
   "rationale": "<brief explanation of exactly what text/annotation you found>"
 }
 
-If you found a title block scale like "1:100 @ A3", set scaleRatio=100, paperSize="A3", scaleFactor=null (the server will compute it from image size).
+If you found a title block scale like "1:100 @ A3", set scaleRatio=100, paperSize="A3", scaleFactor=null.
 If you measured from annotations, set scaleFactor to the calculated value, scaleRatio=null.
 If you found nothing at all, return all nulls with confidence="low".
 
@@ -186,64 +170,50 @@ Return ONLY the JSON object. No markdown fences.`;
     let raw: string;
     try {
       raw = await callVisionModel(
-        apiKey,
-        system,
+        apiKey, system,
         "Extract the printed scale from this architectural plan. Check the title block in the bottom-right corner first.",
         data.imageBase64,
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[extractScaleFactor] AI call failed:", msg);
-      throw new Error(`AI gateway error — ${msg}`);
+      throw new Error(`AI error — ${msg}`);
     }
 
     if (!raw.trim()) {
-      return {
-        scaleFactor: null,
-        confidence: "low",
-        rationale: "AI returned an empty response — image may be too large or unreadable. Try a smaller or clearer plan image.",
-      };
+      return { scaleFactor: null, confidence: "low", rationale: "AI returned an empty response." };
     }
 
-    let parsed: {
-        scaleRatio?: number | null;
-        paperSize?: string | null;
-        scaleFactor?: number | null;
-        confidence?: string;
-        rationale?: string;
-    };
-    const parsedMaybe = safeParseJson<typeof parsed>(raw);
+    const parsedMaybe = safeParseJson<{
+      scaleRatio?: number | null; paperSize?: string | null;
+      scaleFactor?: number | null; confidence?: string; rationale?: string;
+    }>(raw);
     if (!parsedMaybe) {
       console.error("[extractScaleFactor] Could not parse AI response:", raw.slice(0, 300));
-      return {
-        scaleFactor: null,
-        confidence: "low",
-        rationale: `AI returned an unparseable response: ${raw.slice(0, 160)}`,
-      };
+      return { scaleFactor: null, confidence: "low", rationale: `AI returned an unparseable response: ${raw.slice(0, 160)}` };
     }
-    parsed = parsedMaybe;
+    const parsed = parsedMaybe;
 
-      let scaleFactor = parsed.scaleFactor ?? null;
-      const confidence = parsed.confidence === "high" ? "high" : "low";
+    let scaleFactor = parsed.scaleFactor ?? null;
+    const confidence = parsed.confidence === "high" ? "high" : "low";
 
-      // Derive scaleFactor from title block ratio + paper size + image dimensions.
-      if (scaleFactor === null && parsed.scaleRatio && parsed.paperSize) {
-        const paperKey = String(parsed.paperSize).toUpperCase().trim();
-        const paperWidthMm = PAPER_WIDTH_MM[paperKey];
-        if (paperWidthMm) {
-          const imgWidth = Math.max(data.imageWidth, data.imageHeight); // use longer edge (landscape)
-          scaleFactor = imgWidth / (paperWidthMm * parsed.scaleRatio);
-        }
+    if (scaleFactor === null && parsed.scaleRatio && parsed.paperSize) {
+      const paperKey = String(parsed.paperSize).toUpperCase().trim();
+      const paperWidthMm = PAPER_WIDTH_MM[paperKey];
+      if (paperWidthMm) {
+        const imgWidth = Math.max(data.imageWidth, data.imageHeight);
+        scaleFactor = imgWidth / (paperWidthMm * parsed.scaleRatio);
       }
+    }
 
-      return {
-        scaleFactor,
-        confidence: scaleFactor !== null ? "high" : confidence,
-        rationale:
-          scaleFactor === null && parsed.scaleRatio && parsed.paperSize
-            ? `Found "1:${parsed.scaleRatio} @ ${parsed.paperSize}" but paper size "${parsed.paperSize}" is not in the A0–A4 range — cannot derive pixels/mm. ${parsed.rationale ?? ""}`.trim()
-            : parsed.rationale ?? "AI did not return a scale or rationale.",
-      };
+    return {
+      scaleFactor,
+      confidence: scaleFactor !== null ? "high" : confidence,
+      rationale:
+        scaleFactor === null && parsed.scaleRatio && parsed.paperSize
+          ? `Found "1:${parsed.scaleRatio} @ ${parsed.paperSize}" but paper size not in A0–A4. ${parsed.rationale ?? ""}`.trim()
+          : parsed.rationale ?? "AI did not return a scale or rationale.",
+    };
   });
 
 // ── Plan Check ────────────────────────────────────────────────────────────────
@@ -254,9 +224,7 @@ export type PlanIssue = {
   location?: string;
 };
 
-export type CheckResult = {
-  issues: PlanIssue[];
-};
+export type CheckResult = { issues: PlanIssue[] };
 
 export const checkPlanIssues = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => input as { imageBase64: string })
@@ -268,7 +236,7 @@ Review the supplied floor plan image and identify any issues that could affect q
 Check for:
 - Rooms without dimension annotations
 - Rooms with no label/name
-- Wall lengths that appear inconsistent (e.g. overall width doesn't match sum of room widths)
+- Wall lengths that appear inconsistent
 - Missing or unclear wet area locations (bathroom, laundry, kitchen)
 - Missing garage or entry area if this appears to be a full house plan
 - Unclear or ambiguous floor plan features
@@ -284,23 +252,18 @@ Return a JSON object:
   ]
 }
 
-Severity guide:
-- "error": Missing critical information (no dimensions on a room, no wet area shown, plan appears incomplete)
-- "warning": Potentially inconsistent or ambiguous information
-- "info": Minor observations, possible assumptions needed
-
-If the plan looks complete and well-annotated, return an empty issues array.
+Severity: "error" = missing critical info; "warning" = inconsistent/ambiguous; "info" = minor observation.
+If the plan looks complete, return an empty issues array.
 Return ONLY the JSON object. No markdown fences.`;
 
     const raw = await callVisionModel(
-      apiKey,
-      system,
+      apiKey, system,
       "Check this floor plan for any issues that would affect quantity takeoffs.",
       data.imageBase64,
     );
 
     if (!raw.trim()) {
-      return { issues: [{ severity: "warning", description: "AI returned an empty response for plan check — skipping issues." }] };
+      return { issues: [{ severity: "warning", description: "AI returned an empty response for plan check." }] };
     }
 
     const parsed = safeParseJson<{ issues?: PlanIssue[] }>(raw);
@@ -318,6 +281,17 @@ Return ONLY the JSON object. No markdown fences.`;
 
 // ── Takeoff Extraction ────────────────────────────────────────────────────────
 
+export type WindowsByRoom = {
+  [room: string]: { qty: number; height_m: number; width_m: number };
+};
+
+export type DoorBreakdown = {
+  standard: number;
+  cavity_sliders: number;
+  double_doors: number;
+  barn_sliders: number;
+};
+
 export type TakeoffData = {
   floor_area_m2: number | null;
   garage_area_m2: number | null;
@@ -334,6 +308,9 @@ export type TakeoffData = {
   kitchen_count: number | null;
   ceiling_height_m: number | null;
   foundation_type: string | null;
+  windows_by_room: WindowsByRoom | null;
+  door_breakdown: DoorBreakdown | null;
+  garage_door_size: string | null;
   notes: string;
 };
 
@@ -343,7 +320,7 @@ export const extractConceptTakeoffs = createServerFn({ method: "POST" })
     const apiKey = getApiKey();
     const scaleNote = data.scaleFactor
       ? `The plan scale factor is ${data.scaleFactor.toFixed(4)} pixels per millimetre. Use this to convert pixel measurements to real-world dimensions where needed.`
-      : "No reliable scale factor was determined. Extract areas and counts from any visible dimension annotations on the plan. State assumptions in the notes field.";
+      : "No reliable scale factor was determined. Extract areas and counts from visible dimension annotations. State assumptions in the notes field.";
 
     const system = `You are a quantity surveyor's assistant for Jennian Homes Manawatū (NZ residential builder).
 Extract quantity takeoff data from the supplied floor plan image.
@@ -351,36 +328,49 @@ Extract quantity takeoff data from the supplied floor plan image.
 ${scaleNote}
 
 PRIORITY — read pre-calculated summary boxes FIRST:
-Many NZ residential plans include a summary table or schedule printed on the drawing, often in a border panel, title block area, or separate box. These may be labelled:
+Many NZ residential plans include a summary table or schedule printed on the drawing (border panel, title block, or separate box) labelled:
   "Area Schedule", "Room Schedule", "Floor Areas", "Living Area", "Total Floor Area",
   "Cladding Area", "Perimeter", "External Wall Length", "Roof Area", "GFA", "NFA".
-If any such table exists, read the values directly from it — these are exact and should be preferred over any estimation you do from counting/measuring.
+If any such table exists, read values directly from it — these are exact and preferred over estimation.
 
-After reading any summary box, also count and extract:
-- window_count: Count all window symbols visible on the plan
-- external_door_count: Count external entry/exit door symbols
-- internal_door_count: Count internal room door symbols
-- bathroom_count, ensuite_count, laundry_count, kitchen_count: Count labelled rooms
+WINDOW SCHEDULE — extract per room:
+For each room visible on the plan, identify all window openings and their dimensions.
+Read window labels (e.g. "W1 1800x1200", "900x600") from the plan or window schedule.
+Dimensions are typically width x height in mm. Convert to metres.
+Return windows_by_room as an object keyed by room name:
+  { "Bedroom 1": { "qty": 2, "width_m": 1.8, "height_m": 1.2 }, ... }
+Use the most common window size for that room if sizes vary. If no window dimensions are shown, omit the room or set width_m/height_m to null.
 
-Standard NZ residential construction categories to extract:
-- floor_area_m2: Total habitable floor area (exclude garage) — read from summary if shown
-- garage_area_m2: Garage area (null if no garage) — read from summary if shown
-- alfresco_area_m2: Outdoor covered area / deck / alfresco — read from summary if shown
-- external_wall_lm: External wall perimeter in linear metres — read from summary if shown, otherwise estimate from floor plan outline
+DOOR BREAKDOWN — classify internal doors by type:
+- standard: hinged internal doors (most common)
+- cavity_sliders: pocket/cavity sliding doors (often marked "CS" or "Cav Slider")
+- double_doors: double-leaf hinged doors
+- barn_sliders: surface-mounted barn/track sliders
+Count each type. Total should equal internal_door_count.
+
+GARAGE DOOR:
+Extract the garage door size if labelled (e.g. "4800x2100", "2400x2100", "Tilt Panel 4.8x2.1").
+Return as a string like "4.8x2.1" (width x height in metres). Null if not shown.
+
+Standard NZ residential quantities:
+- floor_area_m2: Total habitable floor area (exclude garage) — from summary if shown
+- garage_area_m2: Garage area (null if no garage)
+- alfresco_area_m2: Outdoor covered area / deck / alfresco
+- external_wall_lm: External wall perimeter in linear metres
 - internal_wall_lm: Internal wall total length in linear metres
-- roof_area_m2: Roof area — read from summary if shown, otherwise estimate from floor area + eaves
+- roof_area_m2: Roof area (estimate from floor area + eaves if not shown)
 - window_count: Total number of windows
 - external_door_count: External entry/exit doors (not including garage door)
 - internal_door_count: Internal room doors
-- bathroom_count: Full bathrooms (bath or shower + toilet)
+- bathroom_count: Full bathrooms
 - ensuite_count: Ensuites
 - laundry_count: Laundry rooms
 - kitchen_count: Kitchens
-- ceiling_height_m: Ceiling height in metres (read from annotations or notes; default 2.4m)
+- ceiling_height_m: Ceiling height in metres (default 2.4m if not annotated)
 - foundation_type: e.g. "slab on grade", "pile" (null if not shown)
 
-Return a JSON object with exactly these keys. Use null for any value you cannot determine with reasonable confidence.
-In the "notes" field, list which values came from a summary box vs which were estimated, and note any assumptions.
+Return a JSON object with exactly these keys. Use null for any value you cannot determine.
+In the "notes" field, list which values came from a summary box vs estimated, and note assumptions.
 
 Return ONLY the JSON object. No markdown fences.`;
 
@@ -390,13 +380,13 @@ Return ONLY the JSON object. No markdown fences.`;
       window_count: null, external_door_count: null, internal_door_count: null,
       bathroom_count: null, ensuite_count: null, laundry_count: null,
       kitchen_count: null, ceiling_height_m: null, foundation_type: null,
+      windows_by_room: null, door_breakdown: null, garage_door_size: null,
       notes: "Failed to parse AI response.",
     };
 
     const raw = await callVisionModel(
-      apiKey,
-      system,
-      "Extract quantity takeoffs from this floor plan. Check for any pre-calculated area schedules, summary boxes or room schedules printed on the drawing first — read those values directly.",
+      apiKey, system,
+      "Extract quantity takeoffs from this floor plan. Check for pre-calculated area schedules and window/door schedules first — read those values directly.",
       data.imageBase64,
     );
 
@@ -406,21 +396,24 @@ Return ONLY the JSON object. No markdown fences.`;
       return empty;
     }
     return {
-        floor_area_m2: parsed.floor_area_m2 ?? null,
-        garage_area_m2: parsed.garage_area_m2 ?? null,
-        alfresco_area_m2: parsed.alfresco_area_m2 ?? null,
-        external_wall_lm: parsed.external_wall_lm ?? null,
-        internal_wall_lm: parsed.internal_wall_lm ?? null,
-        roof_area_m2: parsed.roof_area_m2 ?? null,
-        window_count: parsed.window_count ?? null,
-        external_door_count: parsed.external_door_count ?? null,
-        internal_door_count: parsed.internal_door_count ?? null,
-        bathroom_count: parsed.bathroom_count ?? null,
-        ensuite_count: parsed.ensuite_count ?? null,
-        laundry_count: parsed.laundry_count ?? null,
-        kitchen_count: parsed.kitchen_count ?? null,
-        ceiling_height_m: parsed.ceiling_height_m ?? null,
-        foundation_type: parsed.foundation_type ?? null,
-        notes: parsed.notes ?? "",
+      floor_area_m2: parsed.floor_area_m2 ?? null,
+      garage_area_m2: parsed.garage_area_m2 ?? null,
+      alfresco_area_m2: parsed.alfresco_area_m2 ?? null,
+      external_wall_lm: parsed.external_wall_lm ?? null,
+      internal_wall_lm: parsed.internal_wall_lm ?? null,
+      roof_area_m2: parsed.roof_area_m2 ?? null,
+      window_count: parsed.window_count ?? null,
+      external_door_count: parsed.external_door_count ?? null,
+      internal_door_count: parsed.internal_door_count ?? null,
+      bathroom_count: parsed.bathroom_count ?? null,
+      ensuite_count: parsed.ensuite_count ?? null,
+      laundry_count: parsed.laundry_count ?? null,
+      kitchen_count: parsed.kitchen_count ?? null,
+      ceiling_height_m: parsed.ceiling_height_m ?? null,
+      foundation_type: parsed.foundation_type ?? null,
+      windows_by_room: parsed.windows_by_room ?? null,
+      door_breakdown: parsed.door_breakdown ?? null,
+      garage_door_size: parsed.garage_door_size ?? null,
+      notes: parsed.notes ?? "",
     };
   });

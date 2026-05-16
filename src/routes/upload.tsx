@@ -379,6 +379,7 @@ function UploadPage() {
         window_count: null, external_door_count: null, internal_door_count: null,
         bathroom_count: null, ensuite_count: null, laundry_count: null,
         kitchen_count: null, ceiling_height_m: null, foundation_type: null,
+        windows_by_room: null, door_breakdown: null, garage_door_size: null,
         notes: "Extraction failed — enter values manually.",
       };
       setTakeoffData(empty);
@@ -428,11 +429,37 @@ function UploadPage() {
       ["Kitchen",             n(t.kitchen_count),       "count", ""],
       ["Ceiling height",      n(t.ceiling_height_m),    "m",     ""],
       ["Foundation type",     s(t.foundation_type),     "",      ""],
+      ["Garage door size",    s(t.garage_door_size),    "",      ""],
     ];
+
+    const doorBreakdownRows: (string | number)[][] = [];
+    if (t.door_breakdown) {
+      doorBreakdownRows.push(
+        [],
+        ["Door Breakdown", "Qty", "Type", ""],
+        ["— Standard hinged",   t.door_breakdown.standard,        "count", ""],
+        ["— Cavity sliders",    t.door_breakdown.cavity_sliders,  "count", ""],
+        ["— Double doors",      t.door_breakdown.double_doors,    "count", ""],
+        ["— Barn sliders",      t.door_breakdown.barn_sliders,    "count", ""],
+      );
+    }
+
+    const windowRows: (string | number)[][] = [];
+    if (t.windows_by_room && Object.keys(t.windows_by_room).length > 0) {
+      windowRows.push(
+        [],
+        ["Windows by Room", "Qty", "Width (m)", "Height (m)"],
+      );
+      for (const [room, data] of Object.entries(t.windows_by_room)) {
+        windowRows.push([room, data.qty, data.width_m ?? "", data.height_m ?? ""]);
+      }
+    }
 
     const allRows = [
       ...metaRows,
       ...rows,
+      ...doorBreakdownRows,
+      ...windowRows,
       [],
       ["AI Notes / Assumptions", t.notes],
     ];
