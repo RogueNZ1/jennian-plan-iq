@@ -37,8 +37,15 @@ import { default as handler } from "./server.js";
 
 export default {
   async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+
+    // Cloudflare Pages does not auto-populate process.env from bindings.
+    // Inject all string-valued bindings so SSR server functions can read them.
+    for (const [k, v] of Object.entries(env)) {
+      if (typeof v === "string") process.env[k] = v;
+    }
+
     if (env.ASSETS) {
-      const url = new URL(request.url);
       const isStaticAsset =
         url.pathname.startsWith("/assets/") ||
         /\\.(js|css|woff2?|ttf|otf|png|jpg|jpeg|gif|svg|ico|webp|map)$/.test(url.pathname);
