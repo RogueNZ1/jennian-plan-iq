@@ -194,6 +194,14 @@ Return ONLY the JSON object. No markdown fences.`;
       throw new Error(`AI gateway error — ${msg}`);
     }
 
+    if (!raw.trim()) {
+      return {
+        scaleFactor: null,
+        confidence: "low",
+        rationale: "AI returned an empty response — image may be too large or unreadable. Try a smaller or clearer plan image.",
+      };
+    }
+
     let parsed: {
         scaleRatio?: number | null;
         paperSize?: string | null;
@@ -287,6 +295,10 @@ Return ONLY the JSON object. No markdown fences.`;
       "Check this floor plan for any issues that would affect quantity takeoffs.",
       data.imageBase64,
     );
+
+    if (!raw.trim()) {
+      return { issues: [{ severity: "warning", description: "AI returned an empty response for plan check — skipping issues." }] };
+    }
 
     const parsed = safeParseJson<{ issues?: PlanIssue[] }>(raw);
     if (!parsed) {
