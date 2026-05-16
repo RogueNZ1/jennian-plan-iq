@@ -637,6 +637,8 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
+            // !! DO NOT CHANGE THIS MODEL — GPT models do not work on this gateway.
+            // Gemini 2.5 Pro is the only model that reliably reads NZ architectural plans.
             model: "google/gemini-2.5-pro",
             messages: [
               { role: "system", content: SYSTEM_PROMPT },

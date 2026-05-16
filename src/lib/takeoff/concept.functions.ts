@@ -8,8 +8,11 @@
 import { createServerFn } from "@tanstack/react-start";
 
 const AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
-// Gemini 2.5 Pro reads architectural title blocks (small text in plan borders)
-// noticeably better than GPT-4o in our testing.
+// !! DO NOT CHANGE THIS MODEL !!
+// GPT-4o and gpt-5 DO NOT work on the Lovable gateway for this project.
+// Gemini 2.5 Pro is the ONLY model that reliably reads NZ architectural
+// plan text (title blocks, dimension annotations) at the required accuracy.
+// Switching to any OpenAI model WILL break scale extraction and takeoffs.
 const AI_MODEL = "google/gemini-2.5-pro";
 
 function getApiKey(): string {
