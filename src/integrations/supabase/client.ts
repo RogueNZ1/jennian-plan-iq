@@ -2,7 +2,58 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-function createSupabaseClient() {
+function createStubClient() {
+  // Fallback used when Supabase env vars are missing (e.g. preview without
+  // a connected backend). Returns no-op shapes so consumers can call
+  // common methods without crashing — operations resolve with an error.
+  const err = new Error('Supabase is not configured. Connect Supabase in Lovable Cloud.');
+  const asyncErr = async () => ({ data: null, error: err });
+  const queryBuilder: any = new Proxy(function () {}, {
+    get: () => queryBuilder,
+    apply: () => queryBuilder,
+  });
+  // Make awaiting the builder resolve to an error result.
+  queryBuilder.then = (resolve: (v: any) => void) => resolve({ data: null, error: err });
+  const subscription = { unsubscribe() {} };
+  const channel: any = new Proxy({}, {
+    get: (_t, prop) => {
+      if (prop === 'subscribe') return () => subscription;
+      if (prop === 'unsubscribe') return () => {};
+      return () => channel;
+    },
+  });
+  return {
+    auth: {
+      getSession: async () => ({ data: { session: null }, error: null }),
+      getUser: async () => ({ data: { user: null }, error: null }),
+      onAuthStateChange: (_cb: unknown) => ({ data: { subscription } }),
+      signInWithPassword: asyncErr,
+      signInWithOAuth: asyncErr,
+      signUp: asyncErr,
+      signOut: async () => ({ error: null }),
+      resetPasswordForEmail: asyncErr,
+      updateUser: asyncErr,
+      refreshSession: async () => ({ data: { session: null, user: null }, error: null }),
+    },
+    from: () => queryBuilder,
+    rpc: asyncErr,
+    storage: {
+      from: () => ({
+        upload: asyncErr,
+        download: asyncErr,
+        remove: asyncErr,
+        list: asyncErr,
+        createSignedUrl: asyncErr,
+        getPublicUrl: () => ({ data: { publicUrl: '' } }),
+      }),
+    },
+    functions: { invoke: asyncErr },
+    channel: () => channel,
+    removeChannel: () => {},
+  } as unknown as ReturnType<typeof createRealClient>;
+}
+
+function createRealClient() {
   // Use import.meta.env for client-side (Vite build-time replacement)
   // Fall back to process.env for SSR (server-side rendering)
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -27,7 +78,16 @@ function createSupabaseClient() {
   });
 }
 
-let _supabase: ReturnType<typeof createSupabaseClient> | undefined;
+function createSupabaseClient() {
+  try {
+    return createRealClient();
+  } catch (e) {
+    console.error('[Supabase] Falling back to stub client:', e);
+    return createStubClient();
+  }
+}
+
+let _supabase: ReturnType<typeof createRealClient> | undefined;
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
