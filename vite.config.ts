@@ -8,7 +8,7 @@ import { resolve } from "path";
 export default defineConfig({
   plugins: [
     ...tanstackStart({
-      server: { preset: "vercel", entry: "server" },
+      server: { preset: "vercel" },
     }),
     react(),
     tailwindcss(),
