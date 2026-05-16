@@ -42,7 +42,7 @@ async function callVisionModel(
           ],
         },
       ],
-      max_tokens: 2000,
+      max_tokens: 4000,
     }),
   });
 
@@ -71,15 +71,65 @@ async function callVisionModel(
 }
 
 function extractJson(text: string): string {
-  const t = text.trim();
-  // Strip a leading markdown fence (```json or ```) if present
-  const fenced = t.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "").trim();
+  // Strip ALL markdown fences (```json, ```, etc.) anywhere in the text —
+  // Gemini sometimes emits multiple fences or stray ``` markers.
+  let cleaned = text.replace(/```(?:json|JSON)?/g, "").trim();
   // Find the first { and last } to extract the JSON object even if Gemini
   // adds preamble text or a trailing explanation around the JSON block.
-  const start = fenced.indexOf("{");
-  const end = fenced.lastIndexOf("}");
-  if (start !== -1 && end > start) return fenced.slice(start, end + 1);
-  return fenced;
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start !== -1 && end > start) cleaned = cleaned.slice(start, end + 1);
+  // Repair common issues: trailing commas, control chars.
+  cleaned = cleaned
+    .replace(/,(\s*[}\]])/g, "$1")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+  return cleaned;
+}
+
+// Attempt to repair truncated JSON by balancing braces/brackets and
+// closing an unterminated string. Returns null if unrecoverable.
+function tryRepairTruncatedJson(text: string): string | null {
+  let s = text;
+  // Track string state and bracket stack across the string.
+  const stack: string[] = [];
+  let inString = false;
+  let escape = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (escape) { escape = false; continue; }
+    if (ch === "\\") { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{" || ch === "[") stack.push(ch);
+    else if (ch === "}") { if (stack[stack.length - 1] === "{") stack.pop(); }
+    else if (ch === "]") { if (stack[stack.length - 1] === "[") stack.pop(); }
+  }
+  if (inString) s += '"';
+  // Strip trailing comma (now possibly visible at end after truncation).
+  s = s.replace(/,\s*$/, "");
+  while (stack.length) {
+    const open = stack.pop();
+    s += open === "{" ? "}" : "]";
+  }
+  try {
+    JSON.parse(s);
+    return s;
+  } catch {
+    return null;
+  }
+}
+
+function safeParseJson<T>(raw: string): T | null {
+  const cleaned = extractJson(raw);
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    const repaired = tryRepairTruncatedJson(cleaned);
+    if (repaired) {
+      try { return JSON.parse(repaired) as T; } catch { /* fall through */ }
+    }
+    return null;
+  }
 }
 
 // ── Scale Extraction ──────────────────────────────────────────────────────────
@@ -151,9 +201,8 @@ Return ONLY the JSON object. No markdown fences.`;
         confidence?: string;
         rationale?: string;
     };
-    try {
-      parsed = JSON.parse(extractJson(raw));
-    } catch {
+    const parsedMaybe = safeParseJson<typeof parsed>(raw);
+    if (!parsedMaybe) {
       console.error("[extractScaleFactor] Could not parse AI response:", raw.slice(0, 300));
       return {
         scaleFactor: null,
@@ -161,6 +210,7 @@ Return ONLY the JSON object. No markdown fences.`;
         rationale: `AI returned an unparseable response: ${raw.slice(0, 160)}`,
       };
     }
+    parsed = parsedMaybe;
 
       let scaleFactor = parsed.scaleFactor ?? null;
       const confidence = parsed.confidence === "high" ? "high" : "low";
@@ -238,18 +288,17 @@ Return ONLY the JSON object. No markdown fences.`;
       data.imageBase64,
     );
 
-    try {
-      const parsed = JSON.parse(extractJson(raw)) as { issues?: PlanIssue[] };
-      const issues = (parsed.issues ?? []).map((issue) => ({
-        severity: (["error", "warning", "info"].includes(issue.severity) ? issue.severity : "info") as PlanIssue["severity"],
-        description: issue.description ?? "",
-        location: issue.location,
-      }));
-      return { issues };
-    } catch {
-      console.error("[checkPlanIssues] JSON parse failed. Raw response:", raw.slice(0, 500));
+    const parsed = safeParseJson<{ issues?: PlanIssue[] }>(raw);
+    if (!parsed) {
+      console.error("[checkPlanIssues] JSON parse failed. Raw response:", raw.slice(0, 1000));
       return { issues: [{ severity: "warning", description: "Could not parse plan check response. Proceed with caution." }] };
     }
+    const issues = (parsed.issues ?? []).map((issue) => ({
+      severity: (["error", "warning", "info"].includes(issue.severity) ? issue.severity : "info") as PlanIssue["severity"],
+      description: issue.description ?? "",
+      location: issue.location,
+    }));
+    return { issues };
   });
 
 // ── Takeoff Extraction ────────────────────────────────────────────────────────
@@ -336,9 +385,12 @@ Return ONLY the JSON object. No markdown fences.`;
       data.imageBase64,
     );
 
-    try {
-      const parsed = JSON.parse(extractJson(raw)) as Partial<TakeoffData>;
-      return {
+    const parsed = safeParseJson<Partial<TakeoffData>>(raw);
+    if (!parsed) {
+      console.error("[extractConceptTakeoffs] JSON parse failed. Raw response:", raw.slice(0, 500));
+      return empty;
+    }
+    return {
         floor_area_m2: parsed.floor_area_m2 ?? null,
         garage_area_m2: parsed.garage_area_m2 ?? null,
         alfresco_area_m2: parsed.alfresco_area_m2 ?? null,
@@ -355,9 +407,5 @@ Return ONLY the JSON object. No markdown fences.`;
         ceiling_height_m: parsed.ceiling_height_m ?? null,
         foundation_type: parsed.foundation_type ?? null,
         notes: parsed.notes ?? "",
-      };
-    } catch {
-      console.error("[extractConceptTakeoffs] JSON parse failed. Raw response:", raw.slice(0, 500));
-      return empty;
-    }
+    };
   });
