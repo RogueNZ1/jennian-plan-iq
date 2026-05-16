@@ -53,8 +53,15 @@ async function callVisionModel(
     throw new Error(`AI model error ${res.status}: ${text.slice(0, 200)}`);
   }
 
-  const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
-  const content = json.choices?.[0]?.message?.content ?? "";
+  const json = await res.json() as {
+    choices?: Array<{ message?: { content?: string } }>;
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
+  // OpenAI-compatible format (gpt-4o, etc.) vs Gemini native format
+  const content =
+    json.choices?.[0]?.message?.content ??
+    json.candidates?.[0]?.content?.parts?.[0]?.text ??
+    "";
   if (!content) throw new Error("AI returned an empty response.");
   return content;
 }
