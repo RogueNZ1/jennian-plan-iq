@@ -432,27 +432,97 @@ function UploadPage() {
       ["Garage door size",    s(t.garage_door_size),    "",      ""],
     ];
 
+    // ── Door breakdown ────────────────────────────────────────────────────────
     const doorBreakdownRows: (string | number)[][] = [];
     if (t.door_breakdown) {
       doorBreakdownRows.push(
         [],
-        ["Door Breakdown", "Qty", "Type", ""],
-        ["— Standard hinged",   t.door_breakdown.standard,        "count", ""],
-        ["— Cavity sliders",    t.door_breakdown.cavity_sliders,  "count", ""],
-        ["— Double doors",      t.door_breakdown.double_doors,    "count", ""],
-        ["— Barn sliders",      t.door_breakdown.barn_sliders,    "count", ""],
+        ["Door Breakdown", "Qty", "Type", "", ""],
+        ["— Standard hinged",  t.door_breakdown.standard,       "count", "", ""],
+        ["— Cavity sliders",   t.door_breakdown.cavity_sliders, "count", "", ""],
+        ["— Double doors",     t.door_breakdown.double_doors,   "count", "", ""],
+        ["— Barn sliders",     t.door_breakdown.barn_sliders,   "count", "", ""],
       );
     }
 
-    const windowRows: (string | number)[][] = [];
-    if (t.windows_by_room && Object.keys(t.windows_by_room).length > 0) {
-      windowRows.push(
-        [],
-        ["Windows by Room", "Qty", "Width (m)", "Height (m)"],
-      );
-      for (const [room, data] of Object.entries(t.windows_by_room)) {
-        windowRows.push([room, data.qty, data.width_m ?? "", data.height_m ?? ""]);
+    // ── Room name normalisation ───────────────────────────────────────────────
+    const ROOM_NAME_MAP: Record<string, string> = {
+      "master bed":       "Bed 1 (Master)",
+      "master bedroom":   "Bed 1 (Master)",
+      "bed 1":            "Bed 1 (Master)",
+      "bed 1 (master)":   "Bed 1 (Master)",
+      "entry":            "Entrance",
+      "entrance":         "Entrance",
+      "entry/entrance":   "Entrance",
+      "bath":             "Bathroom",
+      "bathroom":         "Bathroom",
+      "bath/bathroom":    "Bathroom",
+      "dining":           "Dining",
+      "garage":           "Garage Window",
+      "garage window":    "Garage Window",
+    };
+    const normaliseRoom = (raw: string) =>
+      ROOM_NAME_MAP[raw.toLowerCase().trim()] ?? raw;
+
+    // QS cell references — extend as QS template rows are confirmed
+    const QS_CELLS: Record<string, string> = {
+      "Bed 1 (Master)": "C41/D41/E41/F41",
+      "Bed 2":          "C42/D42/E42/F42",
+      "Bed 3":          "C43/D43/E43/F43",
+      "Bed 4":          "C44/D44/E44/F44",
+    };
+
+    // Canonical QS room order — all rows appear even with 0 values
+    const QS_ROOMS = [
+      "Bed 1 (Master)", "Bed 2", "Bed 3", "Bed 4",
+      "Lounge", "Dining", "Kitchen",
+      "Bathroom", "Ensuite", "Laundry",
+      "Entrance", "Garage Window",
+    ];
+
+    // Normalise takeoff rooms
+    const byRoom: Record<string, { qty: number; height_m: number; width_m: number }> = {};
+    for (const [raw, d] of Object.entries(t.windows_by_room ?? {})) {
+      const name = normaliseRoom(raw);
+      byRoom[name] = { qty: d.qty ?? 0, height_m: d.height_m ?? 0, width_m: d.width_m ?? 0 };
+    }
+
+    // ── Windows by room table (height before width per QS column order) ───────
+    const windowRows: (string | number)[][] = [
+      [],
+      ["Windows by Room", "Qty", "Height (m)", "Width (m)", "QS Cell"],
+    ];
+    const seen = new Set<string>();
+    for (const room of QS_ROOMS) {
+      const d = byRoom[room] ?? { qty: 0, height_m: 0, width_m: 0 };
+      windowRows.push([room, d.qty, d.height_m, d.width_m, QS_CELLS[room] ?? ""]);
+      seen.add(room);
+    }
+    // Append any extra rooms the AI found that aren't in the canonical list
+    for (const [room, d] of Object.entries(byRoom)) {
+      if (!seen.has(room)) {
+        windowRows.push([room, d.qty, d.height_m, d.width_m, QS_CELLS[room] ?? ""]);
       }
+    }
+
+    // ── Garage door classification ────────────────────────────────────────────
+    const garageDoorRows: (string | number)[][] = [];
+    if (t.garage_door_size) {
+      // Parse width — handles "4800×2100", "4.8x2.1", "4800 x 2100" etc.
+      const m = t.garage_door_size.match(/(\d+(?:\.\d+)?)\s*[x×*]\s*(\d+(?:\.\d+)?)/i);
+      let widthMm = 0;
+      if (m) {
+        const w = parseFloat(m[1]);
+        widthMm = w < 100 ? w * 1000 : w; // convert metres to mm if needed
+      }
+      const qsLabel = widthMm >= 4500
+        ? "4.8×2.1 Insulated → QS H176 = 1"
+        : t.garage_door_size + " → Check QS manually";
+      garageDoorRows.push(
+        [],
+        ["Garage Door Classification", "Description", "QS Mapping", "", ""],
+        ["Garage door", t.garage_door_size, qsLabel, "", ""],
+      );
     }
 
     const allRows = [
@@ -460,6 +530,7 @@ function UploadPage() {
       ...rows,
       ...doorBreakdownRows,
       ...windowRows,
+      ...garageDoorRows,
       [],
       ["AI Notes / Assumptions", t.notes],
     ];
