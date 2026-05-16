@@ -57,12 +57,16 @@ async function callVisionModel(
     choices?: Array<{ message?: { content?: string } }>;
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
   };
-  // OpenAI-compatible format (gpt-4o, etc.) vs Gemini native format
+  // OpenAI-compatible format (gpt-4o, etc.) vs Gemini native format.
+  // Gemini can split a single response across multiple parts — concatenate all of them.
   const content =
     json.choices?.[0]?.message?.content ??
-    json.candidates?.[0]?.content?.parts?.[0]?.text ??
+    json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ??
     "";
-  if (!content) throw new Error("AI returned an empty response.");
+  if (!content) {
+    console.error("[callVisionModel] Empty response. Full body:", JSON.stringify(json).slice(0, 500));
+    throw new Error("AI returned an empty response.");
+  }
   return content;
 }
 
@@ -243,6 +247,7 @@ Return ONLY the JSON object. No markdown fences.`;
       }));
       return { issues };
     } catch {
+      console.error("[checkPlanIssues] JSON parse failed. Raw response:", raw.slice(0, 500));
       return { issues: [{ severity: "warning", description: "Could not parse plan check response. Proceed with caution." }] };
     }
   });
@@ -352,6 +357,7 @@ Return ONLY the JSON object. No markdown fences.`;
         notes: parsed.notes ?? "",
       };
     } catch {
+      console.error("[extractConceptTakeoffs] JSON parse failed. Raw response:", raw.slice(0, 500));
       return empty;
     }
   });
