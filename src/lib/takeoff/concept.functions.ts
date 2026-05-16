@@ -114,21 +114,37 @@ If you found nothing at all, return all nulls with confidence="low".
 
 Return ONLY the JSON object. No markdown fences.`;
 
-    const raw = await callVisionModel(
-      apiKey,
-      system,
-      "Extract the printed scale from this architectural plan. Check the title block in the bottom-right corner first.",
-      data.imageBase64,
-    );
-
+    let raw: string;
     try {
-      const parsed = JSON.parse(stripFences(raw)) as {
+      raw = await callVisionModel(
+        apiKey,
+        system,
+        "Extract the printed scale from this architectural plan. Check the title block in the bottom-right corner first.",
+        data.imageBase64,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[extractScaleFactor] AI call failed:", msg);
+      throw new Error(`AI gateway error — ${msg}`);
+    }
+
+    let parsed: {
         scaleRatio?: number | null;
         paperSize?: string | null;
         scaleFactor?: number | null;
         confidence?: string;
         rationale?: string;
+    };
+    try {
+      parsed = JSON.parse(stripFences(raw));
+    } catch {
+      console.error("[extractScaleFactor] Could not parse AI response:", raw.slice(0, 300));
+      return {
+        scaleFactor: null,
+        confidence: "low",
+        rationale: `AI returned an unparseable response: ${raw.slice(0, 160)}`,
       };
+    }
 
       let scaleFactor = parsed.scaleFactor ?? null;
       const confidence = parsed.confidence === "high" ? "high" : "low";
@@ -146,11 +162,11 @@ Return ONLY the JSON object. No markdown fences.`;
       return {
         scaleFactor,
         confidence: scaleFactor !== null ? "high" : confidence,
-        rationale: parsed.rationale ?? "No rationale provided.",
+        rationale:
+          scaleFactor === null && parsed.scaleRatio && parsed.paperSize
+            ? `Found "1:${parsed.scaleRatio} @ ${parsed.paperSize}" but paper size "${parsed.paperSize}" is not in the A0–A4 range — cannot derive pixels/mm. ${parsed.rationale ?? ""}`.trim()
+            : parsed.rationale ?? "AI did not return a scale or rationale.",
       };
-    } catch {
-      return { scaleFactor: null, confidence: "low", rationale: "Could not parse AI response." };
-    }
   });
 
 // ── Plan Check ────────────────────────────────────────────────────────────────
