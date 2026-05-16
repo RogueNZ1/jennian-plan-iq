@@ -309,7 +309,13 @@ function UploadPage() {
       foundResult = result;
     } catch (e) {
       console.error(e);
-      const fallback = { scaleFactor: null, confidence: "low" as const, rationale: "Scale extraction failed. Enter a known dimension below." };
+      const detail = e instanceof Error ? e.message : String(e);
+      const fallback = {
+        scaleFactor: null,
+        confidence: "low" as const,
+        rationale: `Scale extraction failed: ${detail}. Enter a known dimension below to calibrate manually.`,
+      };
+      toast.error(`Scale extraction failed: ${detail}`);
       setScaleResult(fallback);
       foundResult = fallback;
     } finally {
