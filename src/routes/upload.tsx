@@ -408,24 +408,26 @@ function UploadPage() {
       [],
     ];
 
+    const n = (v: number | null) => v ?? "";
+    const s = (v: string | null) => v ?? "";
     const headers = ["Item", "Quantity", "Unit", "Notes"];
-    const rows: (string | number | null)[][] = [
+    const rows = [
       headers,
-      ["Floor area", t.floor_area_m2, "m²", "Habitable, excluding garage"],
-      ["Garage area", t.garage_area_m2, "m²", ""],
-      ["Alfresco / deck area", t.alfresco_area_m2, "m²", ""],
-      ["External wall length", t.external_wall_lm, "lm", ""],
-      ["Internal wall length", t.internal_wall_lm, "lm", ""],
-      ["Roof area", t.roof_area_m2, "m²", ""],
-      ["Windows", t.window_count, "count", ""],
-      ["External doors", t.external_door_count, "count", ""],
-      ["Internal doors", t.internal_door_count, "count", ""],
-      ["Bathrooms", t.bathroom_count, "count", ""],
-      ["Ensuites", t.ensuite_count, "count", ""],
-      ["Laundry", t.laundry_count, "count", ""],
-      ["Kitchen", t.kitchen_count, "count", ""],
-      ["Ceiling height", t.ceiling_height_m, "m", ""],
-      ["Foundation type", t.foundation_type, "", ""],
+      ["Floor area",          n(t.floor_area_m2),       "m²",    "Habitable, excluding garage"],
+      ["Garage area",         n(t.garage_area_m2),      "m²",    ""],
+      ["Alfresco / deck area",n(t.alfresco_area_m2),    "m²",    ""],
+      ["External wall length",n(t.external_wall_lm),    "lm",    ""],
+      ["Internal wall length",n(t.internal_wall_lm),    "lm",    ""],
+      ["Roof area",           n(t.roof_area_m2),        "m²",    ""],
+      ["Windows",             n(t.window_count),        "count", ""],
+      ["External doors",      n(t.external_door_count), "count", ""],
+      ["Internal doors",      n(t.internal_door_count), "count", ""],
+      ["Bathrooms",           n(t.bathroom_count),      "count", ""],
+      ["Ensuites",            n(t.ensuite_count),       "count", ""],
+      ["Laundry",             n(t.laundry_count),       "count", ""],
+      ["Kitchen",             n(t.kitchen_count),       "count", ""],
+      ["Ceiling height",      n(t.ceiling_height_m),    "m",     ""],
+      ["Foundation type",     s(t.foundation_type),     "",      ""],
     ];
 
     const allRows = [
@@ -439,8 +441,8 @@ function UploadPage() {
     const ws = XLSX.utils.aoa_to_sheet(allRows);
     XLSX.utils.book_append_sheet(wb, ws, "Takeoffs");
 
-    const bytes = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
-    const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const bytes = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+    const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
