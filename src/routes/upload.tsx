@@ -447,47 +447,84 @@ function UploadPage() {
 
     // ── Room name normalisation ───────────────────────────────────────────────
     const ROOM_NAME_MAP: Record<string, string> = {
-      "master bed":       "Bed 1 (Master)",
-      "master bedroom":   "Bed 1 (Master)",
-      "bed 1":            "Bed 1 (Master)",
-      "bed 1 (master)":   "Bed 1 (Master)",
-      "entry":            "Entrance",
-      "entrance":         "Entrance",
-      "entry/entrance":   "Entrance",
-      "bath":             "Bathroom",
-      "bathroom":         "Bathroom",
-      "bath/bathroom":    "Bathroom",
-      "dining":           "Dining",
-      "garage":           "Garage Window",
-      "garage window":    "Garage Window",
+      // Master bedroom variants
+      "master bed":         "Bed 1 (Master)",
+      "master bedroom":     "Bed 1 (Master)",
+      "mbdr":               "Bed 1 (Master)",
+      "bed 1":              "Bed 1 (Master)",
+      "bed 1 (master)":     "Bed 1 (Master)",
+      // Ensuite
+      "ensuite":            "Ensuite",
+      "ens":                "Ensuite",
+      // Beds
+      "bed 2":              "Bed 2",
+      "bedroom 2":          "Bed 2",
+      "bed 3":              "Bed 3",
+      "bedroom 3":          "Bed 3",
+      "bed 4":              "Bed 4",
+      "bedroom 4":          "Bed 4",
+      // Wet areas
+      "bath":               "Bathroom",
+      "bathroom":           "Bathroom",
+      "bath/bathroom":      "Bathroom",
+      // Kitchen / living
+      "kitchen":            "Kitchen",
+      "family":             "Family/Living",
+      "living":             "Family/Living",
+      "family living":      "Family/Living",
+      "family/living":      "Family/Living",
+      "dining":             "Dining",
+      "lounge":             "Lounge",
+      // Entry
+      "entry":              "Entrance",
+      "entrance":           "Entrance",
+      "entry/entrance":     "Entrance",
+      // Garage
+      "garage":             "Garage Window",
+      "garage window":      "Garage Window",
+      "garage door":        "Garage Door",
     };
     const normaliseRoom = (raw: string) =>
       ROOM_NAME_MAP[raw.toLowerCase().trim()] ?? raw;
 
-    // QS cell references — extend as QS template rows are confirmed
+    // QS cell references keyed by confirmed QS row numbers
     const QS_CELLS: Record<string, string> = {
       "Bed 1 (Master)": "C41/D41/E41/F41",
-      "Bed 2":          "C42/D42/E42/F42",
-      "Bed 3":          "C43/D43/E43/F43",
-      "Bed 4":          "C44/D44/E44/F44",
+      "Ensuite":        "C43/D43/E43/F43",
+      "Bed 2":          "C45/D45/E45/F45",
+      "Bed 3":          "C47/D47/E47/F47",
+      "Bed 4":          "C49/D49/E49/F49",
+      "Bathroom":       "C52/D52/E52/F52",
+      "Kitchen":        "C54/D54/E54/F54",
+      "Family/Living":  "C56/D56/E56/F56",
+      "Dining":         "C59/D59/E59/F59",
+      "Lounge":         "C62/D62/E62/F62",
+      "Garage Window":  "C65/D65/E65/F65",
+      "Garage Door":    "C67/D67/E67/F67",
+      "Entrance":       "C72/D72/E72/F72",
     };
 
     // Canonical QS room order — all rows appear even with 0 values
     const QS_ROOMS = [
-      "Bed 1 (Master)", "Bed 2", "Bed 3", "Bed 4",
-      "Lounge", "Dining", "Kitchen",
-      "Bathroom", "Ensuite", "Laundry",
-      "Entrance", "Garage Window",
+      "Bed 1 (Master)", "Ensuite",
+      "Bed 2", "Bed 3", "Bed 4",
+      "Bathroom", "Kitchen", "Family/Living",
+      "Dining", "Lounge",
+      "Garage Window", "Garage Door", "Entrance",
     ];
 
-    // Normalise takeoff rooms
+    // Normalise takeoff rooms; default null height to 1.2m (standard NZ window)
     const byRoom: Record<string, { qty: number; height_m: number; width_m: number }> = {};
     for (const [raw, d] of Object.entries(t.windows_by_room ?? {})) {
       const name = normaliseRoom(raw);
-      byRoom[name] = { qty: d.qty ?? 0, height_m: d.height_m ?? 0, width_m: d.width_m ?? 0 };
+      byRoom[name] = {
+        qty:      d.qty      ?? 0,
+        height_m: d.height_m ?? 1.2,
+        width_m:  d.width_m  ?? 0,
+      };
     }
 
-    // ── Windows by room table (height before width per QS column order) ───────
+    // ── Windows by room (height before width per QS column order) ────────────
     const windowRows: (string | number)[][] = [
       [],
       ["Windows by Room", "Qty", "Height (m)", "Width (m)", "QS Cell"],
@@ -498,7 +535,6 @@ function UploadPage() {
       windowRows.push([room, d.qty, d.height_m, d.width_m, QS_CELLS[room] ?? ""]);
       seen.add(room);
     }
-    // Append any extra rooms the AI found that aren't in the canonical list
     for (const [room, d] of Object.entries(byRoom)) {
       if (!seen.has(room)) {
         windowRows.push([room, d.qty, d.height_m, d.width_m, QS_CELLS[room] ?? ""]);
@@ -506,22 +542,32 @@ function UploadPage() {
     }
 
     // ── Garage door classification ────────────────────────────────────────────
+    // Height is always 2.1m — never use raw measured height.
+    // Width bands: ≥4500mm → 4.8×2.1 (H176), 2700–2800mm → 2.7×2.1 (H180),
+    //              2400–2500mm → 2.4×2.1 (H178).
     const garageDoorRows: (string | number)[][] = [];
     if (t.garage_door_size) {
-      // Parse width — handles "4800×2100", "4.8x2.1", "4800 x 2100" etc.
       const m = t.garage_door_size.match(/(\d+(?:\.\d+)?)\s*[x×*]\s*(\d+(?:\.\d+)?)/i);
       let widthMm = 0;
       if (m) {
         const w = parseFloat(m[1]);
-        widthMm = w < 100 ? w * 1000 : w; // convert metres to mm if needed
+        widthMm = w < 100 ? w * 1000 : w;
       }
-      const qsLabel = widthMm >= 4500
-        ? "4.8×2.1 Insulated → QS H176 = 1"
-        : t.garage_door_size + " → Check QS manually";
+      let qsDesc: string;
+      let qsCell: string;
+      if (widthMm >= 4500) {
+        qsDesc = "4.8×2.1 Insulated";  qsCell = "H176 = 1";
+      } else if (widthMm >= 2700 && widthMm <= 2800) {
+        qsDesc = "2.7×2.1 Insulated";  qsCell = "H180 = 1";
+      } else if (widthMm >= 2400 && widthMm <= 2500) {
+        qsDesc = "2.4×2.1 Insulated";  qsCell = "H178 = 1";
+      } else {
+        qsDesc = t.garage_door_size;   qsCell = "Check QS manually";
+      }
       garageDoorRows.push(
         [],
-        ["Garage Door Classification", "Description", "QS Mapping", "", ""],
-        ["Garage door", t.garage_door_size, qsLabel, "", ""],
+        ["Garage Door Classification", "Measured", "QS Description", "QS Cell", ""],
+        ["Garage door", t.garage_door_size, qsDesc, qsCell, ""],
       );
     }
 
