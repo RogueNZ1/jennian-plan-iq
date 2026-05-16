@@ -66,13 +66,16 @@ async function callVisionModel(
   return content;
 }
 
-function stripFences(text: string): string {
+function extractJson(text: string): string {
   const t = text.trim();
-  if (t.startsWith("```")) {
-    const inner = t.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
-    return inner.trim();
-  }
-  return t;
+  // Strip a leading markdown fence (```json or ```) if present
+  const fenced = t.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "").trim();
+  // Find the first { and last } to extract the JSON object even if Gemini
+  // adds preamble text or a trailing explanation around the JSON block.
+  const start = fenced.indexOf("{");
+  const end = fenced.lastIndexOf("}");
+  if (start !== -1 && end > start) return fenced.slice(start, end + 1);
+  return fenced;
 }
 
 // ── Scale Extraction ──────────────────────────────────────────────────────────
@@ -145,7 +148,7 @@ Return ONLY the JSON object. No markdown fences.`;
         rationale?: string;
     };
     try {
-      parsed = JSON.parse(stripFences(raw));
+      parsed = JSON.parse(extractJson(raw));
     } catch {
       console.error("[extractScaleFactor] Could not parse AI response:", raw.slice(0, 300));
       return {
@@ -232,7 +235,7 @@ Return ONLY the JSON object. No markdown fences.`;
     );
 
     try {
-      const parsed = JSON.parse(stripFences(raw)) as { issues?: PlanIssue[] };
+      const parsed = JSON.parse(extractJson(raw)) as { issues?: PlanIssue[] };
       const issues = (parsed.issues ?? []).map((issue) => ({
         severity: (["error", "warning", "info"].includes(issue.severity) ? issue.severity : "info") as PlanIssue["severity"],
         description: issue.description ?? "",
@@ -329,7 +332,7 @@ Return ONLY the JSON object. No markdown fences.`;
     );
 
     try {
-      const parsed = JSON.parse(stripFences(raw)) as Partial<TakeoffData>;
+      const parsed = JSON.parse(extractJson(raw)) as Partial<TakeoffData>;
       return {
         floor_area_m2: parsed.floor_area_m2 ?? null,
         garage_area_m2: parsed.garage_area_m2 ?? null,
