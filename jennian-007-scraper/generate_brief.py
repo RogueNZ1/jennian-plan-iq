@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from supabase import create_client
 import anthropic
 
-load_dotenv()
+load_dotenv(override=True)
 
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_KEY"))
 
@@ -96,38 +96,51 @@ def get_todays_data() -> dict:
     }
 
 
+def _slim(records: list, keys: list) -> list:
+    """Trim record dicts to only the fields the brief needs."""
+    return [{k: r.get(k) for k in keys if r.get(k) is not None} for r in (records or [])]
+
+
 def generate_brief(data: dict) -> dict:
+    listing_keys = ["source", "builder", "location", "price", "price_display", "title", "url", "bedrooms", "floor_area", "land_area", "status"]
+    change_keys  = ["change_type", "detected_at", "old_value", "new_value", "listing_id"]
+    section_keys = ["source", "suburb", "address", "price", "price_display", "land_area_m2", "listing_url", "first_seen_at"]
+    consent_keys = ["builder", "address", "consent_type", "value", "is_competitor", "captured_at"]
+    review_keys  = ["builder_name", "rating", "review_count", "captured_at"]
+    subdiv_keys  = ["stage_name", "total_lots", "lots_available", "lots_sold", "captured_at"]
+    insight_keys = ["source", "suburb", "metric_name", "metric_value", "captured_at"]
+
     user_message = f"""Today's date: {data['scan_date']}
 
 === LISTINGS DATA ===
-New listings (last 24h): {json.dumps(data['new_listings_24h'], indent=2, default=str)}
-Price changes (last 7d): {json.dumps(data['price_changes_7d'], indent=2, default=str)}
-Listings removed/sold (last 7d): {json.dumps(data['removed_7d'], indent=2, default=str)}
-Active competitor listings: {json.dumps(data['active_competitors'], indent=2, default=str)}
-Jennian active listings: {json.dumps(data['active_jennian'], indent=2, default=str)}
+New listings (last 24h): {json.dumps(_slim(data['new_listings_24h'], change_keys), default=str)}
+Price changes (last 7d): {json.dumps(_slim(data['price_changes_7d'], change_keys), default=str)}
+Listings removed/sold (last 7d): {json.dumps(_slim(data['removed_7d'], change_keys), default=str)}
+Active competitor listings ({len(data['active_competitors'])} total): {json.dumps(_slim(data['active_competitors'], listing_keys), default=str)}
+Jennian active listings: {json.dumps(_slim(data['active_jennian'], listing_keys), default=str)}
 
 === SECTIONS (LAND) ===
-New sections listed this week: {json.dumps(data['new_sections_7d'], indent=2, default=str)}
-All active sections: {json.dumps(data['all_active_sections'], indent=2, default=str)}
+New sections this week: {json.dumps(_slim(data['new_sections_7d'], section_keys), default=str)}
+All active sections: {json.dumps(_slim(data['all_active_sections'], section_keys), default=str)}
 
 === MARKET INSIGHTS ===
-{json.dumps(data['market_insights'], indent=2, default=str)}
+{json.dumps(_slim(data['market_insights'], insight_keys), default=str)}
 
 === PNCC CONSENTS ===
-New consents (last 7d): {json.dumps(data['consent_notices_7d'], indent=2, default=str)}
-Competitor consents (last 30d): {json.dumps(data['competitor_consents_30d'], indent=2, default=str)}
+New consents (last 7d): {json.dumps(_slim(data['consent_notices_7d'], consent_keys), default=str)}
+Competitor consents (last 30d): {json.dumps(_slim(data['competitor_consents_30d'], consent_keys), default=str)}
 
 === SUBDIVISION (TAMAKUKU TERRACE) ===
-{json.dumps(data['subdivision_data'], indent=2, default=str)}
+{json.dumps(_slim(data['subdivision_data'], subdiv_keys), default=str)}
 
 === GOOGLE REVIEWS ===
-{json.dumps(data['google_reviews'], indent=2, default=str)}
+{json.dumps(_slim(data['google_reviews'], review_keys), default=str)}
 
 Generate the 8-section brief. Report only what the data shows. Where data is absent, write DATA GAP."""
 
     response = _get_client().messages.create(
         model="claude-opus-4-7",
-        max_tokens=6000,
+        max_tokens=16000,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_message}]
     )

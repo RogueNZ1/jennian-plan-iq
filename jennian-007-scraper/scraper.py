@@ -13,7 +13,7 @@ from playwright.async_api import async_playwright, Page
 from supabase import create_client
 from bs4 import BeautifulSoup
 
-load_dotenv()
+load_dotenv(override=True)
 
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_KEY"))
 
