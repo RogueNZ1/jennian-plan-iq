@@ -693,13 +693,154 @@ export function electricalScheduleToCSV(schedule: ElectricalSchedule): string {
 // Re-export Carters loads so callers can import everything from one place
 export { exportCartersLoads } from "@/lib/iq-carters-loads";
 
+/* --------------------------------- QS-aligned data input sheet ------------ */
+
+/**
+ * Builds the "IQ Data Input" sheet whose cells align 1-to-1 with the
+ * Jennian_QS_IQ_Updated.xlsm "Data Input" sheet.  All value cells are
+ * highlighted yellow so the estimator can filter/copy them straight into QS.
+ */
+function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
+  const ws: XLSX.WorkSheet = {};
+
+  // --- styles ---
+  const yellowStyle = { fill: { patternType: "solid", fgColor: { rgb: "FFFF00" } } };
+  const redHeaderStyle = {
+    fill: { patternType: "solid", fgColor: { rgb: "E71B23" } },
+    font: { bold: true, color: { rgb: "FFFFFF" }, sz: 14 },
+  };
+  const sectionStyle = {
+    fill: { patternType: "solid", fgColor: { rgb: "404040" } },
+    font: { bold: true, color: { rgb: "FFFFFF" } },
+  };
+  const labelStyle = { font: { color: { rgb: "666666" } } };
+  const instructionStyle = { font: { italic: true, color: { rgb: "444444" } } };
+
+  function lbl(addr: string, v: string, style: object = labelStyle) {
+    ws[addr] = { v, t: "s", s: style };
+  }
+
+  // Write a value cell only when v is a non-null, non-zero, non-empty value.
+  // Per spec: leave QS cells empty rather than writing 0 for missing data.
+  function val(addr: string, v: string | number | null | undefined) {
+    if (v === null || v === undefined || v === "" || v === 0) return;
+    ws[addr] = { v, t: typeof v === "number" ? "n" : "s", s: yellowStyle };
+  }
+
+  // --- Row 1: banner ---
+  lbl("A1", "JENNIAN IQ — Data Input Export", redHeaderStyle);
+
+  // --- Row 2: instructions ---
+  lbl(
+    "A2",
+    "Open your QS file. Filter this sheet by yellow fill, copy all yellow cells, and paste (values only) into the matching cells in your QS Data Input sheet. Yellow cell addresses match QS exactly.",
+    instructionStyle,
+  );
+
+  // --- ① JOB INFORMATION ---
+  lbl("A4", "① JOB INFORMATION", sectionStyle);
+  lbl("A5", "Client Name");
+  lbl("A6", "Site Address");
+  lbl("A7", "City");
+  lbl("A8", "JMW Number");
+  lbl("A9", "Date");
+
+  val("B5", data.clientName || undefined);
+  val("B6", data.streetAddress || undefined);
+  // City always has a value — default to Palmerston North per QS convention
+  ws["B7"] = { v: data.city || "Palmerston North", t: "s", s: yellowStyle };
+  val("B8", data.jmwNumber || undefined);
+  ws["B9"] = { v: new Date().toLocaleDateString("en-NZ"), t: "s", s: yellowStyle };
+
+  // --- ② CORE MEASUREMENTS ---
+  lbl("A11", "② CORE MEASUREMENTS", sectionStyle);
+  lbl("A13", "Floor Area (m²)");
+  lbl("A14", "Perimeter (lm)");
+  lbl("A15", "First Floor Area (m²)");
+  lbl("A16", "Alfresco Area (m²)");
+  lbl("A17", "External Wall Length (lm)");
+  lbl("A20", "External Wall Height (m)");
+
+  val("D13", data.floorAreaM2 ?? undefined);
+  val("E14", data.perimeterLm ?? undefined);
+  val("F15", data.firstFloorAreaM2 ?? undefined);
+  val("D16", data.alfrescoAreaM2 ?? undefined);
+  val("D17", data.exteriorWallLengthLm ?? undefined);
+  // exteriorWallHeightM defaults to 2.4 in buildQSExportData, so always write it
+  if (data.exteriorWallHeightM != null) {
+    ws["D20"] = { v: data.exteriorWallHeightM, t: "n", s: yellowStyle };
+  }
+
+  // --- ③ WINDOWS & OPENINGS ---
+  lbl("A22", "③ WINDOWS & OPENINGS", sectionStyle);
+  lbl("C22", "Qty");
+  lbl("D22", "Height (m)");
+  lbl("E22", "Width (m)");
+
+  const windowRooms: Array<{
+    key: keyof QSExportData["windowsByRoom"];
+    roomLabel: string;
+    row: number;
+  }> = [
+    { key: "bed1",         roomLabel: "Bed 1 (Master)",  row: 23 },
+    { key: "ensuite",      roomLabel: "Ensuite",          row: 24 },
+    { key: "bed2",         roomLabel: "Bed 2",            row: 25 },
+    { key: "bed3",         roomLabel: "Bed 3",            row: 26 },
+    { key: "bed4",         roomLabel: "Bed 4",            row: 27 },
+    { key: "bathroom",     roomLabel: "Bathroom",         row: 28 },
+    { key: "kitchen",      roomLabel: "Kitchen",          row: 29 },
+    { key: "kitchenExtra", roomLabel: "Kitchen extra",    row: 30 },
+    { key: "familyLiving", roomLabel: "Family/Living",    row: 31 },
+    { key: "dining",       roomLabel: "Dining",           row: 32 },
+    { key: "lounge",       roomLabel: "Lounge",           row: 33 },
+    { key: "garageWindow", roomLabel: "Garage Window",    row: 34 },
+    { key: "garageDoor1",  roomLabel: "Garage Door",      row: 35 },
+    { key: "entrance",     roomLabel: "Entrance",         row: 36 },
+  ];
+
+  for (const { key, roomLabel, row } of windowRooms) {
+    lbl(`A${row}`, roomLabel);
+    const room = data.windowsByRoom[key];
+    if (room) {
+      val(`C${row}`, room.qty);
+      val(`D${row}`, room.height);
+      val(`E${row}`, room.width);
+    }
+  }
+
+  // --- ④ DOORS & GARAGE ---
+  lbl("A39", "④ DOORS & GARAGE", sectionStyle);
+  lbl("A176", "Garage Door 4.8×2.1 Insulated");
+  lbl("A177", "Garage Door 4.8×2.1 Standard");
+
+  val("H176", data.garageDoor48x21Insulated > 0 ? data.garageDoor48x21Insulated : undefined);
+  val("H177", data.garageDoor48x21Std > 0 ? data.garageDoor48x21Std : undefined);
+
+  // --- sheet metadata ---
+  ws["!cols"] = [
+    { wch: 35 }, // A — labels
+    { wch: 25 }, // B — job info values
+    { wch: 15 }, // C — window qty
+    { wch: 15 }, // D — window height / measurements
+    { wch: 15 }, // E — window width
+    { wch: 15 }, // F — first floor
+    { wch: 15 }, // G — (spare)
+    { wch: 15 }, // H — garage door counts
+  ];
+  ws["!ref"] = "A1:H177";
+
+  return ws;
+}
+
 /* --------------------------------- concept mode IQ data sheet (async, full) */
 
 /**
- * Generates an IQ data workbook with Cover + Data sheets, loading plan type,
- * confidence score, and module_items from Supabase when jobId is provided.
+ * Generates an IQ data workbook with Cover + Data + QS Data Input sheets,
+ * loading plan type, confidence score, and module_items from Supabase when
+ * jobId is provided.
  * Cover sheet: job info, plan type, confidence %, and assumed items list.
  * Data sheet: module_items with amber fill for assumed rows.
+ * IQ Data Input sheet: values at exact QS cell addresses, yellow-highlighted.
  */
 export async function writeIQDataSheetFull(
   data: QSExportData & { jobId?: string },
@@ -787,6 +928,10 @@ export async function writeIQDataSheetFull(
   }
 
   XLSX.utils.book_append_sheet(wb, wsData, "5. Data Input House ");
+
+  // QS-aligned paste sheet — cell addresses match Jennian_QS_IQ_Updated.xlsm exactly
+  const wsQSInput = buildQSDataInputSheet(data);
+  XLSX.utils.book_append_sheet(wb, wsQSInput, "IQ Data Input");
 
   return XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
 }

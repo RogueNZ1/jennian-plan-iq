@@ -327,13 +327,12 @@ Extract quantity takeoff data from the supplied floor plan image.
 
 ${scaleNote}
 
-━━━ RULE 1 — SCALE READING AND WINDOW DIMENSION VERIFICATION ━━━
-First, find and read the scale from the title block (e.g. "1:100 @ A3", "1:50 @ A1").
-For each window annotation (e.g. "2150x600"), measure the actual pixel dimensions of that window opening on the plan image.
-Using the scale ratio, convert pixel measurements to real-world mm.
-Match the two annotation numbers against the measured horizontal vs vertical pixel extents to determine which number is width and which is height.
-Output width_m and height_m based on this geometric verification.
-If scale cannot be read or verification is inconclusive, output the annotation numbers with a note "scale verification failed — check manually".
+━━━ RULE 1 — WINDOW DIMENSION READING ━━━
+NZ residential floor plan window annotations use the format HEIGHT × WIDTH in millimetres
+(e.g. "2150x600" means height_m = 2.150, width_m = 0.600; "1200x900" means height_m = 1.200, width_m = 0.900).
+Read the annotation text directly. The FIRST number is ALWAYS height; the SECOND number is ALWAYS width.
+Do NOT attempt to measure pixel dimensions or apply a scale factor to window annotations — the numbers in the annotation are already in mm.
+If no annotation is visible for a window opening, output null for both height_m and width_m.
 
 ━━━ RULE 2 — FLOOR AREA — ALWAYS USE OVER FRAME ━━━
 Read floor area ONLY from the summary box value labelled "LIVING AREA", "AREA OVER FRAME", or "FLOOR AREA OVER FRAME".
@@ -356,7 +355,7 @@ Height is always 2.1m regardless of what the plan shows. Never use the raw measu
 Return garage_door_size as the classified string (e.g. "4.8x2.1") not the raw annotation.
 
 ━━━ RULE 5 — MISSING DIMENSIONS ━━━
-If a window height or width cannot be read from the plan annotation, output the string "NOT FOUND" for that value.
+If a window height or width annotation cannot be read, output null for that value.
 Never guess, estimate, or use a default value.
 
 ━━━ RULE 6 — ROOMS WITH NO WINDOWS ━━━

@@ -487,21 +487,21 @@ function UploadPage() {
     const normaliseRoom = (raw: string) =>
       ROOM_NAME_MAP[raw.toLowerCase().trim()] ?? raw;
 
-    // QS cell references keyed by confirmed QS row numbers
+    // QS cell references — qty/height/width columns matching QS Data Input tab rows
     const QS_CELLS: Record<string, string> = {
-      "Bed 1 (Master)": "C41/D41/E41/F41",
-      "Ensuite":        "C43/D43/E43/F43",
-      "Bed 2":          "C45/D45/E45/F45",
-      "Bed 3":          "C47/D47/E47/F47",
-      "Bed 4":          "C49/D49/E49/F49",
-      "Bathroom":       "C52/D52/E52/F52",
-      "Kitchen":        "C54/D54/E54/F54",
-      "Family/Living":  "C56/D56/E56/F56",
-      "Dining":         "C59/D59/E59/F59",
-      "Lounge":         "C62/D62/E62/F62",
-      "Garage Window":  "C65/D65/E65/F65",
-      "Garage Door":    "C67/D67/E67/F67",
-      "Entrance":       "C72/D72/E72/F72",
+      "Bed 1 (Master)": "C23/D23/E23",
+      "Ensuite":        "C24/D24/E24",
+      "Bed 2":          "C25/D25/E25",
+      "Bed 3":          "C26/D26/E26",
+      "Bed 4":          "C27/D27/E27",
+      "Bathroom":       "C28/D28/E28",
+      "Kitchen":        "C29/D29/E29",
+      "Family/Living":  "C31/D31/E31",
+      "Dining":         "C32/D32/E32",
+      "Lounge":         "C33/D33/E33",
+      "Garage Window":  "C34/D34/E34",
+      "Garage Door":    "C35/D35/E35",
+      "Entrance":       "C36/D36/E36",
     };
 
     // Canonical QS room order — all rows appear even with 0 values
@@ -584,6 +584,77 @@ function UploadPage() {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(allRows);
     XLSX.utils.book_append_sheet(wb, ws, "Takeoffs");
+
+    // ── IQ Data Input sheet — cell addresses match QS Data Input tab exactly ──
+    const wsQS: XLSX.WorkSheet = {};
+    const iqYellow   = { fill: { patternType: "solid", fgColor: { rgb: "FFFF00" } } };
+    const iqRed      = { fill: { patternType: "solid", fgColor: { rgb: "E71B23" } }, font: { bold: true, color: { rgb: "FFFFFF" }, sz: 14 } };
+    const iqSection  = { fill: { patternType: "solid", fgColor: { rgb: "404040" } }, font: { bold: true, color: { rgb: "FFFFFF" } } };
+    const iqLabel    = { font: { color: { rgb: "666666" } } };
+    const iqNote     = { font: { italic: true, color: { rgb: "444444" } } };
+
+    const qlbl = (addr: string, v: string, style: object = iqLabel) => { wsQS[addr] = { v, t: "s", s: style }; };
+    const qval = (addr: string, v: string | number | null | undefined) => {
+      if (v === null || v === undefined || v === "" || v === 0) return;
+      wsQS[addr] = { v, t: typeof v === "number" ? "n" : "s", s: iqYellow };
+    };
+
+    qlbl("A1", "JENNIAN IQ — Data Input Export", iqRed);
+    qlbl("A2", "Yellow cells match QS Data Input cell addresses exactly. Copy yellow cells → paste values only into QS.", iqNote);
+
+    qlbl("A4", "① JOB INFORMATION", iqSection);
+    qlbl("A5", "Client Name");   qval("B5", clientName || undefined);
+    qlbl("A6", "Site Address");  qval("B6", address    || undefined);
+    qlbl("A7", "City");          wsQS["B7"] = { v: "Palmerston North", t: "s", s: iqYellow };
+    qlbl("A8", "JMW Number");    qval("B8", jobNumber  || undefined);
+    qlbl("A9", "Date");          wsQS["B9"] = { v: today, t: "s", s: iqYellow };
+
+    qlbl("A11", "② CORE MEASUREMENTS", iqSection);
+    qlbl("A13", "Floor Area (m²)");          qval("D13", t.floor_area_m2    ?? undefined);
+    qlbl("A16", "Alfresco Area (m²)");       qval("D16", t.alfresco_area_m2 ?? undefined);
+    qlbl("A17", "External Wall Length (lm)");qval("D17", t.external_wall_lm ?? undefined);
+    qlbl("A20", "External Wall Height (m)"); wsQS["D20"] = { v: 2.4, t: "n", s: iqYellow };
+
+    qlbl("A22", "③ WINDOWS & OPENINGS", iqSection);
+    qlbl("C22", "Qty"); qlbl("D22", "Height (m)"); qlbl("E22", "Width (m)");
+
+    const QS_WINDOW_ROWS: Array<{ name: string; row: number }> = [
+      { name: "Bed 1 (Master)", row: 23 }, { name: "Ensuite",       row: 24 },
+      { name: "Bed 2",          row: 25 }, { name: "Bed 3",         row: 26 },
+      { name: "Bed 4",          row: 27 }, { name: "Bathroom",      row: 28 },
+      { name: "Kitchen",        row: 29 }, { name: "Kitchen extra", row: 30 },
+      { name: "Family/Living",  row: 31 }, { name: "Dining",        row: 32 },
+      { name: "Lounge",         row: 33 }, { name: "Garage Window", row: 34 },
+      { name: "Garage Door",    row: 35 }, { name: "Entrance",      row: 36 },
+    ];
+    for (const { name, row } of QS_WINDOW_ROWS) {
+      qlbl(`A${row}`, name);
+      const wd = byRoom[name];
+      if (wd && wd.qty > 0) {
+        qval(`C${row}`, wd.qty);
+        if (wd.height_m > 0) qval(`D${row}`, wd.height_m);
+        if (wd.width_m  > 0) qval(`E${row}`, wd.width_m);
+      }
+    }
+
+    qlbl("A39", "④ DOORS & GARAGE", iqSection);
+    qlbl("A176", "Garage Door 4.8×2.1 Insulated");
+    qlbl("A177", "Garage Door 4.8×2.1 Standard");
+    if (t.garage_door_size) {
+      const gdm = t.garage_door_size.match(/(\d+(?:\.\d+)?)\s*[x×*]\s*/i);
+      if (gdm) {
+        const gw = parseFloat(gdm[1]);
+        const gwMm = gw < 100 ? gw * 1000 : gw;
+        if (gwMm >= 4500) wsQS["H176"] = { v: 1, t: "n", s: iqYellow };
+      }
+    }
+
+    wsQS["!cols"] = [
+      { wch: 35 }, { wch: 25 }, { wch: 15 }, { wch: 15 },
+      { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
+    ];
+    wsQS["!ref"] = "A1:H177";
+    XLSX.utils.book_append_sheet(wb, wsQS, "IQ Data Input");
 
     const bytes = XLSX.write(wb, { type: "array", bookType: "xlsx" });
     const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
