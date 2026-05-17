@@ -69,6 +69,8 @@ function JobDetail() {
   const [takeoffRun, setTakeoffRun] = useState<LatestTakeoffRun | null>(null);
   const [startChooserOpen, setStartChooserOpen] = useState(false);
   const [hasTakeoffData, setHasTakeoffData] = useState<boolean | null>(null);
+  const [hasDoorMarkups, setHasDoorMarkups] = useState<boolean | null>(null);
+  const [skipMarkupGate, setSkipMarkupGate] = useState(false);
   const [exportingQS, setExportingQS] = useState(false);
   const [exportingSMW, setExportingSMW] = useState(false);
   const [exportingElec, setExportingElec] = useState(false);
@@ -82,6 +84,15 @@ function JobDetail() {
     kitchen: 1, living: 1, dining: 1, study: 0,
     laundry: true, garage: true, alfresco: false, hallway: true,
   });
+
+  async function refreshDoorMarkupCount() {
+    const { count } = await supabase
+      .from("door_markups")
+      .select("id", { count: "exact", head: true })
+      .eq("job_id", jobId)
+      .neq("door_type", "wardrobe");
+    setHasDoorMarkups((count ?? 0) > 0);
+  }
 
   async function refreshHasData() {
     const counts = await Promise.all([
@@ -107,7 +118,7 @@ function JobDetail() {
         if (!cancelled) setRuns(r);
         const tr = await loadLatestTakeoffRun(jobId).catch(() => null);
         if (!cancelled) setTakeoffRun(tr);
-        await refreshHasData();
+        await Promise.all([refreshHasData(), refreshDoorMarkupCount()]);
         const { data: efRows } = await supabase
           .from("uploaded_files")
           .select("id, file_name, storage_url")
@@ -358,17 +369,37 @@ function JobDetail() {
               >
                 <FileSpreadsheet className="h-4 w-4" /> Quick Export
               </Link>
-              <div className="flex flex-col items-end gap-0.5">
-                <button
-                  type="button"
-                  onClick={handleExportIQData}
-                  disabled={exportingQS}
-                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
-                >
-                  <FileSpreadsheet className="h-4 w-4" />
-                  {exportingQS ? "Exporting…" : "Export Excel"}
-                </button>
+              <div className="flex flex-col items-end gap-1">
+                <div className="relative group">
+                  <button
+                    type="button"
+                    onClick={handleExportIQData}
+                    disabled={exportingQS || (!hasDoorMarkups && !skipMarkupGate)}
+                    className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                      !hasDoorMarkups && !skipMarkupGate
+                        ? "border-border bg-card opacity-40 cursor-not-allowed"
+                        : "border-border bg-card hover:bg-accent disabled:opacity-50"
+                    }`}
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    {exportingQS ? "Exporting…" : "Export Excel"}
+                  </button>
+                  {!hasDoorMarkups && !skipMarkupGate && (
+                    <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-60 rounded-md border border-border bg-popover px-3 py-2 text-[11px] text-popover-foreground shadow-lg z-50 pointer-events-none">
+                      Complete door markup before exporting
+                    </div>
+                  )}
+                </div>
                 <span className="text-[10px] text-muted-foreground">Paste into your master QS spreadsheet</span>
+                {!hasDoorMarkups && !skipMarkupGate && (
+                  <button
+                    type="button"
+                    onClick={() => setSkipMarkupGate(true)}
+                    className="text-[10px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  >
+                    Skip — use AI count instead
+                  </button>
+                )}
               </div>
               {job?.smw_enabled && (
                 <button
@@ -517,8 +548,17 @@ function JobDetail() {
           </div>
         )}
 
+        {!hasDoorMarkups && !skipMarkupGate && (
+          <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 px-4 py-3">
+            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+            <p className="text-[12px] text-amber-800 dark:text-amber-300">
+              <span className="font-semibold">Step 1 — Mark up doors before exporting.</span>{" "}
+              Place a dot on each door below. Export Excel is locked until at least one door (H187 / H192 / H193) is marked.
+            </p>
+          </div>
+        )}
         <div className="mb-6">
-          <DoorMarkupCanvas jobId={jobId} />
+          <DoorMarkupCanvas jobId={jobId} onDotChange={refreshDoorMarkupCount} />
         </div>
       </div>
       <PlanViewer

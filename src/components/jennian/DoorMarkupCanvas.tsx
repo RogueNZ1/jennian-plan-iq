@@ -67,7 +67,7 @@ async function getPdfJs(): Promise<PdfJs> {
   return pdfjs;
 }
 
-export function DoorMarkupCanvas({ jobId }: { jobId: string }) {
+export function DoorMarkupCanvas({ jobId, onDotChange }: { jobId: string; onDotChange?: () => void }) {
   const [dots, setDots] = useState<DoorDot[]>([]);
   const [mode, setMode] = useState<Mode>("hinged");
   const [planLoaded, setPlanLoaded] = useState(false);
@@ -236,6 +236,7 @@ export function DoorMarkupCanvas({ jobId }: { jobId: string }) {
         return;
       }
       setDots((prev) => prev.filter((d) => d.id !== closest.d.id));
+      onDotChange?.();
       return;
     }
 
@@ -276,6 +277,7 @@ export function DoorMarkupCanvas({ jobId }: { jobId: string }) {
         d.id === tempId ? { ...d, id: (data as { id: string }).id, pending: false } : d,
       ),
     );
+    onDotChange?.();
   }
 
   return (
