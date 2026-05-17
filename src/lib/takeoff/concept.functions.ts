@@ -327,52 +327,63 @@ Extract quantity takeoff data from the supplied floor plan image.
 
 ${scaleNote}
 
-PRIORITY — read pre-calculated summary boxes FIRST:
-Many NZ residential plans include a summary table or schedule printed on the drawing (border panel, title block, or separate box) labelled:
-  "Area Schedule", "Room Schedule", "Floor Areas", "Living Area", "Total Floor Area",
-  "Cladding Area", "Perimeter", "External Wall Length", "Roof Area", "GFA", "NFA".
-If any such table exists, read values directly from it — these are exact and preferred over estimation.
+━━━ RULE 1 — SCALE READING AND WINDOW DIMENSION VERIFICATION ━━━
+First, find and read the scale from the title block (e.g. "1:100 @ A3", "1:50 @ A1").
+For each window annotation (e.g. "2150x600"), measure the actual pixel dimensions of that window opening on the plan image.
+Using the scale ratio, convert pixel measurements to real-world mm.
+Match the two annotation numbers against the measured horizontal vs vertical pixel extents to determine which number is width and which is height.
+Output width_m and height_m based on this geometric verification.
+If scale cannot be read or verification is inconclusive, output the annotation numbers with a note "scale verification failed — check manually".
 
-WINDOW SCHEDULE — extract per room:
-For each room visible on the plan, identify all window openings and their dimensions.
-Read window labels (e.g. "W1 1800x1200", "900x600") from the plan or window schedule.
-Dimensions are typically width x height in mm. Convert to metres.
-Return windows_by_room as an object keyed by room name:
-  { "Bedroom 1": { "qty": 2, "width_m": 1.8, "height_m": 1.2 }, ... }
-Use the most common window size for that room if sizes vary. If no window dimensions are shown, omit the room or set width_m/height_m to null.
+━━━ RULE 2 — FLOOR AREA — ALWAYS USE OVER FRAME ━━━
+Read floor area ONLY from the summary box value labelled "LIVING AREA", "AREA OVER FRAME", or "FLOOR AREA OVER FRAME".
+Never use "AREA OVER FOUNDATION" or "COVERAGE AREA" — these are always larger and incorrect for QS purposes.
 
-DOOR BREAKDOWN — classify internal doors by type:
-- standard: hinged internal doors (most common)
-- cavity_sliders: pocket/cavity sliding doors (often marked "CS" or "Cav Slider")
-- double_doors: double-leaf hinged doors
-- barn_sliders: surface-mounted barn/track sliders
-Count each type. Total should equal internal_door_count.
+━━━ RULE 3 — DOOR COUNTING ━━━
+Count every door on the plan by type:
+- Swing door with a quarter-circle arc = standard hinged
+- Two doors meeting in the middle with two arcs = double door
+- Door shown as dashed rectangle sliding into wall cavity with no arc = cavity slider
+- Door positioned alongside a wall = barn slider
+Count ALL instances across the entire plan. Double doors are common in living areas and between garage and house. Do not miss any.
 
-GARAGE DOOR:
-Extract the garage door size if labelled (e.g. "4800x2100", "2400x2100", "Tilt Panel 4.8x2.1").
-Return as a string like "4.8x2.1" (width x height in metres). Null if not shown.
+━━━ RULE 4 — GARAGE DOOR CLASSIFICATION ━━━
+For garage doors, read the width dimension from the plan. Classify as follows:
+- Width ≥4500mm → 4.8×2.1 insulated
+- Width 2600–2800mm → 2.7×2.1 insulated
+- Width 2300–2500mm → 2.4×2.1 insulated
+Height is always 2.1m regardless of what the plan shows. Never use the raw measured height for garage doors.
+Return garage_door_size as the classified string (e.g. "4.8x2.1") not the raw annotation.
 
-Standard NZ residential quantities:
-- floor_area_m2: Total habitable floor area (exclude garage) — from summary if shown
-- garage_area_m2: Garage area (null if no garage)
+━━━ RULE 5 — MISSING DIMENSIONS ━━━
+If a window height or width cannot be read from the plan annotation, output the string "NOT FOUND" for that value.
+Never guess, estimate, or use a default value.
+
+━━━ RULE 6 — ROOMS WITH NO WINDOWS ━━━
+If a room has no windows, still include it in windows_by_room with qty=0, width_m=0, height_m=0 so the QS knows to zero those cells.
+
+━━━ STANDARD QUANTITIES ━━━
+- floor_area_m2: From "LIVING AREA" / "AREA OVER FRAME" / "FLOOR AREA OVER FRAME" only (Rule 2)
+- garage_area_m2: Garage floor area (null if no garage)
 - alfresco_area_m2: Outdoor covered area / deck / alfresco
 - external_wall_lm: External wall perimeter in linear metres
 - internal_wall_lm: Internal wall total length in linear metres
 - roof_area_m2: Roof area (estimate from floor area + eaves if not shown)
 - window_count: Total number of windows
 - external_door_count: External entry/exit doors (not including garage door)
-- internal_door_count: Internal room doors
+- internal_door_count: Total internal room doors (must match sum of door_breakdown types)
 - bathroom_count: Full bathrooms
 - ensuite_count: Ensuites
 - laundry_count: Laundry rooms
 - kitchen_count: Kitchens
-- ceiling_height_m: Ceiling height in metres (default 2.4m if not annotated)
+- ceiling_height_m: Ceiling height in metres (null if not annotated — do not assume)
 - foundation_type: e.g. "slab on grade", "pile" (null if not shown)
+- windows_by_room: Object keyed by room name — include ALL rooms, even those with qty=0 (Rule 6)
+- door_breakdown: { standard, cavity_sliders, double_doors, barn_sliders } — counts per Rule 3
+- garage_door_size: Classified size string per Rule 4 (e.g. "4.8x2.1"), null if no garage door
+- notes: List which values came from a summary box vs estimated vs not found; note any assumptions
 
-Return a JSON object with exactly these keys. Use null for any value you cannot determine.
-In the "notes" field, list which values came from a summary box vs estimated, and note assumptions.
-
-Return ONLY the JSON object. No markdown fences.`;
+Return ONLY a JSON object with exactly these keys. Use null for any value you cannot determine. No markdown fences.`;
 
     const empty: TakeoffData = {
       floor_area_m2: null, garage_area_m2: null, alfresco_area_m2: null,
