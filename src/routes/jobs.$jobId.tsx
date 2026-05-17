@@ -27,6 +27,7 @@ import { exportCartersLoads } from "@/lib/iq-carters-loads";
 import { JobAuditTimeline } from "@/components/jennian/JobAuditTimeline";
 import { AutomaticTakeoffDialog } from "@/components/jennian/AutomaticTakeoffDialog";
 import { TakeoffSummary } from "@/components/jennian/TakeoffSummary";
+import { DoorMarkupCanvas } from "@/components/jennian/DoorMarkupCanvas";
 import { loadLatestTakeoffRun, type LatestTakeoffRun } from "@/lib/takeoff/run";
 import { StartTakeoffPanel } from "@/components/jennian/StartTakeoffPanel";
 import { StartTakeoffDialog } from "@/components/jennian/StartTakeoffDialog";
@@ -515,6 +516,10 @@ function JobDetail() {
             <TakeoffSummary run={takeoffRun} jobId={jobId} />
           </div>
         )}
+
+        <div className="mb-6">
+          <DoorMarkupCanvas jobId={jobId} />
+        </div>
       </div>
       <PlanViewer
         open={viewerOpen}

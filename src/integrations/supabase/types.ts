@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      door_markups: {
+        Row: {
+          id: string
+          job_id: string
+          door_type: string
+          x_percent: number
+          y_percent: number
+          label_number: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          job_id: string
+          door_type: string
+          x_percent: number
+          y_percent: number
+          label_number?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          job_id?: string
+          door_type?: string
+          x_percent?: number
+          y_percent?: number
+          label_number?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "door_markups_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       audit_logs: {
         Row: {
           action: string

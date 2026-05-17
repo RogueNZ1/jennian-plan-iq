@@ -132,10 +132,11 @@ export async function buildQSExportData(
   jobId: string,
   files?: ExtractedFile[],
 ): Promise<QSExportData> {
-  const [jobRes, itemsRes, openingsRes] = await Promise.all([
+  const [jobRes, itemsRes, openingsRes, doorMarkupsRes] = await Promise.all([
     supabase.from("jobs").select("*").eq("id", jobId).single(),
     supabase.from("module_items").select("*").eq("job_id", jobId),
     supabase.from("opening_schedule").select("*").eq("job_id", jobId),
+    supabase.from("door_markups").select("door_type").eq("job_id", jobId),
   ]);
 
   if (jobRes.error) throw new Error(`Failed to load job: ${jobRes.error.message}`);
@@ -490,6 +491,14 @@ export async function buildQSExportData(
     }
   } else if (heatPumps.length > 0) {
     heatPumpWallUnit = heatPumps.length;
+  }
+
+  // Door markup override — when dots have been placed manually, use those counts
+  const doorMarkupRows = doorMarkupsRes.data ?? [];
+  if (doorMarkupRows.length > 0) {
+    intDoorStandard = doorMarkupRows.filter((d) => d.door_type === "hinged").length;
+    intDoorDouble = doorMarkupRows.filter((d) => d.door_type === "double_cavity").length;
+    intDoorCavitySlider = doorMarkupRows.filter((d) => d.door_type === "cavity_slider").length;
   }
 
   // All spec items as key-value
