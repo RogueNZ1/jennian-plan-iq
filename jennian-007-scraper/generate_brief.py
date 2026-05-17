@@ -8,7 +8,12 @@ import anthropic
 load_dotenv()
 
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_KEY"))
-client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+def _get_client():
+    key = os.getenv("ANTHROPIC_API_KEY")
+    if not key:
+        raise RuntimeError("ANTHROPIC_API_KEY not set — check .env")
+    return anthropic.Anthropic(api_key=key)
 
 SYSTEM_PROMPT = """You are the Jennian 007 market intelligence agent for Jennian Homes Manawatū — New Zealand's top residential builder in the Palmerston North / Manawatū region. You generate a twice-weekly intelligence brief for Haydon Christian, Managing Director.
 
@@ -120,7 +125,7 @@ Competitor consents (last 30d): {json.dumps(data['competitor_consents_30d'], ind
 
 Generate the 8-section brief. Report only what the data shows. Where data is absent, write DATA GAP."""
 
-    response = client.messages.create(
+    response = _get_client().messages.create(
         model="claude-opus-4-7",
         max_tokens=6000,
         system=SYSTEM_PROMPT,

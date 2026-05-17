@@ -9,8 +9,10 @@ import sys
 import io
 from datetime import datetime, timezone
 from pathlib import Path
+from dotenv import load_dotenv
 
 os.chdir(Path(__file__).parent)
+load_dotenv()  # must be before any module-level env reads in imported modules
 
 # Force UTF-8 on Windows console so special chars don't crash the stream handler
 if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
