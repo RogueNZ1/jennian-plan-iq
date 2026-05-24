@@ -517,9 +517,77 @@ export async function runAutomaticTakeoff(args: {
       visionReviewMarkedAt: null,
     };
 
-    // Concept mode: fill missing items with Jennian standard allowances
+    // Concept mode: geometry measurement + fill missing items with Jennian standard allowances
     const { data: jobRow } = await supabase.from("jobs").select("plan_type").eq("id", jobId).single();
     if (jobRow?.plan_type === "concept") {
+      // Geometry API — download working plan and measure it
+      if (workingFileId) {
+        try {
+          const { data: fileRow } = await supabase
+            .from("uploaded_files")
+            .select("storage_url, file_name")
+            .eq("id", workingFileId)
+            .single();
+          if (fileRow?.storage_url) {
+            const { data: fileData } = await supabase.storage
+              .from("job-files")
+              .download(fileRow.storage_url);
+            if (fileData) {
+              const { measurePlanGeometry, overallConfidence } = await import("./geometry-api");
+              const geoResult = await measurePlanGeometry(fileData, fileRow.file_name ?? "plan.pdf");
+              if (geoResult) {
+                // Clear any previous geometry measurements for this job then re-insert
+                await supabase.from("plan_measurements").delete()
+                  .eq("job_id", jobId).eq("source", "geometry_api");
+
+                const scaleNote = geoResult.scale.string ?? null;
+                const m = geoResult.measurements;
+                const inserts: Array<{
+                  job_id: string; created_by: string; measurement_type: string;
+                  calculated_area_m2?: number | null; calculated_length_m?: number | null;
+                  confidence: string; source: string; notes?: string | null;
+                  plan_page_number: number;
+                }> = [];
+
+                if (m.floor_area_m2 != null) {
+                  inserts.push({
+                    job_id: jobId, created_by: userId,
+                    measurement_type: "floor_area",
+                    calculated_area_m2: m.floor_area_m2,
+                    confidence: geoResult.confidence.floor_area,
+                    source: "geometry_api",
+                    notes: scaleNote,
+                    plan_page_number: geoResult.page_used ?? 0,
+                  });
+                }
+                if (m.perimeter_m != null) {
+                  inserts.push({
+                    job_id: jobId, created_by: userId,
+                    measurement_type: "perimeter",
+                    calculated_length_m: m.perimeter_m,
+                    confidence: geoResult.confidence.perimeter,
+                    source: "geometry_api",
+                    notes: scaleNote,
+                    plan_page_number: geoResult.page_used ?? 0,
+                  });
+                }
+                if (inserts.length > 0) {
+                  await supabase.from("plan_measurements").insert(inserts);
+                }
+
+                // Persist overall geometry confidence back to the job record
+                const conf = overallConfidence(geoResult.confidence);
+                await supabase.from("jobs").update({
+                  confidence_score: conf === "high" ? 95 : conf === "medium" ? 70 : 40,
+                }).eq("id", jobId);
+              }
+            }
+          }
+        } catch (geoErr) {
+          console.warn("[concept-geometry] Geometry API failed — run continues:", geoErr);
+        }
+      }
+
       try {
         const { data: existingItems } = await supabase.from("module_items")
           .select("label, value_source").eq("job_id", jobId);

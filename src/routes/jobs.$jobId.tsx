@@ -27,11 +27,11 @@ import { exportCartersLoads } from "@/lib/iq-carters-loads";
 import { JobAuditTimeline } from "@/components/jennian/JobAuditTimeline";
 import { AutomaticTakeoffDialog } from "@/components/jennian/AutomaticTakeoffDialog";
 import { TakeoffSummary } from "@/components/jennian/TakeoffSummary";
-import { DoorMarkupCanvas } from "@/components/jennian/DoorMarkupCanvas";
 import { loadLatestTakeoffRun, type LatestTakeoffRun } from "@/lib/takeoff/run";
 import { StartTakeoffPanel } from "@/components/jennian/StartTakeoffPanel";
 import { StartTakeoffDialog } from "@/components/jennian/StartTakeoffDialog";
 import { VisionTakeoffDialog } from "@/components/jennian/VisionTakeoffDialog";
+import { DoorCountPanel } from "@/components/jennian/DoorCountPanel";
 import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -69,8 +69,6 @@ function JobDetail() {
   const [takeoffRun, setTakeoffRun] = useState<LatestTakeoffRun | null>(null);
   const [startChooserOpen, setStartChooserOpen] = useState(false);
   const [hasTakeoffData, setHasTakeoffData] = useState<boolean | null>(null);
-  const [hasDoorMarkups, setHasDoorMarkups] = useState<boolean | null>(null);
-  const [skipMarkupGate, setSkipMarkupGate] = useState(false);
   const [exportingQS, setExportingQS] = useState(false);
   const [exportingSMW, setExportingSMW] = useState(false);
   const [exportingElec, setExportingElec] = useState(false);
@@ -79,20 +77,12 @@ function JobDetail() {
   const [deleting, setDeleting] = useState(false);
   const [electricalFile, setElectricalFile] = useState<{ id: string; file_name: string; storage_url: string } | null>(null);
   const [generatorOpen, setGeneratorOpen] = useState(false);
+  const [geometryBadge, setGeometryBadge] = useState<{ confidence: string; scale: string | null } | null>(null);
   const [roomCounts, setRoomCounts] = useState<RoomCounts>({
     masterBedrooms: 1, bedrooms: 3, bathrooms: 1, ensuites: 1,
     kitchen: 1, living: 1, dining: 1, study: 0,
     laundry: true, garage: true, alfresco: false, hallway: true,
   });
-
-  async function refreshDoorMarkupCount() {
-    const { count } = await supabase
-      .from("door_markups")
-      .select("id", { count: "exact", head: true })
-      .eq("job_id", jobId)
-      .neq("door_type", "wardrobe");
-    setHasDoorMarkups((count ?? 0) > 0);
-  }
 
   async function refreshHasData() {
     const counts = await Promise.all([
@@ -118,7 +108,7 @@ function JobDetail() {
         if (!cancelled) setRuns(r);
         const tr = await loadLatestTakeoffRun(jobId).catch(() => null);
         if (!cancelled) setTakeoffRun(tr);
-        await Promise.all([refreshHasData(), refreshDoorMarkupCount()]);
+        await refreshHasData();
         const { data: efRows } = await supabase
           .from("uploaded_files")
           .select("id, file_name, storage_url")
@@ -126,6 +116,21 @@ function JobDetail() {
           .eq("file_type", "electrical")
           .limit(1);
         if (!cancelled) setElectricalFile(efRows?.[0] ?? null);
+
+        const { data: geoRows } = await supabase
+          .from("plan_measurements")
+          .select("confidence, notes")
+          .eq("job_id", jobId)
+          .eq("source", "geometry_api")
+          .eq("measurement_type", "floor_area")
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (!cancelled && geoRows?.[0]) {
+          setGeometryBadge({
+            confidence: geoRows[0].confidence as string,
+            scale: (geoRows[0].notes as string | null) ?? null,
+          });
+        }
       } catch {
         /* ignore — modules will surface their own errors */
       }
@@ -154,7 +159,7 @@ function JobDetail() {
       URL.revokeObjectURL(url);
       toast.success("IQ data sheet exported — paste into your QS");
     } catch (err) {
-      toast.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(`QS export failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setExportingQS(false);
     }
@@ -170,7 +175,7 @@ function JobDetail() {
       URL.revokeObjectURL(url);
       toast.success("SMW document exported");
     } catch (err) {
-      toast.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(`SMW export failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setExportingSMW(false);
     }
@@ -191,7 +196,7 @@ function JobDetail() {
       URL.revokeObjectURL(url);
       toast.success("Electrical schedule exported");
     } catch (err) {
-      toast.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(`Electrical export failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setExportingElec(false);
     }
@@ -209,7 +214,7 @@ function JobDetail() {
       URL.revokeObjectURL(url);
       toast.success("Carters stage loads exported — send to Kirsty");
     } catch (err) {
-      toast.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(`Carters export failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setExportingCarters(false);
     }
@@ -315,13 +320,6 @@ function JobDetail() {
                   >
                     <ClipboardCheck className="h-4 w-4" /> Review Takeoff Results
                   </Link>
-                  <Link
-                    to="/jobs/$jobId/export"
-                    params={{ jobId }}
-                    className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
-                  >
-                    <FileSpreadsheet className="h-4 w-4" /> Quick Export
-                  </Link>
                 </>
               ) : (
                 <button
@@ -362,76 +360,6 @@ function JobDetail() {
               >
                 <Zap className="h-4 w-4" /> Generate Electrical Layout
               </button>
-              <Link
-                to="/jobs/$jobId/export"
-                params={{ jobId }}
-                className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-              >
-                <FileSpreadsheet className="h-4 w-4" /> Quick Export
-              </Link>
-              <div className="flex flex-col items-end gap-1">
-                <div className="relative group">
-                  <button
-                    type="button"
-                    onClick={handleExportIQData}
-                    disabled={exportingQS || (!hasDoorMarkups && !skipMarkupGate)}
-                    className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                      !hasDoorMarkups && !skipMarkupGate
-                        ? "border-border bg-card opacity-40 cursor-not-allowed"
-                        : "border-border bg-card hover:bg-accent disabled:opacity-50"
-                    }`}
-                  >
-                    <FileSpreadsheet className="h-4 w-4" />
-                    {exportingQS ? "Exporting…" : "Export Excel"}
-                  </button>
-                  {!hasDoorMarkups && !skipMarkupGate && (
-                    <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-60 rounded-md border border-border bg-popover px-3 py-2 text-[11px] text-popover-foreground shadow-lg z-50 pointer-events-none">
-                      Complete door markup before exporting
-                    </div>
-                  )}
-                </div>
-                <span className="text-[10px] text-muted-foreground">Paste into your master QS spreadsheet</span>
-                {!hasDoorMarkups && !skipMarkupGate && (
-                  <button
-                    type="button"
-                    onClick={() => setSkipMarkupGate(true)}
-                    className="text-[10px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                  >
-                    Skip — use AI count instead
-                  </button>
-                )}
-              </div>
-              {job?.smw_enabled && (
-                <button
-                  type="button"
-                  onClick={handleExportSMW}
-                  disabled={exportingSMW}
-                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
-                >
-                  <FileText className="h-4 w-4" />
-                  {exportingSMW ? "Exporting…" : "Export SMW"}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={handleExportElectrical}
-                disabled={exportingElec}
-                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
-              >
-                <Zap className="h-4 w-4" />
-                {exportingElec ? "Exporting…" : "Electrical Schedule"}
-              </button>
-              {hasTakeoffData && (
-                <button
-                  type="button"
-                  onClick={handleExportCarters}
-                  disabled={exportingCarters}
-                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
-                >
-                  <Package className="h-4 w-4" />
-                  {exportingCarters ? "Exporting…" : "Carters Loads"}
-                </button>
-              )}
             </div>
           }
         />
@@ -455,6 +383,36 @@ function JobDetail() {
               <Tile label="Template" value={job?.template ?? "—"} />
               <Tile label="Created" value={job ? new Date(job.created_at).toLocaleDateString() : "—"} />
               <Tile label="Modules" value={`${runs.length}/${IQ_MODULES.length}`} />
+              {job?.plan_context && (() => {
+                const ctx = job.plan_context as { builder?: { name?: string }; dimensionFormat?: string; dimensionFormatSource?: string };
+                return (
+                  <>
+                    <Tile label="Builder" value={ctx.builder?.name ?? "—"} />
+                    <Tile label="Dim. format" value={
+                      ctx.dimensionFormat === 'HEIGHT_x_WIDTH' ? 'H×W' :
+                      ctx.dimensionFormat === 'WIDTH_x_HEIGHT' ? 'W×H' : '—'
+                    } />
+                  </>
+                );
+              })()}
+              {geometryBadge && (
+                <>
+                  <Tile label="Geo. accuracy" node={
+                    <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                      geometryBadge.confidence === "high"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : geometryBadge.confidence === "medium"
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-gray-100 text-gray-500"
+                    }`}>
+                      {geometryBadge.confidence}
+                    </span>
+                  } />
+                  {geometryBadge.scale && (
+                    <Tile label="Scale" value={geometryBadge.scale} />
+                  )}
+                </>
+              )}
             </div>
           </div>
 
@@ -548,17 +506,62 @@ function JobDetail() {
           </div>
         )}
 
-        {!hasDoorMarkups && !skipMarkupGate && (
-          <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 px-4 py-3">
-            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-            <p className="text-[12px] text-amber-800 dark:text-amber-300">
-              <span className="font-semibold">Step 1 — Mark up doors before exporting.</span>{" "}
-              Place a dot on each door below. Export Excel is locked until at least one door (H187 / H192 / H193) is marked.
-            </p>
-          </div>
+        {hasTakeoffData && (
+          <DoorCountPanel jobId={jobId} />
         )}
-        <div className="mb-6">
-          <DoorMarkupCanvas jobId={jobId} onDotChange={refreshDoorMarkupCount} />
+
+        {/* Export section */}
+        <div className="rounded-lg border border-border bg-card overflow-hidden mb-6">
+          <div className="px-5 py-3 border-b border-border">
+            <div className="text-[13px] font-semibold tracking-tight">Export</div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">
+              Export job data to Excel for QS pricing.
+            </div>
+          </div>
+          <div className="p-4 flex flex-wrap gap-3 items-start">
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={handleExportIQData}
+                disabled={exportingQS}
+                className="inline-flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                {exportingQS ? "Exporting…" : "Export Excel (IQ Data Sheet)"}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={handleExportElectrical}
+              disabled={exportingElec}
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
+            >
+              <Zap className="h-4 w-4" />
+              {exportingElec ? "Exporting…" : "Electrical Schedule"}
+            </button>
+            {hasTakeoffData && (
+              <button
+                type="button"
+                onClick={handleExportCarters}
+                disabled={exportingCarters}
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
+              >
+                <Package className="h-4 w-4" />
+                {exportingCarters ? "Exporting…" : "Carters Loads"}
+              </button>
+            )}
+            {job?.smw_enabled && (
+              <button
+                type="button"
+                onClick={handleExportSMW}
+                disabled={exportingSMW}
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
+              >
+                <FileText className="h-4 w-4" />
+                {exportingSMW ? "Exporting…" : "Export SMW"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
       <PlanViewer

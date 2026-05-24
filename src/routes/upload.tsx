@@ -19,9 +19,12 @@ import {
 } from "@/lib/pdf-pages";
 import {
   extractScaleFactor, checkPlanIssues, extractConceptTakeoffs,
-  type ScaleResult, type PlanIssue, type TakeoffData,
+  type ScaleResult, type PlanIssue, type TakeoffData, type ConceptTakeoffResult,
 } from "@/lib/takeoff/concept.functions";
+import type { PlanContext } from "@/lib/takeoff/plan-context";
+import { measurePlanGeometry, overallConfidence, type GeometryApiResult } from "@/lib/takeoff/geometry-api";
 import * as XLSX from "xlsx";
+import { normaliseRoomName, classifyGarageDoor } from "@/lib/takeoff/classify";
 
 export const Route = createFileRoute("/upload")({ component: UploadPage });
 
@@ -86,6 +89,8 @@ function UploadPage() {
   const [errorsAcknowledged, setErrorsAcknowledged] = useState(false);
   const [takeoffData, setTakeoffData] = useState<TakeoffData | null>(null);
   const [editedTakeoff, setEditedTakeoff] = useState<TakeoffData | null>(null);
+  const [planContext, setPlanContext] = useState<PlanContext | null>(null);
+  const [geometryResult, setGeometryResult] = useState<GeometryApiResult | null>(null);
 
   useEffect(() => {
     let revoke: string | null = null;
@@ -363,13 +368,36 @@ function UploadPage() {
     setStep("takeoff");
     setTakeoffData(null);
     setEditedTakeoff(null);
+    setGeometryResult(null);
     try {
       const blob = highResBlob ?? (planFile ? await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex!]?.pageNumber ?? 1) : null);
       if (!blob) throw new Error("No plan image available.");
       const b64 = await blobToBase64(blob);
-      const result = await extractConceptTakeoffs({ data: { imageBase64: b64, scaleFactor: scaleResult?.scaleFactor ?? null } });
-      setTakeoffData(result);
-      setEditedTakeoff(result);
+
+      // Run AI extraction and geometry measurement in parallel
+      const [result, geoResult] = await Promise.all([
+        extractConceptTakeoffs({ data: { imageBase64: b64, filename: planFile?.name ?? "plan.jpg" } }) as Promise<ConceptTakeoffResult>,
+        planFile
+          ? measurePlanGeometry(planFile, planFile.name).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+
+      setGeometryResult(geoResult);
+      setPlanContext(result.planContext);
+
+      // Geometry overrides AI for measurement fields — geometry API is more accurate
+      const m = geoResult?.measurements;
+      const merged: TakeoffData = {
+        ...result.takeoffData,
+        ...(m?.floor_area_m2 != null ? { floor_area_m2: m.floor_area_m2 } : {}),
+        ...(m?.perimeter_m != null ? { external_wall_lm: m.perimeter_m } : {}),
+        ...(m?.internal_wall_length_m != null ? { internal_wall_lm: m.internal_wall_length_m } : {}),
+        ...(m?.garage_area_m2 != null ? { garage_area_m2: m.garage_area_m2 } : {}),
+        ...(m?.alfresco_area_m2 != null ? { alfresco_area_m2: m.alfresco_area_m2 } : {}),
+        ...(m?.stud_height_mm != null ? { ceiling_height_m: m.stud_height_mm / 1000 } : {}),
+      };
+      setTakeoffData(merged);
+      setEditedTakeoff(merged);
     } catch (e) {
       console.error(e);
       toast.error("Takeoff extraction failed. Enter values manually below.");
@@ -446,46 +474,7 @@ function UploadPage() {
     }
 
     // ── Room name normalisation ───────────────────────────────────────────────
-    const ROOM_NAME_MAP: Record<string, string> = {
-      // Master bedroom variants
-      "master bed":         "Bed 1 (Master)",
-      "master bedroom":     "Bed 1 (Master)",
-      "mbdr":               "Bed 1 (Master)",
-      "bed 1":              "Bed 1 (Master)",
-      "bed 1 (master)":     "Bed 1 (Master)",
-      // Ensuite
-      "ensuite":            "Ensuite",
-      "ens":                "Ensuite",
-      // Beds
-      "bed 2":              "Bed 2",
-      "bedroom 2":          "Bed 2",
-      "bed 3":              "Bed 3",
-      "bedroom 3":          "Bed 3",
-      "bed 4":              "Bed 4",
-      "bedroom 4":          "Bed 4",
-      // Wet areas
-      "bath":               "Bathroom",
-      "bathroom":           "Bathroom",
-      "bath/bathroom":      "Bathroom",
-      // Kitchen / living
-      "kitchen":            "Kitchen",
-      "family":             "Family/Living",
-      "living":             "Family/Living",
-      "family living":      "Family/Living",
-      "family/living":      "Family/Living",
-      "dining":             "Dining",
-      "lounge":             "Lounge",
-      // Entry
-      "entry":              "Entrance",
-      "entrance":           "Entrance",
-      "entry/entrance":     "Entrance",
-      // Garage
-      "garage":             "Garage Window",
-      "garage window":      "Garage Window",
-      "garage door":        "Garage Door",
-    };
-    const normaliseRoom = (raw: string) =>
-      ROOM_NAME_MAP[raw.toLowerCase().trim()] ?? raw;
+    const normaliseRoom = normaliseRoomName;
 
     // QS cell references — qty/height/width columns matching QS Data Input tab rows
     const QS_CELLS: Record<string, string> = {
@@ -547,23 +536,20 @@ function UploadPage() {
     //              2400–2500mm → 2.4×2.1 (H178).
     const garageDoorRows: (string | number)[][] = [];
     if (t.garage_door_size) {
-      const m = t.garage_door_size.match(/(\d+(?:\.\d+)?)\s*[x×*]\s*(\d+(?:\.\d+)?)/i);
+      const m = t.garage_door_size.match(/(\d+(?:\.\d+)?)\s*[x×*]\s*/i);
       let widthMm = 0;
       if (m) {
         const w = parseFloat(m[1]);
         widthMm = w < 100 ? w * 1000 : w;
       }
-      let qsDesc: string;
-      let qsCell: string;
-      if (widthMm >= 4500) {
-        qsDesc = "4.8×2.1 Insulated";  qsCell = "H176 = 1";
-      } else if (widthMm >= 2700 && widthMm <= 2800) {
-        qsDesc = "2.7×2.1 Insulated";  qsCell = "H180 = 1";
-      } else if (widthMm >= 2400 && widthMm <= 2500) {
-        qsDesc = "2.4×2.1 Insulated";  qsCell = "H178 = 1";
-      } else {
-        qsDesc = t.garage_door_size;   qsCell = "Check QS manually";
-      }
+      const cell = classifyGarageDoor(widthMm);
+      const CELL_DESC: Record<string, string> = {
+        H176: "4.8×2.1 Insulated",
+        H178: "2.4×2.1 Insulated",
+        H180: "2.7×2.1 Insulated",
+      };
+      const qsDesc = cell ? CELL_DESC[cell] : t.garage_door_size;
+      const qsCell = cell ? `${cell} = 1` : "Check QS manually";
       garageDoorRows.push(
         [],
         ["Garage Door Classification", "Measured", "QS Description", "QS Cell", ""],
@@ -640,12 +626,17 @@ function UploadPage() {
     qlbl("A39", "④ DOORS & GARAGE", iqSection);
     qlbl("A176", "Garage Door 4.8×2.1 Insulated");
     qlbl("A177", "Garage Door 4.8×2.1 Standard");
+    qlbl("A178", "Garage Door 2.4×2.1 Insulated");
+    qlbl("A179", "Garage Door 2.4×2.1 Standard");
+    qlbl("A180", "Garage Door 2.7×2.1 Insulated");
+    qlbl("A181", "Garage Door 2.7×2.1 Standard");
     if (t.garage_door_size) {
       const gdm = t.garage_door_size.match(/(\d+(?:\.\d+)?)\s*[x×*]\s*/i);
       if (gdm) {
         const gw = parseFloat(gdm[1]);
         const gwMm = gw < 100 ? gw * 1000 : gw;
-        if (gwMm >= 4500) wsQS["H176"] = { v: 1, t: "n", s: iqYellow };
+        const cell = classifyGarageDoor(gwMm);
+        if (cell) wsQS[cell] = { v: 1, t: "n", s: iqYellow };
       }
     }
 
@@ -653,17 +644,21 @@ function UploadPage() {
       { wch: 35 }, { wch: 25 }, { wch: 15 }, { wch: 15 },
       { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
     ];
-    wsQS["!ref"] = "A1:H177";
+    wsQS["!ref"] = "A1:H181";
     XLSX.utils.book_append_sheet(wb, wsQS, "IQ Data Input");
 
-    const bytes = XLSX.write(wb, { type: "array", bookType: "xlsx" });
-    const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const bytes = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   // ── Loading screen ──────────────────────────────────────────────────────────
@@ -902,6 +897,45 @@ function UploadPage() {
                 <div className="text-sm font-medium">Extracting quantities…</div>
                 <div className="text-xs text-muted-foreground mt-0.5">Reading dimensions and counting elements from the plan.</div>
               </div>
+            </div>
+          )}
+
+          {!isLoading && planContext && (
+            <div className="mb-4 flex flex-wrap gap-2 text-[11px]">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 font-medium">
+                Builder: {planContext.builder.name}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 font-medium">
+                Dimensions: {planContext.dimensionFormat === 'HEIGHT_x_WIDTH' ? 'H × W' : 'W × H'}
+                <span className="text-muted-foreground font-normal">
+                  ({planContext.dimensionFormatSource === 'stated_on_plan' ? 'from plan notes' : planContext.dimensionFormatSource === 'builder_default' ? 'builder default' : 'NZ default'})
+                </span>
+              </span>
+              {(geometryResult?.scale.string ?? planContext.scaleString) && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 font-medium">
+                  Scale: {geometryResult?.scale.string ?? planContext.scaleString}
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 font-medium">
+                Stud: {planContext.studHeightMm}mm
+                <span className="text-muted-foreground font-normal">
+                  ({planContext.studHeightSource === 'stated_on_plan' ? 'from plan' : planContext.studHeightSource === 'builder_default' ? 'builder default' : 'NZ default'})
+                </span>
+              </span>
+              {geometryResult && (() => {
+                const conf = overallConfidence(geometryResult.confidence);
+                return (
+                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium ${
+                    conf === "high"
+                      ? "border-emerald-500/30 bg-emerald-50/5 text-emerald-600"
+                      : conf === "medium"
+                      ? "border-amber-500/30 bg-amber-50/5 text-amber-600"
+                      : "border-border bg-card text-muted-foreground"
+                  }`}>
+                    Geometry: {conf} confidence
+                  </span>
+                );
+              })()}
             </div>
           )}
 
