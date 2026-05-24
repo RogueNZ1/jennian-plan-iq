@@ -761,71 +761,83 @@ function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
   lbl("A8", "JMW Number");
   lbl("A9", "Date");
 
-  val("B5", data.clientName || undefined);
-  val("B6", data.streetAddress || undefined);
+  val("I3", data.clientName || undefined);
+  val("I4", data.streetAddress || undefined);
   // City always has a value — default to Palmerston North per QS convention
-  ws["B7"] = { v: data.city || "Palmerston North", t: "s", s: yellowStyle };
-  val("B8", data.jmwNumber || undefined);
+  ws["I5"] = { v: data.city || "Palmerston North", t: "s", s: yellowStyle };
+  val("I8", data.jmwNumber || undefined);
   ws["B9"] = { v: new Date().toLocaleDateString("en-NZ"), t: "s", s: yellowStyle };
 
   // --- ② CORE MEASUREMENTS ---
   lbl("A11", "② CORE MEASUREMENTS", sectionStyle);
-  lbl("A13", "Floor Area (m²)");
-  lbl("A14", "Perimeter (lm)");
-  lbl("A15", "First Floor Area (m²)");
-  lbl("A16", "Alfresco Area (m²)");
-  lbl("A17", "External Wall Length (lm)");
+  lbl("A12", "Floor Area (m²)");
+  lbl("A13", "Alfresco Area (m²)");
+  lbl("A15", "Perimeter (lm)");
+  lbl("A16", "First Floor Area (m²)");
+  lbl("A19", "External Wall Length (lm)");
   lbl("A20", "External Wall Height (m)");
 
-  val("D13", data.floorAreaM2 ?? undefined);
-  val("E14", data.perimeterLm ?? undefined);
-  val("F15", data.firstFloorAreaM2 ?? undefined);
-  val("D16", data.alfrescoAreaM2 ?? undefined);
-  val("D17", data.exteriorWallLengthLm ?? undefined);
+  val("D12", data.floorAreaM2 ?? undefined);
+  val("D13", data.alfrescoAreaM2 ?? undefined);
+  val("D15", data.perimeterLm ?? undefined);
+  val("F4",  data.firstFloorAreaM2 ?? undefined);
+  val("D19", data.exteriorWallLengthLm ?? undefined);
   // exteriorWallHeightM defaults to 2.4 in buildQSExportData, so always write it
   if (data.exteriorWallHeightM != null) {
     ws["D20"] = { v: data.exteriorWallHeightM, t: "n", s: yellowStyle };
   }
 
   // --- ③ WINDOWS & OPENINGS ---
-  lbl("A22", "③ WINDOWS & OPENINGS", sectionStyle);
-  lbl("C22", "Qty");
-  lbl("D22", "Height (m)");
-  lbl("E22", "Width (m)");
+  // Rows match "5. Data Input House " sheet exactly: C=cladding, D=qty, E=height, F=width
+  lbl("A38", "③ WINDOWS & OPENINGS", sectionStyle);
+  lbl("C39", "Cladding");
+  lbl("D39", "Qty");
+  lbl("E39", "H (m)");
+  lbl("F39", "W (m)");
 
   const windowRooms: Array<{
     key: keyof QSExportData["windowsByRoom"];
     roomLabel: string;
     row: number;
   }> = [
-    { key: "bed1",         roomLabel: "Bed 1 (Master)",  row: 23 },
-    { key: "ensuite",      roomLabel: "Ensuite",          row: 24 },
-    { key: "bed2",         roomLabel: "Bed 2",            row: 25 },
-    { key: "bed3",         roomLabel: "Bed 3",            row: 26 },
-    { key: "bed4",         roomLabel: "Bed 4",            row: 27 },
-    { key: "bathroom",     roomLabel: "Bathroom",         row: 28 },
-    { key: "kitchen",      roomLabel: "Kitchen",          row: 29 },
-    { key: "kitchenExtra", roomLabel: "Kitchen extra",    row: 30 },
-    { key: "familyLiving", roomLabel: "Family/Living",    row: 31 },
-    { key: "dining",       roomLabel: "Dining",           row: 32 },
-    { key: "lounge",       roomLabel: "Lounge",           row: 33 },
-    { key: "garageWindow", roomLabel: "Garage Window",    row: 34 },
-    { key: "garageDoor1",  roomLabel: "Garage Door",      row: 35 },
-    { key: "entrance",     roomLabel: "Entrance",         row: 36 },
+    { key: "bed1",         roomLabel: "Bed 1 (Master)", row: 41 },
+    { key: "ensuite",      roomLabel: "Ensuite",         row: 43 },
+    { key: "bed2",         roomLabel: "Bed 2",           row: 45 },
+    { key: "bed3",         roomLabel: "Bed 3",           row: 47 },
+    { key: "bed4",         roomLabel: "Bed 4",           row: 49 },
+    { key: "bathroom",     roomLabel: "Bathroom",        row: 52 },
+    { key: "kitchen",      roomLabel: "Kitchen",         row: 54 },
+    { key: "familyLiving", roomLabel: "Family/Living",   row: 56 },
+    { key: "dining",       roomLabel: "Dining",          row: 59 },
+    { key: "lounge",       roomLabel: "Lounge",          row: 62 },
+    { key: "garageWindow", roomLabel: "Garage Window",   row: 65 },
+    { key: "garageDoor1",  roomLabel: "Garage Door",     row: 67 },
+    { key: "entrance",     roomLabel: "Entrance",        row: 72 },
   ];
 
   for (const { key, roomLabel, row } of windowRooms) {
     lbl(`A${row}`, roomLabel);
     const room = data.windowsByRoom[key];
     if (room) {
-      val(`C${row}`, room.qty);
-      val(`D${row}`, room.height);
-      val(`E${row}`, room.width);
+      val(`C${row}`, room.cladding || undefined);
+      val(`D${row}`, room.qty);
+      val(`E${row}`, room.height);
+      val(`F${row}`, room.width);
     }
   }
 
+  // --- Downpipes ---
+  lbl("A143", "Downpipes");
+  lbl("A145", "White");
+  lbl("A146", "Colorsteel");
+  lbl("A147", "PVC Coloured");
+
+  val("E145", data.downpipesWhite > 0 ? data.downpipesWhite : undefined);
+  val("E146", data.downpipesColourSteel > 0 ? data.downpipesColourSteel : undefined);
+  val("E147", data.downpipesPvcColoured > 0 ? data.downpipesPvcColoured : undefined);
+
   // --- ④ DOORS & GARAGE ---
-  lbl("A39", "④ DOORS & GARAGE", sectionStyle);
+  lbl("A174", "④ DOORS & GARAGE", sectionStyle);
   lbl("A176", "Garage Door 4.8×2.1 Insulated");
   lbl("A177", "Garage Door 4.8×2.1 Standard");
   lbl("A178", "Garage Door 2.4×2.1 Insulated");
@@ -840,18 +852,29 @@ function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
   val("H180", data.garageDoor27x21Insulated > 0 ? data.garageDoor27x21Insulated : undefined);
   val("H181", data.garageDoor27x21Std > 0 ? data.garageDoor27x21Std : undefined);
 
+  // --- Interior doors ---
+  lbl("A185", "Interior Doors");
+  lbl("A187", "Standard hinged");
+  lbl("A192", "Double doors");
+  lbl("A193", "Cavity sliders");
+
+  val("H187", data.intDoorStandard > 0 ? data.intDoorStandard : undefined);
+  val("H192", data.intDoorDouble > 0 ? data.intDoorDouble : undefined);
+  val("H193", data.intDoorCavitySlider > 0 ? data.intDoorCavitySlider : undefined);
+
   // --- sheet metadata ---
   ws["!cols"] = [
     { wch: 35 }, // A — labels
-    { wch: 25 }, // B — job info values
-    { wch: 15 }, // C — window qty
-    { wch: 15 }, // D — window height / measurements
-    { wch: 15 }, // E — window width
-    { wch: 15 }, // F — first floor
+    { wch: 12 }, // B — date reference
+    { wch: 15 }, // C — window cladding
+    { wch: 15 }, // D — measurements / window qty
+    { wch: 15 }, // E — window height / downpipes
+    { wch: 15 }, // F — first floor / window width
     { wch: 15 }, // G — (spare)
-    { wch: 15 }, // H — garage door counts
+    { wch: 15 }, // H — garage door / interior door counts
+    { wch: 25 }, // I — job info values
   ];
-  ws["!ref"] = "A1:H181";
+  ws["!ref"] = "A1:I193";
 
   return ws;
 }

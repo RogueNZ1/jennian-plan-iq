@@ -482,24 +482,24 @@ function UploadPage() {
     // ── Room name normalisation ───────────────────────────────────────────────
     const normaliseRoom = normaliseRoomName;
 
-    // QS cell references — qty/height/width columns matching QS Data Input tab rows
+    // QS cell references — cladding/qty/height/width columns matching "5. Data Input House " tab
     const QS_CELLS: Record<string, string> = {
-      "Bed 1 (Master)": "C23/D23/E23",
-      "Ensuite":        "C24/D24/E24",
-      "Bed 2":          "C25/D25/E25",
-      "Bed 3":          "C26/D26/E26",
-      "Bed 4":          "C27/D27/E27",
-      "Bathroom":       "C28/D28/E28",
-      "Kitchen":        "C29/D29/E29",
-      "Family/Living":  "C31/D31/E31",
-      "Dining":         "C32/D32/E32",
-      "Lounge":         "C33/D33/E33",
-      "Garage Window":  "C34/D34/E34",
-      "Garage Door":    "C35/D35/E35",
-      "Entrance":       "C36/D36/E36",
+      "Bed 1 (Master)": "C41/D41/E41/F41",
+      "Ensuite":        "C43/D43/E43/F43",
+      "Bed 2":          "C45/D45/E45/F45",
+      "Bed 3":          "C47/D47/E47/F47",
+      "Bed 4":          "C49/D49/E49/F49",
+      "Bathroom":       "C52/D52/E52/F52",
+      "Kitchen":        "C54/D54/E54/F54",
+      "Family/Living":  "C56/D56/E56/F56",
+      "Dining":         "C59/D59/E59/F59",
+      "Lounge":         "C62/D62/E62/F62",
+      "Garage Window":  "C65/D65/E65/F65",
+      "Garage Door":    "C67/D67/E67/F67",
+      "Entrance":       "C72/D72/E72/F72",
     };
 
-    // Canonical QS room order — all rows appear even with 0 values
+    // Canonical QS room order matching "5. Data Input House " rows 41-72
     const QS_ROOMS = [
       "Bed 1 (Master)", "Ensuite",
       "Bed 2", "Bed 3", "Bed 4",
@@ -596,41 +596,49 @@ function UploadPage() {
     qlbl("A2", "Yellow cells match QS Data Input cell addresses exactly. Copy yellow cells → paste values only into QS.", iqNote);
 
     qlbl("A4", "① JOB INFORMATION", iqSection);
-    qlbl("A5", "Client Name");   qval("B5", clientName || undefined);
-    qlbl("A6", "Site Address");  qval("B6", address    || undefined);
-    qlbl("A7", "City");          wsQS["B7"] = { v: "Palmerston North", t: "s", s: iqYellow };
-    qlbl("A8", "JMW Number");    qval("B8", jobNumber  || undefined);
+    qlbl("A5", "Client Name");   qval("I3", clientName || undefined);
+    qlbl("A6", "Site Address");  qval("I4", address    || undefined);
+    qlbl("A7", "City");          wsQS["I5"] = { v: "Palmerston North", t: "s", s: iqYellow };
+    qlbl("A8", "JMW Number");    qval("I8", jobNumber  || undefined);
     qlbl("A9", "Date");          wsQS["B9"] = { v: today, t: "s", s: iqYellow };
 
     qlbl("A11", "② CORE MEASUREMENTS", iqSection);
-    qlbl("A13", "Floor Area (m²)");          qval("D13", t.floor_area_m2    ?? undefined);
-    qlbl("A16", "Alfresco Area (m²)");       qval("D16", t.alfresco_area_m2 ?? undefined);
-    qlbl("A17", "External Wall Length (lm)");qval("D17", t.external_wall_lm ?? undefined);
+    qlbl("A12", "Floor Area (m²)");          qval("D12", t.floor_area_m2    ?? undefined);
+    qlbl("A13", "Alfresco Area (m²)");       qval("D13", t.alfresco_area_m2 ?? undefined);
+    qlbl("A15", "Perimeter (lm)");           qval("D15", t.external_wall_lm ?? undefined);
+    qlbl("A19", "External Wall Length (lm)");qval("D19", t.external_wall_lm ?? undefined);
     qlbl("A20", "External Wall Height (m)"); wsQS["D20"] = { v: 2.4, t: "n", s: iqYellow };
 
-    qlbl("A22", "③ WINDOWS & OPENINGS", iqSection);
-    qlbl("C22", "Qty"); qlbl("D22", "Height (m)"); qlbl("E22", "Width (m)");
+    // Rows match "5. Data Input House " sheet exactly: C=cladding, D=qty, E=height, F=width
+    qlbl("A38", "③ WINDOWS & OPENINGS", iqSection);
+    qlbl("C39", "Cladding"); qlbl("D39", "Qty"); qlbl("E39", "H (m)"); qlbl("F39", "W (m)");
 
     const QS_WINDOW_ROWS: Array<{ name: string; row: number }> = [
-      { name: "Bed 1 (Master)", row: 23 }, { name: "Ensuite",       row: 24 },
-      { name: "Bed 2",          row: 25 }, { name: "Bed 3",         row: 26 },
-      { name: "Bed 4",          row: 27 }, { name: "Bathroom",      row: 28 },
-      { name: "Kitchen",        row: 29 }, { name: "Kitchen extra", row: 30 },
-      { name: "Family/Living",  row: 31 }, { name: "Dining",        row: 32 },
-      { name: "Lounge",         row: 33 }, { name: "Garage Window", row: 34 },
-      { name: "Garage Door",    row: 35 }, { name: "Entrance",      row: 36 },
+      { name: "Bed 1 (Master)", row: 41 }, { name: "Ensuite",       row: 43 },
+      { name: "Bed 2",          row: 45 }, { name: "Bed 3",         row: 47 },
+      { name: "Bed 4",          row: 49 }, { name: "Bathroom",      row: 52 },
+      { name: "Kitchen",        row: 54 }, { name: "Family/Living", row: 56 },
+      { name: "Dining",         row: 59 }, { name: "Lounge",        row: 62 },
+      { name: "Garage Window",  row: 65 }, { name: "Garage Door",   row: 67 },
+      { name: "Entrance",       row: 72 },
     ];
     for (const { name, row } of QS_WINDOW_ROWS) {
       qlbl(`A${row}`, name);
       const wd = byRoom[name];
       if (wd && wd.qty > 0) {
-        qval(`C${row}`, wd.qty);
-        if (wd.height_m > 0) qval(`D${row}`, wd.height_m);
-        if (wd.width_m  > 0) qval(`E${row}`, wd.width_m);
+        qval(`D${row}`, wd.qty);
+        if (wd.height_m > 0) qval(`E${row}`, wd.height_m);
+        if (wd.width_m  > 0) qval(`F${row}`, wd.width_m);
       }
     }
 
-    qlbl("A39", "④ DOORS & GARAGE", iqSection);
+    // --- Downpipes — concept flow has no downpipe data, cells left empty as placeholders
+    qlbl("A143", "Downpipes");
+    qlbl("A145", "White");
+    qlbl("A146", "Colorsteel");
+    qlbl("A147", "PVC Coloured");
+
+    qlbl("A174", "④ DOORS & GARAGE", iqSection);
     qlbl("A176", "Garage Door 4.8×2.1 Insulated");
     qlbl("A177", "Garage Door 4.8×2.1 Standard");
     qlbl("A178", "Garage Door 2.4×2.1 Insulated");
@@ -647,11 +655,21 @@ function UploadPage() {
       }
     }
 
+    qlbl("A185", "Interior Doors");
+    qlbl("A187", "Standard hinged");
+    qlbl("A192", "Double doors");
+    qlbl("A193", "Cavity sliders");
+    if (t.door_breakdown) {
+      if (t.door_breakdown.standard > 0)       qval("H187", t.door_breakdown.standard);
+      if (t.door_breakdown.double_doors > 0)   qval("H192", t.door_breakdown.double_doors);
+      if (t.door_breakdown.cavity_sliders > 0) qval("H193", t.door_breakdown.cavity_sliders);
+    }
+
     wsQS["!cols"] = [
-      { wch: 35 }, { wch: 25 }, { wch: 15 }, { wch: 15 },
-      { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
+      { wch: 35 }, { wch: 12 }, { wch: 15 }, { wch: 15 },
+      { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 25 },
     ];
-    wsQS["!ref"] = "A1:H181";
+    wsQS["!ref"] = "A1:I193";
     XLSX.utils.book_append_sheet(wb, wsQS, "IQ Data Input");
 
     try {
