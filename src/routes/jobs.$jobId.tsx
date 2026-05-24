@@ -78,6 +78,8 @@ function JobDetail() {
   const [electricalFile, setElectricalFile] = useState<{ id: string; file_name: string; storage_url: string } | null>(null);
   const [generatorOpen, setGeneratorOpen] = useState(false);
   const [geometryBadge, setGeometryBadge] = useState<{ confidence: string; scale: string | null } | null>(null);
+  const [doorCountsConfirmed, setDoorCountsConfirmed] = useState(false);
+  const [aiDoorEstimate, setAiDoorEstimate] = useState(0);
   const [roomCounts, setRoomCounts] = useState<RoomCounts>({
     masterBedrooms: 1, bedrooms: 3, bathrooms: 1, ensuites: 1,
     kitchen: 1, living: 1, dining: 1, study: 0,
@@ -130,6 +132,23 @@ function JobDetail() {
             confidence: geoRows[0].confidence as string,
             scale: (geoRows[0].notes as string | null) ?? null,
           });
+        }
+
+        // Door counts — initial confirmed state + AI estimate from module_items
+        const [dcRes, miRes] = await Promise.all([
+          supabase.from("door_counts").select("confirmed_at").eq("job_id", jobId).maybeSingle(),
+          supabase.from("module_items").select("label, extracted_value").eq("job_id", jobId),
+        ]);
+        if (!cancelled) {
+          if (dcRes.data?.confirmed_at) setDoorCountsConfirmed(true);
+          const doorItem = (miRes.data ?? []).find((i) =>
+            i.label?.toLowerCase().includes("internal door") ||
+            i.label?.toLowerCase().includes("interior door"),
+          );
+          if (doorItem?.extracted_value) {
+            const n = parseInt(doorItem.extracted_value, 10);
+            if (!isNaN(n)) setAiDoorEstimate(n);
+          }
         }
       } catch {
         /* ignore — modules will surface their own errors */
@@ -384,14 +403,23 @@ function JobDetail() {
               <Tile label="Created" value={job ? new Date(job.created_at).toLocaleDateString() : "—"} />
               <Tile label="Modules" value={`${runs.length}/${IQ_MODULES.length}`} />
               {job?.plan_context && (() => {
-                const ctx = job.plan_context as { builder?: { name?: string }; dimensionFormat?: string; dimensionFormatSource?: string };
+                const ctx = job.plan_context as { builder?: { name?: string }; dimensionFormat?: string; dimensionFormatSource?: string; scaleString?: string | null };
+                const builderName = ctx.builder?.name ?? "Unknown";
+                const isUnknown = builderName === "Unknown" || ctx.dimensionFormatSource === "nz_default";
                 return (
                   <>
-                    <Tile label="Builder" value={ctx.builder?.name ?? "—"} />
+                    <Tile label="Builder" value={builderName} />
                     <Tile label="Dim. format" value={
                       ctx.dimensionFormat === 'HEIGHT_x_WIDTH' ? 'H×W' :
                       ctx.dimensionFormat === 'WIDTH_x_HEIGHT' ? 'W×H' : '—'
                     } />
+                    {ctx.scaleString && <Tile label="Scale" value={ctx.scaleString} />}
+                    {isUnknown && (
+                      <div className="col-span-2 flex items-start gap-2 rounded-md bg-amber-50 border border-amber-200 px-2.5 py-2 text-[11px] text-amber-800">
+                        <span>⚠</span>
+                        <span>Builder not recognised — using NZ default conventions. Check window dimensions carefully.</span>
+                      </div>
+                    )}
                   </>
                 );
               })()}
@@ -507,7 +535,12 @@ function JobDetail() {
         )}
 
         {hasTakeoffData && (
-          <DoorCountPanel jobId={jobId} />
+          <DoorCountPanel
+            jobId={jobId}
+            planThumbnailUrl={null}
+            aiEstimates={{ hinged: aiDoorEstimate, cavitySlider: 0, doubleDoor: 0, barnSlider: 0 }}
+            onConfirmed={() => setDoorCountsConfirmed(true)}
+          />
         )}
 
         {/* Export section */}
@@ -515,7 +548,9 @@ function JobDetail() {
           <div className="px-5 py-3 border-b border-border">
             <div className="text-[13px] font-semibold tracking-tight">Export</div>
             <div className="text-[11px] text-muted-foreground mt-0.5">
-              Export job data to Excel for QS pricing.
+              {hasTakeoffData && !doorCountsConfirmed
+                ? "Confirm door counts above before exporting."
+                : "Export job data to Excel for QS pricing."}
             </div>
           </div>
           <div className="p-4 flex flex-wrap gap-3 items-start">
@@ -523,7 +558,8 @@ function JobDetail() {
               <button
                 type="button"
                 onClick={handleExportIQData}
-                disabled={exportingQS}
+                disabled={exportingQS || (hasTakeoffData === true && !doorCountsConfirmed)}
+                title={hasTakeoffData && !doorCountsConfirmed ? "Confirm door counts first" : undefined}
                 className="inline-flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
               >
                 <FileSpreadsheet className="h-4 w-4" />

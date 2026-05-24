@@ -739,7 +739,8 @@ function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
   // Per spec: leave QS cells empty rather than writing 0 for missing data.
   function val(addr: string, v: string | number | null | undefined) {
     if (v === null || v === undefined || v === "" || v === 0) return;
-    ws[addr] = { v, t: typeof v === "number" ? "n" : "s", s: yellowStyle };
+    const out = typeof v === "number" ? (round2(v) ?? v) : v;
+    ws[addr] = { v: out, t: typeof out === "number" ? "n" : "s", s: yellowStyle };
   }
 
   // --- Row 1: banner ---

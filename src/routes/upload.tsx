@@ -25,6 +25,7 @@ import type { PlanContext } from "@/lib/takeoff/plan-context";
 import { measurePlanGeometry, overallConfidence, type GeometryApiResult } from "@/lib/takeoff/geometry-api";
 import * as XLSX from "xlsx";
 import { normaliseRoomName, classifyGarageDoor } from "@/lib/takeoff/classify";
+import { round2 } from "@/lib/takeoff/utils";
 
 export const Route = createFileRoute("/upload")({ component: UploadPage });
 
@@ -385,6 +386,11 @@ function UploadPage() {
       setGeometryResult(geoResult);
       setPlanContext(result.planContext);
 
+      // Warn if the uploaded sheet is not a floor plan
+      if (result.sheetError) {
+        toast.warning(result.sheetError, { duration: 8000 });
+      }
+
       // Geometry overrides AI for measurement fields — geometry API is more accurate
       const m = geoResult?.measurements;
       const merged: TakeoffData = {
@@ -437,7 +443,7 @@ function UploadPage() {
       [],
     ];
 
-    const n = (v: number | null) => v ?? "";
+    const n = (v: number | null) => round2(v) ?? "";
     const s = (v: string | null) => v ?? "";
     const headers = ["Item", "Quantity", "Unit", "Notes"];
     const rows = [
@@ -582,7 +588,8 @@ function UploadPage() {
     const qlbl = (addr: string, v: string, style: object = iqLabel) => { wsQS[addr] = { v, t: "s", s: style }; };
     const qval = (addr: string, v: string | number | null | undefined) => {
       if (v === null || v === undefined || v === "" || v === 0) return;
-      wsQS[addr] = { v, t: typeof v === "number" ? "n" : "s", s: iqYellow };
+      const out = typeof v === "number" ? (round2(v) ?? v) : v;
+      wsQS[addr] = { v: out, t: typeof out === "number" ? "n" : "s", s: iqYellow };
     };
 
     qlbl("A1", "JENNIAN IQ — Data Input Export", iqRed);

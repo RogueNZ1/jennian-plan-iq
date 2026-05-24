@@ -293,7 +293,15 @@ import { classifyAnnotations } from './classify-annotations';
 export type ConceptTakeoffResult = {
   takeoffData: TakeoffData;
   planContext: PlanContext;
+  /** Set when the uploaded sheet is not a floor plan — takeoffData will be empty. */
+  sheetError?: string;
 };
+
+export const recognisePlanFn = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => input as { imageBase64: string; filename: string })
+  .handler(async ({ data }): Promise<PlanContext> => {
+    return recognisePlan(data.imageBase64, data.filename);
+  });
 
 export const extractConceptTakeoffs = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => input as { imageBase64: string; filename: string })
@@ -314,7 +322,12 @@ export const extractConceptTakeoffs = createServerFn({ method: "POST" })
     // Only floor and dimension plans contain extractable takeoff data
     if (context.sheetType !== 'floor_plan' && context.sheetType !== 'dimension_plan') {
       console.warn(`[extractConceptTakeoffs] Skipping — sheetType=${context.sheetType}`);
-      return { takeoffData: emptyTakeoff, planContext: context };
+      const label = context.sheetType.replace(/_/g, ' ');
+      return {
+        takeoffData: { ...emptyTakeoff },
+        planContext: context,
+        sheetError: `This looks like a ${label}. Please upload the floor plan sheet to run a takeoff.`,
+      };
     }
 
     // Pass 1 — raw annotation extraction

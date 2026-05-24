@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { CheckCircle2, DoorOpen } from "lucide-react";
+import { CheckCircle2, DoorOpen, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -10,8 +10,16 @@ interface DoorCounts {
   barn_sliders: number;
 }
 
-interface Props {
+export interface DoorCountPanelProps {
   jobId: string;
+  planThumbnailUrl: string | null;
+  aiEstimates: {
+    hinged: number;
+    cavitySlider: number;
+    doubleDoor: number;
+    barnSlider: number;
+  };
+  onConfirmed: () => void;
 }
 
 const LABELS: { key: keyof DoorCounts; label: string }[] = [
@@ -21,57 +29,46 @@ const LABELS: { key: keyof DoorCounts; label: string }[] = [
   { key: "barn_sliders", label: "Barn sliders" },
 ];
 
-export function DoorCountPanel({ jobId }: Props) {
+export function DoorCountPanel({ jobId, aiEstimates, onConfirmed }: DoorCountPanelProps) {
   const [counts, setCounts] = useState<DoorCounts>({
-    standard: 0,
-    cavity_sliders: 0,
-    double_doors: 0,
-    barn_sliders: 0,
+    standard: aiEstimates.hinged,
+    cavity_sliders: aiEstimates.cavitySlider,
+    double_doors: aiEstimates.doubleDoor,
+    barn_sliders: aiEstimates.barnSlider,
   });
-  const [aiTotalEstimate, setAiTotalEstimate] = useState<number | null>(null);
   const [confirmedAt, setConfirmedAt] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
+  const aiTotal = aiEstimates.hinged + aiEstimates.cavitySlider + aiEstimates.doubleDoor + aiEstimates.barnSlider;
+
   useEffect(() => {
     let cancelled = false;
-
-    Promise.all([
-      supabase.from("door_counts").select("*").eq("job_id", jobId).maybeSingle(),
-      supabase.from("module_items").select("label, extracted_value").eq("job_id", jobId),
-    ]).then(([countsRes, itemsRes]) => {
-      if (cancelled) return;
-
-      // Resolve AI estimate from module_items
-      const items = itemsRes.data ?? [];
-      const doorItem = items.find((i) =>
-        i.label?.toLowerCase().includes("internal door count") ||
-        i.label?.toLowerCase().includes("interior door count"),
-      );
-      if (doorItem?.extracted_value) {
-        const n = parseInt(doorItem.extracted_value, 10);
-        if (!isNaN(n)) setAiTotalEstimate(n);
-      }
-
-      const data = countsRes.data;
-      if (data) {
-        setCounts({
-          standard: data.standard,
-          cavity_sliders: data.cavity_sliders,
-          double_doors: data.double_doors,
-          barn_sliders: data.barn_sliders,
-        });
-        setConfirmedAt(data.confirmed_at ?? null);
-      }
-      setLoaded(true);
-    });
-
+    supabase
+      .from("door_counts")
+      .select("*")
+      .eq("job_id", jobId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        if (data) {
+          setCounts({
+            standard: data.standard,
+            cavity_sliders: data.cavity_sliders,
+            double_doors: data.double_doors,
+            barn_sliders: data.barn_sliders,
+          });
+          setConfirmedAt(data.confirmed_at ?? null);
+          if (data.confirmed_at) onConfirmed();
+        }
+        setLoaded(true);
+      });
     return () => { cancelled = true; };
   }, [jobId]);
 
   function adjust(key: keyof DoorCounts, delta: number) {
+    if (confirmedAt) return;
     setCounts((prev) => ({ ...prev, [key]: Math.max(0, prev[key] + delta) }));
-    if (confirmedAt) setConfirmedAt(null);
   }
 
   async function handleConfirm() {
@@ -81,7 +78,7 @@ export function DoorCountPanel({ jobId }: Props) {
       {
         job_id: jobId,
         ...counts,
-        ai_total_estimate: aiTotalEstimate ?? null,
+        ai_total_estimate: aiTotal || null,
         confirmed_at: now,
         updated_at: now,
       },
@@ -92,11 +89,25 @@ export function DoorCountPanel({ jobId }: Props) {
       toast.error(`Failed to save door counts: ${error.message}`);
     } else {
       setConfirmedAt(now);
+      onConfirmed();
       toast.success("Door counts confirmed.");
     }
   }
 
+  async function handleEdit() {
+    const { error } = await supabase
+      .from("door_counts")
+      .update({ confirmed_at: null, updated_at: new Date().toISOString() })
+      .eq("job_id", jobId);
+    if (error) {
+      toast.error(`Failed to unlock door counts: ${error.message}`);
+    } else {
+      setConfirmedAt(null);
+    }
+  }
+
   const total = counts.standard + counts.cavity_sliders + counts.double_doors + counts.barn_sliders;
+  const isConfirmed = !!confirmedAt;
 
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden mb-6">
@@ -106,16 +117,26 @@ export function DoorCountPanel({ jobId }: Props) {
           <div>
             <div className="text-[13px] font-semibold tracking-tight">Internal Doors</div>
             <div className="text-[11px] text-muted-foreground mt-0.5">
-              {aiTotalEstimate != null
-                ? `AI estimate: ${aiTotalEstimate} door${aiTotalEstimate !== 1 ? "s" : ""} — confirm the breakdown below`
+              {aiTotal > 0
+                ? `AI estimate: ${aiTotal} door${aiTotal !== 1 ? "s" : ""} — confirm the breakdown below`
                 : "Set the door type breakdown before exporting"}
             </div>
           </div>
         </div>
-        {confirmedAt && (
-          <div className="flex items-center gap-1.5 text-[11px] text-green-700 bg-green-50 border border-green-200 rounded-md px-2.5 py-1">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            Confirmed
+        {isConfirmed && (
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 text-[11px] text-green-700 bg-green-50 border border-green-200 rounded-md px-2.5 py-1">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Confirmed
+            </div>
+            <button
+              type="button"
+              onClick={handleEdit}
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-[11px] font-medium hover:bg-accent"
+            >
+              <Pencil className="h-3 w-3" />
+              Edit
+            </button>
           </div>
         )}
       </div>
@@ -133,7 +154,8 @@ export function DoorCountPanel({ jobId }: Props) {
                     <button
                       type="button"
                       onClick={() => adjust(key, -1)}
-                      className="h-6 w-6 rounded border border-border bg-card text-sm font-bold hover:bg-accent flex items-center justify-center"
+                      disabled={isConfirmed}
+                      className="h-6 w-6 rounded border border-border bg-card text-sm font-bold hover:bg-accent flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       −
                     </button>
@@ -143,7 +165,8 @@ export function DoorCountPanel({ jobId }: Props) {
                     <button
                       type="button"
                       onClick={() => adjust(key, 1)}
-                      className="h-6 w-6 rounded border border-border bg-card text-sm font-bold hover:bg-accent flex items-center justify-center"
+                      disabled={isConfirmed}
+                      className="h-6 w-6 rounded border border-border bg-card text-sm font-bold hover:bg-accent flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       +
                     </button>
@@ -155,20 +178,22 @@ export function DoorCountPanel({ jobId }: Props) {
             <div className="flex items-center justify-between">
               <div className="text-[12px] text-muted-foreground">
                 Total: <span className="font-semibold text-foreground">{total}</span>
-                {aiTotalEstimate != null && total !== aiTotalEstimate && (
+                {aiTotal > 0 && total !== aiTotal && (
                   <span className="ml-2 text-amber-600">
-                    (AI estimated {aiTotalEstimate})
+                    (AI estimated {aiTotal})
                   </span>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={handleConfirm}
-                disabled={saving}
-                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
-              >
-                {saving ? "Saving…" : confirmedAt ? "Re-confirm" : "Confirm Counts"}
-              </button>
+              {!isConfirmed && (
+                <button
+                  type="button"
+                  onClick={handleConfirm}
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                >
+                  {saving ? "Saving…" : "Confirm Counts"}
+                </button>
+              )}
             </div>
           </>
         )}

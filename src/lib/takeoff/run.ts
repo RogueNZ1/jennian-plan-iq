@@ -581,6 +581,32 @@ export async function runAutomaticTakeoff(args: {
                   confidence_score: conf === "high" ? 95 : conf === "medium" ? 70 : 40,
                 }).eq("id", jobId);
               }
+
+              // Pass 0 — plan reconnaissance → persist plan_context
+              try {
+                const { renderPageForAnalysis } = await import("@/lib/pdf-pages");
+                const { recognisePlanFn } = await import("./concept.functions");
+                const planFile = new File(
+                  [fileData],
+                  fileRow.file_name ?? "plan.pdf",
+                  { type: "application/pdf" },
+                );
+                const pageBlob = await renderPageForAnalysis(planFile, workingPageNumber ?? 1);
+                if (pageBlob) {
+                  const b64 = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve((reader.result as string).split(",")[1]);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(pageBlob);
+                  });
+                  const ctx = await recognisePlanFn({
+                    data: { imageBase64: b64, filename: fileRow.file_name ?? "plan.pdf" },
+                  });
+                  await supabase.from("jobs").update({ plan_context: toJson(ctx) }).eq("id", jobId);
+                }
+              } catch (reconErr) {
+                console.warn("[concept-recon] recognisePlan failed — run continues:", reconErr);
+              }
             }
           }
         } catch (geoErr) {
