@@ -607,11 +607,11 @@ function UploadPage() {
     qlbl("A13", "Alfresco Area (m²)");       qval("D13", t.alfresco_area_m2 ?? undefined);
     qlbl("A15", "Perimeter (lm)");           qval("D15", t.external_wall_lm ?? undefined);
     qlbl("A19", "External Wall Length (lm)");qval("D19", t.external_wall_lm ?? undefined);
-    qlbl("A20", "External Wall Height (m)"); wsQS["D20"] = { v: 2.4, t: "n", s: iqYellow };
+    qlbl("A20", "External Wall Height (m)"); wsQS["D20"] = { v: round2(t.ceiling_height_m ?? 2.4) ?? 2.4, t: "n", s: iqYellow };
 
-    // Rows match "5. Data Input House " sheet exactly: C=cladding, D=qty, E=height, F=width
+    // Rows match "5. Data Input House " sheet: D=qty, E=height, F=width. C (cladding type 1/2) = gap, fill in QS.
     qlbl("A38", "③ WINDOWS & OPENINGS", iqSection);
-    qlbl("C39", "Cladding"); qlbl("D39", "Qty"); qlbl("E39", "H (m)"); qlbl("F39", "W (m)");
+    qlbl("C39", "Cladding (enter in QS)"); qlbl("D39", "Qty"); qlbl("E39", "H (m)"); qlbl("F39", "W (m)");
 
     const QS_WINDOW_ROWS: Array<{ name: string; row: number }> = [
       { name: "Bed 1 (Master)", row: 41 }, { name: "Ensuite",       row: 43 },

@@ -715,7 +715,7 @@ export { exportCartersLoads } from "@/lib/iq-carters-loads";
  * Jennian_QS_IQ_Updated.xlsm "Data Input" sheet.  All value cells are
  * highlighted yellow so the estimator can filter/copy them straight into QS.
  */
-function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
+export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
   const ws: XLSX.WorkSheet = {};
 
   // --- styles ---
@@ -788,9 +788,10 @@ function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
   }
 
   // --- ③ WINDOWS & OPENINGS ---
-  // Rows match "5. Data Input House " sheet exactly: C=cladding, D=qty, E=height, F=width
+  // Rows match "5. Data Input House " sheet exactly: C=cladding type (1=brick/2=other — GAP: not written by IQ),
+  // D=qty, E=height(m), F=width(m)
   lbl("A38", "③ WINDOWS & OPENINGS", sectionStyle);
-  lbl("C39", "Cladding");
+  lbl("C39", "Cladding type (1/2) — enter in QS");
   lbl("D39", "Qty");
   lbl("E39", "H (m)");
   lbl("F39", "W (m)");
@@ -819,7 +820,7 @@ function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
     lbl(`A${row}`, roomLabel);
     const room = data.windowsByRoom[key];
     if (room) {
-      val(`C${row}`, room.cladding || undefined);
+      // C column = numeric cladding type (1=brick, 2=other) — IQ doesn't derive this yet; left for QS estimator
       val(`D${row}`, room.qty);
       val(`E${row}`, room.height);
       val(`F${row}`, room.width);
