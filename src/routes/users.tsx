@@ -12,6 +12,7 @@ import {
   History, X, ChevronDown, CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { sendInvitationFn } from "@/lib/invite.functions";
 
 export const Route = createFileRoute("/users")({ component: UsersPage });
 
@@ -228,14 +229,27 @@ function UsersPage() {
 
   async function resendInvite(inviteId: string) {
     if (!canManage) return;
-    const { error } = await supabase
-      .from("user_invitations")
-      .update({ updated_at: new Date().toISOString() })
-      .eq("id", inviteId);
-    if (error) return toast.error(error.message);
-    await logAction("invite_resent", "user_invitations", inviteId, {});
-    toast.success("Invitation re-sent.");
-    load();
+    // Find the invitation row so we can pass email + metadata to the server fn
+    const inv = invites.find((i) => i.id === inviteId);
+    if (!inv) return toast.error("Invitation not found.");
+    try {
+      const result = await sendInvitationFn({
+        data: {
+          invitationId: inviteId,
+          email: inv.email,
+          role: inv.role,
+          branch: inv.branch,
+          firstName: inv.first_name,
+          lastName: inv.last_name,
+          welcomeMessage: inv.welcome_message,
+        },
+      });
+      await logAction("invite_resent", "user_invitations", inviteId, { email: inv.email });
+      toast.success(result.message);
+      load();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to resend invitation.");
+    }
   }
 
   async function cancelInvite(inviteId: string) {
@@ -389,6 +403,7 @@ function UsersPage() {
           onClose={() => setShowInvite(false)}
           onCreated={async (payload) => {
             if (!user) return;
+            // 1. Insert the invitation record
             const { data, error } = await supabase
               .from("user_invitations")
               .insert({ ...payload, invited_by: user.id })
@@ -396,7 +411,26 @@ function UsersPage() {
               .single();
             if (error) { toast.error(error.message); return; }
             await logAction("invite_created", "user_invitations", data!.id, { email: payload.email, role: payload.role });
-            toast.success(`Invitation queued for ${payload.email}.`);
+            // 2. Send the Supabase auth invite email via server function
+            try {
+              const result = await sendInvitationFn({
+                data: {
+                  invitationId: data!.id,
+                  email: payload.email,
+                  role: payload.role,
+                  branch: payload.branch ?? null,
+                  firstName: payload.first_name ?? null,
+                  lastName: payload.last_name ?? null,
+                  welcomeMessage: payload.welcome_message ?? null,
+                },
+              });
+              toast.success(result.message);
+            } catch (err: unknown) {
+              // Record exists but email failed — notify without rolling back
+              toast.error(
+                `Invitation saved but email failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+              );
+            }
             setShowInvite(false);
             load();
           }}
