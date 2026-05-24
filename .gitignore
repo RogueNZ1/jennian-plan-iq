@@ -25,6 +25,11 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Playwright
+/tests/e2e/fixtures/*.pdf
+/test-results/
+/playwright-report/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
