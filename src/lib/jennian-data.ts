@@ -21,6 +21,7 @@ export type Job = {
   plan_type?: PlanType;
   smw_enabled?: boolean;
   confidence_score?: number | null;
+  plan_context?: Record<string, unknown> | null;
 };
 
 export type Quantity = {

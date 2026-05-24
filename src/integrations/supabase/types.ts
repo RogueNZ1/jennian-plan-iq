@@ -14,39 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
-      door_markups: {
+      door_counts: {
         Row: {
           id: string
           job_id: string
-          door_type: string
-          x_percent: number
-          y_percent: number
-          label_number: number
+          standard: number
+          cavity_sliders: number
+          double_doors: number
+          barn_sliders: number
+          ai_total_estimate: number | null
+          confirmed_at: string | null
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
           job_id: string
-          door_type: string
-          x_percent: number
-          y_percent: number
-          label_number?: number
+          standard?: number
+          cavity_sliders?: number
+          double_doors?: number
+          barn_sliders?: number
+          ai_total_estimate?: number | null
+          confirmed_at?: string | null
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           job_id?: string
-          door_type?: string
-          x_percent?: number
-          y_percent?: number
-          label_number?: number
+          standard?: number
+          cavity_sliders?: number
+          double_doors?: number
+          barn_sliders?: number
+          ai_total_estimate?: number | null
+          confirmed_at?: string | null
           created_at?: string
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "door_markups_job_id_fkey"
+            foreignKeyName: "door_counts_job_id_fkey"
             columns: ["job_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           }
@@ -197,6 +206,7 @@ export type Database = {
           created_by: string
           id: string
           job_number: string
+          plan_context: Json | null
           plan_thumbnail_url: string | null
           plan_type: string | null
           smw_enabled: boolean
@@ -215,6 +225,7 @@ export type Database = {
           created_by: string
           id?: string
           job_number: string
+          plan_context?: Json | null
           plan_thumbnail_url?: string | null
           plan_type?: string | null
           smw_enabled?: boolean
@@ -233,6 +244,7 @@ export type Database = {
           created_by?: string
           id?: string
           job_number?: string
+          plan_context?: Json | null
           plan_thumbnail_url?: string | null
           plan_type?: string | null
           smw_enabled?: boolean

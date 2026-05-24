@@ -136,7 +136,8 @@ export const extractScaleFactor = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => input as { imageBase64: string; imageWidth: number; imageHeight: number })
   .handler(async ({ data }): Promise<ScaleResult> => {
     const apiKey = getApiKey();
-    const system = `You are a plan reading assistant for a New Zealand residential builder.
+    const system = `Return ONLY valid JSON. No markdown, no prose.
+You are a plan reading assistant for a New Zealand residential builder.
 Extract the printed scale from an architectural plan image.
 
 PRIORITY ORDER — stop at the first method that succeeds:
@@ -230,7 +231,8 @@ export const checkPlanIssues = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => input as { imageBase64: string })
   .handler(async ({ data }): Promise<CheckResult> => {
     const apiKey = getApiKey();
-    const system = `You are a plan checker for a New Zealand residential builder (Jennian Homes Manawatū).
+    const system = `Return ONLY valid JSON. No markdown, no prose.
+You are a plan checker for a New Zealand residential building plan.
 Review the supplied floor plan image and identify any issues that could affect quantity takeoffs or costing.
 
 Check for:
@@ -253,7 +255,7 @@ Return a JSON object:
 }
 
 Severity: "error" = missing critical info; "warning" = inconsistent/ambiguous; "info" = minor observation.
-If the plan looks complete, return an empty issues array.
+If the plan looks complete and has no issues, return an empty issues array — do NOT add a "no issues found" entry.
 Return ONLY the JSON object. No markdown fences.`;
 
     const raw = await callVisionModel(
@@ -281,149 +283,45 @@ Return ONLY the JSON object. No markdown fences.`;
 
 // ── Takeoff Extraction ────────────────────────────────────────────────────────
 
-export type WindowsByRoom = {
-  [room: string]: { qty: number; height_m: number; width_m: number };
-};
+export type { WindowsByRoom, DoorBreakdown, TakeoffData } from './takeoff-types';
+import type { WindowsByRoom, DoorBreakdown, TakeoffData } from './takeoff-types';
+import type { PlanContext } from './plan-context';
+import { recognisePlan } from './recognise-plan';
+import { extractAnnotations } from './extract-annotations';
+import { classifyAnnotations } from './classify-annotations';
 
-export type DoorBreakdown = {
-  standard: number;
-  cavity_sliders: number;
-  double_doors: number;
-  barn_sliders: number;
-};
-
-export type TakeoffData = {
-  floor_area_m2: number | null;
-  garage_area_m2: number | null;
-  alfresco_area_m2: number | null;
-  external_wall_lm: number | null;
-  internal_wall_lm: number | null;
-  roof_area_m2: number | null;
-  window_count: number | null;
-  external_door_count: number | null;
-  internal_door_count: number | null;
-  bathroom_count: number | null;
-  ensuite_count: number | null;
-  laundry_count: number | null;
-  kitchen_count: number | null;
-  ceiling_height_m: number | null;
-  foundation_type: string | null;
-  windows_by_room: WindowsByRoom | null;
-  door_breakdown: DoorBreakdown | null;
-  garage_door_size: string | null;
-  notes: string;
+export type ConceptTakeoffResult = {
+  takeoffData: TakeoffData;
+  planContext: PlanContext;
 };
 
 export const extractConceptTakeoffs = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => input as { imageBase64: string; scaleFactor: number | null })
-  .handler(async ({ data }): Promise<TakeoffData> => {
-    const apiKey = getApiKey();
-    const scaleNote = data.scaleFactor
-      ? `The plan scale factor is ${data.scaleFactor.toFixed(4)} pixels per millimetre. Use this to convert pixel measurements to real-world dimensions where needed.`
-      : "No reliable scale factor was determined. Extract areas and counts from visible dimension annotations. State assumptions in the notes field.";
+  .inputValidator((input: unknown) => input as { imageBase64: string; filename: string })
+  .handler(async ({ data }): Promise<ConceptTakeoffResult> => {
+    // Pass 0 — plan reconnaissance
+    const context = await recognisePlan(data.imageBase64, data.filename);
 
-    const system = `You are a quantity surveyor's assistant for Jennian Homes Manawatū (NZ residential builder).
-Extract quantity takeoff data from the supplied floor plan image.
-
-${scaleNote}
-
-━━━ RULE 1 — WINDOW DIMENSION READING ━━━
-NZ residential floor plan window annotations use the format HEIGHT × WIDTH in millimetres
-(e.g. "2150x600" means height_m = 2.150, width_m = 0.600; "1200x900" means height_m = 1.200, width_m = 0.900).
-Read the annotation text directly. The FIRST number is ALWAYS height; the SECOND number is ALWAYS width.
-Do NOT attempt to measure pixel dimensions or apply a scale factor to window annotations — the numbers in the annotation are already in mm.
-If no annotation is visible for a window opening, output null for both height_m and width_m.
-
-━━━ RULE 2 — FLOOR AREA — ALWAYS USE OVER FRAME ━━━
-Read floor area ONLY from the summary box value labelled "LIVING AREA", "AREA OVER FRAME", or "FLOOR AREA OVER FRAME".
-Never use "AREA OVER FOUNDATION" or "COVERAGE AREA" — these are always larger and incorrect for QS purposes.
-
-━━━ RULE 3 — DOOR COUNTING ━━━
-Count every door on the plan by type:
-- Swing door with a quarter-circle arc = standard hinged
-- Two doors meeting in the middle with two arcs = double door
-- Door shown as dashed rectangle sliding into wall cavity with no arc = cavity slider
-- Door positioned alongside a wall = barn slider
-Count ALL instances across the entire plan. Double doors are common in living areas and between garage and house. Do not miss any.
-
-━━━ RULE 4 — GARAGE DOOR CLASSIFICATION ━━━
-For garage doors, read the width dimension from the plan. Classify as follows:
-- Width ≥4500mm → 4.8×2.1 insulated
-- Width 2600–2800mm → 2.7×2.1 insulated
-- Width 2300–2500mm → 2.4×2.1 insulated
-Height is always 2.1m regardless of what the plan shows. Never use the raw measured height for garage doors.
-Return garage_door_size as the classified string (e.g. "4.8x2.1") not the raw annotation.
-
-━━━ RULE 5 — MISSING DIMENSIONS ━━━
-If a window height or width annotation cannot be read, output null for that value.
-Never guess, estimate, or use a default value.
-
-━━━ RULE 6 — ROOMS WITH NO WINDOWS ━━━
-If a room has no windows, still include it in windows_by_room with qty=0, width_m=0, height_m=0 so the QS knows to zero those cells.
-
-━━━ STANDARD QUANTITIES ━━━
-- floor_area_m2: From "LIVING AREA" / "AREA OVER FRAME" / "FLOOR AREA OVER FRAME" only (Rule 2)
-- garage_area_m2: Garage floor area (null if no garage)
-- alfresco_area_m2: Outdoor covered area / deck / alfresco
-- external_wall_lm: External wall perimeter in linear metres
-- internal_wall_lm: Internal wall total length in linear metres
-- roof_area_m2: Roof area (estimate from floor area + eaves if not shown)
-- window_count: Total number of windows
-- external_door_count: External entry/exit doors (not including garage door)
-- internal_door_count: Total internal room doors (must match sum of door_breakdown types)
-- bathroom_count: Full bathrooms
-- ensuite_count: Ensuites
-- laundry_count: Laundry rooms
-- kitchen_count: Kitchens
-- ceiling_height_m: Ceiling height in metres (null if not annotated — do not assume)
-- foundation_type: e.g. "slab on grade", "pile" (null if not shown)
-- windows_by_room: Object keyed by room name — include ALL rooms, even those with qty=0 (Rule 6)
-- door_breakdown: { standard, cavity_sliders, double_doors, barn_sliders } — counts per Rule 3
-- garage_door_size: Classified size string per Rule 4 (e.g. "4.8x2.1"), null if no garage door
-- notes: List which values came from a summary box vs estimated vs not found; note any assumptions
-
-Return ONLY a JSON object with exactly these keys. Use null for any value you cannot determine. No markdown fences.`;
-
-    const empty: TakeoffData = {
+    const emptyTakeoff: TakeoffData = {
       floor_area_m2: null, garage_area_m2: null, alfresco_area_m2: null,
       external_wall_lm: null, internal_wall_lm: null, roof_area_m2: null,
       window_count: null, external_door_count: null, internal_door_count: null,
       bathroom_count: null, ensuite_count: null, laundry_count: null,
       kitchen_count: null, ceiling_height_m: null, foundation_type: null,
       windows_by_room: null, door_breakdown: null, garage_door_size: null,
-      notes: "Failed to parse AI response.",
+      notes: "Sheet type not suitable for takeoff.",
     };
 
-    const raw = await callVisionModel(
-      apiKey, system,
-      "Extract quantity takeoffs from this floor plan. Check for pre-calculated area schedules and window/door schedules first — read those values directly.",
-      data.imageBase64,
-    );
-
-    const parsed = safeParseJson<Partial<TakeoffData>>(raw);
-    if (!parsed) {
-      console.error("[extractConceptTakeoffs] JSON parse failed. Raw response:", raw.slice(0, 500));
-      return empty;
+    // Only floor and dimension plans contain extractable takeoff data
+    if (context.sheetType !== 'floor_plan' && context.sheetType !== 'dimension_plan') {
+      console.warn(`[extractConceptTakeoffs] Skipping — sheetType=${context.sheetType}`);
+      return { takeoffData: emptyTakeoff, planContext: context };
     }
-    return {
-      floor_area_m2: parsed.floor_area_m2 ?? null,
-      garage_area_m2: parsed.garage_area_m2 ?? null,
-      alfresco_area_m2: parsed.alfresco_area_m2 ?? null,
-      external_wall_lm: parsed.external_wall_lm ?? null,
-      internal_wall_lm: parsed.internal_wall_lm ?? null,
-      roof_area_m2: parsed.roof_area_m2 ?? null,
-      window_count: parsed.window_count ?? null,
-      external_door_count: parsed.external_door_count ?? null,
-      internal_door_count: parsed.internal_door_count ?? null,
-      bathroom_count: parsed.bathroom_count ?? null,
-      ensuite_count: parsed.ensuite_count ?? null,
-      laundry_count: parsed.laundry_count ?? null,
-      kitchen_count: parsed.kitchen_count ?? null,
-      ceiling_height_m: parsed.ceiling_height_m ?? null,
-      foundation_type: parsed.foundation_type ?? null,
-      windows_by_room: parsed.windows_by_room ?? null,
-      door_breakdown: parsed.door_breakdown ?? null,
-      garage_door_size: parsed.garage_door_size ?? null,
-      notes: parsed.notes ?? "",
-    };
+
+    // Pass 1 — raw annotation extraction
+    const rawAnnotations = await extractAnnotations(data.imageBase64, context);
+
+    // Pass 2 — deterministic classification (no AI call)
+    const takeoffData = classifyAnnotations(rawAnnotations, context);
+
+    return { takeoffData, planContext: context };
   });

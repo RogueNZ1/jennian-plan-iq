@@ -20,6 +20,12 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# Supabase CLI cache
+supabase/.temp/
+
+# Claude Code local settings (machine-specific permissions)
+**/.claude/settings.local.json
+
 # Local env — secrets must never be committed
 .env
 .env.local

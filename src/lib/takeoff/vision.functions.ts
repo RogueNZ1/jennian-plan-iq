@@ -138,6 +138,7 @@ Strict rules:
     Area Over Frame, Total Area, Coverage Area, Cladding Area,
     Porch Area, Garage Area, External Perimeter, Internal Wall Length.
 - For INTERNAL WALLS: do NOT attempt to sum total internal wall length yourself — vision models cannot reliably total many short segments. Instead, identify EACH individual internal wall segment visible on the floor plan and list its length in metres in the "internal_wall_segments_m" arrays (in both base_geometry and wall_lengths). The server will sum them. If you cannot identify individual segments, return an empty array and set internal_wall_length_m to null.
+- NZ WINDOW ANNOTATIONS: Window size labels on NZ residential plans are always HEIGHT × WIDTH in millimetres (e.g. "2150x600" = height 2150mm, width 600mm). The first number is always height; the second is always width. Read annotation text directly — do not measure pixel dimensions for window sizes.
 - Return structured JSON only via the tool call. No prose.`;
 
 const VISION_TOOL = {
@@ -1070,6 +1071,10 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
             logLabel: `Window ${w.width_mm}×${w.height_mm ?? "?"}`,
           });
         }
+        // external_door rows are written to opening_schedule for review visibility but are
+        // deliberately excluded from the QS windows_by_room export (matchWindowOpening filters
+        // to opening_type === "window" only). This is intentional — QS prices external doors
+        // separately via external_door_count, not through the window schedule cells.
         for (const d2 of parsed.doors ?? []) {
           if (d2.width_mm == null) continue;
           const opening_type = normalizeOpeningType(d2.type, "door");

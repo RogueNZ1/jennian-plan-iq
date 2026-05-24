@@ -10,6 +10,9 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { extractJobHeaderFromFile } from "@/lib/takeoff/extract-spec";
 import type { ExtractedFile } from "@/lib/takeoff/pdf-text";
+import type { MarkupDoorType } from "@/lib/takeoff/types";
+import { normaliseRoomName } from "@/lib/takeoff/classify";
+import { round2 } from "@/lib/takeoff/utils";
 
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
 type OpeningRow = Database["public"]["Tables"]["opening_schedule"]["Row"];
@@ -25,8 +28,6 @@ export type QSExportData = {
   // Geometry
   floorAreaM2: number | null;
   perimeterLm: number | null;
-  /** @deprecated use perimeterLm */
-  perimeterM: number | null;
   firstFloorAreaM2: number | null;
   studHeightMm: number | null;
   alfrescoAreaM2: number | null;
@@ -105,6 +106,8 @@ export type QSExportData = {
   heatPumpWallUnit: number;
   heatPumpDucted: number;
   specItems: Record<string, string>;
+  /** Pre-loaded module_items rows — avoids a second DB query in writeIQDataSheetFull */
+  moduleItems?: Array<{ module_id: string; label: string; extracted_value: string | null; approved_value: string | null; unit: string | null; value_source: string | null }>;
 };
 
 export type ElectricalItem = {
@@ -132,16 +135,17 @@ export async function buildQSExportData(
   jobId: string,
   files?: ExtractedFile[],
 ): Promise<QSExportData> {
-  const [jobRes, itemsRes, openingsRes, doorMarkupsRes] = await Promise.all([
+  const [jobRes, itemsRes, openingsRes, doorCountsRes] = await Promise.all([
     supabase.from("jobs").select("*").eq("id", jobId).single(),
     supabase.from("module_items").select("*").eq("job_id", jobId),
     supabase.from("opening_schedule").select("*").eq("job_id", jobId),
-    supabase.from("door_markups").select("door_type").eq("job_id", jobId),
+    supabase.from("door_counts").select("*").eq("job_id", jobId).maybeSingle(),
   ]);
 
   if (jobRes.error) throw new Error(`Failed to load job: ${jobRes.error.message}`);
   if (itemsRes.error) throw new Error(`Failed to load module items: ${itemsRes.error.message}`);
   if (openingsRes.error) throw new Error(`Failed to load opening schedule: ${openingsRes.error.message}`);
+  if (doorCountsRes.error) throw new Error(`Failed to load door counts: ${doorCountsRes.error.message}`);
   const job = jobRes.data;
   const items: ModuleItemRow[] = itemsRes.data ?? [];
 
@@ -263,14 +267,17 @@ export async function buildQSExportData(
   const exteriorWallLengthLm =
     getNum("exterior wall length") ?? getNum("external wall length");
 
-  // Wall height - handle mm conversion
+  // Wall height — module_items first, then plan_context stud height, then NZ default
+  const planCtx = (job.plan_context ?? null) as { studHeightMm?: number } | null;
   let exteriorWallHeightM: number | null = getNum("wall height");
   if (exteriorWallHeightM === null) {
     const studH = getNum("stud height");
     if (studH !== null) {
-      // Convert mm to m if the value looks like mm (> 10 suggests mm)
       exteriorWallHeightM = studH > 10 ? studH / 1000 : studH;
     }
+  }
+  if (exteriorWallHeightM === null && planCtx?.studHeightMm) {
+    exteriorWallHeightM = round2(planCtx.studHeightMm / 1000);
   }
   if (exteriorWallHeightM === null) {
     exteriorWallHeightM = 2.4;
@@ -284,8 +291,8 @@ export async function buildQSExportData(
   function matchWindowOpening(keywords: string[]): { cladding: string; qty: number; height: number; width: number } | undefined {
     const opening = openings.find((o: OpeningRow) => {
       if (o.opening_type !== "window") return false;
-      const rn = (o.room_name ?? "").toLowerCase();
-      return keywords.some((k) => rn.includes(k));
+      const rn = normaliseRoomName(o.room_name ?? "").toLowerCase();
+      return keywords.some((k) => rn.includes(k.toLowerCase()));
     });
     if (!opening) return undefined;
     return {
@@ -493,12 +500,13 @@ export async function buildQSExportData(
     heatPumpWallUnit = heatPumps.length;
   }
 
-  // Door markup override — when dots have been placed manually, use those counts
-  const doorMarkupRows = doorMarkupsRes.data ?? [];
-  if (doorMarkupRows.length > 0) {
-    intDoorStandard = doorMarkupRows.filter((d) => d.door_type === "hinged").length;
-    intDoorDouble = doorMarkupRows.filter((d) => d.door_type === "double_cavity").length;
-    intDoorCavitySlider = doorMarkupRows.filter((d) => d.door_type === "cavity_slider").length;
+  // Door count override — when user has confirmed counts via DoorCountPanel, use those
+  const confirmedCounts = doorCountsRes.data;
+  if (confirmedCounts?.confirmed_at) {
+    intDoorStandard = confirmedCounts.standard;
+    intDoorDouble = confirmedCounts.double_doors;
+    intDoorCavitySlider = confirmedCounts.cavity_sliders;
+    intDoorBarnSlider = confirmedCounts.barn_sliders;
   }
 
   // All spec items as key-value
@@ -519,7 +527,6 @@ export async function buildQSExportData(
     createdAt: job.created_at ?? new Date().toISOString(),
     floorAreaM2: getNum("floor area") ?? getNum("total area"),
     perimeterLm,
-    perimeterM: perimeterLm, // backward compat alias
     firstFloorAreaM2: getNum("first floor") ?? getNum("upper floor"),
     studHeightMm: getNum("stud height"),
     alfrescoAreaM2: getNum("alfresco") ?? getNum("porch") ?? getNum("deck"),
@@ -572,6 +579,14 @@ export async function buildQSExportData(
     heatPumpWallUnit,
     heatPumpDucted,
     specItems,
+    moduleItems: items.map((i) => ({
+      module_id: i.module_id ?? "",
+      label: i.label ?? "",
+      extracted_value: i.extracted_value ?? null,
+      approved_value: i.approved_value ?? null,
+      unit: i.unit ?? null,
+      value_source: i.value_source ?? null,
+    })),
   };
 }
 
@@ -812,9 +827,17 @@ function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
   lbl("A39", "④ DOORS & GARAGE", sectionStyle);
   lbl("A176", "Garage Door 4.8×2.1 Insulated");
   lbl("A177", "Garage Door 4.8×2.1 Standard");
+  lbl("A178", "Garage Door 2.4×2.1 Insulated");
+  lbl("A179", "Garage Door 2.4×2.1 Standard");
+  lbl("A180", "Garage Door 2.7×2.1 Insulated");
+  lbl("A181", "Garage Door 2.7×2.1 Standard");
 
   val("H176", data.garageDoor48x21Insulated > 0 ? data.garageDoor48x21Insulated : undefined);
   val("H177", data.garageDoor48x21Std > 0 ? data.garageDoor48x21Std : undefined);
+  val("H178", data.garageDoor24x21Insulated > 0 ? data.garageDoor24x21Insulated : undefined);
+  val("H179", data.garageDoor24x21Std > 0 ? data.garageDoor24x21Std : undefined);
+  val("H180", data.garageDoor27x21Insulated > 0 ? data.garageDoor27x21Insulated : undefined);
+  val("H181", data.garageDoor27x21Std > 0 ? data.garageDoor27x21Std : undefined);
 
   // --- sheet metadata ---
   ws["!cols"] = [
@@ -827,7 +850,7 @@ function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
     { wch: 15 }, // G — (spare)
     { wch: 15 }, // H — garage door counts
   ];
-  ws["!ref"] = "A1:H177";
+  ws["!ref"] = "A1:H181";
 
   return ws;
 }
@@ -852,18 +875,20 @@ export async function writeIQDataSheetFull(
   let allItems: Array<{ module_id: string; label: string; extracted_value: string | null; approved_value: string | null; unit: string | null; value_source: string | null }> = [];
 
   if (data.jobId) {
-    const [jobRes, itemsRes] = await Promise.all([
-      supabase.from("jobs").select("plan_type, confidence_score").eq("id", data.jobId).single(),
-      supabase.from("module_items")
-        .select("module_id, label, extracted_value, approved_value, unit, value_source")
-        .eq("job_id", data.jobId)
-        .order("sort_order", { ascending: true }),
-    ]);
+    const jobRes = await supabase.from("jobs").select("plan_type, confidence_score").eq("id", data.jobId).single();
     if (jobRes.error) throw new Error(`Failed to load job: ${jobRes.error.message}`);
-    if (itemsRes.error) throw new Error(`Failed to load module items: ${itemsRes.error.message}`);
     planType = (jobRes.data?.plan_type as string | null) ?? null;
     confidenceScore = (jobRes.data?.confidence_score as number | null) ?? null;
-    allItems = (itemsRes.data ?? []) as typeof allItems;
+    if (data.moduleItems) {
+      allItems = data.moduleItems;
+    } else {
+      const itemsRes = await supabase.from("module_items")
+        .select("module_id, label, extracted_value, approved_value, unit, value_source")
+        .eq("job_id", data.jobId)
+        .order("sort_order", { ascending: true });
+      if (itemsRes.error) throw new Error(`Failed to load module items: ${itemsRes.error.message}`);
+      allItems = (itemsRes.data ?? []) as typeof allItems;
+    }
   }
 
   const assumedItems = allItems.filter((i) => i.value_source === "assumed");

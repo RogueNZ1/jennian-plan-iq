@@ -67,6 +67,15 @@ vi.mock("@/integrations/supabase/client", () => ({
           }),
         };
       }
+      if (table === "door_counts") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+        };
+      }
       return {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockResolvedValue({ data: [], error: null }),
@@ -182,7 +191,6 @@ function makeData(overrides: Partial<QSExportData> = {}): QSExportData {
     createdAt: "2026-01-01T00:00:00Z",
     floorAreaM2: 165,
     perimeterLm: 60,
-    perimeterM: 60,
     firstFloorAreaM2: null,
     studHeightMm: null,
     alfrescoAreaM2: null,

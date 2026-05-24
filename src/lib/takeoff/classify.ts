@@ -203,6 +203,50 @@ const SCORE: Record<TakeoffPageType, number> = {
   "Cover Page": -65,
 };
 
+// ── Room name normalisation ───────────────────────────────────────────────────
+
+/**
+ * Fuzzy-match a raw room label (from AI output or plan text) to a canonical QS name.
+ * Rules are ordered — first match wins. Returns title-cased input unchanged if no rule matches,
+ * so no room name is ever silently dropped.
+ */
+export function normaliseRoomName(raw: string): string {
+  const s = raw.toLowerCase().trim();
+
+  if (s.includes("master") || s.includes("primary") || s.includes("mbdr")) return "Bed 1 (Master)";
+  if ((s.includes("bed") || s.includes("bdr")) && s.includes("1")) return "Bed 1 (Master)";
+  if ((s.includes("bed") || s.includes("bdr")) && s.includes("2")) return "Bed 2";
+  if ((s.includes("bed") || s.includes("bdr")) && s.includes("3")) return "Bed 3";
+  if ((s.includes("bed") || s.includes("bdr")) && s.includes("4")) return "Bed 4";
+  if (s.includes("ensuite") || s.includes(" ens") || s === "ens") return "Ensuite";
+  if (s.includes("bath")) return "Bathroom";
+  if (s.includes("kitchen") || s.includes("kitch")) return "Kitchen";
+  if (s.includes("family") || s.includes("living") || s.includes("lounge/dining") || s.includes("open plan")) return "Family/Living";
+  if (s.includes("dining")) return "Dining";
+  if (s.includes("lounge")) return "Lounge";
+  if (s.includes("garage") && (s.includes("window") || s.includes("win"))) return "Garage Window";
+  if (s.includes("entry") || s.includes("entrance")) return "Entrance";
+  if (s.includes("laundry") || s.includes(" wm") || s === "wm" || s.includes("utility")) return "Laundry";
+  if (s.includes("wir") || s.includes("wardrobe") || s.includes("robe")) return "WIR";
+  if (s.includes("hall") || s.includes("corridor")) return "Hall";
+
+  // No match — return title-cased original so nothing is silently dropped
+  return raw.trim().replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+
+// ── Garage door classification ────────────────────────────────────────────────
+
+/**
+ * Map a garage door width in mm to its QS cell address.
+ * Returns null if the width doesn't match any known size band.
+ */
+export function classifyGarageDoor(widthMm: number): "H176" | "H178" | "H180" | null {
+  if (widthMm >= 4500) return "H176";
+  if (widthMm >= 2600 && widthMm <= 2800) return "H180";
+  if (widthMm >= 2300 && widthMm <= 2500) return "H178";
+  return null;
+}
+
 export function pickWorkingPage(
   classifications: Array<{ fileId: string; fileName: string; pages: ClassifiedPage[] }>,
 ): {
