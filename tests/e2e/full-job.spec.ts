@@ -136,26 +136,33 @@ async function runConceptPipeline(page: Page, spec: PlanSpec) {
   // (setInputFiles above) forces React to fully mount before we reach this point.
   await page.locator('button[type="submit"]').click();
 
-  // Wait for page analysis to complete.  Use Promise.race on two independent
-  // waitFor calls instead of locator.or().toBeVisible() — the .or() strict-mode
-  // check throws when both buttons are in the DOM simultaneously (which happens
-  // during the auto-confirm transition on high-certainty plans).
+  // When the form is submitted, the app immediately sets step="select" before
+  // running analyzePdfPages — so both buttons render right away (disabled while
+  // analyzing).  Wait for EITHER to become visible as a lightweight signal that
+  // the page navigated away from the form.
   const confirmBtn = page.getByRole("button", { name: /Confirm Selection/i });
   const continueBtn = page.getByRole("button", { name: /^Continue/i });
   await Promise.race([
-    confirmBtn.waitFor({ state: "visible", timeout: 180_000 }),
-    continueBtn.waitFor({ state: "visible", timeout: 180_000 }),
+    confirmBtn.waitFor({ state: "visible", timeout: 30_000 }),
+    continueBtn.waitFor({ state: "visible", timeout: 30_000 }),
   ]);
 
   // ── 6. Confirm page selection ─────────────────────────────────────────────
-  // When certainty === "high" the app auto-sets confirmed=true and may advance
-  // before we click.  Only click Confirm if it is currently enabled; otherwise
-  // fall straight through to clicking Continue.
-  const confirmEnabled = await confirmBtn.isEnabled().catch(() => false);
-  if (confirmEnabled) {
-    await confirmBtn.click();
-  }
-  // Click Continue (enabled after manual confirm, or immediately if auto-advanced)
+  // The Promise.race above resolves as soon as either button is VISIBLE — but
+  // both buttons render immediately when step="select" (before analysis
+  // finishes), just disabled.  We must wait for analysis to finish (up to
+  // 120 s for a 24-page PDF in headless Chrome) before the buttons become
+  // enabled.
+  //
+  // When certainty === "high" the app auto-sets confirmed=true so both buttons
+  // become enabled together.  For mid/low certainty only "Confirm Selection"
+  // becomes enabled first; the user must click it to unlock "Continue".
+  //
+  // Strategy: wait up to 120 s for "Confirm Selection" to become enabled
+  // (signals analysis done), click it, then wait for "Continue" to be enabled.
+  await expect(confirmBtn).toBeEnabled({ timeout: 120_000 });
+  await confirmBtn.click();
+  // "Continue" becomes enabled right after confirmed=true is set
   await expect(continueBtn).toBeEnabled({ timeout: 15_000 });
   await continueBtn.click();
 

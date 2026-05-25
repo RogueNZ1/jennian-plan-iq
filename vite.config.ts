@@ -3,7 +3,6 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import tsConfigPaths from "vite-tsconfig-paths";
-import { resolve } from "path";
 
 export default defineConfig({
   plugins: [
@@ -12,12 +11,10 @@ export default defineConfig({
     tailwindcss(),
     tsConfigPaths(),
   ],
-  resolve: {
-    alias: [
-      { find: /^pdfjs-dist\/build\/pdf\.worker\.min\.mjs$/, replacement: resolve("src/lib/pdfjs-worker-stub.mjs") },
-      { find: /^pdfjs-dist$/, replacement: resolve("src/__mocks__/pdfjs-dist.ts") },
-    ],
-  },
+  // pdfjs-dist aliases removed — the library is now bundled directly by Vite.
+  // pdf-pages.ts and pdf-thumbnail.ts import the worker via
+  // "pdfjs-dist/build/pdf.worker.mjs?url" so Vite emits it as a hashed
+  // static asset and the worker URL stays same-origin (CSP: worker-src 'self').
   build: {
     rollupOptions: {
       output: {

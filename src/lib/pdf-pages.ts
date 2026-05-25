@@ -1,7 +1,10 @@
 import * as pdfjsLib from "pdfjs-dist";
-
-// Worker runs inline (no separate thread) — acceptable for takeoff processing.
-pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+// pdfjs-dist v5: the GlobalWorkerOptions.workerSrc getter throws if the value
+// is falsy (empty string no longer works as "inline" mode).  Use Vite's ?url
+// import so the worker bundle is emitted as a hashed static asset and the URL
+// is injected at build time.  The worker runs in a real Web Worker thread.
+import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 export type PageType =
   | "dimension_floor_plan"
