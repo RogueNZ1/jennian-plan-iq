@@ -15,7 +15,7 @@ import {
 import {
   Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain,
   AlertTriangle, ShoppingCart, ClipboardCheck, Eye, FileSpreadsheet, FileText, ArrowRight, History,
-  Wand2, RefreshCw, Package, Trash2,
+  Wand2, RefreshCw, Package, Trash2, CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -543,6 +543,27 @@ function JobDetail() {
           />
         )}
 
+        {/* Elevation & Site Plan section */}
+        {job && (job.elevation_data || job.site_plan_data) ? (
+          <JobElevationSection
+            elevation={job.elevation_data as import("@/lib/takeoff/extract-elevations").ElevationData | null}
+            sitePlan={job.site_plan_data as import("@/lib/takeoff/extract-site-plan").SitePlanData | null}
+            crossRef={job.cross_reference_data as import("@/lib/takeoff/cross-reference").CrossReferenceResult | null}
+          />
+        ) : (
+          <div className="rounded-lg border border-border bg-card p-4 mb-2 flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-md bg-muted grid place-items-center shrink-0">
+              <Mountain className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <div className="text-[12.5px] font-medium">Elevation & Site Plan</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                Upload elevation and site plan PDFs when creating a concept job to auto-detect cladding, roof type, and concrete areas.
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Export section */}
         <div className="rounded-lg border border-border bg-card overflow-hidden mb-6">
           <div className="px-5 py-3 border-b border-border">
@@ -749,6 +770,103 @@ function Tile({ label, value, node }: { label: string; value?: string; node?: Re
     <div className="rounded-md border border-border px-2.5 py-2">
       <div className="text-[9.5px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
       <div className="mt-0.5 text-[12px] font-medium truncate">{node ?? value ?? "—"}</div>
+    </div>
+  );
+}
+
+// ── JobElevationSection ──────────────────────────────────────────────────────
+
+import type { ElevationData } from "@/lib/takeoff/extract-elevations";
+import type { SitePlanData } from "@/lib/takeoff/extract-site-plan";
+import type { CrossReferenceResult } from "@/lib/takeoff/cross-reference";
+
+function JobElevationSection({
+  elevation,
+  sitePlan,
+  crossRef,
+}: {
+  elevation: ElevationData | null;
+  sitePlan: SitePlanData | null;
+  crossRef: CrossReferenceResult | null;
+}) {
+  const windowMatch = crossRef?.windowCountMatch;
+  return (
+    <div className="rounded-lg border border-border bg-card overflow-hidden mb-2">
+      <div className="px-5 py-3 border-b border-border flex items-center gap-2">
+        <Mountain className="h-4 w-4 text-muted-foreground" />
+        <div className="text-[13px] font-semibold tracking-tight">Elevation & Site Plan</div>
+      </div>
+      <div className="p-4 space-y-4">
+
+        {/* Window count verification */}
+        {crossRef && (
+          <div className={`rounded-md border px-3 py-2.5 flex items-center gap-2 text-[11.5px] ${
+            windowMatch
+              ? "border-emerald-500/30 bg-emerald-50/5 text-emerald-700"
+              : "border-amber-500/30 bg-amber-50/5 text-amber-700"
+          }`}>
+            {windowMatch
+              ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              : <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
+            {windowMatch
+              ? `${crossRef.windowCountElevations} windows verified across ${Object.keys(elevation?.windowCountPerFace ?? {}).length} elevation faces`
+              : `Window count mismatch — floor plan: ${crossRef.windowCountFloorPlan}, elevations: ${crossRef.windowCountElevations}. Check plan carefully.`}
+          </div>
+        )}
+
+        {/* Cladding & Roof grid */}
+        {elevation && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="rounded-md border border-border px-3 py-2.5">
+              <div className="text-[9.5px] uppercase tracking-[0.14em] text-muted-foreground font-medium">Cladding</div>
+              <div className="mt-1 text-[12.5px] font-semibold">
+                {elevation.claddingTypes.length > 0 ? elevation.claddingTypes.join(" + ") : "—"}
+              </div>
+              {elevation.claddingTypeCode != null && (
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  {elevation.claddingTypeCode === 1 ? "Brick only" : elevation.claddingTypeCode === 2 ? "Weatherboard only" : "Mixed (code 3)"}
+                </div>
+              )}
+            </div>
+            <div className="rounded-md border border-border px-3 py-2.5">
+              <div className="text-[9.5px] uppercase tracking-[0.14em] text-muted-foreground font-medium">Roof Type</div>
+              <div className="mt-1 text-[12.5px] font-semibold">{elevation.roofType ?? "—"}</div>
+            </div>
+            <div className="rounded-md border border-border px-3 py-2.5">
+              <div className="text-[9.5px] uppercase tracking-[0.14em] text-muted-foreground font-medium">Roof Pitch</div>
+              <div className="mt-1 text-[12.5px] font-semibold">
+                {elevation.roofPitchDegrees != null ? `${elevation.roofPitchDegrees}°` : "—"}
+              </div>
+            </div>
+            <div className="rounded-md border border-border px-3 py-2.5">
+              <div className="text-[9.5px] uppercase tracking-[0.14em] text-muted-foreground font-medium">Gable Ends</div>
+              <div className="mt-1 text-[12.5px] font-semibold">{elevation.gableEndCount ?? "—"}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Concrete areas from site plan */}
+        {sitePlan && sitePlan.concreteAreas.length > 0 && (
+          <div>
+            <div className="text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground font-medium mb-2">Concrete Areas</div>
+            <div className="flex flex-wrap gap-2">
+              {sitePlan.concreteAreas.map((a, i) => (
+                <span key={i} className="inline-flex items-center rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium">
+                  {a.label ? `${a.label}: ` : ""}{a.areaM2} m²
+                </span>
+              ))}
+              <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-semibold text-primary">
+                Total: {sitePlan.totalConcreteM2} m²
+              </span>
+            </div>
+          </div>
+        )}
+        {sitePlan && sitePlan.perimeterM != null && (
+          <div className="text-[11.5px] text-muted-foreground">
+            Perimeter from site plan: <span className="font-semibold text-foreground">{sitePlan.perimeterM} m</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -26,10 +26,22 @@ import { measurePlanGeometry, overallConfidence, type GeometryApiResult } from "
 import * as XLSX from "xlsx";
 import { normaliseRoomName, classifyGarageDoor } from "@/lib/takeoff/classify";
 import { round2 } from "@/lib/takeoff/utils";
+import { extractElevationsFn, type ElevationData } from "@/lib/takeoff/extract-elevations";
+import { extractSitePlanFn, type SitePlanData } from "@/lib/takeoff/extract-site-plan";
+import { crossReference, type CrossReferenceResult } from "@/lib/takeoff/cross-reference";
 
 export const Route = createFileRoute("/upload")({ component: UploadPage });
 
 type Step = "form" | "select" | "scale" | "check" | "takeoff";
+
+type AdditionalPdfSheetType = "elevations" | "site_plan" | "floor_plan" | "unknown";
+
+type AdditionalPdf = {
+  id: string;
+  file: File;
+  sheetType: AdditionalPdfSheetType;
+  classifying: boolean;
+};
 
 const CONCEPT_STEPS: { key: Step; label: string }[] = [
   { key: "form",    label: "Upload" },
@@ -92,6 +104,12 @@ function UploadPage() {
   const [editedTakeoff, setEditedTakeoff] = useState<TakeoffData | null>(null);
   const [planContext, setPlanContext] = useState<PlanContext | null>(null);
   const [geometryResult, setGeometryResult] = useState<GeometryApiResult | null>(null);
+
+  // Additional PDFs (elevations, site plan)
+  const [additionalPdfs, setAdditionalPdfs] = useState<AdditionalPdf[]>([]);
+  const [elevationData, setElevationData] = useState<ElevationData | null>(null);
+  const [sitePlanData, setSitePlanData] = useState<SitePlanData | null>(null);
+  const [crossRefResult, setCrossRefResult] = useState<CrossReferenceResult | null>(null);
 
   useEffect(() => {
     let revoke: string | null = null;
@@ -245,6 +263,27 @@ function UploadPage() {
         }
       }
 
+      // Upload additional PDFs (elevations, site plan)
+      for (const ap of additionalPdfs) {
+        const now = Date.now();
+        const apPath = `${user.id}/${job.id}/${ap.sheetType}-${now}-${ap.file.name}`;
+        const { error: apErr } = await supabase.storage.from("job-files").upload(apPath, ap.file);
+        if (apErr) { console.warn(`Additional PDF upload failed (${ap.file.name}):`, apErr); continue; }
+        await supabase.from("uploaded_files").insert({
+          job_id: job.id,
+          file_type: ap.sheetType as string as never,
+          file_name: ap.file.name,
+          storage_url: apPath,
+        });
+        await (supabase.from("job_documents" as never) as ReturnType<typeof supabase.from>).insert({
+          job_id: job.id,
+          storage_path: apPath,
+          original_filename: ap.file.name,
+          sheet_type: ap.sheetType,
+          classified_at: new Date().toISOString(),
+        } as never);
+      }
+
       if (asExtraction) {
         await supabase
           .from("jobs")
@@ -252,7 +291,10 @@ function UploadPage() {
             status: "review_required",
             uploaded_at: new Date().toISOString(),
             ...(thumbnailPath ? { plan_thumbnail_url: thumbnailPath } : {}),
-          })
+            ...(elevationData ? { elevation_data: elevationData } : {}),
+            ...(sitePlanData ? { site_plan_data: sitePlanData } : {}),
+            ...(crossRefResult ? { cross_reference_data: crossRefResult } : {}),
+          } as never)
           .eq("id", job.id);
         seedAllModulesForJob(job.id);
         toast.success("Job uploaded. Choose a takeoff method to begin.");
@@ -370,17 +412,28 @@ function UploadPage() {
     setTakeoffData(null);
     setEditedTakeoff(null);
     setGeometryResult(null);
+    setElevationData(null);
+    setSitePlanData(null);
+    setCrossRefResult(null);
     try {
       const blob = highResBlob ?? (planFile ? await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex!]?.pageNumber ?? 1) : null);
       if (!blob) throw new Error("No plan image available.");
       const b64 = await blobToBase64(blob);
 
+      // Prepare elevation/site plan images if additional PDFs are present
+      const elevFile = additionalPdfs.find((p) => p.sheetType === "elevations");
+      const siteFile = additionalPdfs.find((p) => p.sheetType === "site_plan");
+      const elevBlobP = elevFile ? renderPageForAnalysis(elevFile.file, 1).catch(() => null) : Promise.resolve(null);
+      const siteBlobP = siteFile ? renderPageForAnalysis(siteFile.file, 1).catch(() => null) : Promise.resolve(null);
+
       // Run AI extraction and geometry measurement in parallel
-      const [result, geoResult] = await Promise.all([
+      const [result, geoResult, elevBlob, siteBlob] = await Promise.all([
         extractConceptTakeoffs({ data: { imageBase64: b64, filename: planFile?.name ?? "plan.jpg" } }) as Promise<ConceptTakeoffResult>,
         planFile
           ? measurePlanGeometry(planFile, planFile.name).catch(() => null)
           : Promise.resolve(null),
+        elevBlobP,
+        siteBlobP,
       ]);
 
       setGeometryResult(geoResult);
@@ -404,6 +457,29 @@ function UploadPage() {
       };
       setTakeoffData(merged);
       setEditedTakeoff(merged);
+
+      // Run elevation and site plan extractions in parallel (non-blocking)
+      const builderName = result.planContext?.builder?.name ?? "Jennian Homes";
+      const [elev, site] = await Promise.all([
+        elevBlob
+          ? blobToBase64(elevBlob).then((b64) =>
+              extractElevationsFn({ data: { imageBase64: b64, builderName } }).catch(() => null)
+            )
+          : Promise.resolve(null),
+        siteBlob
+          ? blobToBase64(siteBlob).then((b64) =>
+              extractSitePlanFn({ data: { imageBase64: b64 } }).catch(() => null)
+            )
+          : Promise.resolve(null),
+      ]);
+
+      setElevationData(elev);
+      setSitePlanData(site);
+      const xref = crossReference(merged, elev, site);
+      setCrossRefResult(xref);
+      if (xref.warnings.length > 0) {
+        xref.warnings.forEach((w) => toast.warning(w, { duration: 7000 }));
+      }
     } catch (e) {
       console.error(e);
       toast.error("Takeoff extraction failed. Enter values manually below.");
@@ -665,11 +741,51 @@ function UploadPage() {
       if (t.door_breakdown.cavity_sliders > 0) qval("H193", t.door_breakdown.cavity_sliders);
     }
 
+    // ⑤ ELEVATION & SITE PLAN DATA (if available)
+    if (elevationData || sitePlanData) {
+      const iqOrange = { font: { color: { rgb: "FF8C00" }, italic: true } };
+      const iqGreen  = { font: { color: { rgb: "008000" } } };
+      qlbl("A197", "⑤ ELEVATION & SITE PLAN DATA", iqSection);
+      qlbl("A199", "Cladding type code (1=brick · 2=weatherboard · 3=mixed)");
+      if (elevationData?.claddingTypeCode != null) qval("D199", elevationData.claddingTypeCode);
+      qlbl("A200", "Roof type");
+      if (elevationData?.roofType) wsQS["D200"] = { v: elevationData.roofType, t: "s", s: {} };
+      qlbl("A201", "Roof pitch (degrees)");
+      if (elevationData?.roofPitchDegrees != null) qval("D201", elevationData.roofPitchDegrees);
+      qlbl("A202", "External door count (from elevations)");
+      if (elevationData?.externalDoorCount) qval("D202", elevationData.externalDoorCount);
+      qlbl("A203", "Gable end count");
+      if (elevationData?.gableEndCount) qval("D203", elevationData.gableEndCount);
+      qlbl("A205", "Driveway concrete (m²)");
+      if (sitePlanData?.drivewayConcretM2 != null) qval("D205", sitePlanData.drivewayConcretM2);
+      qlbl("A206", "Paths / patio concrete (m²)");
+      if (sitePlanData?.patioConcreteM2 != null) qval("D206", sitePlanData.patioConcreteM2);
+      qlbl("A207", "Total concrete (m²)");
+      if (sitePlanData?.totalConcreteM2) qval("D207", sitePlanData.totalConcreteM2);
+      if (crossRefResult) {
+        const mismatch = crossRefResult.warnings.find((w) => /mismatch/i.test(w));
+        if (mismatch) {
+          wsQS["A209"] = { v: `⚠ ${mismatch}`, t: "s", s: iqOrange };
+        } else if (crossRefResult.windowCountMatch) {
+          wsQS["A209"] = { v: "✓ Window count verified", t: "s", s: iqGreen };
+        }
+      }
+      // Write cladding type code to column C of each window row
+      if (elevationData?.claddingTypeCode != null) {
+        for (const { row } of QS_WINDOW_ROWS) {
+          const rowData = byRoom[QS_WINDOW_ROWS.find((r) => r.row === row)?.name ?? ""];
+          if (rowData && rowData.qty > 0) {
+            wsQS[`C${row}`] = { v: elevationData.claddingTypeCode, t: "n", s: iqYellow };
+          }
+        }
+      }
+    }
+
     wsQS["!cols"] = [
       { wch: 35 }, { wch: 12 }, { wch: 15 }, { wch: 15 },
       { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 25 },
     ];
-    wsQS["!ref"] = "A1:I193";
+    wsQS["!ref"] = "A1:I210";
     XLSX.utils.book_append_sheet(wb, wsQS, "IQ Data Input");
 
     try {
@@ -1009,6 +1125,21 @@ function UploadPage() {
                 </div>
               )}
 
+              {/* Elevation & Site Plan results */}
+              {(elevationData || sitePlanData || crossRefResult) && (
+                <ElevationSummaryCard
+                  elevation={elevationData}
+                  sitePlan={sitePlanData}
+                  crossRef={crossRefResult}
+                />
+              )}
+              {!elevationData && additionalPdfs.length === 0 && (
+                <div className="rounded-lg border border-border bg-card/50 p-4 flex items-center gap-2.5 text-xs text-muted-foreground">
+                  <Info className="h-3.5 w-3.5 shrink-0" />
+                  Upload elevation and site plan PDFs to auto-detect cladding type, roof pitch, and concrete areas.
+                </div>
+              )}
+
               <div className="flex justify-between gap-2">
                 <button
                   type="button"
@@ -1230,6 +1361,15 @@ function UploadPage() {
                 />
               </div>
             </>
+          )}
+
+          {/* Additional PDFs — elevations, site plan (concept mode) */}
+          {planType === "concept" && (
+            <AdditionalPdfsZone
+              pdfs={additionalPdfs}
+              onChange={setAdditionalPdfs}
+              maxBytes={MAX_BYTES}
+            />
           )}
 
           <div className="rounded-lg border border-border bg-card p-6 space-y-4">
@@ -1602,5 +1742,252 @@ function Dropzone({ label, sub, file, onFile, previewUrl }: {
         onChange={(e) => { const f = e.target.files?.[0]; if (f) acceptFile(f); }}
       />
     </label>
+  );
+}
+
+// ── AdditionalPdfsZone ───────────────────────────────────────────────────────
+
+const SHEET_TYPE_LABELS: Record<AdditionalPdfSheetType, string> = {
+  elevations: "Elevations",
+  site_plan:  "Site Plan",
+  floor_plan: "Floor Plan (use primary slot)",
+  unknown:    "Unknown",
+};
+const SHEET_TYPE_COLORS: Record<AdditionalPdfSheetType, string> = {
+  elevations: "bg-amber-500/15 text-amber-600 border-amber-500/30",
+  site_plan:  "bg-blue-500/15 text-blue-600 border-blue-500/30",
+  floor_plan: "bg-red-500/15 text-red-600 border-red-500/30",
+  unknown:    "bg-muted text-muted-foreground border-border",
+};
+
+async function classifyPdfFile(file: File): Promise<AdditionalPdfSheetType> {
+  try {
+    const pages = await analyzePdfPages(file, { maxPages: 3, maxWidth: 80, quality: 0.5 });
+    disposePageAnalyses(pages);
+    const counts: Partial<Record<string, number>> = {};
+    for (const p of pages) {
+      counts[p.pageType] = (counts[p.pageType] ?? 0) + 1;
+    }
+    const best = Object.entries(counts).sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))[0]?.[0];
+    if (best === "elevations") return "elevations";
+    if (best === "site_plan") return "site_plan";
+    if (best === "floor_plan" || best === "dimension_floor_plan") return "floor_plan";
+    return "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+function AdditionalPdfsZone({
+  pdfs,
+  onChange,
+  maxBytes,
+}: {
+  pdfs: AdditionalPdf[];
+  onChange: React.Dispatch<React.SetStateAction<AdditionalPdf[]>>;
+  maxBytes: number;
+}) {
+  const [isDragging, setIsDragging] = useState(false);
+
+  function isPdf(f: File) {
+    return f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+  }
+
+  async function addFiles(files: File[]) {
+    const accepted = files.filter((f) => {
+      if (!isPdf(f)) { toast.error(`${f.name} is not a PDF.`); return false; }
+      if (f.size > maxBytes) { toast.error(`${f.name} exceeds the 50 MB limit.`); return false; }
+      return true;
+    });
+    if (accepted.length === 0) return;
+    const newPdfs: AdditionalPdf[] = accepted.map((f) => ({
+      id: `${f.name}-${f.size}-${Date.now()}`,
+      file: f,
+      sheetType: "unknown",
+      classifying: true,
+    }));
+    onChange((prev) => [...prev, ...newPdfs].slice(0, 5));
+    // Classify each in background
+    for (const np of newPdfs) {
+      classifyPdfFile(np.file).then((sheetType) => {
+        onChange((prev) =>
+          prev.map((p) => p.id === np.id ? { ...p, sheetType, classifying: false } : p)
+        );
+        if (sheetType === "floor_plan") {
+          toast.warning(`${np.file.name} looks like a floor plan — use the primary Plan PDF slot instead.`);
+        }
+      });
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault(); e.stopPropagation();
+    setIsDragging(false);
+    addFiles(Array.from(e.dataTransfer?.files ?? []));
+  }
+
+  if (pdfs.length === 0) {
+    return (
+      <div>
+        <div className="text-xs font-medium text-muted-foreground mb-2">
+          Elevation & Site Plan PDFs <span className="font-normal">(optional — up to 4 additional files)</span>
+        </div>
+        <label
+          onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+          onDrop={handleDrop}
+          className={`flex items-center gap-3 rounded-lg border-2 border-dashed px-5 py-4 cursor-pointer transition-colors ${
+            isDragging ? "border-primary/60 bg-accent/40" : "border-border hover:border-primary/30 hover:bg-accent/20"
+          }`}
+        >
+          <UploadCloud className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div>
+            <span className="text-sm font-medium">Add elevation or site plan PDFs</span>
+            <span className="text-xs text-muted-foreground ml-2">Sheet types auto-detected · Max 50 MB each</span>
+          </div>
+          <input
+            type="file"
+            accept="application/pdf"
+            multiple
+            className="sr-only"
+            onChange={(e) => addFiles(Array.from(e.target.files ?? []))}
+          />
+        </label>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="text-xs font-medium text-muted-foreground mb-2">
+        Elevation & Site Plan PDFs
+      </div>
+      <div className="space-y-2">
+        {pdfs.map((pdf) => (
+          <div key={pdf.id} className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-medium truncate">{pdf.file.name}</div>
+              <div className="text-[11px] text-muted-foreground">{(pdf.file.size / 1024 / 1024).toFixed(2)} MB</div>
+            </div>
+            {pdf.classifying ? (
+              <span className="text-[10px] text-muted-foreground animate-pulse">Classifying…</span>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-medium ${SHEET_TYPE_COLORS[pdf.sheetType]}`}>
+                  {SHEET_TYPE_LABELS[pdf.sheetType]}
+                </span>
+                {(pdf.sheetType === "unknown" || pdf.sheetType === "floor_plan") && (
+                  <select
+                    value={pdf.sheetType}
+                    onChange={(e) => {
+                      const t = e.target.value as AdditionalPdfSheetType;
+                      onChange((prev) => prev.map((p) => p.id === pdf.id ? { ...p, sheetType: t } : p));
+                    }}
+                    className="text-[11px] rounded border border-input bg-background px-1.5 py-0.5 focus:outline-none"
+                  >
+                    <option value="elevations">Elevations</option>
+                    <option value="site_plan">Site Plan</option>
+                    <option value="unknown">Unknown</option>
+                  </select>
+                )}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => onChange((prev) => prev.filter((p) => p.id !== pdf.id))}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ))}
+        {pdfs.length < 5 && (
+          <label className="flex items-center gap-2 text-xs text-primary font-medium cursor-pointer hover:underline">
+            <UploadCloud className="h-3.5 w-3.5" /> Add another PDF
+            <input
+              type="file"
+              accept="application/pdf"
+              multiple
+              className="sr-only"
+              onChange={(e) => addFiles(Array.from(e.target.files ?? []))}
+            />
+          </label>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── ElevationSummaryCard ─────────────────────────────────────────────────────
+
+function ElevationSummaryCard({
+  elevation,
+  sitePlan,
+  crossRef,
+}: {
+  elevation: ElevationData | null;
+  sitePlan: SitePlanData | null;
+  crossRef: CrossReferenceResult | null;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+      <div className="text-[10.5px] uppercase tracking-[0.16em] font-medium text-muted-foreground">
+        Elevation & Site Plan
+      </div>
+
+      {/* Window cross-reference */}
+      {crossRef && (
+        <div className={`rounded-md border px-3 py-2 flex items-center gap-2 text-[11px] ${
+          crossRef.windowCountMatch
+            ? "border-emerald-500/30 bg-emerald-50/5 text-emerald-600"
+            : "border-amber-500/30 bg-amber-50/5 text-amber-600"
+        }`}>
+          {crossRef.windowCountMatch
+            ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+            : <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
+          {crossRef.windowCountMatch
+            ? `${crossRef.windowCountElevations} windows verified across ${Object.keys(elevation?.windowCountPerFace ?? {}).length} elevations`
+            : `Window mismatch — floor plan: ${crossRef.windowCountFloorPlan}, elevations: ${crossRef.windowCountElevations}`}
+        </div>
+      )}
+
+      {/* Cladding & Roof */}
+      {elevation && (
+        <div className="grid grid-cols-2 gap-2 text-[11.5px]">
+          <div>
+            <span className="text-muted-foreground">Cladding: </span>
+            <span className="font-medium">
+              {elevation.claddingTypes.length > 0
+                ? elevation.claddingTypes.join(" + ")
+                : "Not detected"}
+            </span>
+            {elevation.claddingTypeCode && (
+              <span className="ml-1 text-[10px] text-muted-foreground">(type {elevation.claddingTypeCode})</span>
+            )}
+          </div>
+          <div>
+            <span className="text-muted-foreground">Roof: </span>
+            <span className="font-medium">
+              {elevation.roofType
+                ? `${elevation.roofType}${elevation.roofPitchDegrees != null ? ` @ ${elevation.roofPitchDegrees}°` : ""}`
+                : "Not detected"}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Concrete areas */}
+      {sitePlan && sitePlan.totalConcreteM2 > 0 && (
+        <div className="text-[11.5px]">
+          <span className="text-muted-foreground">Concrete: </span>
+          <span className="font-medium">{sitePlan.totalConcreteM2} m² total</span>
+          {sitePlan.drivewayConcretM2 != null && (
+            <span className="text-muted-foreground ml-2">({sitePlan.drivewayConcretM2} m² driveway)</span>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

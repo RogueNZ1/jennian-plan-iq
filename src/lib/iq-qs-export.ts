@@ -37,6 +37,20 @@ export type QSExportData = {
   underlay: string | null;
   claddingType1: string | null;
   claddingType2: string | null;
+  /** 1=brick/masonry only · 2=weatherboard/panel only · 3=mixed · null=unknown */
+  claddingTypeCode?: number | null;
+  /** Elevation extraction results for the ⑤ ELEVATION & SITE PLAN section */
+  elevationSummary?: {
+    roofType: string | null;
+    roofPitchDegrees: number | null;
+    externalDoorCount: number;
+    gableEndCount: number;
+    drivewayConcretM2: number | null;
+    patioConcreteM2: number | null;
+    totalConcreteM2: number | null;
+    windowCountMatch: boolean | null;
+    windowCountWarning: string | null;
+  } | null;
   // Joinery windows (up to 10 rows)
   windows: Array<{ type: string; qty: number }>;
   // Garage doors (up to 6 rows)
@@ -820,7 +834,10 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
     lbl(`A${row}`, roomLabel);
     const room = data.windowsByRoom[key];
     if (room) {
-      // C column = numeric cladding type (1=brick, 2=other) — IQ doesn't derive this yet; left for QS estimator
+      // Write cladding type code to C column when derived from elevation data
+      if (data.claddingTypeCode != null) {
+        ws[`C${row}`] = { v: data.claddingTypeCode, t: "n", s: yellowStyle };
+      }
       val(`D${row}`, room.qty);
       val(`E${row}`, room.height);
       val(`F${row}`, room.width);
@@ -863,6 +880,34 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
   val("H192", data.intDoorDouble > 0 ? data.intDoorDouble : undefined);
   val("H193", data.intDoorCavitySlider > 0 ? data.intDoorCavitySlider : undefined);
 
+  // --- ⑤ ELEVATION & SITE PLAN DATA (auto-derived from elevation/site plan PDFs) ---
+  if (data.elevationSummary) {
+    const ev = data.elevationSummary;
+    lbl("A197", "⑤ ELEVATION & SITE PLAN DATA", sectionStyle);
+    lbl("A199", "Cladding type code (1=brick · 2=weatherboard · 3=mixed)");
+    if (data.claddingTypeCode != null) val("D199", data.claddingTypeCode);
+    lbl("A200", "Roof type");
+    if (ev.roofType) lbl("D200", ev.roofType, { font: {} });
+    lbl("A201", "Roof pitch (degrees)");
+    if (ev.roofPitchDegrees != null) val("D201", ev.roofPitchDegrees);
+    lbl("A202", "External door count (from elevations)");
+    if (ev.externalDoorCount > 0) val("D202", ev.externalDoorCount);
+    lbl("A203", "Gable end count");
+    if (ev.gableEndCount > 0) val("D203", ev.gableEndCount);
+    lbl("A205", "Driveway concrete (m²)");
+    if (ev.drivewayConcretM2 != null) val("D205", ev.drivewayConcretM2);
+    lbl("A206", "Paths / patio concrete (m²)");
+    if (ev.patioConcreteM2 != null) val("D206", ev.patioConcreteM2);
+    lbl("A207", "Total concrete (m²)");
+    if (ev.totalConcreteM2 != null) val("D207", ev.totalConcreteM2);
+    if (ev.windowCountWarning) {
+      lbl("A209", `⚠ ${ev.windowCountWarning}`, { font: { color: { rgb: "FF8C00" }, italic: true } });
+    }
+    if (ev.windowCountMatch === true) {
+      lbl("A209", "✓ Window count verified — floor plan and elevations agree", { font: { color: { rgb: "008000" } } });
+    }
+  }
+
   // --- sheet metadata ---
   ws["!cols"] = [
     { wch: 35 }, // A — labels
@@ -875,7 +920,7 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
     { wch: 15 }, // H — garage door / interior door counts
     { wch: 25 }, // I — job info values
   ];
-  ws["!ref"] = "A1:I193";
+  ws["!ref"] = "A1:I210";
 
   return ws;
 }

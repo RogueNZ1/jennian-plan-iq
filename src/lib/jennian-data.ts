@@ -22,6 +22,9 @@ export type Job = {
   smw_enabled?: boolean;
   confidence_score?: number | null;
   plan_context?: Record<string, unknown> | null;
+  elevation_data?: Record<string, unknown> | null;
+  site_plan_data?: Record<string, unknown> | null;
+  cross_reference_data?: Record<string, unknown> | null;
 };
 
 export type Quantity = {
