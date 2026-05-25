@@ -106,13 +106,7 @@ async function runConceptPipeline(page: Page, spec: PlanSpec) {
   await page.goto("/upload");
   await expect(page.getByRole("heading", { name: "Upload Plan" })).toBeVisible({ timeout: 15_000 });
 
-  // ── 2. Ensure Concept plan type is selected (it's the default) ────────────
-  const conceptBtn = page.getByRole("button", { name: "Concept (Quick)" });
-  if (!(await conceptBtn.evaluate((el) => el.className.includes("text-primary")))) {
-    await conceptBtn.click();
-  }
-
-  // ── 3. Upload the PDF ─────────────────────────────────────────────────────
+  // ── 2. Upload the PDF ─────────────────────────────────────────────────────
   // The Dropzone renders a hidden <input type="file">. Playwright can interact
   // with it directly even though it has class="sr-only".
   const fileInput = page.locator('input[type="file"][accept="application/pdf"]').first();

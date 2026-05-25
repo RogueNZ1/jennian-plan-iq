@@ -78,7 +78,6 @@ function UploadPage() {
   const [planFile, setPlanFile] = useState<File | null>(null);
   const [specFile, setSpecFile] = useState<File | null>(null);
   const [electricalFile, setElectricalFile] = useState<File | null>(null);
-  const [planType, setPlanType] = useState<"concept" | "detailed">("concept");
   const [busy, setBusy] = useState<null | "draft" | "extract">(null);
   const [planPreviewUrl, setPlanPreviewUrl] = useState<string | null>(null);
   const [planThumbBlob, setPlanThumbBlob] = useState<Blob | null>(null);
@@ -163,10 +162,6 @@ function UploadPage() {
       toast.error("Please upload a plan PDF.");
       return;
     }
-    if (planType === "detailed" && !specFile) {
-      toast.error("Please upload a Schedule of Materials & Works for detailed mode.");
-      return;
-    }
     if (!jobNumber || !clientName || !address) {
       toast.error("Job number, client and address are required.");
       return;
@@ -208,7 +203,7 @@ function UploadPage() {
       toast.error("Job number, client and address are required.");
       return;
     }
-    if (asExtraction && (!planFile || (planType === "detailed" && !specFile))) {
+    if (asExtraction && !planFile) {
       toast.error("Required files are missing.");
       return;
     }
@@ -221,7 +216,7 @@ function UploadPage() {
           client_name: clientName,
           address,
           template,
-          plan_type: planType,
+          plan_type: "concept",
           status: "draft",
           created_by: user.id,
         })
@@ -297,7 +292,7 @@ function UploadPage() {
           } as never)
           .eq("id", job.id);
         seedAllModulesForJob(job.id);
-        toast.success("Job uploaded. Choose a takeoff method to begin.");
+        toast.success("Job uploaded successfully.");
         navigate({ to: "/jobs/$jobId", params: { jobId: job.id } });
       } else {
         await supabase
@@ -323,12 +318,7 @@ function UploadPage() {
     if (selectedIndex === null) return;
     const thumbBlob = pageAnalyses[selectedIndex]?.thumbnailBlob ?? null;
 
-    if (planType === "detailed") {
-      await persist(true, thumbBlob);
-      return;
-    }
-
-    // Concept mode — render high-res page then move to scale step
+    // Render high-res page then move to scale step
     if (!planFile) return;
     setConceptBusy("rendering");
     try {
@@ -513,7 +503,6 @@ function UploadPage() {
       ["Job Number", jobNumber],
       ["Client Name", clientName],
       ["Address", address],
-      ["Plan Type", planType === "concept" ? "Concept (Quick)" : "Detailed"],
       ["Date Generated", today],
       [],
       [],
@@ -1169,7 +1158,7 @@ function UploadPage() {
     return (
       <AppLayout>
         <div className="px-8 py-8 max-w-7xl">
-          {planType === "concept" && <ConceptProgressBar current="select" />}
+          <ConceptProgressBar current="select" />
           <button
             type="button"
             onClick={() => setStep("form")}
@@ -1202,9 +1191,7 @@ function UploadPage() {
                 >
                   {conceptBusy === "rendering"
                     ? "Rendering…"
-                    : planType === "concept"
-                      ? <>Continue <ArrowRight className="h-4 w-4" /></>
-                      : <>Continue to Review <ArrowRight className="h-4 w-4" /></>
+                    : <>Continue <ArrowRight className="h-4 w-4" /></>
                   }
                 </button>
               </div>
@@ -1329,48 +1316,29 @@ function UploadPage() {
 
         <form onSubmit={(e) => { e.preventDefault(); startPlanReviewSelection(); }} className="space-y-8">
 
-          {/* Dropzones — layout depends on plan type */}
-          {planType === "concept" ? (
-            <div className="space-y-4">
-              <Dropzone
-                label="Plan PDF"
-                sub="Architectural drawings"
-                file={planFile}
-                onFile={acceptFile(setPlanFile)}
-                previewUrl={planPreviewUrl}
-              />
-              <Dropzone
-                label="Electrical / Lighting Plan (optional)"
-                sub="Couchmans / Laser Electrical PDF"
-                file={electricalFile}
-                onFile={acceptFile(setElectricalFile)}
-              />
-            </div>
-          ) : (
-            <>
-              <div className="grid md:grid-cols-2 gap-4">
-                <Dropzone label="Plan PDF" sub="Architectural drawings" file={planFile} onFile={acceptFile(setPlanFile)} previewUrl={planPreviewUrl} />
-                <Dropzone label="Schedule of Materials & Works" sub="Specification PDF" file={specFile} onFile={acceptFile(setSpecFile)} />
-              </div>
-              <div>
-                <Dropzone
-                  label="Electrical / Lighting Plan (optional)"
-                  sub="Couchmans / Laser Electrical PDF"
-                  file={electricalFile}
-                  onFile={acceptFile(setElectricalFile)}
-                />
-              </div>
-            </>
-          )}
-
-          {/* Additional PDFs — elevations, site plan (concept mode) */}
-          {planType === "concept" && (
-            <AdditionalPdfsZone
-              pdfs={additionalPdfs}
-              onChange={setAdditionalPdfs}
-              maxBytes={MAX_BYTES}
+          {/* Dropzones */}
+          <div className="space-y-4">
+            <Dropzone
+              label="Plan PDF"
+              sub="Architectural drawings"
+              file={planFile}
+              onFile={acceptFile(setPlanFile)}
+              previewUrl={planPreviewUrl}
             />
-          )}
+            <Dropzone
+              label="Electrical / Lighting Plan (optional)"
+              sub="Couchmans / Laser Electrical PDF"
+              file={electricalFile}
+              onFile={acceptFile(setElectricalFile)}
+            />
+          </div>
+
+          {/* Additional PDFs — elevations, site plan */}
+          <AdditionalPdfsZone
+            pdfs={additionalPdfs}
+            onChange={setAdditionalPdfs}
+            maxBytes={MAX_BYTES}
+          />
 
           <div className="rounded-lg border border-border bg-card p-6 space-y-4">
             <h3 className="text-sm font-semibold tracking-tight">Job details</h3>
@@ -1393,34 +1361,6 @@ function UploadPage() {
                 </select>
               </div>
             </div>
-          </div>
-
-          <div className="rounded-lg border border-border bg-card p-4">
-            <div className="text-xs font-medium text-muted-foreground mb-2">Plan Type</div>
-            <div className="flex gap-2">
-              {(["concept", "detailed"] as const).map((pt) => (
-                <button
-                  key={pt}
-                  type="button"
-                  onClick={() => setPlanType(pt)}
-                  className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                    planType === pt
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-card text-muted-foreground hover:bg-accent"
-                  }`}
-                >
-                  {pt === "concept" ? "Concept (Quick)" : "Detailed"}
-                </button>
-              ))}
-            </div>
-            {planType === "concept" && (
-              <div className="mt-3 flex items-start gap-2 rounded-md bg-primary/5 border border-primary/20 px-3 py-2.5">
-                <Info className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
-                <p className="text-[11.5px] text-primary/80">
-                  Concept mode — upload your plan PDF only. We'll scale it, check it, and run takeoffs automatically. No SMW required.
-                </p>
-              </div>
-            )}
           </div>
 
           <div className="flex justify-end gap-2">

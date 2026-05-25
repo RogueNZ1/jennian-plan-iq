@@ -29,7 +29,6 @@ import { AutomaticTakeoffDialog } from "@/components/jennian/AutomaticTakeoffDia
 import { TakeoffSummary } from "@/components/jennian/TakeoffSummary";
 import { loadLatestTakeoffRun, type LatestTakeoffRun } from "@/lib/takeoff/run";
 import { StartTakeoffPanel } from "@/components/jennian/StartTakeoffPanel";
-import { StartTakeoffDialog } from "@/components/jennian/StartTakeoffDialog";
 import { VisionTakeoffDialog } from "@/components/jennian/VisionTakeoffDialog";
 import { DoorCountPanel } from "@/components/jennian/DoorCountPanel";
 import { supabase } from "@/integrations/supabase/client";
@@ -67,7 +66,7 @@ function JobDetail() {
   const [visionOpen, setVisionOpen] = useState(false);
   const [rerunConfirmOpen, setRerunConfirmOpen] = useState(false);
   const [takeoffRun, setTakeoffRun] = useState<LatestTakeoffRun | null>(null);
-  const [startChooserOpen, setStartChooserOpen] = useState(false);
+  const [detecting, setDetecting] = useState(false);
   const [hasTakeoffData, setHasTakeoffData] = useState<boolean | null>(null);
   const [exportingQS, setExportingQS] = useState(false);
   const [exportingSMW, setExportingSMW] = useState(false);
@@ -297,6 +296,44 @@ function JobDetail() {
     toast.success(next ? "SMW enabled" : "SMW disabled");
   }
 
+  async function detectAndStartTakeoff() {
+    setDetecting(true);
+    try {
+      const { data } = await supabase
+        .from("uploaded_files")
+        .select("id, file_name, file_type, storage_url")
+        .eq("job_id", jobId);
+      const planFiles = (data ?? []).filter((r) => r.file_type === "plan");
+      if (planFiles.length === 0) {
+        setTakeoffOpen(true);
+        return;
+      }
+      const { extractFile } = await import("@/lib/takeoff/pdf-text");
+      let planTextLen = 0;
+      for (const f of planFiles) {
+        try {
+          const ex = await extractFile({
+            fileId: f.id as string,
+            fileName: f.file_name as string,
+            fileType: "plan",
+            storagePath: f.storage_url as string,
+            maxPages: 4,
+          });
+          planTextLen += ex.pages.reduce((s, p) => s + (p.text?.trim().length ?? 0), 0);
+        } catch { /* ignore */ }
+      }
+      if (planTextLen < 40) {
+        setVisionOpen(true);
+      } else {
+        setTakeoffOpen(true);
+      }
+    } catch {
+      setTakeoffOpen(true);
+    } finally {
+      setDetecting(false);
+    }
+  }
+
   function openWorkingPlan() {
     navigate({ to: "/review", search: { job: jobId, tab: "working" } });
   }
@@ -343,10 +380,12 @@ function JobDetail() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => setStartChooserOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+                  onClick={detectAndStartTakeoff}
+                  disabled={detecting}
+                  className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-70"
                 >
-                  <Wand2 className="h-4 w-4" /> Start Takeoff
+                  <Wand2 className="h-4 w-4" />
+                  {detecting ? "Analysing…" : "Start Takeoff"}
                 </button>
               )}
               <button
@@ -386,10 +425,9 @@ function JobDetail() {
         {showStartPanel && (
           <div className="mb-6">
             <StartTakeoffPanel
-              jobId={jobId}
-              onAutomatic={() => setTakeoffOpen(true)}
-              onVision={() => setVisionOpen(true)}
+              onStart={detectAndStartTakeoff}
               onWorkingPlan={openWorkingPlan}
+              detecting={detecting}
             />
           </div>
         )}
@@ -519,10 +557,10 @@ function JobDetail() {
                 <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${job?.smw_enabled ? "translate-x-6" : "translate-x-1"}`} />
               </button>
             </div>
-            {job?.smw_enabled && job?.plan_type === "concept" && (
+            {job?.smw_enabled && (
               <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
                 <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                SMW requires detailed plans for accurate output. Using concept plans will produce a partial SMW.
+                SMW output is based on concept plan data and uses Jennian standard allowances where values are not extracted.
               </div>
             )}
           </div>
@@ -558,7 +596,7 @@ function JobDetail() {
             <div>
               <div className="text-[12.5px] font-medium">Elevation & Site Plan</div>
               <div className="text-[11px] text-muted-foreground mt-0.5">
-                Upload elevation and site plan PDFs when creating a concept job to auto-detect cladding, roof type, and concrete areas.
+                Upload elevation and site plan PDFs when creating a job to auto-detect cladding, roof type, and concrete areas.
               </div>
             </div>
           </div>
@@ -643,13 +681,6 @@ function JobDetail() {
           setRuns(r);
           await refreshHasData();
         }}
-      />
-      <StartTakeoffDialog
-        open={startChooserOpen}
-        onOpenChange={setStartChooserOpen}
-        onAutomatic={() => { setStartChooserOpen(false); setTakeoffOpen(true); }}
-        onVision={() => { setStartChooserOpen(false); setVisionOpen(true); }}
-        onWorkingPlan={() => { setStartChooserOpen(false); openWorkingPlan(); }}
       />
       <VisionTakeoffDialog
         open={visionOpen}

@@ -113,20 +113,6 @@ function ReviewPage() {
     toast.success("Quantity updated.");
   }
 
-  async function upgradeToDetailed() {
-    if (!job) return;
-    const { error: jobErr } = await supabase.from("jobs").update({ plan_type: "detailed" }).eq("id", job.id);
-    if (jobErr) { toast.error(jobErr.message); return; }
-    const { error: itemsErr } = await supabase
-      .from("module_items")
-      .update({ value_source: "extracted" })
-      .eq("job_id", job.id)
-      .eq("value_source", "assumed");
-    if (itemsErr) { toast.error(itemsErr.message); return; }
-    setJob({ ...job, plan_type: "detailed" });
-    toast.success("Upgraded to Detailed mode.");
-  }
-
   async function confirmAssumedItem(itemId: string, newValue: string) {
     const { error } = await supabase.from("module_items")
       .update({ approved_value: newValue, value_source: "confirmed", confidence: "high" })
@@ -297,28 +283,18 @@ function ReviewPage() {
           </div>
         )}
 
-        {job.plan_type === "concept" && (
-          <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/8 px-4 py-3 flex items-start justify-between gap-4">
-            <div className="flex items-start gap-2">
-              <Info className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-              <div>
-                <div className="text-[13px] font-semibold text-amber-800">Concept Plan Mode</div>
-                <div className="text-[12px] text-amber-700 mt-0.5">
-                  {moduleItems.filter((i) => i.value_source === "assumed").length} items use Jennian standard allowances.
-                  {job.confidence_score != null && (
-                    <span className="ml-2 font-medium">Extraction confidence: {job.confidence_score}%</span>
-                  )}
-                  {" "}Review the Assumptions tab to confirm or adjust values.
-                </div>
-              </div>
+        {moduleItems.filter((i) => i.value_source === "assumed").length > 0 && (
+          <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/8 px-4 py-3 flex items-start gap-2">
+            <Info className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div className="text-[12px] text-amber-700">
+              <span className="font-semibold">
+                {moduleItems.filter((i) => i.value_source === "assumed").length} items
+              </span>{" "}use Jennian standard allowances.
+              {job.confidence_score != null && (
+                <span className="ml-2 font-medium">Extraction confidence: {job.confidence_score}%</span>
+              )}
+              {" "}Review the Assumptions tab to confirm or adjust values.
             </div>
-            <button
-              type="button"
-              onClick={upgradeToDetailed}
-              className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-[12px] font-medium text-amber-800 hover:bg-amber-500/20"
-            >
-              Upgrade to Detailed
-            </button>
           </div>
         )}
 
@@ -369,16 +345,14 @@ function ReviewPage() {
             <TabsTrigger value="openings">Windows & Doors</TabsTrigger>
             <TabsTrigger value="walls">Internal Walls</TabsTrigger>
             <TabsTrigger value="validation">Validation</TabsTrigger>
-            {job.plan_type === "concept" && (
-              <TabsTrigger value="assumptions">
-                Assumptions
-                {moduleItems.filter((i) => i.value_source === "assumed").length > 0 && (
-                  <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
-                    {moduleItems.filter((i) => i.value_source === "assumed").length}
-                  </span>
-                )}
-              </TabsTrigger>
-            )}
+            <TabsTrigger value="assumptions">
+              Assumptions
+              {moduleItems.filter((i) => i.value_source === "assumed").length > 0 && (
+                <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                  {moduleItems.filter((i) => i.value_source === "assumed").length}
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="base">

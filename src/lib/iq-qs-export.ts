@@ -940,14 +940,12 @@ export async function writeIQDataSheetFull(
 ): Promise<Uint8Array> {
   const wb = XLSX.utils.book_new();
 
-  let planType: string | null = null;
   let confidenceScore: number | null = null;
   let allItems: Array<{ module_id: string; label: string; extracted_value: string | null; approved_value: string | null; unit: string | null; value_source: string | null }> = [];
 
   if (data.jobId) {
-    const jobRes = await supabase.from("jobs").select("plan_type, confidence_score").eq("id", data.jobId).single();
+    const jobRes = await supabase.from("jobs").select("confidence_score").eq("id", data.jobId).single();
     if (jobRes.error) throw new Error(`Failed to load job: ${jobRes.error.message}`);
-    planType = (jobRes.data?.plan_type as string | null) ?? null;
     confidenceScore = (jobRes.data?.confidence_score as number | null) ?? null;
     if (data.moduleItems) {
       allItems = data.moduleItems;
@@ -971,7 +969,6 @@ export async function writeIQDataSheetFull(
     ["Client", data.clientName],
     ["Address", data.address],
     ["Date", new Date().toLocaleDateString("en-NZ")],
-    ["Plan Type", planType ?? "detailed"],
     ...(confidenceScore != null ? [["Confidence Score", `${confidenceScore}%`]] : []),
     [],
   ];
