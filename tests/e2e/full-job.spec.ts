@@ -82,11 +82,16 @@ async function getTakeoffValue(page: Page, label: string): Promise<number | null
 
 async function login(page: Page) {
   await page.goto("/login");
+  // Wait for React to fully hydrate the page before interacting.
+  // Without this, Playwright can click the submit button before React attaches
+  // the onSubmit handler, causing a native GET form submission to /login? instead
+  // of calling supabase.auth.signInWithPassword.
+  await page.waitForLoadState("networkidle");
   await page.locator('input[type="email"]').fill(EMAIL);
   await page.locator('input[type="password"]').fill(PASSWORD);
   await page.locator('button[type="submit"]').click();
   // Wait for redirect — auth state propagation takes a moment
-  await page.waitForURL(/\/jobs/, { timeout: 20_000 });
+  await page.waitForURL(/\/jobs/, { timeout: 30_000 });
 }
 
 // ── concept pipeline ─────────────────────────────────────────────────────────
