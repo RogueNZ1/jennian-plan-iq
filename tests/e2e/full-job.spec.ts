@@ -129,28 +129,33 @@ async function runConceptPipeline(page: Page, spec: PlanSpec) {
   await page.getByPlaceholder("Street, Suburb, City").fill("123 Test Street, Palmerston North");
 
   // ── 5. Submit form → page selection ───────────────────────────────────────
-  // Wait for SSR hydration before submitting — same race condition as login.
-  // Without this the click fires before React attaches the onSubmit handler.
-  await page.waitForLoadState("networkidle");
+  // No waitForLoadState here — the upload page refetches the auto job-number
+  // from Supabase asynchronously and a networkidle wait lets that response
+  // overwrite the test-filled value via React state. The hydration race that
+  // affects the login form is not a risk here because the file-input interaction
+  // (setInputFiles above) forces React to fully mount before we reach this point.
   await page.locator('button[type="submit"]').click();
-  // Wait for page analysis to complete — up to 180 s (Anthropic response is
-  // variable; 90 s was too tight on slower API days).
+
+  // Wait for page analysis to complete.  Use Promise.race on two independent
+  // waitFor calls instead of locator.or().toBeVisible() — the .or() strict-mode
+  // check throws when both buttons are in the DOM simultaneously (which happens
+  // during the auto-confirm transition on high-certainty plans).
   const confirmBtn = page.getByRole("button", { name: /Confirm Selection/i });
   const continueBtn = page.getByRole("button", { name: /^Continue/i });
-  await expect(
-    confirmBtn.or(continueBtn),
-  ).toBeVisible({ timeout: 180_000 });
+  await Promise.race([
+    confirmBtn.waitFor({ state: "visible", timeout: 180_000 }),
+    continueBtn.waitFor({ state: "visible", timeout: 180_000 }),
+  ]);
 
   // ── 6. Confirm page selection ─────────────────────────────────────────────
   // When certainty === "high" the app auto-sets confirmed=true and may advance
-  // before we click.  Try clicking the Confirm button only if it is enabled;
-  // if it is already disabled (auto-confirming) or gone, fall through to
-  // clicking Continue directly.
+  // before we click.  Only click Confirm if it is currently enabled; otherwise
+  // fall straight through to clicking Continue.
   const confirmEnabled = await confirmBtn.isEnabled().catch(() => false);
   if (confirmEnabled) {
     await confirmBtn.click();
   }
-  // Now click Continue (enabled once confirmed — or immediately if auto-advanced)
+  // Click Continue (enabled after manual confirm, or immediately if auto-advanced)
   await expect(continueBtn).toBeEnabled({ timeout: 15_000 });
   await continueBtn.click();
 
