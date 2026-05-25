@@ -65,7 +65,7 @@ export const sendInvitationFn = createServerFn({ method: "POST" })
           last_name: data.lastName,
           full_name: [data.firstName, data.lastName].filter(Boolean).join(" ") || null,
         },
-        redirectTo: `${appUrl}/login`,
+        redirectTo: `${appUrl}/auth/set-password`,
       },
     );
 

@@ -26,6 +26,7 @@ import { Route as ModulesIndexRouteImport } from './routes/modules.index'
 import { Route as JobsIndexRouteImport } from './routes/jobs.index'
 import { Route as ModulesModuleIdRouteImport } from './routes/modules.$moduleId'
 import { Route as JobsJobIdRouteImport } from './routes/jobs.$jobId'
+import { Route as AuthSetPasswordRouteImport } from './routes/auth.set-password'
 import { Route as JobsJobIdExportRouteImport } from './routes/jobs.$jobId_.export'
 
 const UsersRoute = UsersRouteImport.update({
@@ -113,6 +114,11 @@ const JobsJobIdRoute = JobsJobIdRouteImport.update({
   path: '/$jobId',
   getParentRoute: () => JobsRoute,
 } as any)
+const AuthSetPasswordRoute = AuthSetPasswordRouteImport.update({
+  id: '/auth/set-password',
+  path: '/auth/set-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const JobsJobIdExportRoute = JobsJobIdExportRouteImport.update({
   id: '/$jobId_/export',
   path: '/$jobId/export',
@@ -133,6 +139,7 @@ export interface FileRoutesByFullPath {
   '/templates': typeof TemplatesRoute
   '/upload': typeof UploadRoute
   '/users': typeof UsersRoute
+  '/auth/set-password': typeof AuthSetPasswordRoute
   '/jobs/$jobId': typeof JobsJobIdRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
   '/jobs/': typeof JobsIndexRoute
@@ -151,6 +158,7 @@ export interface FileRoutesByTo {
   '/templates': typeof TemplatesRoute
   '/upload': typeof UploadRoute
   '/users': typeof UsersRoute
+  '/auth/set-password': typeof AuthSetPasswordRoute
   '/jobs/$jobId': typeof JobsJobIdRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
   '/jobs': typeof JobsIndexRoute
@@ -172,6 +180,7 @@ export interface FileRoutesById {
   '/templates': typeof TemplatesRoute
   '/upload': typeof UploadRoute
   '/users': typeof UsersRoute
+  '/auth/set-password': typeof AuthSetPasswordRoute
   '/jobs/$jobId': typeof JobsJobIdRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
   '/jobs/': typeof JobsIndexRoute
@@ -194,6 +203,7 @@ export interface FileRouteTypes {
     | '/templates'
     | '/upload'
     | '/users'
+    | '/auth/set-password'
     | '/jobs/$jobId'
     | '/modules/$moduleId'
     | '/jobs/'
@@ -212,6 +222,7 @@ export interface FileRouteTypes {
     | '/templates'
     | '/upload'
     | '/users'
+    | '/auth/set-password'
     | '/jobs/$jobId'
     | '/modules/$moduleId'
     | '/jobs'
@@ -232,6 +243,7 @@ export interface FileRouteTypes {
     | '/templates'
     | '/upload'
     | '/users'
+    | '/auth/set-password'
     | '/jobs/$jobId'
     | '/modules/$moduleId'
     | '/jobs/'
@@ -253,6 +265,7 @@ export interface RootRouteChildren {
   TemplatesRoute: typeof TemplatesRoute
   UploadRoute: typeof UploadRoute
   UsersRoute: typeof UsersRoute
+  AuthSetPasswordRoute: typeof AuthSetPasswordRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -376,6 +389,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JobsJobIdRouteImport
       parentRoute: typeof JobsRoute
     }
+    '/auth/set-password': {
+      id: '/auth/set-password'
+      path: '/auth/set-password'
+      fullPath: '/auth/set-password'
+      preLoaderRoute: typeof AuthSetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/jobs/$jobId_/export': {
       id: '/jobs/$jobId_/export'
       path: '/$jobId/export'
@@ -427,6 +447,7 @@ const rootRouteChildren: RootRouteChildren = {
   TemplatesRoute: TemplatesRoute,
   UploadRoute: UploadRoute,
   UsersRoute: UsersRoute,
+  AuthSetPasswordRoute: AuthSetPasswordRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
