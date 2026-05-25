@@ -46,12 +46,18 @@ const SECURITY_HEADERS = {
   // CSP: lock down script/style origins; allow Supabase + Cloudflare endpoints.
   // The geometry API is now proxied through /api/geometry/* (same-origin), so
   // Railway's URL no longer needs to appear in connect-src.
+  //
+  // blob: is required in script-src + worker-src because pdf.js (pdfjs-dist)
+  // creates Web Workers via blob: URLs for PDF rendering.  It is also required
+  // in img-src because the page-selection thumbnail URLs are created with
+  // URL.createObjectURL() which returns blob: scheme URLs.
   "Content-Security-Policy": [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",   // unsafe-* required by TanStack SSR hydration
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",   // unsafe-* for SSR hydration; blob: for pdf.js workers
+    "worker-src 'self' blob:",                                  // explicit: pdf.js Web Worker
     "style-src 'self' 'unsafe-inline'",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.resend.com",
-    "img-src 'self' data: https:",
+    "img-src 'self' data: blob: https:",                       // blob: for pdf.js page thumbnails
     "font-src 'self' data:",
     "frame-ancestors 'none'",
     "object-src 'none'",
