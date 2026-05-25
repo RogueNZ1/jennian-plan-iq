@@ -129,20 +129,29 @@ async function runConceptPipeline(page: Page, spec: PlanSpec) {
   await page.getByPlaceholder("Street, Suburb, City").fill("123 Test Street, Palmerston North");
 
   // ── 5. Submit form → page selection ───────────────────────────────────────
+  // Wait for SSR hydration before submitting — same race condition as login.
+  // Without this the click fires before React attaches the onSubmit handler.
+  await page.waitForLoadState("networkidle");
   await page.locator('button[type="submit"]').click();
-  // Wait for page analysis to complete — up to 90 s for large PDFs
+  // Wait for page analysis to complete — up to 180 s (Anthropic response is
+  // variable; 90 s was too tight on slower API days).
+  const confirmBtn = page.getByRole("button", { name: /Confirm Selection/i });
+  const continueBtn = page.getByRole("button", { name: /^Continue/i });
   await expect(
-    page.getByRole("button", { name: /Confirm Selection/i }),
-  ).toBeVisible({ timeout: 90_000 });
+    confirmBtn.or(continueBtn),
+  ).toBeVisible({ timeout: 180_000 });
 
   // ── 6. Confirm page selection ─────────────────────────────────────────────
-  // If certainty === "high" the app auto-sets confirmed=true, but we still
-  // need to click "Confirm Selection" if it's not already set.
-  const confirmBtn = page.getByRole("button", { name: /Confirm Selection/i });
-  await confirmBtn.click();
-  // Now click Continue (enabled once confirmed)
-  const continueBtn = page.getByRole("button", { name: /^Continue/i });
-  await expect(continueBtn).toBeEnabled({ timeout: 5_000 });
+  // When certainty === "high" the app auto-sets confirmed=true and may advance
+  // before we click.  Try clicking the Confirm button only if it is enabled;
+  // if it is already disabled (auto-confirming) or gone, fall through to
+  // clicking Continue directly.
+  const confirmEnabled = await confirmBtn.isEnabled().catch(() => false);
+  if (confirmEnabled) {
+    await confirmBtn.click();
+  }
+  // Now click Continue (enabled once confirmed — or immediately if auto-advanced)
+  await expect(continueBtn).toBeEnabled({ timeout: 15_000 });
   await continueBtn.click();
 
   // ── 7. Scale step (may auto-advance for some plans) ──────────────────────
