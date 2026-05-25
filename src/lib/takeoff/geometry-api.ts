@@ -1,11 +1,12 @@
 /**
- * Client for the Jennian IQ Geometry Engine (Railway API).
- * Called from the browser — CORS is open on the API.
+ * Client for the Jennian IQ Geometry Engine.
+ *
+ * Requests go through the same-origin Cloudflare Worker proxy at /api/geometry/*,
+ * which injects the GEOMETRY_API_KEY before forwarding to the Railway service.
+ * The API key is never sent to the browser.
  */
 
-const GEOMETRY_API_BASE =
-  (import.meta.env.VITE_GEOMETRY_API_URL as string | undefined) ||
-  "https://jennian-iq-geometry-api-production.up.railway.app";
+const GEOMETRY_API_BASE = "/api/geometry";
 
 export type GeometryMeasurements = {
   floor_area_m2: number | null;

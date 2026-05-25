@@ -43,12 +43,14 @@ const SECURITY_HEADERS = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
   // Disable features this app doesn't use
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(), interest-cohort=()",
-  // CSP: lock down script/style origins; allow Supabase + Cloudflare endpoints
+  // CSP: lock down script/style origins; allow Supabase + Cloudflare endpoints.
+  // The geometry API is now proxied through /api/geometry/* (same-origin), so
+  // Railway's URL no longer needs to appear in connect-src.
   "Content-Security-Policy": [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval'",   // unsafe-* required by TanStack SSR hydration
     "style-src 'self' 'unsafe-inline'",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://jennian-iq-geometry-api-production.up.railway.app https://api.resend.com",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.resend.com",
     "img-src 'self' data: https:",
     "font-src 'self' data:",
     "frame-ancestors 'none'",
@@ -89,6 +91,8 @@ function applySecurityHeaders(response) {
   });
 }
 
+const GEOMETRY_API_UPSTREAM = "https://jennian-iq-geometry-api-production.up.railway.app";
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -97,6 +101,38 @@ export default {
     // Inject all string-valued bindings so SSR server functions can read them.
     for (const [k, v] of Object.entries(env)) {
       if (typeof v === "string") process.env[k] = v;
+    }
+
+    // ── Geometry API proxy ─────────────────────────────────────────────────────
+    // The browser POSTs to /api/geometry/* (same-origin, key never sent to client).
+    // The worker injects GEOMETRY_API_KEY and forwards to the Railway service.
+    if (url.pathname.startsWith("/api/geometry/")) {
+      const apiKey = env.GEOMETRY_API_KEY;
+      if (!apiKey) {
+        return applySecurityHeaders(new Response("Geometry API not configured", { status: 503 }));
+      }
+      const upstreamPath = url.pathname.replace("/api/geometry", "");
+      const upstreamUrl = GEOMETRY_API_UPSTREAM + upstreamPath + url.search;
+      const proxied = new Request(upstreamUrl, {
+        method: request.method,
+        headers: (() => {
+          const h = new Headers(request.headers);
+          h.set("X-API-Key", apiKey);
+          // Strip host header so Railway doesn't see our Pages domain
+          h.delete("host");
+          return h;
+        })(),
+        body: request.body,
+        // Required to stream the multipart PDF body through
+        duplex: "half",
+      });
+      const upstream = await fetch(proxied);
+      // Rebuild response with security headers (no CORS headers — same-origin proxy)
+      return applySecurityHeaders(new Response(upstream.body, {
+        status: upstream.status,
+        statusText: upstream.statusText,
+        headers: upstream.headers,
+      }));
     }
 
     if (env.ASSETS) {
