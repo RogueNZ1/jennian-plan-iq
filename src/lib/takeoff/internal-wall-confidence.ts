@@ -56,7 +56,10 @@ export function scoreInternalWallConfidence(
   let confidence: InternalWallConfidence;
   if (mainRoomCount >= expected) {
     confidence = "high";
-  } else if (mainRoomCount >= 2) {
+  } else if (mainRoomCount >= 1) {
+    // At least one main room found — partial but not a failure.
+    // "low" is reserved for zero main rooms (all service rooms or OCR
+    // found nothing).
     confidence = "medium";
   } else {
     confidence = "low";

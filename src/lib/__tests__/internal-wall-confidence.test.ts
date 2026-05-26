@@ -79,6 +79,14 @@ describe("scoreInternalWallConfidence — medium confidence", () => {
     // null area → area=0 → expected=3; found=2 → medium
     expect(confidence).toBe("medium");
   });
+
+  it("only 1 main room → medium (1 main room is partial, not a failure)", () => {
+    // 1 main room found; "low" is reserved for 0 main rooms only.
+    // Reflects GJG plans where OCR reads only one dim box legibly.
+    const rooms = [room("MASTER BED"), room("WC")];
+    const { confidence } = scoreInternalWallConfidence(rooms, 135);
+    expect(confidence).toBe("medium");
+  });
 });
 
 describe("scoreInternalWallConfidence — low confidence", () => {
@@ -101,12 +109,6 @@ describe("scoreInternalWallConfidence — low confidence", () => {
     const { confidence, mainRoomCount } = scoreInternalWallConfidence(rooms, 135);
     expect(confidence).toBe("low");
     expect(mainRoomCount).toBe(0);
-  });
-
-  it("only 1 main room → low (threshold is ≥2 for medium)", () => {
-    const rooms = [room("MASTER BED"), room("WC")];
-    const { confidence } = scoreInternalWallConfidence(rooms, 135);
-    expect(confidence).toBe("low");
   });
 });
 
