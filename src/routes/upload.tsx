@@ -1107,9 +1107,29 @@ function UploadPage() {
                     {TAKEOFF_ROWS.map(({ key, label, unit }) => {
                       const val = t[key as keyof TakeoffData];
                       const isNull = val === null || val === undefined;
+                      // Internal wall gets a confidence dot from the geometry API
+                      const iwConf = key === "internal_wall_lm"
+                        ? (geometryResult?.measurements?.internal_wall_confidence ?? null)
+                        : null;
                       return (
                         <tr key={key} className="border-b border-border last:border-0 hover:bg-muted/20">
-                          <td className="px-4 py-2.5 font-medium">{label}</td>
+                          <td className="px-4 py-2.5 font-medium">
+                            {iwConf ? (
+                              <span className="inline-flex items-center gap-2">
+                                {label}
+                                <span
+                                  title={`Internal wall confidence: ${iwConf}`}
+                                  className={`inline-block h-2 w-2 rounded-full ${
+                                    iwConf === "high"
+                                      ? "bg-green-500"
+                                      : iwConf === "medium"
+                                      ? "bg-amber-500"
+                                      : "bg-red-500"
+                                  }`}
+                                />
+                              </span>
+                            ) : label}
+                          </td>
                           <td className="px-4 py-2.5">
                             {isNull ? (
                               <span className="text-amber-500 text-xs font-medium">Not found — enter manually</span>
@@ -1129,6 +1149,16 @@ function UploadPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Internal wall low-confidence warning — only shown when very few room dims found */}
+              {geometryResult?.measurements?.internal_wall_confidence === "low" && (
+                <div className="rounded-lg border border-red-500/30 bg-red-50/5 p-4">
+                  <div className="text-[10.5px] uppercase tracking-[0.14em] font-medium text-red-500 mb-1">Internal wall — manual check required</div>
+                  <p className="text-xs text-muted-foreground">
+                    Very few room dimensions found on this plan — check the internal wall measurement manually.
+                  </p>
+                </div>
+              )}
 
               {t.notes && (
                 <div className="rounded-lg border border-blue-500/20 bg-blue-50/5 p-4">

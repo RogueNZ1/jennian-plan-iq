@@ -13,10 +13,15 @@ export type GeometryMeasurements = {
   perimeter_m: number | null;
   external_wall_length_m: number | null;
   internal_wall_length_m: number | null;
+  /** Confidence in the internal wall length — based on how many main rooms (bed/lounge/kitchen/garage) were found. */
+  internal_wall_confidence: "high" | "medium" | "low" | null;
   garage_area_m2: number | null;
   alfresco_area_m2: number | null;
   stud_height_mm: number | null;
   bounding_box_m: { width: number; height: number } | null;
+  room_count: number;
+  main_room_count: number;
+  rooms: Array<{ label: string; width_m: number; depth_m: number }>;
 };
 
 export type GeometryConfidence = {
