@@ -28,6 +28,9 @@ export function classifyAnnotations(raw: RawAnnotations, context: PlanContext): 
     if (!ann.nearOpening) continue;
     const dim = parseDimension(ann.text, context.dimensionFormat);
     if (!dim) continue;
+    // Room dimension annotations have both dims > 2000mm (e.g. 4300×3600).
+    // Skip them — they are room boxes, not window annotations.
+    if (dim.heightMm > 2000 && dim.widthMm > 2000) continue;
     const room = normaliseRoomName(ann.nearestRoomLabel ?? 'Unknown');
     if (windowsMap[room]) {
       windowsMap[room].qty += 1;

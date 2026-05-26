@@ -436,14 +436,37 @@ function UploadPage() {
 
       // Geometry overrides AI for measurement fields — geometry API is more accurate
       const m = geoResult?.measurements;
+      const geoRooms = m?.rooms ?? [];
+      const geoRoomCount = m?.room_count ?? 0;
+
+      // Cross-reference geometry rooms against AI-extracted room labels.
+      // Geometry rooms come from OCR dimension annotations (NNNNxNNNN, both > 2000mm).
+      // AI rooms come from raw label strings on the floor plan.
+      const aiRoomLabels = (result.takeoffData as any)?.roomLabels as string[] | undefined;
+      const internalWallNotes: string[] = [];
+      if (geoRoomCount > 0 && aiRoomLabels && aiRoomLabels.length > 0) {
+        // Rooms found by geometry but not by AI (unexpected dimensions)
+        if (geoRoomCount > aiRoomLabels.length) {
+          internalWallNotes.push(`Geometry found ${geoRoomCount} room dims; AI found ${aiRoomLabels.length} room labels.`);
+        }
+      } else if (geoRoomCount === 0 && m != null) {
+        internalWallNotes.push("Internal wall: not extracted — no room dimension annotations found in plan.");
+      }
+
       const merged: TakeoffData = {
         ...result.takeoffData,
         ...(m?.floor_area_m2 != null ? { floor_area_m2: m.floor_area_m2 } : {}),
         ...(m?.perimeter_m != null ? { external_wall_lm: m.perimeter_m } : {}),
-        ...(m?.internal_wall_length_m != null ? { internal_wall_lm: m.internal_wall_length_m } : {}),
+        // internal_wall_lm: geometry OCR rooms are the source of truth; null when rooms not found
+        ...(m?.internal_wall_length_m != null
+          ? { internal_wall_lm: m.internal_wall_length_m }
+          : { internal_wall_lm: null }),
         ...(m?.garage_area_m2 != null ? { garage_area_m2: m.garage_area_m2 } : {}),
         ...(m?.alfresco_area_m2 != null ? { alfresco_area_m2: m.alfresco_area_m2 } : {}),
         ...(m?.stud_height_mm != null ? { ceiling_height_m: m.stud_height_mm / 1000 } : {}),
+        ...(internalWallNotes.length > 0
+          ? { notes: [result.takeoffData.notes, ...internalWallNotes].filter(Boolean).join(' ') }
+          : {}),
       };
       setTakeoffData(merged);
       setEditedTakeoff(merged);
