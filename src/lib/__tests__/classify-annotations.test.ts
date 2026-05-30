@@ -133,19 +133,21 @@ describe("classifyAnnotations — areas from areaSummary", () => {
 });
 
 describe("classifyAnnotations — garage door", () => {
-  it("classifies a 4800mm-wide garage door to H176 cell", () => {
+  // Phase 2c (F-003): garage_door_size is now the QS size LABEL ("4.8×2.1"), not the
+  // spreadsheet cell address — the export maps the label to the H176/H178/H180 cell.
+  it("classifies a 4800mm-wide garage door to the 4.8×2.1 (double) size", () => {
     const raw = makeRaw({ garageDoorAnnotations: ["2100x4800"] });
     const result = classifyAnnotations(raw, makeContext({ dimensionFormat: "HEIGHT_x_WIDTH" }));
-    expect(result.garage_door_size).toBe("H176");
+    expect(result.garage_door_size).toBe("4.8×2.1");
   });
 
-  it("classifies a 2700mm wide door", () => {
+  it("classifies a 2700mm wide door to the 2.7×2.1 (single) size", () => {
     const raw = makeRaw({ garageDoorAnnotations: ["2100x2700"] });
     const result = classifyAnnotations(raw, makeContext({ dimensionFormat: "HEIGHT_x_WIDTH" }));
-    expect(result.garage_door_size).toBe("H180");
+    expect(result.garage_door_size).toBe("2.7×2.1");
   });
 
-  it("passes through raw text when width does not match any band", () => {
+  it("passes through raw text when width is too far from any standard (manual review)", () => {
     const raw = makeRaw({ garageDoorAnnotations: ["2100x3500"] });
     const result = classifyAnnotations(raw, makeContext({ dimensionFormat: "HEIGHT_x_WIDTH" }));
     expect(result.garage_door_size).toBe("2100x3500");

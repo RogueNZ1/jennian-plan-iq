@@ -1,7 +1,7 @@
 import type { RawAnnotations } from './extract-annotations';
 import type { PlanContext } from './plan-context';
 import type { TakeoffData, WindowsByRoom } from './takeoff-types';
-import { normaliseRoomName, classifyGarageDoor } from './classify';
+import { normaliseRoomName, classifyGarageDoorAnnotation } from './classify';
 import { round2 } from './utils';
 
 interface ParsedDimension {
@@ -51,16 +51,16 @@ export function classifyAnnotations(raw: RawAnnotations, context: PlanContext): 
   const window_count = Object.values(windows_by_room).reduce((sum, w) => sum + w.qty, 0) || null;
 
   // ── Garage door ──────────────────────────────────────────────────────────────
+  // Classify by the height+width combination (F-003), not a single literal. Garage
+  // doors are normal-height (~2.1m) and identified by width, so the strict NxM
+  // parseDimension used for windows is wrong here — it rejects "2,210 x 4,800" (commas,
+  // spaces) and the no-`x` "4800" form. classifyGarageDoorAnnotation recovers the width
+  // either way and maps it to the canonical QS size label (e.g. "4.8×2.1").
   let garage_door_size: string | null = null;
   const gd = raw.garageDoorAnnotations[0];
   if (gd) {
-    const dim = parseDimension(gd, context.dimensionFormat);
-    if (dim) {
-      const cell = classifyGarageDoor(dim.widthMm);
-      garage_door_size = cell ?? gd;
-    } else {
-      garage_door_size = gd;
-    }
+    const gdClass = classifyGarageDoorAnnotation(gd);
+    garage_door_size = gdClass ? gdClass.label : gd;
   }
 
   // ── Areas ────────────────────────────────────────────────────────────────────

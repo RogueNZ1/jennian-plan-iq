@@ -276,3 +276,72 @@ from 13 and is expected per the brief — reported here for completeness, not gr
   2b scope and logged as a follow-on.
 - **Garage-door classification** (`"2,210 x 4,800"` still passes through unclassified; H176/H178/H180
   banding never fires) is **Phase 2c**, set from this result.
+
+---
+
+## 7. Phase 2c re-baseline — garage-door classification (F-003)
+
+**Mode:** fix/build, small and contained. Last of the original Critical findings.
+**Date:** 2026-05-30. **Branch:** `phase2c`.
+
+### 7.1 The gap
+
+The garage-door annotation is *read* (Beddis prelim: `"2,210 x 4,800"` — width present) but never
+classified. Two root causes in the deterministic Pass 2 (`classify-annotations.ts`):
+
+1. **Format.** Garage door reused the *window* parser `parseDimension` — `/^(\d+)[xX×](\d+)$/`. That
+   regex rejects `"2,210 x 4,800"` (thousands commas + spaces around the separator) **and** the no-`x`
+   `"4800"` form, so the annotation fell straight through as a raw string.
+2. **Discriminator.** Garage doors are **normal door height (~2.1m, rarely taller)** and identified by
+   **width**, not height — confirmed by the QS's own size list (2.4×2.1 / 2.7×2.1 / 4.8×2.1, all 2.1m
+   high). There was no width-band + height-band combination logic; the export's first-number-as-width
+   re-parse also grabbed the height (2210) and binned it as null.
+
+### 7.2 The fix (windows-style: pure + unit-testable)
+
+New `classifyGarageDoorAnnotation(text)` in `src/lib/takeoff/classify.ts`, called from
+`classify-annotations.ts`:
+
+- **Format-independent width recovery.** Strips thousands commas, extracts every number, converts
+  metres → mm. Garage doors are always wider than tall, so the **larger** number is the width and the
+  **smaller** the height; a lone number is the width (height defaults to the standard 2.1m). Handles
+  `"2,210 x 4,800"`, `"4800x2210"`, `"4800"`, `"4.8 x 2.1"` alike.
+- **Combination gate (no false positives).** Classifies only when **width ∈ ~2.4–5.4m** AND
+  **height ∈ a tolerant ~2.0–2.4m band** (covers the 2100 and 2210-style reads; kept tight since a
+  taller garage door is rare). Garage *proximity* is already established upstream — Pass 1 returns the
+  text near the garage-door opening — so the annotation is garage-proximate by construction.
+- **Maps to the QS categories.** Snaps the measured width to the nearest standard (2.4 / 2.7 / 4.8) and
+  emits the canonical label `"4.8×2.1"` + QS cell (H176/H178/H180). The export's existing cell mapping
+  consumes the clean label unchanged.
+
+Generalisation: the 2.1m height is a tolerant **band, never `== 2.1`**; widths are a **range**, not the
+Beddis `4800`/`2681` literals; classification is by the height+width+proximity combination, never a
+literal dimension string. **No Beddis literals in production code** (only the test asserts 4.8×2.1).
+
+Tests: `tests/phase2c/garage-door.test.ts` (12 pure unit tests — comma/space/no-`x`/metre formats,
+the three QS categories, snap-to-nearest, and the combination gate rejecting too-narrow / too-wide /
+too-tall / non-numeric inputs).
+
+### 7.3 Scorecard — prelim (primary) vs truth
+
+| Metric | Prelim (primary) | Truth | Verdict |
+|---|---|---|---|
+| Raw garage annotation | `"2,210 x 4,800"` | — | read OK |
+| **Garage door size** | **4.8×2.1** (H176, double) | 4.8 × 2.1 insulated | ✅ **PASS** |
+| Floor area / ext wall / windows | 165.4 m² / 63.8 lm / 13 | unchanged | ✅ no regression |
+
+`type: "insulated"` is not derivable from the dimensions; the QS export labels the H176 double as
+"4.8×2.1 Insulated" by convention.
+
+### 7.4 Concept (secondary) — reported, not graded
+
+The concept run reads its garage annotation as **`"2 000"`** (≈2.0m, below the ~2.4m garage width band),
+so it stays **unclassified** — correctly *not* a false positive. Concept is not graded for the garage
+door (no clean double-garage callout on that single-page set).
+
+### 7.5 No-regression check
+
+- Phase 1 replay green — McAlevey reads `"6044"` (above the ~5.4m band) → not classified, stays raw
+  `"6044"`, so the golden fixture is byte-identical. Cached-replay deterministic.
+- Phase 2a (page selection) and 2b (window schedule) unchanged; floor/perimeter/window_count identical.
+- 50 offline tests pass (incl. the 12 new 2c tests).

@@ -189,5 +189,11 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
       expect(w.height_m).not.toBeNull();
       expect(w.width_m).not.toBeNull();
     }
+
+    // ── Phase 2c definition of done ───────────────────────────────────────────
+    // The garage door now classifies by the height+width combination instead of
+    // falling through unparsed. Beddis reads "2,210 x 4,800" (double garage) and
+    // must map to the QS double-garage size 4.8×2.1 — matching the answer key.
+    expect(out.prelim.takeoff.garage_door_size).toBe("4.8×2.1");
   }, 600000);
 });

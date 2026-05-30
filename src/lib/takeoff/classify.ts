@@ -247,6 +247,107 @@ export function classifyGarageDoor(widthMm: number): "H176" | "H178" | "H180" | 
   return null;
 }
 
+/**
+ * Garage-door classification by the height + width combination (F-003).
+ *
+ * Domain fact (Haydon, corroborated by the QS): garage doors are normal door
+ * height — ~2.1m, very rarely taller — and are distinguished by WIDTH, not height.
+ * The QS recognises three sizes, all 2.1m high:
+ *   2.4×2.1 (single) · 2.7×2.1 (single) · 4.8×2.1 (double).
+ *
+ * So we classify by the combination, never a single literal:
+ *   - height in a tolerant ~2.0–2.4m band (covers 2100 and 2210-style reads; kept
+ *     tight because a taller garage door is rare, to avoid false positives), AND
+ *   - width in the garage ~2.4–5.4m range (single 2.4/2.7 → double 4.8 + headroom).
+ * Garage proximity is already established upstream: Pass 1 returns the dimension
+ * text *near the garage-door opening* (extract-annotations task #4), so the
+ * annotation fed here is garage-proximate by construction.
+ */
+const GARAGE_HEIGHT_MIN_MM = 2000;
+const GARAGE_HEIGHT_MAX_MM = 2400;
+const GARAGE_WIDTH_MIN_MM = 2400;
+const GARAGE_WIDTH_MAX_MM = 5400;
+const GARAGE_DEFAULT_HEIGHT_MM = 2100;
+/**
+ * How far a measured width may sit from a standard before we refuse to guess. A
+ * width inside the garage band but not near any standard (e.g. 3500mm — 800mm off
+ * 2.7 and 1300mm off 4.8) is genuinely ambiguous: pass it through raw for manual
+ * review rather than snapping it to the wrong door. Tight enough to reject 3500,
+ * loose enough to absorb real read noise (2681→2.7, 4400/4900→4.8).
+ */
+const GARAGE_SNAP_MAX_MM = 600;
+
+/** Standard QS garage widths (mm) → canonical label + QS cell. Measured width snaps to nearest. */
+const GARAGE_STANDARD_WIDTHS: ReadonlyArray<{
+  widthMm: number;
+  label: string;
+  cell: "H176" | "H178" | "H180";
+}> = [
+  { widthMm: 2400, label: "2.4×2.1", cell: "H178" },
+  { widthMm: 2700, label: "2.7×2.1", cell: "H180" },
+  { widthMm: 4800, label: "4.8×2.1", cell: "H176" },
+];
+
+export interface GarageDoorClass {
+  /** Canonical "W×2.1" QS label, e.g. "4.8×2.1". */
+  label: string;
+  widthMm: number;
+  heightMm: number;
+  cell: "H176" | "H178" | "H180";
+}
+
+/**
+ * Pull every dimension number out of an annotation string in millimetres,
+ * tolerant of thousands separators and metre units:
+ *   "2,210 x 4,800" → [2210, 4800]   "4.8 x 2.1" → [4800, 2100]   "4800" → [4800]
+ */
+function parseDimsMm(text: string): number[] {
+  const cleaned = text.replace(/,/g, ""); // thousands separators: "2,210" → "2210"
+  const matches = cleaned.match(/\d+(?:\.\d+)?/g);
+  if (!matches) return [];
+  return matches.map((m) => {
+    const v = parseFloat(m);
+    return v < 100 ? Math.round(v * 1000) : Math.round(v); // metres → mm
+  });
+}
+
+/**
+ * Classify a garage-door annotation regardless of format — with or without an `x`
+ * separator, with or without thousands separators ("2,210 x 4,800", "4800x2210",
+ * "4800", "4.8 x 2.1"). Garage doors are always wider than they are tall, so the
+ * larger number is the width and the smaller is the height; a lone number is the
+ * width (height defaults to the standard 2.1m). Returns null when the dimensions
+ * fall outside the garage band, so non-garage annotations never false-positive.
+ */
+export function classifyGarageDoorAnnotation(text: string): GarageDoorClass | null {
+  const dims = parseDimsMm(text);
+  if (dims.length === 0) return null;
+
+  let widthMm: number;
+  let heightMm: number;
+  if (dims.length === 1) {
+    widthMm = dims[0];
+    heightMm = GARAGE_DEFAULT_HEIGHT_MM;
+  } else {
+    widthMm = Math.max(dims[0], dims[1]);
+    heightMm = Math.min(dims[0], dims[1]);
+  }
+
+  // Combination gate: width in the garage range AND height in the tolerant band.
+  if (widthMm < GARAGE_WIDTH_MIN_MM || widthMm > GARAGE_WIDTH_MAX_MM) return null;
+  if (heightMm < GARAGE_HEIGHT_MIN_MM || heightMm > GARAGE_HEIGHT_MAX_MM) return null;
+
+  // Snap the measured width to the nearest standard QS garage width — but refuse to
+  // guess when it sits too far from every standard (return null → caller keeps the
+  // raw text for manual review).
+  let best = GARAGE_STANDARD_WIDTHS[0];
+  for (const s of GARAGE_STANDARD_WIDTHS) {
+    if (Math.abs(s.widthMm - widthMm) < Math.abs(best.widthMm - widthMm)) best = s;
+  }
+  if (Math.abs(best.widthMm - widthMm) > GARAGE_SNAP_MAX_MM) return null;
+  return { label: best.label, widthMm: best.widthMm, heightMm: GARAGE_DEFAULT_HEIGHT_MM, cell: best.cell };
+}
+
 export function pickWorkingPage(
   classifications: Array<{ fileId: string; fileName: string; pages: ClassifiedPage[] }>,
 ): {
