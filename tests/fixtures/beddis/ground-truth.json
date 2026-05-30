@@ -1,0 +1,26 @@
+{
+  "job": "26001",
+  "name": "Beddis",
+  "address": "20 Tukere Crescent, Lot 50 Tamakuku",
+  "source_of_truth": "Beddis_QS.xlsm — sheet '5. Data Input House'",
+  "note": "Verified answer key. 'Correct' = matches Truth column, not 'matches geometry' and not 'the three layers agree'. Concept and prelim plans both state floor 165.4 / perimeter 63.8 — IQ should return the same from either input.",
+  "truth": {
+    "floor_area_m2": 165.4,
+    "alfresco_area_m2": 1.7,
+    "total_area_m2": 167.1,
+    "perimeter_m": 63.8,
+    "stud_height_m": 2.4,
+    "external_wall_area_m2": 109.2,
+    "window_count": 13,
+    "window_ids": ["W01","W02","W03","W04","W05","W06","W07","W08","W09","W10","W11","W12","W13"],
+    "garage_door": { "width_m": 4.8, "height_m": 2.1, "type": "insulated" },
+    "entrance_door": { "width_m": 2.1, "height_m": 1.4 },
+    "interior_doors": {
+      "standard": 7,
+      "double": 4,
+      "cavity_slider": 2,
+      "total": 13
+    }
+  },
+  "open_question": "internal_wall_length_m has no field in the QS master. Confirm what IQ feeds it into; if nothing in the QS consumes it, it is a diagnostic metric, not a deliverable."
+}

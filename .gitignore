@@ -40,6 +40,15 @@ supabase/.temp/
 # the golden/replay JSON fixtures ARE committed so the offline replay test runs in CI.
 /tests/phase1/__fixtures__/*.b64.txt
 
+# Beddis baseline fixtures — client plan files are potentially sensitive client
+# data + large binaries, and the rendered page images / extracted page text are
+# derived from them. Commit ONLY the machine-readable answer key (ground-truth.json)
+# and the harness; keep the source PDFs/workbook and all derived renders out of git.
+/tests/fixtures/beddis/*.pdf
+/tests/fixtures/beddis/*.xlsm
+/tests/fixtures/beddis/_render/
+/tests/fixtures/beddis/_pagetext/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
