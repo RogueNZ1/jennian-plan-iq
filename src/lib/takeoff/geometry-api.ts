@@ -1,12 +1,19 @@
 /**
  * Client for the Jennian IQ Geometry Engine.
  *
- * Requests go through the same-origin Cloudflare Worker proxy at /api/geometry/*,
- * which injects the GEOMETRY_API_KEY before forwarding to the Railway service.
- * The API key is never sent to the browser.
+ * In production, requests go through the same-origin Cloudflare Worker proxy at
+ * /api/geometry/*, which injects the GEOMETRY_API_KEY before forwarding to the
+ * Railway service. The API key is never sent to the browser.
+ *
+ * For local development, set VITE_GEOMETRY_API_BASE (e.g. http://localhost:8000)
+ * to point the app at a geometry instance running locally via uvicorn. This is a
+ * dev-only override: when unset (production), it defaults to the same-origin
+ * proxy path and never targets the Railway prod endpoint or its secret directly.
  */
 
-const GEOMETRY_API_BASE = "/api/geometry";
+const GEOMETRY_API_BASE =
+  (import.meta.env.VITE_GEOMETRY_API_BASE as string | undefined)?.replace(/\/+$/, "") ||
+  "/api/geometry";
 
 export type GeometryMeasurements = {
   floor_area_m2: number | null;

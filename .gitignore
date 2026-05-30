@@ -36,6 +36,10 @@ supabase/.temp/
 /test-results/
 /playwright-report/
 
+# Phase 1 harness — rendered plan image is derived from the (gitignored) plan PDF;
+# the golden/replay JSON fixtures ARE committed so the offline replay test runs in CI.
+/tests/phase1/__fixtures__/*.b64.txt
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

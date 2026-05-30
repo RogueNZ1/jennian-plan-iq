@@ -19,7 +19,46 @@ function getApiKey(): string {
   return key;
 }
 
+// NOTE: This retry block + callVisionModel are a duplicate of the ones in
+// anthropic-client.ts (see F-019). Kept in sync deliberately, not merged.
+const RETRYABLE_HTTP = new Set([429, 529]);
+const MAX_ATTEMPTS = 3; // 1 initial attempt + up to 2 retries
+const RETRY_BASE_MS = 500;
+
+class TransientApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "TransientApiError";
+  }
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 async function callVisionModel(
+  apiKey: string,
+  systemPrompt: string,
+  userText: string,
+  imageBase64: string,
+): Promise<string> {
+  // Bounded retry (F-001 resilience): a transient 429/529 shouldn't kill a real
+  // job. Retry up to MAX_ATTEMPTS with exponential backoff, then fail loud.
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      return await callVisionModelOnce(apiKey, systemPrompt, userText, imageBase64);
+    } catch (err) {
+      if (!(err instanceof TransientApiError) || attempt === MAX_ATTEMPTS) throw err;
+      const backoffMs = RETRY_BASE_MS * 2 ** (attempt - 1); // 500ms, then 1000ms
+      console.warn(
+        `[callVisionModel] transient error (HTTP ${err.status}) — retry ${attempt}/${MAX_ATTEMPTS - 1} in ${backoffMs}ms`,
+      );
+      await sleep(backoffMs);
+    }
+  }
+  // The loop always returns or throws; this only satisfies the type checker.
+  throw new Error("[callVisionModel] retries exhausted");
+}
+
+async function callVisionModelOnce(
   apiKey: string,
   systemPrompt: string,
   userText: string,
@@ -35,6 +74,10 @@ async function callVisionModel(
     body: JSON.stringify({
       model: ANTHROPIC_MODEL,
       max_tokens: 4000,
+      // Deterministic decoding (F-001): pin temperature so the same plan yields the
+      // same read. This copy feeds extractScaleFactor → scale → geometry, which the
+      // harness must snapshot; leaving it stochastic would poison the fixture.
+      temperature: 0,
       system: systemPrompt,
       messages: [
         {
@@ -55,8 +98,14 @@ async function callVisionModel(
     }),
   });
 
-  if (res.status === 429) throw new Error("AI rate-limited. Please try again in a moment.");
-  if (res.status === 402 || res.status === 529) throw new Error("Anthropic API credits exhausted or overloaded. Contact support.");
+  // 429 (rate-limited) and 529 (overloaded) are transient → retried by the caller.
+  if (RETRYABLE_HTTP.has(res.status)) {
+    throw new TransientApiError(
+      res.status === 429 ? "AI rate-limited." : "Anthropic API overloaded.",
+      res.status,
+    );
+  }
+  if (res.status === 402) throw new Error("Anthropic API credits exhausted. Contact support.");
   if (res.status === 401) throw new Error("ANTHROPIC_API_KEY is invalid or not authorised.");
   if (!res.ok) {
     const text = await res.text().catch(() => "");

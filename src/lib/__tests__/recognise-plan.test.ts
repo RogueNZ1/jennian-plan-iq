@@ -98,3 +98,15 @@ describe("recognisePlan — elevation (auto-stop)", () => {
     expect(ctx.sheetType).not.toBe("dimension_plan");
   });
 });
+
+describe("recognisePlan — fail-loud (F-014)", () => {
+  it("throws (does not return a fallback) when the AI call fails", async () => {
+    mockVision().mockRejectedValue(new Error("AI rate-limited."));
+    await expect(recognisePlan("fake-b64", "floor-plan.pdf")).rejects.toThrow(/rate-limited/i);
+  });
+
+  it("throws (does not return a fallback) when the AI response is not parseable JSON", async () => {
+    mockVision().mockResolvedValue("Sorry, I can't read this plan — not JSON at all.");
+    await expect(recognisePlan("fake-b64", "floor-plan.pdf")).rejects.toThrow(/parse/i);
+  });
+});

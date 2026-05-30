@@ -1,5 +1,5 @@
 import { callVisionModel, getAnthropicApiKey, safeParseJson } from './anthropic-client';
-import { detectBuilder, UNKNOWN_BUILDER } from './builder-config';
+import { detectBuilder } from './builder-config';
 import type { PlanContext, SheetType } from './plan-context';
 
 const VALID_SHEET_TYPES = new Set<SheetType>([
@@ -63,19 +63,9 @@ export async function recognisePlan(
   planImageBase64: string,
   _filename: string,
 ): Promise<PlanContext> {
-  const fallback: PlanContext = {
-    builder: UNKNOWN_BUILDER,
-    scaleString: null,
-    scaleFactor: null,
-    dimensionFormat: 'HEIGHT_x_WIDTH',
-    dimensionFormatSource: 'nz_default',
-    studHeightMm: 2400,
-    studHeightSource: 'nz_default',
-    sheetType: 'unknown',
-    livingAreaM2: null,
-    perimeterM: null,
-  };
-
+  // Fail loud (F-014/F-001): Pass 0 must halt the takeoff on any failure. Returning
+  // a synthetic fallback PlanContext made a degraded run indistinguishable from a
+  // real read and would poison the reproducibility fixture.
   let raw: string;
   try {
     const apiKey = getAnthropicApiKey();
@@ -87,13 +77,12 @@ export async function recognisePlan(
     );
   } catch (err) {
     console.error("[recognisePlan] AI call failed:", err instanceof Error ? err.message : String(err));
-    return fallback;
+    throw err instanceof Error ? err : new Error(String(err));
   }
 
   const parsed = safeParseJson<Partial<ReconResponse>>(raw);
   if (!parsed) {
-    console.error("[recognisePlan] JSON parse failed. Raw:", raw.slice(0, 300));
-    return fallback;
+    throw new Error(`[recognisePlan] Could not parse AI response as JSON. Raw (first 300 chars): ${raw.slice(0, 300)}`);
   }
 
   const builder = detectBuilder(parsed.builderName ?? '');

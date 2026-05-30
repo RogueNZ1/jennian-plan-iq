@@ -24,20 +24,6 @@ export interface RawAnnotations {
   internalDoorAnnotations: Array<{ text: string; nearestRoomLabel: string | null }>;
 }
 
-const EMPTY_ANNOTATIONS: RawAnnotations = {
-  openingAnnotations: [],
-  roomLabels: [],
-  areaSummary: {
-    livingAreaM2: null,
-    garageAreaM2: null,
-    alfrescoAreaM2: null,
-    coverageAreaM2: null,
-    perimeterM: null,
-  },
-  garageDoorAnnotations: [],
-  internalDoorAnnotations: [],
-};
-
 function buildSystemPrompt(context: PlanContext): string {
   const formatLabel = context.dimensionFormat === 'HEIGHT_x_WIDTH' ? 'HEIGHT × WIDTH' : 'WIDTH × HEIGHT';
   const formatSource = context.dimensionFormatSource === 'stated_on_plan'
@@ -109,14 +95,15 @@ export async function extractAnnotations(
       planImageBase64,
     );
   } catch (err) {
+    // Fail loud (F-014/F-001): a failed Pass 1 must halt the takeoff, not return
+    // EMPTY_ANNOTATIONS — an empty-but-plausible result that poisons the fixture.
     console.error("[extractAnnotations] AI call failed:", err instanceof Error ? err.message : String(err));
-    return EMPTY_ANNOTATIONS;
+    throw err instanceof Error ? err : new Error(String(err));
   }
 
   const parsed = safeParseJson<Partial<RawAnnotations>>(raw);
   if (!parsed) {
-    console.error("[extractAnnotations] JSON parse failed. Raw:", raw.slice(0, 300));
-    return EMPTY_ANNOTATIONS;
+    throw new Error(`[extractAnnotations] Could not parse AI response as JSON. Raw (first 300 chars): ${raw.slice(0, 300)}`);
   }
 
   return {
