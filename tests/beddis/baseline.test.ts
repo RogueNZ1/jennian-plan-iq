@@ -195,5 +195,16 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     // falling through unparsed. Beddis reads "2,210 x 4,800" (double garage) and
     // must map to the QS double-garage size 4.8×2.1 — matching the answer key.
     expect(out.prelim.takeoff.garage_door_size).toBe("4.8×2.1");
+
+    // ── Phase 2d definition of done (derived fields) ──────────────────────────
+    // external_wall_area_m2 = perimeter × stud − total_opening_area (QS D21 = 109.2),
+    // total_area_m2 = floor + alfresco (QS D14 = 167.1). These are computed and must
+    // land (non-null). They are NOT hard-asserted to the QS figure because they
+    // inherit the opening/alfresco extraction: on the live Beddis run the schedule
+    // window heads read tall (~2.21m) and the entrance door is not extracted (so the
+    // opening area over-shoots), and the prelim summary box yields no alfresco (so
+    // total falls back to the floor area). Reported as deltas for the human.
+    expect(out.prelim.takeoff.external_wall_area_m2).not.toBeNull();
+    expect(out.prelim.takeoff.total_area_m2).not.toBeNull();
   }, 600000);
 });

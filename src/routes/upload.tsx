@@ -562,8 +562,10 @@ function UploadPage() {
       headers,
       ["Floor area",          n(t.floor_area_m2),       "m²",    "Habitable, excluding garage"],
       ["Garage area",         n(t.garage_area_m2),      "m²",    ""],
-      ["Alfresco / deck area",n(t.alfresco_area_m2),    "m²",    ""],
+      ["Alfresco / deck area",n(t.alfresco_area_m2),    "m²",    "Low confidence — confirm vs QS"],
+      ["Total area incl alfresco",n(t.total_area_m2 ?? null),   "m²",    "Floor + alfresco"],
       ["External wall length",n(t.external_wall_lm),    "lm",    ""],
+      ["External wall area",  n(t.external_wall_area_m2 ?? null),"m²",   "Perimeter × stud − openings"],
       ["Internal wall length",n(t.internal_wall_lm),    "lm",    ""],
       ["Roof area",           n(t.roof_area_m2),        "m²",    ""],
       ["Windows",             n(t.window_count),        "count", ""],
@@ -717,9 +719,11 @@ function UploadPage() {
     qlbl("A11", "② CORE MEASUREMENTS", iqSection);
     qlbl("A12", "Floor Area (m²)");          qval("D12", t.floor_area_m2    ?? undefined);
     qlbl("A13", "Alfresco Area (m²)");       qval("D13", t.alfresco_area_m2 ?? undefined);
+    qlbl("A14", "Total Area incl Alfresco (m²)"); qval("D14", t.total_area_m2 ?? undefined);
     qlbl("A15", "Perimeter (lm)");           qval("D15", t.external_wall_lm ?? undefined);
     qlbl("A19", "External Wall Length (lm)");qval("D19", t.external_wall_lm ?? undefined);
     qlbl("A20", "External Wall Height (m)"); wsQS["D20"] = { v: round2(t.ceiling_height_m ?? 2.4) ?? 2.4, t: "n", s: iqYellow };
+    qlbl("A21", "External Wall Area (m²)");  qval("D21", t.external_wall_area_m2 ?? undefined);
 
     // Rows match "5. Data Input House " sheet: D=qty, E=height, F=width. C (cladding type 1/2) = gap, fill in QS.
     qlbl("A38", "③ WINDOWS & OPENINGS", iqSection);
@@ -1491,7 +1495,9 @@ const TAKEOFF_ROWS: { key: keyof TakeoffData; label: string; unit: string }[] = 
   { key: "floor_area_m2",        label: "Floor area",          unit: "m²" },
   { key: "garage_area_m2",       label: "Garage area",         unit: "m²" },
   { key: "alfresco_area_m2",     label: "Alfresco / deck",     unit: "m²" },
+  { key: "total_area_m2",        label: "Total area incl alfresco", unit: "m²" },
   { key: "external_wall_lm",     label: "External wall",       unit: "lm" },
+  { key: "external_wall_area_m2",label: "External wall area",  unit: "m²" },
   { key: "internal_wall_lm",     label: "Internal wall",       unit: "lm" },
   { key: "roof_area_m2",         label: "Roof area",           unit: "m²" },
   { key: "window_count",         label: "Windows",             unit: "count" },

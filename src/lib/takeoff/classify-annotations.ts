@@ -2,6 +2,7 @@ import type { RawAnnotations } from './extract-annotations';
 import type { PlanContext } from './plan-context';
 import type { TakeoffData, WindowsByRoom } from './takeoff-types';
 import { normaliseRoomName, classifyGarageDoorAnnotation } from './classify';
+import { computeOpeningAreaM2, computeExternalWallAreaM2, computeTotalAreaM2 } from './derive-fields';
 import { round2 } from './utils';
 
 interface ParsedDimension {
@@ -87,6 +88,26 @@ export function classifyAnnotations(raw: RawAnnotations, context: PlanContext): 
   const perimeterM = s.perimeterM ?? context.perimeterM;
   const external_wall_lm = round2(perimeterM);
 
+  // ── Derived QS fields (Phase 2d) ───────────────────────────────────────────────
+  // Stud height = the takeoff value (2.4), not a raw OCR read (2.42) — the QS uses
+  // the rounded stud. ceiling_height_m is exactly that value.
+  const ceiling_height_m = round2(context.studHeightMm / 1000);
+  // Opening area from the floor-plan callouts + garage door. When a Door & Window
+  // Schedule is later reconciled (Phase 2b), applyWindowAggregate RE-derives the
+  // external wall area from the canonical schedule window set.
+  const opening_area_m2 = computeOpeningAreaM2({
+    windowsByRoom: Object.keys(windows_by_room).length > 0 ? windows_by_room : null,
+    garageDoorSize: garage_door_size,
+  });
+  const external_wall_area_m2 = computeExternalWallAreaM2(perimeterM, ceiling_height_m, opening_area_m2);
+  const total_area_m2 = computeTotalAreaM2(floor_area, alfresco_area);
+
+  // Alfresco is a known-fuzzy read (QS-side number doesn't always equal the plan's
+  // printed porch). Flag it low-confidence for human confirm when present.
+  const notes = alfresco_area !== null
+    ? 'alfresco_area_m2 read from the porch/alfresco label — low confidence; confirm against QS.'
+    : '';
+
   // ── Roof area (1.15× floor area as default — no pitch data at this stage) ──
   const roof_area_m2 = floor_area !== null ? round2(floor_area * 1.15) : null;
 
@@ -104,11 +125,13 @@ export function classifyAnnotations(raw: RawAnnotations, context: PlanContext): 
     ensuite_count,
     laundry_count,
     kitchen_count,
-    ceiling_height_m: round2(context.studHeightMm / 1000),
+    ceiling_height_m,
     foundation_type: null,
     windows_by_room: Object.keys(windows_by_room).length > 0 ? windows_by_room : null,
     door_breakdown: null,
     garage_door_size,
-    notes: '',
+    notes,
+    external_wall_area_m2,
+    total_area_m2,
   };
 }

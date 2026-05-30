@@ -173,6 +173,50 @@ describe("classifyAnnotations — internal door count", () => {
   });
 });
 
+describe("classifyAnnotations — derived fields (Phase 2d)", () => {
+  it("derives external wall area = perimeter × stud − openings (callout path)", () => {
+    const raw = makeRaw({
+      openingAnnotations: [
+        { text: "2000x2000", nearestRoomLabel: "KITCHEN", nearOpening: true }, // 2.0×2.0 = 4.0
+      ],
+      garageDoorAnnotations: ["2100x4800"], // → 4.8×2.1 = 10.08
+      areaSummary: { livingAreaM2: null, garageAreaM2: null, alfrescoAreaM2: null, coverageAreaM2: null, perimeterM: 50 },
+    });
+    // opening area = 4.0 + 10.08 = 14.08; ext wall = 50 × 2.4 − 14.08 = 105.92
+    const result = classifyAnnotations(raw, makeContext({ studHeightMm: 2400 }));
+    expect(result.external_wall_area_m2).toBe(105.92);
+  });
+
+  it("derives total area = floor + alfresco", () => {
+    const raw = makeRaw({
+      areaSummary: { livingAreaM2: 165.4, garageAreaM2: null, alfrescoAreaM2: 1.7, coverageAreaM2: null, perimeterM: null },
+    });
+    const result = classifyAnnotations(raw, makeContext());
+    expect(result.total_area_m2).toBe(167.1);
+  });
+
+  it("falls back to floor area for total when alfresco is not read", () => {
+    const raw = makeRaw({
+      areaSummary: { livingAreaM2: 170.79, garageAreaM2: null, alfrescoAreaM2: null, coverageAreaM2: null, perimeterM: null },
+    });
+    const result = classifyAnnotations(raw, makeContext());
+    expect(result.total_area_m2).toBe(170.79);
+  });
+
+  it("flags alfresco low-confidence in notes when read", () => {
+    const raw = makeRaw({
+      areaSummary: { livingAreaM2: 165.4, garageAreaM2: null, alfrescoAreaM2: 1.7, coverageAreaM2: null, perimeterM: null },
+    });
+    const result = classifyAnnotations(raw, makeContext());
+    expect(result.notes).toContain("low confidence");
+  });
+
+  it("nulls external wall area when perimeter is unknown", () => {
+    const result = classifyAnnotations(makeRaw(), makeContext({ perimeterM: null }));
+    expect(result.external_wall_area_m2).toBeNull();
+  });
+});
+
 describe("classifyAnnotations — room counts from roomLabels", () => {
   it("counts bathrooms", () => {
     const raw = makeRaw({ roomLabels: ["MASTER BED", "BATHROOM", "ENSUITE"] });

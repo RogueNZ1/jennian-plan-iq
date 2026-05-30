@@ -345,3 +345,61 @@ door (no clean double-garage callout on that single-page set).
   `"6044"`, so the golden fixture is byte-identical. Cached-replay deterministic.
 - Phase 2a (page selection) and 2b (window schedule) unchanged; floor/perimeter/window_count identical.
 - 50 offline tests pass (incl. the 12 new 2c tests).
+
+---
+
+## 8. Phase 2d re-baseline — derived fields (ext wall area D21 + total area D14)
+
+### 8.1 What was missing
+
+Three QS fields were never computed. Two are pure arithmetic on values IQ already holds:
+
+- **External wall area** (QS **D21**) = `perimeter × stud_height − total_opening_area`.
+  Hand-validated on both jobs: Beddis `63.8 × 2.4 − 43.92 = 109.2`; Harrison `60.4 × 2.4 − 46.89 = 98.07`.
+- **Total area** (QS **D14**) = `floor_area + alfresco_area`.
+  Beddis `165.4 + 1.7 = 167.1`; Harrison `170.79 + 1.2 = 171.99`.
+
+### 8.2 The fix
+
+- New pure module `src/lib/takeoff/derive-fields.ts` — literal-free, no per-job constants:
+  `computeOpeningAreaM2`, `computeExternalWallAreaM2`, `computeTotalAreaM2`.
+- `classifyAnnotations` computes both fields (the floor-plan-callout path, used by Harrison).
+- `applyWindowAggregate` **re-derives** the ext wall area once the canonical Door & Window
+  Schedule window set is known (the scheduled path, used by Beddis — the callouts it saw were empty).
+- Stud height = the **takeoff** value (`ceiling_height_m`, 2.4), never a raw OCR 2.42 (which overshoots).
+- Gable ends excluded by construction (`perimeter × stud` is the rectangular wall area).
+- Alfresco read tightened (extract prompt): match **porch / alfresco / covered-entry** labels only,
+  reject patio / deck / driveway / paving. Flagged **low-confidence** in `notes` for human confirm.
+- Export wired: QS **D14** (total area) + **D21** (ext wall area); summary table + UI rows updated.
+
+### 8.3 Scorecard — Beddis prelim (computed from the last live extraction)
+
+| Field | IQ | QS truth | Δ | Status |
+|---|---|---|---|---|
+| Opening area (13 sched windows + garage) | 48.83 m² | 43.92 m² (incl. entrance) | +4.91 | inherits extraction |
+| **External wall area** (D21) | **104.29 m²** | 109.2 m² | −4.91 | ⚠️ formula exact; openings over-read |
+| **Total area** (D14) | **165.4 m²** | 167.1 m² | −1.70 | ⚠️ alfresco not read on prelim box |
+
+The formula is exact — the deltas are **inherited from the openings/alfresco feeding it**, exactly as the
+brief anticipated ("only as good as the opening extraction"):
+
+- **Ext wall −4.91:** the live schedule reads several window heads tall (~2.21 m), so the summed opening
+  area (48.83) over-shoots the QS 43.92; the missing entrance door (which the QS folds in) does not
+  offset it. Both are Pass-1 / schedule extraction issues, out of scope for 2d.
+- **Total −1.70:** the prelim summary box yields no alfresco (`alfresco_area_m2 = null`), so total falls
+  back to the floor area. The clean alfresco read is the known-fuzzy field (graded vs the plan print,
+  not forced to the QS).
+
+### 8.4 Deterministic proof (unit tests)
+
+The formulas land **exactly** on both jobs with correct openings — pinned in `tests/phase2d/derive-fields.test.ts`:
+`computeExternalWallAreaM2(63.8, 2.4, 43.92) === 109.2`, `(60.4, 2.4, 46.89) === 98.07`;
+`computeTotalAreaM2(165.4, 1.7) === 167.1`, `(170.79, 1.2) === 171.99`; plus the opening-area sum,
+schedule-over-callout precedence, the 2.42-overshoot guard, and gable-exclusion.
+
+### 8.5 No-regression check
+
+- Phase 1 replay green — golden regenerated to carry the two new fields (McAlevey ext wall
+  `54.8 × 2.4 − 13.41 = 118.11`, total `136.3`); deterministic.
+- Phases 2a / 2b / 2c unchanged; garage still 4.8×2.1; window_count 13; floor/perimeter identical.
+- Full offline suite **294 passed / 3 skipped**.

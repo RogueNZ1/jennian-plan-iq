@@ -147,10 +147,12 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     const t = out.concept.takeoff;
     out.concept.scorecard = t && {
       floor_area_m2: { got: t.floor_area_m2, truth: TRUTH.floor_area_m2, delta: delta(t.floor_area_m2, TRUTH.floor_area_m2) },
-      // external_wall_lm is what the takeoff produces (linear metres). The QS truth
-      // is the DERIVED area 98.07 m² = perimeter × stud − openings — out of scope for
-      // the takeoff phase; recorded here for the human, not asserted.
-      external_wall_lm: { got: t.external_wall_lm, truth_derived_area_m2: TRUTH.external_wall_area_m2 },
+      external_wall_lm: { got: t.external_wall_lm, truth_perimeter_m: TRUTH.perimeter_m },
+      // Derived (Phase 2d). ext wall area = perimeter × stud − openings (QS D21);
+      // total area = floor + alfresco (QS D14). Reported with deltas — inherits the
+      // opening/alfresco extraction, so not hard-asserted to the QS figure.
+      external_wall_area_m2: { got: t.external_wall_area_m2 ?? null, truth: TRUTH.external_wall_area_m2, delta: delta(t.external_wall_area_m2 ?? null, TRUTH.external_wall_area_m2) },
+      total_area_m2: { got: t.total_area_m2 ?? null, truth: TRUTH.total_area_m2, delta: delta(t.total_area_m2 ?? null, TRUTH.total_area_m2) },
       window_count: { got: t.window_count, truth_plan_callouts: TRUTH.window_count_plan_callouts, windows_proper: TRUTH.windows_proper_count },
       garage_door_size: { got: t.garage_door_size, truth: `${TRUTH.garage_door.width_m}×${TRUTH.garage_door.height_m}` },
       internal_door_count: { got: t.internal_door_count, truth_standard: TRUTH.interior_doors.standard, note: "plan may show doubles (2/710, 2/610); QS simplified to 7/0/0 — report, do not tune" },

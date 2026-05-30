@@ -42,4 +42,17 @@ export type TakeoffData = {
    * when present it is the authoritative source for window_count + dimensions.
    */
   windows_schedule?: ScheduleWindowEntry[] | null;
+  /**
+   * Derived (Phase 2d). External wall AREA in m² (QS cell D21) =
+   * perimeter × stud_height − total_opening_area, gable ends excluded. Distinct
+   * from external_wall_lm (the perimeter in linear metres). Optional so existing
+   * TakeoffData literals are unaffected.
+   */
+  external_wall_area_m2?: number | null;
+  /**
+   * Derived (Phase 2d). Total floor area incl. alfresco in m² (QS cell D14) =
+   * floor_area + alfresco_area. Optional so existing TakeoffData literals are
+   * unaffected.
+   */
+  total_area_m2?: number | null;
 };

@@ -16,6 +16,7 @@
  */
 import type { TakeoffData, WindowsByRoom, ScheduleWindowEntry } from "./takeoff-types";
 import type { ScheduleWindow, WindowScheduleData } from "./extract-window-schedule";
+import { computeOpeningAreaM2, computeExternalWallAreaM2 } from "./derive-fields";
 import { round2 } from "./utils";
 
 export interface WindowAggregate {
@@ -75,5 +76,20 @@ export function applyWindowAggregate(takeoff: TakeoffData, agg: WindowAggregate)
     height_m: mmToM(w.heightMm),
     width_m: mmToM(w.widthMm),
   }));
-  return { ...takeoff, window_count: agg.window_count, windows_schedule };
+
+  // Re-derive the external wall area (Phase 2d) now that the canonical schedule
+  // window set is known — the floor-plan callouts classifyAnnotations saw were
+  // partial/empty on a scheduled job. Stud = the takeoff's ceiling_height_m (2.4),
+  // perimeter = external_wall_lm; both already on the takeoff.
+  const opening_area_m2 = computeOpeningAreaM2({
+    windowsSchedule: windows_schedule,
+    garageDoorSize: takeoff.garage_door_size,
+  });
+  const external_wall_area_m2 = computeExternalWallAreaM2(
+    takeoff.external_wall_lm,
+    takeoff.ceiling_height_m,
+    opening_area_m2,
+  );
+
+  return { ...takeoff, window_count: agg.window_count, windows_schedule, external_wall_area_m2 };
 }

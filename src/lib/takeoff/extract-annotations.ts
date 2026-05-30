@@ -54,7 +54,12 @@ YOUR TASK — read and return only, do not interpret:
 
 2. ROOM LABELS: List every room label text exactly as written (e.g. "MASTER BED", "BED 2", "KITCHEN")
 
-3. AREA SUMMARY: Read numbers from any summary/statistics box
+3. AREA SUMMARY: Read numbers from any summary/statistics box.
+   - alfrescoAreaM2: the small COVERED PORCH / ALFRESCO / COVERED ENTRY area only
+     (typically under ~5 m², a label like "PORCH 1.7m²" or "Alfresco 1.3m²"). Do NOT
+     use patio, deck, driveway, paving or concrete areas — those are larger paved
+     areas (e.g. "Patio 22.20m²") and are NOT the alfresco. If only a patio/paving
+     area is shown and no covered porch/alfresco, return null.
 
 4. GARAGE DOOR: Return dimension text near the garage door opening
 
