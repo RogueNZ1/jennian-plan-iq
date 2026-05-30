@@ -2,6 +2,13 @@ export type WindowsByRoom = {
   [room: string]: { qty: number; height_m: number; width_m: number };
 };
 
+/** A single window read from the Door & Window Schedule (Phase 2b). */
+export type ScheduleWindowEntry = {
+  id: string;
+  height_m: number | null;
+  width_m: number | null;
+};
+
 export type DoorBreakdown = {
   standard: number;
   cavity_sliders: number;
@@ -29,4 +36,10 @@ export type TakeoffData = {
   door_breakdown: DoorBreakdown | null;
   garage_door_size: string | null;
   notes: string;
+  /**
+   * Canonical window list from the Door & Window Schedule (Phase 2b), when a
+   * schedule page was read. Optional so existing TakeoffData literals are unaffected;
+   * when present it is the authoritative source for window_count + dimensions.
+   */
+  windows_schedule?: ScheduleWindowEntry[] | null;
 };

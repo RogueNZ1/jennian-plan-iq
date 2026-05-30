@@ -13,14 +13,15 @@ import { toast } from "sonner";
 import { renderPdfThumbnail } from "@/lib/pdf-thumbnail";
 import { seedAllModulesForJob } from "@/lib/iq-modules";
 import {
-  analyzePdfPages, pickPrimaryFloorplan, disposePageAnalyses, renderPageForAnalysis,
+  analyzePdfPages, pickPrimaryFloorplan, pickWindowSchedule, disposePageAnalyses, renderPageForAnalysis,
   PAGE_TYPE_LABEL, CONFIDENCE_LABEL,
   type PageAnalysis, type PageConfidence,
 } from "@/lib/pdf-pages";
 import {
-  extractScaleFactor, checkPlanIssues, extractConceptTakeoffs,
+  extractScaleFactor, checkPlanIssues, extractConceptTakeoffs, extractWindowScheduleFn,
   type ScaleResult, type PlanIssue, type TakeoffData, type ConceptTakeoffResult,
 } from "@/lib/takeoff/concept.functions";
+import { aggregateWindows, applyWindowAggregate } from "@/lib/takeoff/aggregate-windows";
 import type { PlanContext } from "@/lib/takeoff/plan-context";
 import { measurePlanGeometry, overallConfidence, type GeometryApiResult } from "@/lib/takeoff/geometry-api";
 import * as XLSX from "xlsx";
@@ -416,14 +417,24 @@ function UploadPage() {
       const elevBlobP = elevFile ? renderPageForAnalysis(elevFile.file, 1).catch(() => null) : Promise.resolve(null);
       const siteBlobP = siteFile ? renderPageForAnalysis(siteFile.file, 1).catch(() => null) : Promise.resolve(null);
 
+      // Phase 2b — locate the Door & Window Schedule page within the SAME plan PDF
+      // (page selection already classified every page). The schedule is the canonical
+      // window source, read alongside the primary floor plan. Render its page now.
+      const schedulePick = pickWindowSchedule(pageAnalyses);
+      const scheduleBlobP =
+        schedulePick && planFile
+          ? renderPageForAnalysis(planFile, pageAnalyses[schedulePick.index]?.pageNumber ?? 0).catch(() => null)
+          : Promise.resolve(null);
+
       // Run AI extraction and geometry measurement in parallel
-      const [result, geoResult, elevBlob, siteBlob] = await Promise.all([
+      const [result, geoResult, elevBlob, siteBlob, scheduleBlob] = await Promise.all([
         extractConceptTakeoffs({ data: { imageBase64: b64, filename: planFile?.name ?? "plan.jpg" } }) as Promise<ConceptTakeoffResult>,
         planFile
           ? measurePlanGeometry(planFile, planFile.name).catch(() => null)
           : Promise.resolve(null),
         elevBlobP,
         siteBlobP,
+        scheduleBlobP,
       ]);
 
       setGeometryResult(geoResult);
@@ -468,11 +479,24 @@ function UploadPage() {
           ? { notes: [result.takeoffData.notes, ...internalWallNotes].filter(Boolean).join(' ') }
           : {}),
       };
-      setTakeoffData(merged);
-      setEditedTakeoff(merged);
+
+      const builderName = result.planContext?.builder?.name ?? "Jennian Homes";
+
+      // Phase 2b — read the Door & Window Schedule (if found) and reconcile windows.
+      // The schedule is canonical for the window set (count + dims); the floor-plan
+      // callouts are the fallback when no schedule page exists. Fails soft.
+      const schedule = scheduleBlob
+        ? await blobToBase64(scheduleBlob)
+            .then((sb64) => extractWindowScheduleFn({ data: { imageBase64: sb64, builderName } }))
+            .catch(() => null)
+        : null;
+      const windowAggregate = aggregateWindows(schedule, merged.windows_by_room);
+      const mergedWithWindows = applyWindowAggregate(merged, windowAggregate);
+
+      setTakeoffData(mergedWithWindows);
+      setEditedTakeoff(mergedWithWindows);
 
       // Run elevation and site plan extractions in parallel (non-blocking)
-      const builderName = result.planContext?.builder?.name ?? "Jennian Homes";
       const [elev, site] = await Promise.all([
         elevBlob
           ? blobToBase64(elevBlob).then((b64) =>
@@ -488,7 +512,7 @@ function UploadPage() {
 
       setElevationData(elev);
       setSitePlanData(site);
-      const xref = crossReference(merged, elev, site);
+      const xref = crossReference(mergedWithWindows, elev, site);
       setCrossRefResult(xref);
       if (xref.warnings.length > 0) {
         xref.warnings.forEach((w) => toast.warning(w, { duration: 7000 }));

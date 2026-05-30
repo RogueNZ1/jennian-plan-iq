@@ -24,6 +24,7 @@ export {
   classifyText,
   scoreFor,
   pickPrimaryFloorplan,
+  pickWindowSchedule,
   type ScoredPage,
 } from "./pdf-page-classify";
 

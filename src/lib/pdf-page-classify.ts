@@ -25,6 +25,7 @@ export type PageType =
   | "roofing"
   | "legends"
   | "details"
+  | "window_schedule"
   | "unknown";
 
 export type PageConfidence = "high" | "mid" | "low";
@@ -40,6 +41,7 @@ export const PAGE_TYPE_LABEL: Record<PageType, string> = {
   roofing:              "Roofing",
   legends:              "Legends",
   details:              "Details",
+  window_schedule:      "Door & Window Schedule",
   unknown:              "Unknown",
 };
 
@@ -56,6 +58,11 @@ export const CONFIDENCE_LABEL: Record<PageConfidence, string> = {
  * floor-plan sheet reliably carries the area summary + window schedule the takeoff
  * reads, whereas a dimension-only overlay sheet often does not. The remaining order
  * is unchanged.
+ *
+ * Phase 2b: window_schedule is a strongly-negative score so it can NEVER win the
+ * primary-floorplan pick (the floor plan stays primary for core measurements). The
+ * schedule page is located separately via pickWindowSchedule and read as an
+ * additional window source.
  */
 export const FLOORPLAN_SCORE: Record<PageType, number> = {
   floor_plan:           100,
@@ -67,6 +74,7 @@ export const FLOORPLAN_SCORE: Record<PageType, number> = {
   plumbing:             -25,
   electrical:           -30,
   sections:             -40,
+  window_schedule:      -45,
   elevations:           -50,
   legends:              -60,
 };
@@ -82,6 +90,11 @@ export function classifyText(
 ): { type: PageType; confidence: PageConfidence } {
   const t = text.toLowerCase();
   const has = (s: string) => t.includes(s);
+  // Whitespace-normalised copy so multi-word titles match whether the PDF text
+  // layer joins runs with spaces (pdfjs) or newlines (poppler). Used for phrase
+  // detection only; `t`/`has` keep 2a behaviour unchanged.
+  const tn = t.replace(/\s+/g, " ");
+  const hasPhrase = (s: string) => tn.includes(s);
 
   // Floorplan family FIRST (Phase 2a). An explicit floor-plan sheet must win even
   // when the page also contains incidental disqualifier words ("elevation" in a
@@ -100,6 +113,22 @@ export function classifyText(
       return { type: "dimension_floor_plan", confidence: "high" };
     }
     return { type: "floor_plan", confidence: "high" };
+  }
+
+  // Door & Window Schedule (Phase 2b). Checked before legends because the schedule
+  // sheet also carries a "Legend:" block and glazing notes that would otherwise bin
+  // it as legends (the Beddis A501 page scored "legends" pre-2b). This is the
+  // authoritative window source; it is read alongside the primary floor plan, never
+  // as the primary (FLOORPLAN_SCORE keeps it negative).
+  if (
+    hasPhrase("door & window schedule") ||
+    hasPhrase("door and window schedule") ||
+    hasPhrase("window & door schedule") ||
+    hasPhrase("window and door schedule") ||
+    hasPhrase("window schedule") ||
+    hasPhrase("joinery schedule")
+  ) {
+    return { type: "window_schedule", confidence: "high" };
   }
 
   // Strong negatives — title-heavy disqualifiers (only when this is NOT an explicit
@@ -181,4 +210,28 @@ export function pickPrimaryFloorplan(pages: readonly ScoredPage[]): {
   else if (isDim || isFloor) certainty = "mid";
 
   return { index: top.i, certainty };
+}
+
+/**
+ * Pick the Door & Window Schedule page index, or null if the set has none.
+ *
+ * Phase 2b — the schedule is read as an *additional* window source alongside the
+ * primary floor plan (which pickPrimaryFloorplan selects independently). It is
+ * deliberately separate from primary selection: the schedule never replaces the
+ * floor plan for core measurements, it only supplies the canonical window list.
+ * Picks the highest-confidence schedule page when several are present.
+ */
+export function pickWindowSchedule(pages: readonly ScoredPage[]): { index: number } | null {
+  const CONF_RANK: Record<PageConfidence, number> = { high: 2, mid: 1, low: 0 };
+  let bestIndex = -1;
+  let bestRank = -1;
+  for (let i = 0; i < pages.length; i++) {
+    if (pages[i].pageType !== "window_schedule") continue;
+    const rank = CONF_RANK[pages[i].confidence];
+    if (rank > bestRank) {
+      bestRank = rank;
+      bestIndex = i;
+    }
+  }
+  return bestIndex >= 0 ? { index: bestIndex } : null;
 }

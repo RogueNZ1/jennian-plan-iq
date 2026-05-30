@@ -25,8 +25,11 @@ import {
   classifyText,
   scoreFor,
   pickPrimaryFloorplan,
+  pickWindowSchedule,
   type ScoredPage,
 } from "../../src/lib/pdf-page-classify";
+import { readWindowSchedule } from "../../src/lib/takeoff/extract-window-schedule";
+import { aggregateWindows, applyWindowAggregate } from "../../src/lib/takeoff/aggregate-windows";
 
 const DIR = resolve(process.cwd(), "tests/fixtures/beddis");
 const RENDER = resolve(DIR, "_render");
@@ -106,10 +109,27 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
       const rawAnn = await extractAnnotations(b64(`prelim-${page}.jpg`), ctx);
       const takeoff = classifyAnnotations(rawAnn, ctx);
       out.prelim.chosen_page = page;
-      out.prelim.takeoff = takeoff;
       out.prelim.raw_window_annotations = rawAnn.openingAnnotations.length;
       out.prelim.raw_internal_door_annotations = rawAnn.internalDoorAnnotations.length;
       out.prelim.raw_garage_door_annotations = rawAnn.garageDoorAnnotations;
+
+      // ── Phase 2b: read the Door & Window Schedule as an *additional* window
+      // source, then reconcile (schedule wins the canonical window set). The
+      // primary floor plan above is untouched — this only supplies windows.
+      const schedPick = pickWindowSchedule(scoredPages);
+      const schedule = schedPick
+        ? await readWindowSchedule(b64(`prelim-${prelimPages[schedPick.index]}.jpg`), {
+            apiKey: process.env.ANTHROPIC_API_KEY!,
+            builderName: ctx.builder.name,
+          })
+        : null;
+      const agg = aggregateWindows(schedule, takeoff.windows_by_room);
+      const finalTakeoff = applyWindowAggregate(takeoff, agg);
+
+      out.prelim.takeoff = finalTakeoff;
+      out.prelim.schedule_page = schedPick ? prelimPages[schedPick.index] : null;
+      out.prelim.window_source = agg.source;
+      out.prelim.schedule_windows = schedule?.windows ?? null;
     } else {
       out.prelim.chosen_page = null;
       out.prelim.takeoff = null;
@@ -122,7 +142,12 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     if (cctx.sheetType === "floor_plan" || cctx.sheetType === "dimension_plan") {
       const rawAnn = await extractAnnotations(b64("concept-1.jpg"), cctx);
       const takeoff = classifyAnnotations(rawAnn, cctx);
-      out.concept.takeoff = takeoff;
+      // Concept is the earlier 3-PDF set with NO A501 schedule → windows come
+      // only from floor-plan callouts. Reconcile with a null schedule so the
+      // source is recorded; do NOT expect 13 here.
+      const agg = aggregateWindows(null, takeoff.windows_by_room);
+      out.concept.takeoff = applyWindowAggregate(takeoff, agg);
+      out.concept.window_source = agg.source;
       out.concept.raw_window_annotations = rawAnn.openingAnnotations.length;
       out.concept.raw_internal_door_annotations = rawAnn.internalDoorAnnotations.length;
       out.concept.raw_garage_door_annotations = rawAnn.garageDoorAnnotations;
@@ -145,5 +170,24 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     expect(out.prelim.chosen_page).toBe(3);
     expect(out.prelim.takeoff.floor_area_m2).not.toBeNull();
     expect(out.prelim.takeoff.external_wall_lm).not.toBeNull();
+
+    // ── Phase 2b definition of done ───────────────────────────────────────────
+    // The Door & Window Schedule (prelim page 7 / A501) is recognised as its own
+    // page type and read as the canonical window set. The prelim takeoff must
+    // report the full 13 windows (W01–W13), each with H × W, sourced from the
+    // schedule — not the short/incomplete floor-plan callout count.
+    expect(out.prelim.schedule_page).toBe(7);
+    expect(out.prelim.window_source).toBe("schedule");
+    expect(out.prelim.takeoff.window_count).toBe(13);
+    expect(out.prelim.takeoff.windows_schedule).not.toBeNull();
+    expect(out.prelim.takeoff.windows_schedule.length).toBe(13);
+    const ids = out.prelim.takeoff.windows_schedule.map((w: any) => w.id);
+    for (let n = 1; n <= 13; n++) {
+      expect(ids).toContain("W" + String(n).padStart(2, "0"));
+    }
+    for (const w of out.prelim.takeoff.windows_schedule) {
+      expect(w.height_m).not.toBeNull();
+      expect(w.width_m).not.toBeNull();
+    }
   }, 600000);
 });

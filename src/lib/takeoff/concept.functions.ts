@@ -338,6 +338,7 @@ import type { PlanContext } from './plan-context';
 import { recognisePlan } from './recognise-plan';
 import { extractAnnotations } from './extract-annotations';
 import { classifyAnnotations } from './classify-annotations';
+import { readWindowSchedule, type WindowScheduleData } from './extract-window-schedule';
 
 export type ConceptTakeoffResult = {
   takeoffData: TakeoffData;
@@ -350,6 +351,26 @@ export const recognisePlanFn = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => input as { imageBase64: string; filename: string })
   .handler(async ({ data }): Promise<PlanContext> => {
     return recognisePlan(data.imageBase64, data.filename);
+  });
+
+/**
+ * Phase 2b — read the Door & Window Schedule page (W01…Wnn + H × W). Thin wrapper
+ * over the pure readWindowSchedule so the schedule can be threaded alongside the
+ * primary floor plan, mirroring extractElevationsFn/extractSitePlanFn. Fails soft to
+ * an empty schedule so a missing/garbled schedule page never blocks the takeoff.
+ */
+export const extractWindowScheduleFn = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => input as { imageBase64: string; builderName?: string })
+  .handler(async ({ data }): Promise<WindowScheduleData> => {
+    try {
+      return await readWindowSchedule(data.imageBase64, {
+        apiKey: getApiKey(),
+        builderName: data.builderName,
+      });
+    } catch (err) {
+      console.error("[extractWindowScheduleFn] failed:", err instanceof Error ? err.message : String(err));
+      return { windows: [] };
+    }
   });
 
 export const extractConceptTakeoffs = createServerFn({ method: "POST" })

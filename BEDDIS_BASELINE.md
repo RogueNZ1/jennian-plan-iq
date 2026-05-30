@@ -184,3 +184,95 @@ returns 165.4 / 63.8 from both inputs.
   *independent* selectors. Aligning them onto one shared page-of-truth (pass the selected page index
   into `/measure`, or have the app reconcile `page_used` against the AI pick) is a larger change than
   the Phase 2a guard re-rank and is **logged as a Phase 2 follow-on**, not done here.
+
+---
+
+## 6. Phase 2b re-baseline — Door & Window Schedule recognition + aggregation
+
+**Mode:** fix/build, scoped to **windows only**. Floor/perimeter/page-selection untouched.
+**Date:** 2026-05-30. **Branch:** `phase2b`.
+
+### 6.1 The gap (post-2a)
+
+2a fixed page selection (prelim reads the floor plan, page 3), but `window_count` was still
+`null`/short. The floor-plan callouts on page 3 are partial — W01–W09 arrive as `NxM`-less
+callouts that `classifyAnnotations` drops — and the **full W01–W13 list lives on prelim page 7,
+the A501 "Door & Window Schedule"**, which Pass 0 labelled `unknown` and §5.3 binned as `legends`.
+That schedule is the cleanest window source: all 13 windows with exact H × W in mm.
+
+### 6.2 The fix (four pieces)
+
+1. **Recognise the schedule page.** `classifyText` (in `pdf-page-classify.ts`) now classifies the
+   A501 sheet as its own **`window_schedule`** type, evaluated **before** the legends check — the
+   schedule carries its own `Legend:` block that previously hijacked it. `FLOORPLAN_SCORE.window_schedule
+   = -45` keeps it strongly negative so it can **never** win the primary-floorplan pick; the floor plan
+   stays primary for core measurements. New pure helper `pickWindowSchedule` locates the schedule page
+   independently of `pickPrimaryFloorplan`.
+2. **Extract the schedule** (`src/lib/takeoff/extract-window-schedule.ts`). `readWindowSchedule` is a
+   vision call (`claude-opus-4-5`, temp 0) over the rendered schedule image — the page-7 text layer is
+   jumbled (table structure lost) so text parsing is unreliable. Pure `normaliseWindowSchedule` keeps
+   only `W\d+` IDs, dedupes, normalises numbers, drops door entries (D01/GD). The thin
+   `extractWindowScheduleFn` createServerFn wrapper lives in `concept.functions.ts`; the AI fn itself is
+   plain async so the node harness can call it directly.
+3. **Aggregate — schedule wins** (`src/lib/takeoff/aggregate-windows.ts`). `aggregateWindows` makes the
+   schedule the canonical window *set* (count + dims) when present; floor-plan callouts are the fallback
+   only when no schedule exists, so windows are neither double-counted nor dropped. `applyWindowAggregate`
+   sets the canonical `window_count` and attaches the `windows_schedule` list (mm → m).
+4. **Thread the page.** Wired into `upload.tsx → proceedToTakeoffs` (reusing the existing
+   additional-page pattern — elevations/site-plan — so **no architectural change**) and into the live
+   harness `tests/beddis/baseline.test.ts`.
+
+Tests: `tests/phase2b/window-schedule.test.ts` (24 pure unit assertions — classifyText recognition,
+schedule-never-beats-floorplan, `pickWindowSchedule`, `normaliseWindowSchedule`, aggregate/apply).
+Phase 1 replay + Phase 2a selection stay green (38 offline tests pass).
+
+### 6.3 Production page classification on the Beddis prelim (now)
+
+| Page | classifyText type | score | role |
+|---|---|---|---|
+| 1 | legends | −55 | |
+| 2 | legends | −55 | |
+| **3** | **dimension_floor_plan** | **95** | ✅ primary floor plan |
+| 4 | legends | −55 | |
+| 5 | legends | −55 | |
+| 6 | sections | −35 | |
+| **7** | **window_schedule** | **−40** | ✅ schedule (additional source) |
+
+Page 7 is no longer `legends` — it is recognised as the schedule and read alongside page 3. Page 3
+still wins the primary pick decisively (95 vs everything ≤ −35), so 2a selection is undisturbed.
+
+### 6.4 Scorecard — prelim (primary) vs truth
+
+| Metric | Prelim (primary) | Truth | Verdict |
+|---|---|---|---|
+| Primary page | page 3 (`high`) | floor plan | ✅ |
+| Floor area | 165.4 m² | 165.4 m² | ✅ (unchanged) |
+| External wall lm | 63.8 m | – | ✅ (unchanged) |
+| Schedule page found | page 7 | A501 | ✅ |
+| Window source | `schedule` | schedule | ✅ |
+| **Window count** | **13** | **13** | ✅ **PASS** |
+
+**Prelim windows (from A501 schedule, H × W in m):**
+
+| ID | H × W | ID | H × W | ID | H × W |
+|---|---|---|---|---|---|
+| W01 | 2.21 × 1.03 | W06 | 2.21 × 0.80 | W11 | 2.21 × 0.80 |
+| W02 | 2.21 × 2.00 | W07 | 2.21 × 3.00 | W12 | 2.21 × 1.30 |
+| W03 | 2.21 × 1.50 | W08 | 2.21 × 1.60 | W13 | 2.21 × 2.00 |
+| W04 | 2.21 × 1.80 | W09 | 2.21 × 1.80 | | |
+| W05 | 2.21 × 0.80 | W10 | 2.21 × 1.00 | | |
+
+All 13 IDs W01–W13 present, each with H × W. (QS-style rounding allowed, e.g. 2.21 → 2.1.)
+
+### 6.5 Concept (secondary) — reported, not graded to 13
+
+The concept is the earlier 3-PDF set with **no A501 schedule**, so its window count comes only from
+floor-plan callouts: **`window_count = 9`, source `floor_plan_callouts`**. This legitimately differs
+from 13 and is expected per the brief — reported here for completeness, not graded.
+
+### 6.6 Follow-on (out of 2b scope)
+
+- **Per-room window assignment** — linking each W-entry back to its floor-plan room is explicitly out of
+  2b scope and logged as a follow-on.
+- **Garage-door classification** (`"2,210 x 4,800"` still passes through unclassified; H176/H178/H180
+  banding never fires) is **Phase 2c**, set from this result.
