@@ -49,6 +49,14 @@ supabase/.temp/
 /tests/fixtures/beddis/_render/
 /tests/fixtures/beddis/_pagetext/
 
+# Harrison (Lot 9) baseline fixtures — second permanent validation set. Same rule
+# as Beddis: commit ONLY ground-truth.json + README + the harness; keep the source
+# PDFs/workbook and all derived renders/page-text out of git.
+/tests/fixtures/harrison/*.pdf
+/tests/fixtures/harrison/*.xlsm
+/tests/fixtures/harrison/_render/
+/tests/fixtures/harrison/_pagetext/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
