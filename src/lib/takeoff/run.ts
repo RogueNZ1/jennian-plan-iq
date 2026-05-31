@@ -11,6 +11,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { toJson } from "@/lib/type-helpers";
+import type { TakeoffJsonWriter } from "./persist-takeoff";
 import { extractFile, loadJobFiles, type ExtractedFile } from "./pdf-text";
 import { classifyPageWithType, pickWorkingPage, type ClassifiedPage } from "./classify";
 import { detectScaleFromText, writeCalibration } from "./scale";
@@ -637,17 +638,25 @@ export async function runAutomaticTakeoff(args: {
                     schedule: null,
                     geometryPageIndex,
                   });
-                  // Observable, NOT persisted (Slice 5 will persist composed.enriched).
-                  console.info(
-                    "[concept-compose] in-memory enriched takeoff (not persisted — Slice 5):",
-                    {
-                      floor_area_m2: composed.enriched.floor_area_m2.value,
-                      floor_source: composed.enriched.floor_area_m2.source,
-                      window_count: composed.enriched.window_count.value,
-                      garage_door_size: composed.enriched.garage_door_size.value,
-                      reconciliation_flags: composed.reconciliation.flags.length,
-                      page_agreed: composed.pageReconcile.agreed,
-                    },
+                  console.info("[concept-compose] enriched takeoff:", {
+                    floor_area_m2: composed.enriched.floor_area_m2.value,
+                    floor_source: composed.enriched.floor_area_m2.source,
+                    window_count: composed.enriched.window_count.value,
+                    garage_door_size: composed.enriched.garage_door_size.value,
+                    reconciliation_flags: composed.reconciliation.flags.length,
+                    page_agreed: composed.pageReconcile.agreed,
+                  });
+
+                  // Convergence Slice 5 — persist the canonical enriched takeoff to
+                  // takeoff_runs.takeoff_json, ALONGSIDE the existing relational rows (which
+                  // are unchanged). GRACEFUL: persistEnrichedTakeoff never throws — until the
+                  // Slice 4 migration is applied the column is absent and this no-ops, so the
+                  // job save is never affected. (cast bridges the not-yet-regenerated types.)
+                  const { persistEnrichedTakeoff } = await import("./persist-takeoff");
+                  await persistEnrichedTakeoff(
+                    supabase as unknown as TakeoffJsonWriter,
+                    runId,
+                    composed.enriched,
                   );
                 }
               } catch (reconErr) {
