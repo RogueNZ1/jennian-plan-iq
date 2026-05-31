@@ -879,3 +879,78 @@ job with unresolved heights), not Beddis-specific.
 - **Next slice:** per-window glazed **heights** (gated on a 2nd schedule-bearing ground-truth job) — once
   they land, the now-deterministic widths + counts let `external_wall_area_m2` snap together and come off the
   gate.
+
+## 15. F-022 — Vector ↔ Vision Cross-Check (reconciliation slice)
+
+**Mode:** build, **app-side only** (no geometry change), additive and backward-compatible. Branch
+`f022-crosscheck` in the app repo. Reconciles values that **already exist** — it adds no new extraction.
+
+**The gap it closes.** Slices 1–2 made the garage width, opening widths and window count deterministic from
+the vector layer and **preferred vector with a vision fallback**. But where **both** a vector and a vision
+value exist for the same quantity, the app preferred vector **silently** — it never surfaced that the two
+paths *disagreed*. The canonical case is live in our fixtures: Harrison's garage read **2710** from vision and
+**4800** from vector. We got the right answer (vector), but a reviewer was never told vision was badly wrong —
+next time the silent disagreement could go the other way. F-022 turns path disagreement into a **confidence
+signal**, catching this loose-coupling failure mode systematically.
+
+**What shipped.** A pure, literal-free reconciliation layer (`src/lib/takeoff/reconcile-annotations.ts`):
+
+1. **`reconcileScalar(field, vision, vector, unit)`** — a field-agnostic comparator that classifies the two
+   readings **agree / disagree / uncheckable** and, on a material disagreement, returns a reviewer-facing flag.
+2. **Material-disagreement gate is PROPORTIONAL, never a literal.** Two values disagree materially when their
+   **relative** difference exceeds `MATERIAL_REL_TOLERANCE = 0.10`. This absorbs rounding/quantisation noise
+   (a head datum `2210` vs `2200` = 0.5%; a ±1 count on ~15 windows = 6.7%) yet trips on a genuine path
+   divergence (`2710` vs `4800` = 44%). 10% is structural — it scales with the value; no hard mm/count band.
+3. **`reconcileVectorVision(visionGarageSize, visionWindowCount, vector)`** — cross-checks the scalar
+   quantities where **both paths measure the same thing**: the **garage door width** (the canonical flake, and
+   itself the widest opening width) and the **window count**. Returns a report whose `note` is appended to
+   **`takeoff.notes`** — the same channel as the Slice 2 ext-wall flag — so it reaches the **live reviewer**.
+4. **Vector still wins the value.** The flag is the *added* signal, **not** a behaviour change: the prefer-
+   vector seam already chose the value; reconciliation changes nothing it resolves.
+
+**Why opening widths are cross-checked via the garage, not as a blanket multiset.** The two paths' width sets
+have **different membership**: the vision Door & Window **schedule lists windows only** (no garage door), while
+the vector `openings` set **includes the garage**. A naïve width-multiset compare therefore *false-positives*
+on a windows-only schedule (Beddis: vision max 3000 vs vector max 4800, purely because the schedule excludes
+the garage). The **garage door width IS an opening width**, so the canonical width agreement/disagreement is
+cross-checked cleanly through the garage field. Per-opening width reconciliation needs opening-level
+correspondence across the two paths (not available) and is a documented follow-on.
+
+### 15.1 Proven on both fixtures — a true-positive AND a true-negative
+
+| Fixture | Field | Vision | Vector | Rel. diff | Reconciliation | Value used |
+|---|---|---|---|---|---|---|
+| **Harrison** (TRUE POSITIVE) | garage_door_width | **2700** (`2.7×2.1`, the 2710 flake) | **4800** | 44% | **DISAGREE → flagged** | `4.8×2.1` (vector) |
+| **Harrison** | window_count | ~15 (callouts) | 14 (W-codes) | 6.7% | agree → no flag | 14 (vector) |
+| **Beddis** (TRUE NEGATIVE) | garage_door_width | **4800** (`4.8×2.1`) | **4800** | 0% | **agree → no flag** | `4.8×2.1` |
+| **Beddis** | window_count | 13 (schedule) | 13 (W-codes) | 0% | agree → no flag | 13 |
+
+- **Harrison flag** rides on real output: `takeoff.notes` contains
+  *"reconciliation: garage_door_width disagreed across paths — vision read 2700mm, the deterministic vector
+  layer read 4800mm (44% apart). The vector value was preferred; confirm garage door width against the plan."*
+  The resolved garage is **still `4.8×2.1`** — signal only, no value change.
+- **Beddis** produces **no reconciliation note** — both checkable fields agree → **no false positive**. The
+  garage field is cross-checked (status `agree`, not silently uncheckable).
+- **Tolerance is material-only, not noise:** Harrison's 15-vs-14 count (6.7% < 10%) is *not* flagged, proving
+  the gate absorbs ±1 quantisation while still tripping the 44% garage divergence.
+
+### 15.2 Backward-compatibility / forced fallback
+
+- When the vector layer is **absent or `vector_usable:false`**, or a **vision value is missing**, the field is
+  **uncheckable** and never flagged → today's behaviour exactly. Pinned by unit tests.
+- Garage width is parsed through the **shared `parseDimsMm`** (accepts the `W×2.1` label or a raw
+  annotation) — no second parser; the larger side is the width.
+
+### 15.3 No-regression / determinism
+
+- **Full offline suite 359 passed / 3 skipped** (+13 new unit tests in
+  `tests/phase4/reconcile-annotations.test.ts`, pinning agree/disagree/tolerance, the two fixture cases, and
+  the forced fallback). Both live baselines (`BEDDIS_LIVE`, `HARRISON_LIVE`) green against local geometry on
+  `:8000` — Harrison flags the garage disagreement, Beddis flags nothing.
+- Reconciliation is **pure and deterministic** (re-run identical) and **literal-free** — the threshold is a
+  proportion, not a fixture value; the comparator is field-agnostic.
+- **No value behaviour changed.** Vector is still preferred for every resolved field; F-022 only adds the
+  disagreement *signal*. `external_wall_area_m2` remains gated on heights (unchanged from Slice 2).
+- **Geometry untouched** (app-side slice); **Pipeline A / `run.ts` untouched**.
+- **Follow-on:** per-opening width reconciliation (needs opening-level correspondence across paths) and
+  per-window heights (the standing gate) remain future slices.

@@ -45,6 +45,7 @@ import {
   resolveOpeningWidths,
   visionOpeningWidthsMm,
 } from "../../src/lib/takeoff/vector-annotations";
+import { reconcileVectorVision } from "../../src/lib/takeoff/reconcile-annotations";
 
 const DIR = resolve(process.cwd(), "tests/fixtures/harrison");
 const RENDER = resolve(DIR, "_render");
@@ -146,6 +147,10 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
       const rawAnn = await extractAnnotations(b64(`concept-${page}.jpg`), ctx);
       const takeoff = classifyAnnotations(rawAnn, ctx);
 
+      // F-022 — capture the VISION garage size before the vector override cross-checks it.
+      // Harrison is the TRUE POSITIVE: vision flaked the garage to 2710 (→ "2.7×2.1").
+      const visionGarageSize = takeoff.garage_door_size;
+
       // ── Phase 4, Slice 1: prefer the deterministic vector garage width (the dim-pair
       // the engine read nearest a /garage/i label) over the vision annotation. Harrison
       // has no schedule, so only the garage field is hybridised here; falls back to
@@ -161,8 +166,25 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
       // NO schedule, so the only vector count is the floor-plan W-codes (W01…W14). Also
       // resolve the opening WIDTHS off the vector layer (parsed via the shared
       // parseDimsMm). Ext-wall area stays gated on heights and is NOT recomputed.
+      // F-022 — capture the VISION window count before preferVectorOpenings overrides it.
+      const visionWindowCount = finalTakeoff.window_count;
       finalTakeoff = preferVectorOpenings(finalTakeoff, conceptVector);
       out.concept.opening_widths = resolveOpeningWidths(visionOpeningWidthsMm(finalTakeoff), conceptVector);
+
+      // ── F-022: vector ↔ vision cross-check. Harrison is the TRUE POSITIVE — vision read
+      // the garage as 2710 (→ "2.7×2.1") while the vector layer read 4800; the paths
+      // disagree materially, so reconciliation flags garage_door_width (vector still wins
+      // the value, 4.8×2.1). The window count (vision callouts ~15 vs vector 14) is within
+      // tolerance → not flagged. The disagreement note rides on takeoff.notes.
+      const reconciliation = reconcileVectorVision(visionGarageSize, visionWindowCount, conceptVector);
+      if (reconciliation.note) {
+        finalTakeoff = {
+          ...finalTakeoff,
+          notes: [finalTakeoff.notes, reconciliation.note].filter(Boolean).join(" "),
+        };
+      }
+      out.concept.reconciliation = reconciliation;
+      out.concept.vision_garage_size = visionGarageSize;
 
       out.concept.chosen_page = page;
       out.concept.raw_window_annotations = rawAnn.openingAnnotations.length;
@@ -259,5 +281,27 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
       out.concept.vector_annotations.openings.widths_raw.length,
     );
     expect(out.concept.opening_widths.widths_mm).toContain(4800);
+
+    // ── F-022 definition of done (vector ↔ vision cross-check) — TRUE POSITIVE ──
+    // The canonical loose-coupling failure: vision read the garage as 2710 (→ "2.7×2.1")
+    // while the deterministic vector layer read 4800. Slices 1–2 silently preferred the
+    // vector value; F-022 now SURFACES that the two paths materially disagreed. The flag
+    // names the field and rides on takeoff.notes — but the value is unchanged (vector
+    // still wins: 4.8×2.1). The window count (vision ~15 vs vector 14) is within tolerance
+    // → not flagged, proving the gate is material-only, not noise.
+    expect(out.concept.vision_garage_size).toBe("2.7×2.1");
+    expect(out.concept.reconciliation).not.toBeNull();
+    const recGarage = out.concept.reconciliation.fields.find((f: any) => f.field === "garage_door_width");
+    expect(recGarage.status).toBe("disagree");
+    expect(recGarage.visionValue).toBe(2700);
+    expect(recGarage.vectorValue).toBe(4800);
+    expect(out.concept.reconciliation.flags.length).toBe(1);
+    expect(out.concept.reconciliation.note).toContain("garage_door_width");
+    // The flag reached real output (takeoff.notes), the same channel the reviewer reads.
+    expect(out.concept.takeoff.notes).toContain("reconciliation: garage_door_width");
+    // Signal-only: the disagreement did NOT change the resolved value — vector still wins.
+    expect(out.concept.takeoff.garage_door_size).toBe("4.8×2.1");
+    // The window count agreed across paths (15 vs 14, within tolerance) → no false flag.
+    expect(out.concept.reconciliation.fields.find((f: any) => f.field === "window_count").status).toBe("agree");
   }, 600000);
 });

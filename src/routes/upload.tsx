@@ -28,6 +28,7 @@ import {
   headDatumSafeguardNote,
   preferVectorOpenings,
 } from "@/lib/takeoff/vector-annotations";
+import { reconcileVectorVision } from "@/lib/takeoff/reconcile-annotations";
 import type { PlanContext } from "@/lib/takeoff/plan-context";
 import { measurePlanGeometry, overallConfidence, type GeometryApiResult } from "@/lib/takeoff/geometry-api";
 import { resolveGeometryPageIndex, reconcileGeometryPage } from "@/lib/takeoff/page-of-truth";
@@ -512,6 +513,9 @@ function UploadPage() {
       // /garage/i label) over the vision-extracted annotation; falls back to vision
       // when the vector layer is absent/unusable or the pair is not a real garage door.
       const vectorAnnotations = geoResult?.vector_annotations;
+      // F-022 — capture the VISION garage size BEFORE the vector override so the
+      // reconciliation below can cross-check the two paths (the override replaces it).
+      const visionGarageSize = merged.garage_door_size;
       const mergedVec = preferVectorGarage(merged, vectorAnnotations);
 
       // Phase 2b — read the Door & Window Schedule (if found) and reconcile windows.
@@ -532,6 +536,8 @@ function UploadPage() {
 
       const windowAggregate = aggregateWindows(schedule, mergedVec.windows_by_room);
       let mergedWithWindows = applyWindowAggregate(mergedVec, windowAggregate);
+      // F-022 — capture the VISION window count BEFORE preferVectorOpenings overrides it.
+      const visionWindowCount = mergedWithWindows.window_count;
 
       // Phase 4, Slice 2 — vector-preferred window COUNT. Prefer the deterministic
       // positioned W-code count from the engine (schedule W-codes, else floor-plan
@@ -547,6 +553,24 @@ function UploadPage() {
         mergedWithWindows = {
           ...mergedWithWindows,
           notes: [mergedWithWindows.notes, safeguardNote].filter(Boolean).join(" "),
+        };
+      }
+
+      // F-022 — vector ↔ vision cross-check. The prefer-vector seam above already chose
+      // each value (vector wins, deterministically); this adds the missing SIGNAL by
+      // flagging any field where the two paths materially disagreed (e.g. a vision garage
+      // flake 2710 vs the vector 4800). The flag rides on takeoff.notes — the same channel
+      // as the ext-wall note — so a live reviewer is pointed at exactly the diverged
+      // fields. No value changes here; clean when the paths agree or the layer is absent.
+      const reconciliation = reconcileVectorVision(
+        visionGarageSize,
+        visionWindowCount,
+        vectorAnnotations,
+      );
+      if (reconciliation.note) {
+        mergedWithWindows = {
+          ...mergedWithWindows,
+          notes: [mergedWithWindows.notes, reconciliation.note].filter(Boolean).join(" "),
         };
       }
 

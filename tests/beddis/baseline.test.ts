@@ -39,6 +39,7 @@ import {
   resolveOpeningWidths,
   visionOpeningWidthsMm,
 } from "../../src/lib/takeoff/vector-annotations";
+import { reconcileVectorVision } from "../../src/lib/takeoff/reconcile-annotations";
 
 const DIR = resolve(process.cwd(), "tests/fixtures/beddis");
 const RENDER = resolve(DIR, "_render");
@@ -137,6 +138,9 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
       out.prelim.raw_internal_door_annotations = rawAnn.internalDoorAnnotations.length;
       out.prelim.raw_garage_door_annotations = rawAnn.garageDoorAnnotations;
 
+      // F-022 — capture the VISION garage size before the vector override cross-checks it.
+      const visionGarageSize = takeoff.garage_door_size;
+
       // ── Phase 4, Slice 1: prefer the deterministic vector garage width (the dim-pair
       // the engine read nearest a /garage/i label) over the vision annotation; falls
       // back to vision when the vector layer is absent/unusable.
@@ -166,6 +170,8 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
       // W-codes) over the vision count, and resolve the opening WIDTHS multiset from the
       // vector layer (each width parsed through the shared parseDimsMm). Ext-wall area is
       // NOT recomputed — it stays gated on the per-window heights (still unresolved).
+      // F-022 — capture the VISION window count before preferVectorOpenings overrides it.
+      const visionWindowCount = finalTakeoff.window_count;
       finalTakeoff = preferVectorOpenings(finalTakeoff, prelimVector);
       out.prelim.opening_widths = resolveOpeningWidths(visionOpeningWidthsMm(finalTakeoff), prelimVector);
 
@@ -176,6 +182,18 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
           notes: [finalTakeoff.notes, safeguardNote].filter(Boolean).join(" "),
         };
       }
+
+      // ── F-022: vector ↔ vision cross-check. Beddis is the TRUE NEGATIVE — vision and
+      // vector agree on the 4.8m garage and 13 windows, so reconciliation must flag
+      // NOTHING (no false positive). The note rides on takeoff.notes when it fires.
+      const reconciliation = reconcileVectorVision(visionGarageSize, visionWindowCount, prelimVector);
+      if (reconciliation.note) {
+        finalTakeoff = {
+          ...finalTakeoff,
+          notes: [finalTakeoff.notes, reconciliation.note].filter(Boolean).join(" "),
+        };
+      }
+      out.prelim.reconciliation = reconciliation;
 
       out.prelim.takeoff = finalTakeoff;
       out.prelim.schedule_page = schedPick ? prelimPages[schedPick.index] : null;
@@ -306,6 +324,24 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     // The ext-wall confidence flag must RIDE ON THE FIELD in real output: with heights
     // rejected by the safeguard, external_wall_area_m2 is incomplete and says so.
     expect(out.prelim.takeoff.notes).toContain("external_wall_area_m2 is incomplete");
+
+    // ── F-022 definition of done (vector ↔ vision cross-check) — TRUE NEGATIVE ──
+    // Beddis is the no-false-positive case: vision and vector agree on the garage width
+    // (both 4800) and the window count (both 13), so reconciliation flags NOTHING. The
+    // garage field is cross-checked (status "agree"), not silently uncheckable, and no
+    // reconciliation note bleeds onto takeoff.notes.
+    expect(out.prelim.reconciliation).not.toBeNull();
+    expect(out.prelim.reconciliation.flags).toEqual([]);
+    expect(out.prelim.reconciliation.note).toBe("");
+    const recGarage = out.prelim.reconciliation.fields.find((f: any) => f.field === "garage_door_width");
+    expect(recGarage.status).toBe("agree");
+    expect(recGarage.vectorValue).toBe(4800);
+    const recCount = out.prelim.reconciliation.fields.find((f: any) => f.field === "window_count");
+    expect(recCount.status).toBe("agree");
+    // The cross-check is signal-only: it changed no value (garage still 4.8×2.1) and added
+    // no disagreement note to the field.
+    expect(out.prelim.takeoff.garage_door_size).toBe("4.8×2.1");
+    expect(out.prelim.takeoff.notes).not.toContain("reconciliation:");
 
     // ── Phase 2d definition of done (derived fields) ──────────────────────────
     // external_wall_area_m2 = perimeter × stud − total_opening_area (QS D21 = 109.2),
