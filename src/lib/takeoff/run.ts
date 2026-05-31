@@ -533,8 +533,20 @@ export async function runAutomaticTakeoff(args: {
               .from("job-files")
               .download(fileRow.storage_url);
             if (fileData) {
+              // Convergence Slice 3 / C3 page-pin: pin geometry to the AI-selected working
+              // floor-plan page (workingPageNumber is 1-based; geometry wants 0-based) instead
+              // of letting it auto-detect — which on a multi-page set could land on the site
+              // plan and silently measure the wrong building. undefined → geometry self-selects.
+              const geometryPageIndex =
+                workingPageNumber != null && workingPageNumber >= 1
+                  ? workingPageNumber - 1
+                  : undefined;
               const { measurePlanGeometry, overallConfidence } = await import("./geometry-api");
-              const geoResult = await measurePlanGeometry(fileData, fileRow.file_name ?? "plan.pdf");
+              const geoResult = await measurePlanGeometry(
+                fileData,
+                fileRow.file_name ?? "plan.pdf",
+                geometryPageIndex,
+              );
               if (geoResult) {
                 // Clear any previous geometry measurements for this job then re-insert
                 await supabase.from("plan_measurements").delete()
@@ -582,10 +594,17 @@ export async function runAutomaticTakeoff(args: {
                 }).eq("id", jobId);
               }
 
-              // Pass 0 — plan reconnaissance → persist plan_context
+              // Pass 0 + vision takeoff → persist plan_context, then COMPOSE the takeoff
+              // IN MEMORY (Convergence Slice 3). composeTakeoff is the SAME pure seam
+              // Pipeline B (/upload) runs; run.ts now feeds it the full inputs it expects —
+              // the page-pinned geometry (incl. vector_annotations, no longer discarded) and
+              // the vision takeoff — instead of consuming only floor_area + perimeter. The
+              // composed result is NOT persisted: persistence + schema are Slice 5. This
+              // proves the production path produces the right numbers before any DB work.
               try {
                 const { renderPageForAnalysis } = await import("@/lib/pdf-pages");
-                const { recognisePlanFn } = await import("./concept.functions");
+                const { extractConceptTakeoffs } = await import("./concept.functions");
+                const { composeTakeoff } = await import("./compose-takeoff");
                 const planFile = new File(
                   [fileData],
                   fileRow.file_name ?? "plan.pdf",
@@ -599,13 +618,40 @@ export async function runAutomaticTakeoff(args: {
                     reader.onerror = reject;
                     reader.readAsDataURL(pageBlob);
                   });
-                  const ctx = await recognisePlanFn({
+                  // The vision pass also yields the planContext we already persist (same
+                  // underlying recognisePlan), so this replaces the separate recon call.
+                  const conceptResult = await extractConceptTakeoffs({
                     data: { imageBase64: b64, filename: fileRow.file_name ?? "plan.pdf" },
                   });
-                  await supabase.from("jobs").update({ plan_context: toJson(ctx) }).eq("id", jobId);
+                  await supabase
+                    .from("jobs")
+                    .update({ plan_context: toJson(conceptResult.planContext) })
+                    .eq("id", jobId);
+
+                  // Convergence Slice 3 — the enriched takeoff, computed IN MEMORY only.
+                  // schedule is null here (run.ts does not yet pick a schedule page — a
+                  // documented follow-on; concept jobs have no separate schedule sheet).
+                  const composed = composeTakeoff({
+                    visionTakeoff: conceptResult.takeoffData,
+                    geometry: geoResult,
+                    schedule: null,
+                    geometryPageIndex,
+                  });
+                  // Observable, NOT persisted (Slice 5 will persist composed.enriched).
+                  console.info(
+                    "[concept-compose] in-memory enriched takeoff (not persisted — Slice 5):",
+                    {
+                      floor_area_m2: composed.enriched.floor_area_m2.value,
+                      floor_source: composed.enriched.floor_area_m2.source,
+                      window_count: composed.enriched.window_count.value,
+                      garage_door_size: composed.enriched.garage_door_size.value,
+                      reconciliation_flags: composed.reconciliation.flags.length,
+                      page_agreed: composed.pageReconcile.agreed,
+                    },
+                  );
                 }
               } catch (reconErr) {
-                console.warn("[concept-recon] recognisePlan failed — run continues:", reconErr);
+                console.warn("[concept-recon] recognise/compose failed — run continues:", reconErr);
               }
             }
           }

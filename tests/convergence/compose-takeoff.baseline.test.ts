@@ -115,4 +115,17 @@ describe("Convergence — composeTakeoff baseline (cached vision, frozen, offlin
   it("is PURE — composing the same frozen inputs twice yields deep-equal output", () => {
     expect(compose().enriched).toEqual(composed.enriched);
   });
+
+  // ── (a) PIPELINE PARITY — run.ts assembles the same inputs and calls the same function ──
+  it("run.ts's page-pin assembly yields identical output to the /upload-style call", () => {
+    // run.ts pins geometry to the 1-based working page → 0-based index (workingPageNumber − 1),
+    // the C3 fix. For mcalevey (single floor-plan page) that resolves to index 0 — the page
+    // geometry measured — so the page reconciliation agrees and the enriched output is the
+    // SAME pure function on the SAME inputs as Pipeline B.
+    const workingPageNumber = 1;
+    const geometryPageIndex = workingPageNumber - 1; // = 0
+    const viaRunTs = composeTakeoff({ visionTakeoff, geometry, schedule: null, geometryPageIndex });
+    expect(viaRunTs.enriched).toEqual(composed.enriched);
+    expect(viaRunTs.pageReconcile.agreed).toBe(true);
+  });
 });

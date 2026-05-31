@@ -48,6 +48,8 @@ import {
   entranceAssumptionNote,
 } from "../../src/lib/takeoff/vector-annotations";
 import { reconcileVectorVision } from "../../src/lib/takeoff/reconcile-annotations";
+import { composeTakeoff } from "../../src/lib/takeoff/compose-takeoff";
+import { unwrapTakeoff } from "../../src/lib/takeoff/enriched-takeoff";
 
 const DIR = resolve(process.cwd(), "tests/fixtures/harrison");
 const RENDER = resolve(DIR, "_render");
@@ -212,6 +214,19 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
       out.concept.vision_garage_size = visionGarageSize;
       out.concept.entrance = finalTakeoff.windows_by_room?.entrance ?? null;
 
+      // ── Convergence Slice 3: the SHARED composeTakeoff seam (the exact function run.ts and
+      // /upload both call) on the same page-pinned, no-schedule inputs. Harrison is the F-022
+      // TRUE POSITIVE (vision 2.7 vs vector 4.8) and the printed-width entrance — composeTakeoff
+      // must carry both onto their fields. Asserted against the Harrison scorecard in the DoD.
+      const composed = composeTakeoff({
+        visionTakeoff: takeoff,
+        geometry: out.concept.geometry,
+        schedule: null,
+        geometryPageIndex: conceptGeomPage,
+      });
+      out.concept.composed = composed.enriched;
+      out.concept.composed_bare = unwrapTakeoff(composed.enriched);
+
       out.concept.chosen_page = page;
       out.concept.raw_window_annotations = rawAnn.openingAnnotations.length;
       out.concept.raw_internal_door_annotations = rawAnn.internalDoorAnnotations.length;
@@ -355,5 +370,31 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
       (f: any) => f.field === "entrance_door_width",
     );
     expect(recEntrance.status).toBe("uncheckable");
+
+    // ── Convergence Slice 3 definition of done (shared composeTakeoff on prod inputs) ──
+    // run.ts calls this SAME pure function with the same page-pinned inputs; proving it on
+    // the Harrison ground truth proves the production path's numbers before any DB work.
+    const cmp = out.concept.composed;
+    // Geometry-measured fields come from the engine, with provenance recorded.
+    expect(cmp.floor_area_m2.value).toBe(out.concept.geometry.measurements.floor_area_m2);
+    expect(cmp.floor_area_m2.source).toBe("geometry");
+    expect(cmp.external_wall_lm.source).toBe("geometry");
+    // Window count is the vector-preferred floor-plan W-code count.
+    expect(cmp.window_count.value).toBe(out.concept.vector_annotations.openings.window_count);
+    expect(cmp.window_count.source).toBe("vector");
+    // Garage: F-022 TRUE POSITIVE — vector 4.8 wins over the 2.7 vision flake. The value is
+    // vector-sourced, the disagreement is low-confidence, and the flag rides on the field.
+    expect(cmp.garage_door_size.value).toBe("4.8×2.1");
+    expect(cmp.garage_door_size.source).toBe("vector");
+    expect(cmp.garage_door_size.confidence).toBe("low");
+    expect(cmp.garage_door_size.discrepancy_flags.join(" ")).toContain("garage_door_width");
+    // Printed-width entrance folded into the opening set (1.43 × 2.1), credited (not assumed).
+    expect(cmp.windows_by_room.value.entrance).toEqual({ qty: 1, height_m: 2.1, width_m: 1.43 });
+    expect(cmp.windows_by_room.discrepancy_flags.join(" ")).toContain(
+      "width 1.43m read from the printed frame-to-frame dimension",
+    );
+    // Global notes view carries every migrated flag (backward-compat / M2 survival).
+    expect(cmp.notes).toBe(out.concept.composed_bare.notes);
+    expect(cmp.notes).toContain("reconciliation: garage_door_width");
   }, 600000);
 });

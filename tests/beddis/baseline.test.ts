@@ -42,6 +42,8 @@ import {
   entranceAssumptionNote,
 } from "../../src/lib/takeoff/vector-annotations";
 import { reconcileVectorVision } from "../../src/lib/takeoff/reconcile-annotations";
+import { composeTakeoff } from "../../src/lib/takeoff/compose-takeoff";
+import { unwrapTakeoff } from "../../src/lib/takeoff/enriched-takeoff";
 
 const DIR = resolve(process.cwd(), "tests/fixtures/beddis");
 const RENDER = resolve(DIR, "_render");
@@ -221,6 +223,20 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
       }
       out.prelim.reconciliation = reconciliation;
       out.prelim.entrance = finalTakeoff.windows_by_room?.entrance ?? null;
+
+      // ── Convergence Slice 3: the SHARED composeTakeoff seam (the exact function run.ts
+      // and /upload both call) on the same page-pinned inputs. The inline seam above keeps
+      // the VISION floor/perimeter; composeTakeoff additionally applies the geometry
+      // override (the true Pipeline B behaviour), so its measurement fields come from the
+      // geometry engine. Asserted against the Beddis scorecard in the DoD below.
+      const composed = composeTakeoff({
+        visionTakeoff: takeoff,
+        geometry: out.prelim.geometry,
+        schedule: scheduleRaw,
+        geometryPageIndex: prelimGeomPage,
+      });
+      out.prelim.composed = composed.enriched;
+      out.prelim.composed_bare = unwrapTakeoff(composed.enriched);
 
       out.prelim.takeoff = finalTakeoff;
       out.prelim.schedule_page = schedPick ? prelimPages[schedPick.index] : null;
@@ -408,5 +424,31 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     // total falls back to the floor area). Reported as deltas for the human.
     expect(out.prelim.takeoff.external_wall_area_m2).not.toBeNull();
     expect(out.prelim.takeoff.total_area_m2).not.toBeNull();
+
+    // ── Convergence Slice 3 definition of done (shared composeTakeoff on prod inputs) ──
+    // run.ts now calls this SAME pure function with the same page-pinned inputs, so proving
+    // it on the Beddis ground truth proves the production path's numbers before any DB work.
+    const cmp = out.prelim.composed;
+    // Geometry-measured fields come from the engine (the override Pipeline B applies), with
+    // provenance recorded — matching the Beddis scorecard (floor 165.4 / perimeter 63.8).
+    expect(cmp.floor_area_m2.value).toBe(165.4);
+    expect(cmp.floor_area_m2.source).toBe("geometry");
+    expect(cmp.external_wall_lm.value).toBe(63.8);
+    expect(cmp.external_wall_lm.source).toBe("geometry");
+    // Vector-preferred window count (the schedule's 13 W-codes).
+    expect(cmp.window_count.value).toBe(13);
+    // Garage 4.8×2.1; Beddis is the F-022 TRUE NEGATIVE (vision & vector agree → no flag).
+    expect(cmp.garage_door_size.value).toBe("4.8×2.1");
+    expect(cmp.garage_door_size.discrepancy_flags).toHaveLength(0);
+    // Entrance unknown-width flag rides on windows_by_room (asserted height, width not found).
+    const wbrFlags = cmp.windows_by_room.discrepancy_flags.join(" ");
+    expect(wbrFlags).toContain("height assumed standard 2.1m");
+    expect(wbrFlags).toContain("width not found on the plan");
+    // Derived ext-wall area is flagged incomplete (Beddis heads unresolved) on its own field.
+    expect(cmp.external_wall_area_m2.source).toBe("derived");
+    expect(cmp.external_wall_area_m2.discrepancy_flags.join(" ")).toContain("incomplete");
+    // The global notes view still carries every migrated flag (backward-compat / M2 survival).
+    expect(cmp.notes).toBe(out.prelim.composed_bare.notes);
+    expect(cmp.notes).toContain("width not found on the plan");
   }, 600000);
 });
