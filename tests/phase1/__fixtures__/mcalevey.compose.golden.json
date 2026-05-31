@@ -1,0 +1,49 @@
+{
+  "floor_area_m2": 136.3,
+  "garage_area_m2": null,
+  "alfresco_area_m2": null,
+  "external_wall_lm": 54.8,
+  "internal_wall_lm": 7.57,
+  "roof_area_m2": 156.75,
+  "window_count": 8,
+  "external_door_count": null,
+  "internal_door_count": 8,
+  "bathroom_count": 1,
+  "ensuite_count": null,
+  "laundry_count": null,
+  "kitchen_count": 1,
+  "ceiling_height_m": 2.4,
+  "foundation_type": null,
+  "windows_by_room": {
+    "Bed 1 (Master)": {
+      "qty": 2,
+      "height_m": 2.15,
+      "width_m": 0.6
+    },
+    "Bathroom": {
+      "qty": 2,
+      "height_m": 1.1,
+      "width_m": 1.2
+    },
+    "Bed 2": {
+      "qty": 1,
+      "height_m": 1.3,
+      "width_m": 1.5
+    },
+    "Entrance": {
+      "qty": 1,
+      "height_m": 1.3,
+      "width_m": 1.8
+    },
+    "Dining": {
+      "qty": 2,
+      "height_m": 1.3,
+      "width_m": 1.5
+    }
+  },
+  "door_breakdown": null,
+  "garage_door_size": "6044",
+  "notes": "entrance door: height assumed standard 2.1m — confirm against the plan; width not found on the plan — confirm (left unresolved, not added to the opening area). (The external wall area stays gated on the unresolved window heights and is not recomputed here.) reconciliation: garage_door_width disagreed across paths — vision read 6044mm, the deterministic vector layer read 2080mm (66% apart). The vector value was preferred; confirm garage door width against the plan.",
+  "external_wall_area_m2": 118.11,
+  "total_area_m2": 136.3
+}

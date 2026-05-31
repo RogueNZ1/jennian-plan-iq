@@ -21,19 +21,10 @@ import {
   extractScaleFactor, checkPlanIssues, extractConceptTakeoffs, extractWindowScheduleFn,
   type ScaleResult, type PlanIssue, type TakeoffData, type ConceptTakeoffResult,
 } from "@/lib/takeoff/concept.functions";
-import { aggregateWindows, applyWindowAggregate } from "@/lib/takeoff/aggregate-windows";
-import {
-  preferVectorGarage,
-  safeguardScheduleHeights,
-  headDatumSafeguardNote,
-  preferVectorOpenings,
-  preferVectorEntrance,
-  entranceAssumptionNote,
-} from "@/lib/takeoff/vector-annotations";
-import { reconcileVectorVision } from "@/lib/takeoff/reconcile-annotations";
+import { composeTakeoff } from "@/lib/takeoff/compose-takeoff";
 import type { PlanContext } from "@/lib/takeoff/plan-context";
 import { measurePlanGeometry, overallConfidence, type GeometryApiResult } from "@/lib/takeoff/geometry-api";
-import { resolveGeometryPageIndex, reconcileGeometryPage } from "@/lib/takeoff/page-of-truth";
+import { resolveGeometryPageIndex } from "@/lib/takeoff/page-of-truth";
 import * as XLSX from "xlsx";
 import { normaliseRoomName, classifyGarageDoor } from "@/lib/takeoff/classify";
 import { round2 } from "@/lib/takeoff/utils";
@@ -462,141 +453,36 @@ function UploadPage() {
         toast.warning(result.sheetError, { duration: 8000 });
       }
 
-      // Geometry overrides AI for measurement fields — geometry API is more accurate
-      const m = geoResult?.measurements;
-      const geoRooms = m?.rooms ?? [];
-      const geoRoomCount = m?.room_count ?? 0;
-
-      // Cross-reference geometry rooms against AI-extracted room labels.
-      // Geometry rooms come from OCR dimension annotations (NNNNxNNNN, both > 2000mm).
-      // AI rooms come from raw label strings on the floor plan.
-      const aiRoomLabels = (result.takeoffData as any)?.roomLabels as string[] | undefined;
-      const internalWallNotes: string[] = [];
-
-      // Phase 3 — defence-in-depth: confirm geometry actually measured the floor-plan
-      // page we pinned. If page_used diverges from the request (out-of-range, a proxy
-      // dropped the param, an older geometry build), surface it rather than trusting the
-      // wrong sheet. Geometry's own 190%-mismatch sanity check remains the other backstop.
-      const pageReconcile = reconcileGeometryPage(geometryPageIndex, geoResult?.page_used);
-      if (!pageReconcile.agreed && pageReconcile.note) {
-        internalWallNotes.push(pageReconcile.note);
-        toast.warning(pageReconcile.note, { duration: 8000 });
-      }
-
-      if (geoRoomCount > 0 && aiRoomLabels && aiRoomLabels.length > 0) {
-        // Rooms found by geometry but not by AI (unexpected dimensions)
-        if (geoRoomCount > aiRoomLabels.length) {
-          internalWallNotes.push(`Geometry found ${geoRoomCount} room dims; AI found ${aiRoomLabels.length} room labels.`);
-        }
-      } else if (geoRoomCount === 0 && m != null) {
-        internalWallNotes.push("Internal wall: not extracted — no room dimension annotations found in plan.");
-      }
-
-      const merged: TakeoffData = {
-        ...result.takeoffData,
-        ...(m?.floor_area_m2 != null ? { floor_area_m2: m.floor_area_m2 } : {}),
-        ...(m?.perimeter_m != null ? { external_wall_lm: m.perimeter_m } : {}),
-        // internal_wall_lm: geometry OCR rooms are the source of truth; null when rooms not found
-        ...(m?.internal_wall_length_m != null
-          ? { internal_wall_lm: m.internal_wall_length_m }
-          : { internal_wall_lm: null }),
-        ...(m?.garage_area_m2 != null ? { garage_area_m2: m.garage_area_m2 } : {}),
-        ...(m?.alfresco_area_m2 != null ? { alfresco_area_m2: m.alfresco_area_m2 } : {}),
-        ...(m?.stud_height_mm != null ? { ceiling_height_m: m.stud_height_mm / 1000 } : {}),
-        ...(internalWallNotes.length > 0
-          ? { notes: [result.takeoffData.notes, ...internalWallNotes].filter(Boolean).join(' ') }
-          : {}),
-      };
-
       const builderName = result.planContext?.builder?.name ?? "Jennian Homes";
 
-      // Phase 4, Slice 1 — vector-first garage. Prefer the deterministic garage width
-      // the geometry engine read from the PDF text layer (the dim-pair nearest a
-      // /garage/i label) over the vision-extracted annotation; falls back to vision
-      // when the vector layer is absent/unusable or the pair is not a real garage door.
-      const vectorAnnotations = geoResult?.vector_annotations;
-      // F-022 — capture the VISION garage size BEFORE the vector override so the
-      // reconciliation below can cross-check the two paths (the override replaces it).
-      const visionGarageSize = merged.garage_door_size;
-      const mergedVec = preferVectorGarage(merged, vectorAnnotations);
-
-      // Phase 2b — read the Door & Window Schedule (if found) and reconcile windows.
-      // The schedule is canonical for the window set (count + dims); the floor-plan
-      // callouts are the fallback when no schedule page exists. Fails soft.
+      // Phase 2b — read the Door & Window Schedule (if a schedule page was found) BEFORE
+      // composing. composeTakeoff is PURE and takes the already-read schedule as data; the
+      // schedule is canonical for the window set (count + dims), the floor-plan callouts
+      // are the fallback when no schedule page exists. Fails soft.
       const scheduleRaw = scheduleBlob
         ? await blobToBase64(scheduleBlob)
             .then((sb64) => extractWindowScheduleFn({ data: { imageBase64: sb64, builderName } }))
             .catch(() => null)
         : null;
 
-      // Phase 4, Slice 1 — head-datum safeguard. The engine reports the schedule's
-      // shared head/mounting datum; reject any window height read AS that datum (the
-      // Phase-2f over-read) before aggregating. No fabricated heights — a rejected
-      // height becomes null (unknown) and is flagged in the notes.
-      const scheduleSafeguard = safeguardScheduleHeights(scheduleRaw, vectorAnnotations);
-      const schedule = scheduleSafeguard.schedule;
+      // Convergence Slice 1 — the shared, PURE plan→takeoff seam. Every impure input (the
+      // vision takeoff, the geometry measurement + vector_annotations, the schedule) is
+      // fetched above and handed in; composeTakeoff performs the geometry overrides, the
+      // vector-first garage/openings, the head-datum safeguard, the asserted entrance and
+      // the F-022 reconciliation, folding every honesty flag into takeoff.notes. Pipeline A
+      // (run.ts) calls the SAME function — one implementation, no drift.
+      const composed = composeTakeoff({
+        visionTakeoff: result.takeoffData,
+        geometry: geoResult,
+        schedule: scheduleRaw,
+        geometryPageIndex,
+      });
+      const mergedWithWindows = composed.takeoff;
 
-      const windowAggregate = aggregateWindows(schedule, mergedVec.windows_by_room);
-      let mergedWithWindows = applyWindowAggregate(mergedVec, windowAggregate);
-      // F-022 — capture the VISION window count BEFORE preferVectorOpenings overrides it.
-      const visionWindowCount = mergedWithWindows.window_count;
-
-      // Phase 4, Slice 2 — vector-preferred window COUNT. Prefer the deterministic
-      // positioned W-code count from the engine (schedule W-codes, else floor-plan
-      // W-codes — the only vector count on a no-schedule template) over the vision
-      // count; falls back to vision when the vector layer is absent/unusable. Opening
-      // WIDTHS are firmed up deterministically by the engine too (resolveOpeningWidths)
-      // ahead of the heights slice; ext-wall area stays gated on per-window heights, so
-      // it is NOT recomputed here.
-      mergedWithWindows = preferVectorOpenings(mergedWithWindows, vectorAnnotations);
-
-      // Phase 4, Slice 3 — entry door: asserted standard HEIGHT (2.1m), data-driven WIDTH.
-      // The engine emits the width only when the plan prints a frame-to-frame number
-      // (e.g. Harrison 1430); otherwise the width is UNRESOLVED (never asserted to a
-      // standard — entry widths vary, so a fixed value would be an overfit). preferVector-
-      // Entrance folds the door into the opening set ONLY when the width is known; an
-      // unknown-width door is flagged via the note and left out of the opening area.
-      // Capture the VISION entry-door width (if vision read one) BEFORE the override so
-      // F-022 can cross-check it. Does NOT recompute ext-wall: that stays gated on the
-      // unresolved window heights — adding the entrance must not imply ext-wall is complete.
-      const visionEntranceWidthMm =
-        mergedWithWindows.windows_by_room?.entrance?.width_m != null
-          ? Math.round(mergedWithWindows.windows_by_room.entrance.width_m * 1000)
-          : null;
-      mergedWithWindows = preferVectorEntrance(mergedWithWindows, vectorAnnotations);
-      const entranceNote = entranceAssumptionNote(vectorAnnotations);
-      if (entranceNote) {
-        mergedWithWindows = {
-          ...mergedWithWindows,
-          notes: [mergedWithWindows.notes, entranceNote].filter(Boolean).join(" "),
-        };
-      }
-
-      const safeguardNote = headDatumSafeguardNote(scheduleSafeguard);
-      if (safeguardNote) {
-        mergedWithWindows = {
-          ...mergedWithWindows,
-          notes: [mergedWithWindows.notes, safeguardNote].filter(Boolean).join(" "),
-        };
-      }
-
-      // F-022 — vector ↔ vision cross-check. The prefer-vector seam above already chose
-      // each value (vector wins, deterministically); this adds the missing SIGNAL by
-      // flagging any field where the two paths materially disagreed (e.g. a vision garage
-      // flake 2710 vs the vector 4800). The flag rides on takeoff.notes — the same channel
-      // as the ext-wall note — so a live reviewer is pointed at exactly the diverged
-      // fields. No value changes here; clean when the paths agree or the layer is absent.
-      const reconciliation = reconcileVectorVision(
-        visionGarageSize,
-        visionWindowCount,
-        vectorAnnotations,
-        visionEntranceWidthMm,
-      );
-      if (reconciliation.note) {
-        mergedWithWindows = {
-          ...mergedWithWindows,
-          notes: [mergedWithWindows.notes, reconciliation.note].filter(Boolean).join(" "),
-        };
+      // Side-effect kept OUT of the pure boundary: warn the reviewer when geometry measured
+      // a different page than the AI-classified floor plan (the note is already in notes).
+      if (!composed.pageReconcile.agreed && composed.pageReconcile.note) {
+        toast.warning(composed.pageReconcile.note, { duration: 8000 });
       }
 
       setTakeoffData(mergedWithWindows);
