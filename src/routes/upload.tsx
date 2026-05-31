@@ -22,6 +22,7 @@ import {
   type ScaleResult, type PlanIssue, type TakeoffData, type ConceptTakeoffResult,
 } from "@/lib/takeoff/concept.functions";
 import { composeTakeoff } from "@/lib/takeoff/compose-takeoff";
+import { unwrapTakeoff } from "@/lib/takeoff/enriched-takeoff";
 import type { PlanContext } from "@/lib/takeoff/plan-context";
 import { measurePlanGeometry, overallConfidence, type GeometryApiResult } from "@/lib/takeoff/geometry-api";
 import { resolveGeometryPageIndex } from "@/lib/takeoff/page-of-truth";
@@ -477,7 +478,10 @@ function UploadPage() {
         schedule: scheduleRaw,
         geometryPageIndex,
       });
-      const mergedWithWindows = composed.takeoff;
+      // composeTakeoff now returns the ENRICHED per-field shape (Slice 2). Unwrap to the bare
+      // TakeoffData the rest of /upload (state, cross-reference, exportToExcel) consumes —
+      // values are identical to before; the provenance/flags ride on composed.enriched.
+      const mergedWithWindows = unwrapTakeoff(composed.enriched);
 
       // Side-effect kept OUT of the pure boundary: warn the reviewer when geometry measured
       // a different page than the AI-classified floor plan (the note is already in notes).

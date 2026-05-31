@@ -1,32 +1,31 @@
 // @vitest-environment node
 /**
- * Convergence Slice 1 — composeTakeoff byte-identical baseline (offline, deterministic).
+ * Convergence — composeTakeoff baseline (offline, deterministic).
  *
- * Slice 1 is a PURE REFACTOR: the `/upload` plan→takeoff seam was extracted verbatim into
- * `composeTakeoff`. This test is the safety proof that the extraction changed no behaviour,
- * and it is built to be deterministic on a normal `npm test` (no live AI, no geometry
- * server) — the comparison runs entirely DOWNSTREAM of the non-deterministic vision model,
- * on FROZEN inputs:
+ * Slice 1 proved the extracted seam is reproducible. Slice 2 changed the OUTPUT SHAPE:
+ * composeTakeoff now returns an `EnrichedTakeoff` (every QS field wrapped in
+ * { value, source, confidence, discrepancy_flags }). So the Slice 1 byte-identical
+ * comparison against the bare golden is GONE — replaced by two proofs:
  *
- *   - cached VISION takeoff  → tests/phase1/__fixtures__/mcalevey.golden.json (pipeline.takeoff),
- *     the deterministic, recorded output of the vision pass (the model is non-deterministic
- *     even at temp 0, so we never call it here — we replay its cached result);
- *   - cached GEOMETRY result → tests/phase1/__fixtures__/mcalevey.geometry.json, a frozen
- *     full GeometryApiResult from the deterministic PyMuPDF engine (captured once; no live
- *     :8000 call in this test).
+ *   (a) VALUES PRESERVED — unwrapTakeoff(enriched) deep-equals the Slice 1 bare golden,
+ *       so the enrichment changed no number; and
+ *   (b) METADATA CORRECT — source / confidence / discrepancy_flags are populated from the
+ *       provenance the seam already tracks, and the global flags are migrated onto the
+ *       field they belong to.
  *
- * `composeTakeoff` is PURE (inputs → takeoff; no model/geometry/clock/IO inside the
- * boundary), so identical inputs ⇒ byte-identical output. The committed
- * `mcalevey.compose.golden.json` pins that output; any drift in the seam (or any function
- * it calls) fails this test offline.
+ * Still entirely OFFLINE and downstream of the cached, non-deterministic vision model:
+ *   - cached VISION takeoff  → tests/phase1/__fixtures__/mcalevey.golden.json (pipeline.takeoff)
+ *   - cached GEOMETRY result → tests/phase1/__fixtures__/mcalevey.geometry.json (frozen)
+ * composeTakeoff is PURE, so identical inputs ⇒ deterministic output.
  *
- * To regenerate the golden after an INTENTIONAL behaviour change:
+ * To regenerate the bare golden after an INTENTIONAL value change:
  *   UPDATE_COMPOSE_GOLDEN=1 npx vitest run tests/convergence/compose-takeoff.baseline.test.ts
  */
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { composeTakeoff } from "../../src/lib/takeoff/compose-takeoff";
+import { unwrapTakeoff } from "../../src/lib/takeoff/enriched-takeoff";
 import type { TakeoffData } from "../../src/lib/takeoff/takeoff-types";
 import type { GeometryApiResult } from "../../src/lib/takeoff/geometry-api";
 
@@ -40,39 +39,80 @@ const visionTakeoff = (
 ).pipeline.takeoff;
 const geometry = JSON.parse(readFileSync(GEOMETRY_FIXTURE, "utf8")) as GeometryApiResult;
 
-// mcalevey is a single-page floor plan: no separate Door & Window Schedule page, and the
-// geometry pinned/measured page 0 — so pass geometryPageIndex 0 (matches geometry.page_used)
-// → the page reconciliation agrees and adds no divergence note.
+// mcalevey is a single-page floor plan: no separate schedule page; geometry measured page 0,
+// so pinning page 0 agrees (no page-divergence note).
 function compose() {
-  return composeTakeoff({
-    visionTakeoff,
-    geometry,
-    schedule: null,
-    geometryPageIndex: 0,
-  });
+  return composeTakeoff({ visionTakeoff, geometry, schedule: null, geometryPageIndex: 0 });
 }
 
-describe("Convergence Slice 1 — composeTakeoff baseline (cached vision, frozen, offline)", () => {
+describe("Convergence — composeTakeoff baseline (cached vision, frozen, offline)", () => {
   const composed = compose();
 
   it("composes from cached inputs and agrees on the measured page", () => {
-    expect(composed.takeoff).toBeTruthy();
+    expect(composed.enriched).toBeTruthy();
     expect(composed.pageReconcile.agreed).toBe(true);
     expect(composed.pageReconcile.note).toBeNull();
   });
 
-  it("matches the committed byte-identical baseline", () => {
+  // ── (a) VALUES PRESERVED ───────────────────────────────────────────────────────
+  it("unwrap(enriched) deep-equals the Slice 1 bare golden — enrichment changed no value", () => {
+    const bare = unwrapTakeoff(composed.enriched);
     if (process.env.UPDATE_COMPOSE_GOLDEN || !existsSync(COMPOSE_GOLDEN)) {
-      writeFileSync(COMPOSE_GOLDEN, JSON.stringify(composed.takeoff, null, 2) + "\n");
+      writeFileSync(COMPOSE_GOLDEN, JSON.stringify(bare, null, 2) + "\n");
     }
     const golden = JSON.parse(readFileSync(COMPOSE_GOLDEN, "utf8")) as TakeoffData;
-    // Deep structural equality…
-    expect(composed.takeoff).toEqual(golden);
-    // …and byte-identical serialisation (key order is deterministic from the seam's spreads).
-    expect(JSON.stringify(composed.takeoff)).toBe(JSON.stringify(golden));
+    expect(bare).toEqual(golden);
+  });
+
+  it("the global notes view equals the bare notes (backward-compat preserved)", () => {
+    expect(composed.enriched.notes).toBe(unwrapTakeoff(composed.enriched).notes);
+  });
+
+  // ── (b) METADATA CORRECT ───────────────────────────────────────────────────────
+  it("populates source from the provenance the seam tracks", () => {
+    const e = composed.enriched;
+    // geometry-measured fields
+    expect(e.floor_area_m2.source).toBe("geometry");
+    expect(e.external_wall_lm.source).toBe("geometry");
+    expect(e.internal_wall_lm.source).toBe("geometry");
+    expect(e.ceiling_height_m.source).toBe("geometry");
+    // derived areas
+    expect(e.external_wall_area_m2.source).toBe("derived");
+    expect(e.total_area_m2.source).toBe("derived");
+    // mcalevey: the vector garage (2080) did NOT override the vision read (6044) → vision;
+    // no vector window count present → the count is the vision/callout value.
+    expect(e.garage_door_size.source).toBe("vision");
+    expect(e.window_count.source).toBe("vision");
+    // pure vision fields
+    expect(e.roof_area_m2.source).toBe("vision");
+    expect(e.bathroom_count.source).toBe("vision");
+  });
+
+  it("populates confidence from geometry confidence + F-022 status", () => {
+    const e = composed.enriched;
+    expect(e.floor_area_m2.confidence).toBe("high"); // geometry confidence.floor_area
+    expect(e.external_wall_lm.confidence).toBe("high"); // geometry confidence.perimeter
+    expect(e.internal_wall_lm.confidence).toBe("mid"); // "medium" → "mid"
+    expect(e.garage_door_size.confidence).toBe("low"); // F-022 disagreed (6044 vs 2080)
+  });
+
+  it("migrates the global flags onto the field they belong to", () => {
+    const e = composed.enriched;
+    // F-022 garage disagreement rides on garage_door_size, not a global blob.
+    expect(e.garage_door_size.discrepancy_flags.join(" ")).toContain("garage_door_width");
+    // The entrance assumption / unresolved-width flag rides on windows_by_room.
+    expect(e.windows_by_room.discrepancy_flags.join(" ")).toContain("entrance door");
+    expect(e.windows_by_room.discrepancy_flags.join(" ")).toContain("width not found on the plan");
+    // Every migrated flag is still present in the global notes view (nothing lost).
+    for (const f of [
+      ...e.garage_door_size.discrepancy_flags,
+      ...e.windows_by_room.discrepancy_flags,
+    ]) {
+      expect(e.notes).toContain(f);
+    }
   });
 
   it("is PURE — composing the same frozen inputs twice yields deep-equal output", () => {
-    expect(compose().takeoff).toEqual(composed.takeoff);
+    expect(compose().enriched).toEqual(composed.enriched);
   });
 });
