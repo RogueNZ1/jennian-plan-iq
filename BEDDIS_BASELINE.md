@@ -403,3 +403,144 @@ schedule-over-callout precedence, the 2.42-overshoot guard, and gable-exclusion.
   `54.8 × 2.4 − 13.41 = 118.11`, total `136.3`); deterministic.
 - Phases 2a / 2b / 2c unchanged; garage still 4.8×2.1; window_count 13; floor/perimeter identical.
 - Full offline suite **294 passed / 3 skipped**.
+
+---
+
+## 9. Harrison cold baseline (Lot 9 Kiwitea, job 25052) — report only
+
+First live run of validation set #2 against the real concept rev 4 (6-page) PDF.
+**Report only — no source touched, nothing tuned.** A failed assertion here is a *finding*, not a
+regression. Input: `Lot 9 Kiwitea_CONCEPT rev 4.pdf` (from the OneDrive job folder
+`…/25052 Harrison … Lot 9 Kiwitea Grove/03 PLANS/01 Preliminary Plans/`, 1.87 MB, 6 pages),
+copied to `tests/fixtures/harrison/concept.pdf`. Rendered with **PyMuPDF (fitz)** to 6× 1400px JPEGs
+(`_render/concept-1..6.jpg`) + page text (`_pagetext/concept-1..6.txt`) — poppler/pdftoppm not on PATH.
+Command: `HARRISON_LIVE=1 GEOMETRY_BASE=http://localhost:8000 npx vitest run tests/harrison/baseline.test.ts`.
+The run halted on the first hard assertion (`window_source`), but the full scorecard JSON was written
+first (`_render/baseline-results.json`).
+
+### 9.1 The six call-outs (verbatim from the brief)
+
+| # | Call-out | Result | Verdict |
+|---|---|---|---|
+| 1 | Floor-plan page picked (A201 vs framing A202) | **page 2** (`dimension_floor_plan`, score 95, certainty high) over page 3 framing (scored `legends` −55). chosen_page 2. | ✅ **2a generalises** to the newer template |
+| 2 | `window_source` + callout count | **`"none"`** — 15 raw window annotations, but `windows_by_room` = null → `window_count` null. schedule_page null. | ❌ **headline finding** — no-schedule path did **not** fire |
+| 3 | Garage 2150×4800 → should be 4.8×2.1 | raw read **`"2,710"`** → classified **`2.7×2.1`** | ❌ Pass-1 read the wrong number; classifier correct on its input |
+| 4 | Geometry floor / perimeter (exp 170.79 / 60.4) | service used **page 1 (site plan)**: floor **60.4**, perimeter 60.4/66.64, room_count 1; internal geometry 175.37 vs printed 60.4 → flagged **190% mismatch** | ❌ geometry picked the site plan & mis-OCR'd floor |
+| 5 | Ext-wall delta vs QS 98.07 | **139.29 m²**, Δ **+41.22** (60.4×2.4 − 5.67 garage; windows absent) | ⚠️ formula exact, openings missing |
+| 6 | Total delta vs QS 171.99 | **172.1 m²**, Δ **+0.11** (floor 170.8 + alfresco 1.3) | ✅ within the predicted plan-vs-QS fuzz |
+
+### 9.2 Full scorecard
+
+| Field | IQ (got) | QS truth | Δ | Note |
+|---|---|---|---|---|
+| Page selected | page 2 (Floor Plan) | A201 floor plan | — | decisive over page 3 framing ✅ |
+| floor_area_m2 | **170.8** | 170.79 | **+0.01** | from Pass-0 `livingAreaM2`, page 2 ✅ |
+| alfresco_area_m2 | 1.3 | 1.2 | +0.1 | correctly picked **Porch** over **Patio**, flagged low-confidence ✅ |
+| total_area_m2 (D14) | 172.1 | 171.99 | +0.11 | floor + alfresco ✅ |
+| external_wall_area_m2 (D21) | 139.29 | 98.07 | **+41.22** | inherits the window collapse (only garage subtracted) ❌ |
+| window_source | **none** | floor_plan_callouts | — | **fallback did not fire** ❌ |
+| window_count | null | 14 callouts / 11 proper | — | 15 raw anns → 0 classified ❌ |
+| garage_door_size | 2.7×2.1 | 4.8×2.1 | — | wrong Pass-1 number ❌ |
+| internal_door_count | 10 | 7 standard | +3 | expected plan-shows-doubles discrepancy (do not tune) |
+
+### 9.3 Root cause — the generalisation gap (finding #2, the important one)
+
+Harrison's floor plan carries **bare W-code callouts** (`W01`–`W14`, all 14 confirmed in the page-2 text)
+with **no inline `H×W` dimensions** and **no separate Door & Window Schedule page**. The no-schedule
+fallback (`aggregateWindows(null, windows_by_room)`) assumed the callouts carry parseable dimensions —
+but `parseDimension`'s `^(\d+)[xX×](\d+)$` rejects a bare `W07`. Only **6** `NxM` strings exist on the
+page (`100 x 600`, `150 x 750`, `1000x1000`, `900x1200`, `600x600` — joinery/cladding notes, none a
+window size), so `windows_by_room` collapses to null and the source records `"none"`. **This is the
+real gap:** a plan whose windows live only in bare codes, with no schedule, has nowhere for the window
+set to come from. Beddis never exercised it (it had an A501 schedule).
+
+Garage (finding #3): Pass-1 OCR'd **`2,710`** (a single-door width) instead of the `2150 × 4800`
+double, so the tolerant 2.0–2.4 m height band was never actually tested — the classifier did the right
+thing with the wrong input.
+
+Geometry (finding #4) is a **separate service issue**: the engine selected page 1 (site plan), not the
+floor plan, and its printed-vs-geometry floor-area check fired at 190%. The AI takeoff floor (170.8) is
+the correct figure; the geometry 60.4 is not.
+
+### 9.4 What passed vs what this unblocks
+
+- ✅ **Page selection (2a)**, **floor area**, **alfresco label discrimination**, **total area**, and the
+  **derived-field arithmetic (2d)** all generalise cleanly to the newer 25052 template.
+- ❌ **Windows** are the headline gap: no-schedule + bare-code callouts ⇒ empty window set. A future
+  fix would need to read the `W0x` codes' sizes from the joinery legend / elevations, or treat the
+  callout count itself as the window count when no dimensions are available.
+- ❌ **Garage Pass-1** mis-read; **geometry page selection** mis-picked. Both pre-existing, both out of
+  scope for this report.
+
+No code, tests, or fixtures were changed for this run.
+
+---
+
+## 10. Phase 2e — No-schedule window parsing (the §9 fix)
+
+Closes the headline finding from §9.2/§9.3: Harrison's floor-plan window callouts reached the
+pipeline intact but were discarded by two guards in `src/lib/takeoff/classify-annotations.ts`. Both
+are now fixed; the no-schedule callout path fires.
+
+### 10.1 The two breaks (from the read-only diagnosis — Answer A)
+
+1. **Strict dimension regex.** `parseDimension`'s `^(\d+)[xX×](\d+)$` demanded pure-digit · single-x ·
+   pure-digit, anchored — so Harrison's newer template print `2,150 x 2,100` (thousands commas +
+   spaces) returned null for **all 15** openings → `windows_by_room` null → `window_source: "none"`.
+2. **Room-box guard.** `if (height > 2000 && width > 2000) continue` dropped legitimate tall sliders
+   (`2,150 x 2,400`) as if they were room-dimension boxes.
+
+### 10.2 The fix (generalised, no per-job literals)
+
+- **One shared NZ-dimension reader.** Exported `parseDimsMm` (already used by the garage path since
+  2c) and routed the window `parseDimension` through it. Commas and spaces are now tolerated
+  **identically** on both paths — `2,150 x 2,100`, `2150 x 2100`, and `2150x2100` all read the same.
+  The no-comma form older plans use (`1300x1800`) parses byte-identically — additive tolerance, not a
+  replacement. There is now a single place that knows how to read a dimension string.
+- **`nearOpening` is the discriminator, not size.** The loop already gates on Pass-1's `nearOpening`
+  flag (verified on **both** Harrison and McAlevey: every real opening is `nearOpening:true`, room
+  boxes are not). The crude `>2000×2000` heuristic is replaced by a conservative room-*footprint*
+  backstop: drop only when **both** dims reach room scale (`≥3000mm`). No window is 3 m tall, so a
+  tall slider can never trip it; a real room box (e.g. `4131×3250`, `4300×3600`) still does. Keeps the
+  slider, still drops the box — no traded failure.
+
+### 10.3 Re-baseline — Harrison (the no-schedule path, the thing being fixed)
+
+| Field | Before (§9) | After (2e) | QS truth | Δ after | Status |
+|---|---|---|---|---|---|
+| `window_source` | **none** | **floor_plan_callouts** | callouts | — | ✅ fixed |
+| `window_count` | null | **15** | 14 callouts / 11 proper | — | ✅ all callouts classified |
+| `windows_by_room` | null | 12 rooms, correct H×W (2.15×2.4 slider kept) | — | — | ✅ |
+| **external_wall_area_m2** (D21) | 139.29 (Δ +41.22) | **97.59** | 98.07 | **−0.48** | ✅ now spot-on (openings feed it) |
+| floor_area_m2 | 170.8 | 170.8 | 170.79 | +0.01 | unchanged ✅ |
+| total_area_m2 (D14) | 172.1 | 172.1 | 171.99 | +0.11 | unchanged ✅ |
+| garage_door_size | 2.7×2.1 | 2.7×2.1 | 4.8×2.1 | — | ❌ still Pass-1 misread `2,710` — **out of scope** (vision extraction, not parsing) |
+
+The window collapse is gone: opening area now sums to ≈47.4 m² (perimeter 60.4 × stud 2.4 = 144.96;
+144.96 − 97.59 = 47.37 vs QS total openings 46.89), pulling ext-wall area from +41.22 to **−0.48**.
+The garage size and the geometry service picking the site plan remain known, out-of-scope misses.
+
+### 10.4 Re-baseline — Beddis (no regression)
+
+| Field | Value | Status |
+|---|---|---|
+| prelim `window_source` | **schedule** | unchanged ✅ |
+| prelim `window_count` | **13** (W01–W13, schedule page 7) | unchanged ✅ |
+| prelim `garage_door_size` | **4.8×2.1** | unchanged ✅ |
+| prelim `total_area_m2` | 165.4 | unchanged ✅ |
+| prelim `external_wall_area_m2` | 100.1 (was 104.29) | live re-read variance only — schedule path untouched by 2e, value never QS-asserted |
+| concept (no-schedule) `window_source` | **floor_plan_callouts**, 9 windows | callout path also exercises cleanly on Beddis ✅ |
+
+The Beddis prelim is schedule-sourced, so its canonical window set and the schedule-derived ext-wall
+area are **untouched** by the callout-parser change (the change only affects the no-schedule callout
+path Beddis prelim discards). All Beddis hard assertions stay green.
+
+### 10.5 No-regression / determinism
+
+- **McAlevey replay golden unchanged** — its callouts are clean `NxN` with no comma/space and none at
+  room scale, so the tolerant reader and the new backstop reproduce the identical `windows_by_room`.
+  No golden regeneration needed.
+- New unit tests pin the contract: comma+space parsing, no-comma identity, the kept `2150×2400`
+  slider, the dropped `4300×3600` box, the `≥3000` boundary (`2999` kept / `3000` dropped), and the
+  full Harrison 15-callout set → `window_count 15`.
+- Full offline suite **300 passed / 3 skipped**; Phases 1 / 2a / 2b / 2c / 2d unchanged.

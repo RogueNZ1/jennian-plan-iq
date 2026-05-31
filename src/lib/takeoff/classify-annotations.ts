@@ -1,7 +1,7 @@
 import type { RawAnnotations } from './extract-annotations';
 import type { PlanContext } from './plan-context';
 import type { TakeoffData, WindowsByRoom } from './takeoff-types';
-import { normaliseRoomName, classifyGarageDoorAnnotation } from './classify';
+import { normaliseRoomName, classifyGarageDoorAnnotation, parseDimsMm } from './classify';
 import { computeOpeningAreaM2, computeExternalWallAreaM2, computeTotalAreaM2 } from './derive-fields';
 import { round2 } from './utils';
 
@@ -10,16 +10,36 @@ interface ParsedDimension {
   widthMm: number;
 }
 
+/**
+ * A window callout is exactly two dimension numbers. We reuse the shared
+ * parseDimsMm reader (classify.ts) so commas and spaces are tolerated identically
+ * to the garage path — Harrison's newer template prints "2,150 x 2,100", older
+ * templates "1300x1800"; both must read the same. The pair's *order* carries the
+ * format: first number is the height under HEIGHT_x_WIDTH, the width otherwise.
+ * Anything that isn't a clean two-number callout (a lone leaf size like "810", or
+ * a noisy string) returns null and is skipped, exactly as before.
+ */
 function parseDimension(text: string, format: PlanContext['dimensionFormat']): ParsedDimension | null {
-  const match = text.match(/^(\d+)[xX×](\d+)$/);
-  if (!match) return null;
-  const a = parseInt(match[1], 10);
-  const b = parseInt(match[2], 10);
-  if (isNaN(a) || isNaN(b)) return null;
+  const dims = parseDimsMm(text);
+  if (dims.length !== 2) return null;
+  const [a, b] = dims;
   return format === 'HEIGHT_x_WIDTH'
     ? { heightMm: a, widthMm: b }
     : { heightMm: b, widthMm: a };
 }
+
+/**
+ * Room-dimension boxes (e.g. "4300×3600", "4555×5720") are room footprints, not
+ * window openings. The reliable discriminator is Pass-1's `nearOpening` flag —
+ * verified on both Harrison and McAlevey: every real opening is nearOpening:true,
+ * room boxes are not — and the loop already gates on it. This size check is only a
+ * conservative backstop for a room box mis-flagged as an opening: it fires solely
+ * when BOTH dims reach room scale (≥3000mm). No window is 3m tall, so a genuine
+ * opening — including Harrison's tall 2150×2400 sliders — can never trip it; only a
+ * room footprint (both sides ≥3m) can. The old >2000×2000 guard wrongly ate those
+ * sliders; this keeps them while still dropping room boxes.
+ */
+const ROOM_BOX_MIN_MM = 3000;
 
 export function classifyAnnotations(raw: RawAnnotations, context: PlanContext): TakeoffData {
   // ── Windows by room ─────────────────────────────────────────────────────────
@@ -29,9 +49,9 @@ export function classifyAnnotations(raw: RawAnnotations, context: PlanContext): 
     if (!ann.nearOpening) continue;
     const dim = parseDimension(ann.text, context.dimensionFormat);
     if (!dim) continue;
-    // Room dimension annotations have both dims > 2000mm (e.g. 4300×3600).
-    // Skip them — they are room boxes, not window annotations.
-    if (dim.heightMm > 2000 && dim.widthMm > 2000) continue;
+    // Backstop: drop only genuine room footprints (both dims ≥ room scale), never
+    // a tall slider. nearOpening (gated above) is the primary discriminator.
+    if (dim.heightMm >= ROOM_BOX_MIN_MM && dim.widthMm >= ROOM_BOX_MIN_MM) continue;
     const room = normaliseRoomName(ann.nearestRoomLabel ?? 'Unknown');
     if (windowsMap[room]) {
       windowsMap[room].qty += 1;

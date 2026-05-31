@@ -74,9 +74,12 @@ describe("window-extraction — HEIGHT_x_WIDTH dimension parsing", () => {
     expect(result.windows_by_room?.["Bed 1 (Master)"]?.width_m).toBe(1.8);
   });
 
-  it("2400x3600 room-scale annotation with nearOpening=true is NOT classified as a window", () => {
-    // Both dimensions > 2000mm → this is a room dimension box, not a window.
-    // The guard in classifyAnnotations must reject it even if nearOpening is true.
+  it("2400x3600 (room-height, large width) with nearOpening=true is now KEPT — Phase 2e", () => {
+    // Contract change (Phase 2e): the reliable opening/room-box discriminator is
+    // Pass-1's nearOpening flag, NOT a crude >2000×2000 size heuristic — a 2.4m-high
+    // opening can be a wide stacker slider, and size alone cannot tell it apart from a
+    // 2.4×3.6m room. Only a genuine room *footprint* (both dims ≥ 3000mm) is dropped,
+    // so an opening flagged nearOpening:true at this size is trusted and counted.
     const result = classifyAnnotations(
       raw({
         openingAnnotations: [
@@ -85,8 +88,7 @@ describe("window-extraction — HEIGHT_x_WIDTH dimension parsing", () => {
       }),
       ctx("HEIGHT_x_WIDTH"),
     );
-    expect(result.windows_by_room?.["Kitchen"]).toBeUndefined();
-    expect(result.window_count).toBeNull();
+    expect(result.windows_by_room?.["Kitchen"]).toMatchObject({ qty: 1, height_m: 2.4, width_m: 3.6 });
   });
 
   it("4131x3250 room dim (Master Bed ground truth) with nearOpening=true is rejected", () => {
@@ -170,9 +172,8 @@ describe("window-extraction — WIDTH_x_HEIGHT format", () => {
   });
 });
 
-describe("window-extraction — boundary guards", () => {
-  it("exactly 2000mm dimension is treated as window (boundary: > 2000 is room)", () => {
-    // 2000x1200: one dim is exactly 2000 → not both > 2000 → IS a window
+describe("window-extraction — room-footprint backstop (Phase 2e: ≥3000mm both dims)", () => {
+  it("2000x1200 is a window (well under room scale)", () => {
     const result = classifyAnnotations(
       raw({
         openingAnnotations: [
@@ -184,7 +185,9 @@ describe("window-extraction — boundary guards", () => {
     expect(result.windows_by_room?.["Kitchen"]?.qty).toBe(1);
   });
 
-  it("2001x2001 is rejected as room scale (both > 2000)", () => {
+  it("2001x2001 with nearOpening=true is now KEPT — below room-footprint scale, nearOpening trusted", () => {
+    // Old behaviour dropped this on the >2000×2000 heuristic; the new contract trusts
+    // nearOpening below room-footprint scale (both dims must reach 3000mm to be a box).
     const result = classifyAnnotations(
       raw({
         openingAnnotations: [
@@ -193,6 +196,20 @@ describe("window-extraction — boundary guards", () => {
       }),
       ctx("HEIGHT_x_WIDTH"),
     );
-    expect(result.windows_by_room?.["Kitchen"]).toBeUndefined();
+    expect(result.windows_by_room?.["Kitchen"]?.qty).toBe(1);
+  });
+
+  it("2999x2999 is kept; 3000x3000 (room footprint) is dropped — the ≥3000 boundary", () => {
+    const kept = classifyAnnotations(
+      raw({ openingAnnotations: [{ text: "2999x2999", nearestRoomLabel: "KITCHEN", nearOpening: true }] }),
+      ctx("HEIGHT_x_WIDTH"),
+    );
+    expect(kept.windows_by_room?.["Kitchen"]?.qty).toBe(1);
+
+    const dropped = classifyAnnotations(
+      raw({ openingAnnotations: [{ text: "3000x3000", nearestRoomLabel: "KITCHEN", nearOpening: true }] }),
+      ctx("HEIGHT_x_WIDTH"),
+    );
+    expect(dropped.windows_by_room?.["Kitchen"]).toBeUndefined();
   });
 });

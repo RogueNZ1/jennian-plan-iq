@@ -113,6 +113,80 @@ describe("classifyAnnotations — window parsing HEIGHT_x_WIDTH", () => {
   });
 });
 
+describe("classifyAnnotations — Phase 2e: format-tolerant window parsing", () => {
+  // Harrison's newer template prints callouts with thousands commas + spaces around
+  // the separator ("2,150 x 2,100"). The old strict /^(\d+)x(\d+)$/ rejected all of
+  // them → window_source "none". The shared parseDimsMm reader now tolerates them,
+  // identically to the no-comma form older plans use.
+  it("parses a comma+space callout '2,150 x 2,100' (Harrison format)", () => {
+    const raw = makeRaw({
+      openingAnnotations: [
+        { text: "2,150 x 2,100", nearestRoomLabel: "LOUNGE", nearOpening: true },
+      ],
+    });
+    const result = classifyAnnotations(raw, makeContext({ dimensionFormat: "HEIGHT_x_WIDTH" }));
+    expect(result.windows_by_room?.["Lounge"]).toMatchObject({ qty: 1, height_m: 2.15, width_m: 2.1 });
+  });
+
+  it("parses the no-comma form '1300x1800' identically (no Beddis/McAlevey regression)", () => {
+    const raw = makeRaw({
+      openingAnnotations: [
+        { text: "1300x1800", nearestRoomLabel: "DINING", nearOpening: true },
+      ],
+    });
+    const result = classifyAnnotations(raw, makeContext({ dimensionFormat: "HEIGHT_x_WIDTH" }));
+    expect(result.windows_by_room?.["Dining"]).toMatchObject({ qty: 1, height_m: 1.3, width_m: 1.8 });
+  });
+
+  it("keeps a tall slider '2,150 x 2,400' (both >2000) — the old room-box guard wrongly dropped it", () => {
+    const raw = makeRaw({
+      openingAnnotations: [
+        { text: "2,150 x 2,400", nearestRoomLabel: "FAMILY", nearOpening: true },
+      ],
+    });
+    const result = classifyAnnotations(raw, makeContext({ dimensionFormat: "HEIGHT_x_WIDTH" }));
+    expect(result.windows_by_room?.["Family/Living"]).toMatchObject({ qty: 1, height_m: 2.15, width_m: 2.4 });
+    expect(result.window_count).toBe(1);
+  });
+
+  it("still drops a genuine room-dimension box '4,300 x 3,600' (both ≥ room scale)", () => {
+    const raw = makeRaw({
+      openingAnnotations: [
+        { text: "4,300 x 3,600", nearestRoomLabel: "FAMILY", nearOpening: true },
+      ],
+    });
+    const result = classifyAnnotations(raw, makeContext({ dimensionFormat: "HEIGHT_x_WIDTH" }));
+    expect(result.window_count).toBeNull();
+  });
+
+  it("classifies the full Harrison page-2 callout set (15 openings → non-null window set)", () => {
+    // Exactly the Pass-1 openingAnnotations captured on the Harrison cold run.
+    const raw = makeRaw({
+      openingAnnotations: [
+        { text: "2,150 x 2,100", nearestRoomLabel: "LOUNGE", nearOpening: true },
+        { text: "1,300 x 1,600", nearestRoomLabel: "DINING", nearOpening: true },
+        { text: "2,150 x 2,000", nearestRoomLabel: "FAMILY", nearOpening: true },
+        { text: "2,150 x 2,400", nearestRoomLabel: "FAMILY", nearOpening: true },
+        { text: "1,700 x 1,900", nearestRoomLabel: "KITCHEN", nearOpening: true },
+        { text: "2,150 x 2,400", nearestRoomLabel: "BED 1", nearOpening: true },
+        { text: "2,150 x 600", nearestRoomLabel: "LOUNGE", nearOpening: true },
+        { text: "1,550 x 2,100", nearestRoomLabel: "PORCH", nearOpening: true },
+        { text: "2,150 x 600", nearestRoomLabel: "GARAGE", nearOpening: true },
+        { text: "2,150 x 1,500", nearestRoomLabel: "BED 2", nearOpening: true },
+        { text: "1,300 x 1,800", nearestRoomLabel: "BED 3", nearOpening: true },
+        { text: "2,150 x 1,030", nearestRoomLabel: "BATH", nearOpening: true },
+        { text: "1,300 x 1,500", nearestRoomLabel: "WC", nearOpening: true },
+        { text: "1,100 x 600", nearestRoomLabel: "BATH", nearOpening: true },
+        { text: "1,100 x 1,200", nearestRoomLabel: "BATH", nearOpening: true },
+      ],
+    });
+    const result = classifyAnnotations(raw, makeContext({ dimensionFormat: "HEIGHT_x_WIDTH" }));
+    // All 15 are real openings (none a room box) → all counted.
+    expect(result.window_count).toBe(15);
+    expect(result.windows_by_room).not.toBeNull();
+  });
+});
+
 describe("classifyAnnotations — areas from areaSummary", () => {
   it("reads living area from areaSummary", () => {
     const raw = makeRaw({ areaSummary: { livingAreaM2: 167.9, garageAreaM2: null, alfrescoAreaM2: null, coverageAreaM2: null, perimeterM: null } });

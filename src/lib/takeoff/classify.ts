@@ -298,10 +298,16 @@ export interface GarageDoorClass {
 
 /**
  * Pull every dimension number out of an annotation string in millimetres,
- * tolerant of thousands separators and metre units:
+ * tolerant of thousands separators, spaces and metre units:
  *   "2,210 x 4,800" → [2210, 4800]   "4.8 x 2.1" → [4800, 2100]   "4800" → [4800]
+ *   "2,150 x 2,100" → [2150, 2100]   "1300x1800" → [1300, 1800]
+ *
+ * Shared NZ-dimension reader: this is the single place that knows how to read a
+ * dimension string. The garage path (classifyGarageDoorAnnotation) and the window
+ * path (parseWindowDimension in classify-annotations) both call it, so comma/space
+ * tolerance is identical across both — no second, divergent parser.
  */
-function parseDimsMm(text: string): number[] {
+export function parseDimsMm(text: string): number[] {
   const cleaned = text.replace(/,/g, ""); // thousands separators: "2,210" → "2210"
   const matches = cleaned.match(/\d+(?:\.\d+)?/g);
   if (!matches) return [];
