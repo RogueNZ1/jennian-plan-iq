@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   FileSpreadsheet, Ruler, Mountain, Square, Zap, Droplets,
-  Hammer, PaintRoller, DoorOpen, ArrowLeft,
+  Hammer, PaintRoller, DoorOpen, ArrowLeft, AlertTriangle,
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -163,6 +163,32 @@ function QuickExport() {
 
         {!loading && !error && data && (
           <div className="grid gap-4 mt-2">
+
+            {/* Convergence Slice 6 — confidence / review notes from the enriched takeoff.
+                Shown only when the persisted takeoff_json carried per-field flags; absent for
+                pre-convergence (relational) jobs, so those render exactly as before. */}
+            {data.reviewFlags && data.reviewFlags.length > 0 && (
+              <div className="rounded-lg border border-amber-400/50 bg-amber-50/60 overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-400/40 bg-amber-100/50">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <h3 className="text-[13px] font-semibold text-amber-900">
+                    Confidence / Review Notes — confirm against the plan before pricing
+                  </h3>
+                </div>
+                <div className="p-4 space-y-2">
+                  {data.reviewFlags.map((f) => (
+                    <div key={f.field} className="text-[12px]">
+                      <span className="font-semibold text-amber-900">{f.field}</span>
+                      <ul className="mt-0.5 ml-4 list-disc text-amber-800/90">
+                        {f.flags.map((flag, i) => (
+                          <li key={i}>{flag}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Core Measurements */}
             <SectionCard icon={Ruler} title="Core Measurements">

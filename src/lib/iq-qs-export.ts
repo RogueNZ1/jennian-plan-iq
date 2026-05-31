@@ -13,6 +13,7 @@ import type { ExtractedFile } from "@/lib/takeoff/pdf-text";
 import type { MarkupDoorType } from "@/lib/takeoff/types";
 import { normaliseRoomName } from "@/lib/takeoff/classify";
 import { round2 } from "@/lib/takeoff/utils";
+import { fieldFlags, type EnrichedTakeoff } from "@/lib/takeoff/enriched-takeoff";
 
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
 type OpeningRow = Database["public"]["Tables"]["opening_schedule"]["Row"];
@@ -122,6 +123,15 @@ export type QSExportData = {
   specItems: Record<string, string>;
   /** Pre-loaded module_items rows — avoids a second DB query in writeIQDataSheetFull */
   moduleItems?: Array<{ module_id: string; label: string; extracted_value: string | null; approved_value: string | null; unit: string | null; value_source: string | null }>;
+  /**
+   * Convergence Slice 6 — per-field review flags carried over from the persisted enriched
+   * takeoff (takeoff_runs.takeoff_json). Present (and surfaced in the .xlsx "Review Notes"
+   * sheet + the review UI) only when an enriched takeoff exists AND it carries flags; absent
+   * for pre-convergence jobs (relational fallback) → export is byte-identical to today.
+   */
+  reviewFlags?: Array<{ field: string; flags: string[] }>;
+  /** Which source built the takeoff fields: the enriched takeoff_json, or the relational rows. */
+  takeoffSource?: "enriched" | "relational";
 };
 
 export type ElectricalItem = {
@@ -145,6 +155,56 @@ export type ElectricalSchedule = {
 
 /* -------------------------------------------------------------- data load */
 
+/**
+ * Convergence Slice 6 — load the canonical enriched takeoff (takeoff_runs.takeoff_json) for a
+ * job's latest run. GRACEFUL + PERMANENT FALLBACK: returns null on ANY problem — the column
+ * absent (pre-migration), no run row, a non-object payload, or any query error — so the caller
+ * always falls back to the relational rows. `select("*")` is used deliberately: it never errors
+ * on a column that does not exist yet, it simply omits it.
+ */
+export async function loadEnrichedTakeoffJson(jobId: string): Promise<EnrichedTakeoff | null> {
+  try {
+    const res = await supabase
+      .from("takeoff_runs")
+      .select("*")
+      .eq("job_id", jobId)
+      .order("started_at", { ascending: false })
+      .limit(1);
+    const row = res.data?.[0] as Record<string, unknown> | undefined;
+    const tj = row?.["takeoff_json"];
+    return tj && typeof tj === "object" ? (tj as EnrichedTakeoff) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Overlay the enriched takeoff onto a relational QSExportData base. When `enriched` is null
+ * (every pre-convergence job) the base is returned UNCHANGED apart from a source tag — the
+ * export is byte-identical to today (PERMANENT fallback, not a migration bridge). When present,
+ * the converged takeoff VALUES win where they exist, and the per-field discrepancy flags are
+ * attached for the .xlsx + review UI.
+ */
+export function applyEnrichedTakeoff(
+  base: QSExportData,
+  enriched: EnrichedTakeoff | null,
+): QSExportData {
+  if (!enriched) return { ...base, takeoffSource: "relational" };
+  const perimeter = enriched.external_wall_lm.value;
+  const studM = enriched.ceiling_height_m.value;
+  return {
+    ...base,
+    floorAreaM2: enriched.floor_area_m2.value ?? base.floorAreaM2,
+    perimeterLm: perimeter ?? base.perimeterLm,
+    exteriorWallLengthLm: perimeter ?? base.exteriorWallLengthLm,
+    alfrescoAreaM2: enriched.alfresco_area_m2.value ?? base.alfrescoAreaM2,
+    studHeightMm: studM != null ? Math.round(studM * 1000) : base.studHeightMm,
+    exteriorWallHeightM: studM ?? base.exteriorWallHeightM,
+    reviewFlags: fieldFlags(enriched),
+    takeoffSource: "enriched",
+  };
+}
+
 export async function buildQSExportData(
   jobId: string,
   files?: ExtractedFile[],
@@ -162,6 +222,11 @@ export async function buildQSExportData(
   if (doorCountsRes.error) throw new Error(`Failed to load door counts: ${doorCountsRes.error.message}`);
   const job = jobRes.data;
   const items: ModuleItemRow[] = itemsRes.data ?? [];
+
+  // Convergence Slice 6 — the canonical enriched takeoff (takeoff_json) is the PRIMARY source
+  // when present; null for every pre-convergence job → relational fallback (overlay applied at
+  // the return below).
+  const enrichedJson = await loadEnrichedTakeoffJson(jobId);
 
   function getVal(label: string): string | null {
     const needle = label.toLowerCase();
@@ -533,7 +598,7 @@ export async function buildQSExportData(
 
   const perimeterLm = getNum("perimeter") ?? getNum("external perimeter");
 
-  return {
+  const base: QSExportData = {
     jobNumber: resolvedJobNumber,
     clientName: resolvedClientName,
     address: resolvedAddress,
@@ -602,6 +667,10 @@ export async function buildQSExportData(
       value_source: i.value_source ?? null,
     })),
   };
+
+  // Convergence Slice 6 — enriched takeoff_json wins where present (values + flags); null →
+  // relational base unchanged (byte-identical to today).
+  return applyEnrichedTakeoff(base, enrichedJson);
 }
 
 /* -------------------------------------------------- electrical schedule */
@@ -729,6 +798,35 @@ export { exportCartersLoads } from "@/lib/iq-carters-loads";
  * Jennian_QS_IQ_Updated.xlsm "Data Input" sheet.  All value cells are
  * highlighted yellow so the estimator can filter/copy them straight into QS.
  */
+/**
+ * Convergence Slice 6 — the "Review Notes" worksheet: one row per per-field discrepancy flag
+ * carried over from the enriched takeoff, so a QS sees them before pricing. Returns null when
+ * there are no flags (relational/pre-convergence jobs) so the workbook is unchanged from today.
+ */
+export function buildReviewNotesSheet(
+  reviewFlags: QSExportData["reviewFlags"],
+): XLSX.WorkSheet | null {
+  if (!reviewFlags || reviewFlags.length === 0) return null;
+  const ws: XLSX.WorkSheet = {};
+  const set = (addr: string, v: string) => {
+    ws[addr] = { v, t: "s" };
+  };
+  set("A1", "⚠ CONFIDENCE / REVIEW NOTES — confirm each against the plan before pricing");
+  set("A3", "Field");
+  set("B3", "Flag");
+  let r = 4;
+  for (const f of reviewFlags) {
+    for (const flag of f.flags) {
+      set(`A${r}`, f.field);
+      set(`B${r}`, flag);
+      r += 1;
+    }
+  }
+  ws["!ref"] = `A1:B${Math.max(r - 1, 3)}`;
+  ws["!cols"] = [{ wch: 22 }, { wch: 110 }];
+  return ws;
+}
+
 export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
   const ws: XLSX.WorkSheet = {};
 
@@ -989,6 +1087,13 @@ export async function writeIQDataSheetFull(
   const wsCover = XLSX.utils.aoa_to_sheet(coverRows);
   wsCover["!cols"] = [{ wch: 20 }, { wch: 40 }, { wch: 20 }, { wch: 12 }];
   XLSX.utils.book_append_sheet(wb, wsCover, "Cover");
+
+  // Convergence Slice 6 — Review Notes sheet: the per-field confidence flags carried over from
+  // the enriched takeoff, placed prominently (right after the Cover) so a QS sees them before
+  // pricing. Added ONLY when there are flags → a pre-convergence/relational export (no flags)
+  // is byte-identical to today.
+  const wsFlags = buildReviewNotesSheet(data.reviewFlags);
+  if (wsFlags) XLSX.utils.book_append_sheet(wb, wsFlags, "Review Notes");
 
   // Data sheet with amber fill for assumed rows
   const dataHeader = ["Module", "Label", "Value", "Unit", "Source"];

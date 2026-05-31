@@ -149,3 +149,36 @@ export function allDiscrepancyFlags(e: EnrichedTakeoff): string[] {
   ];
   return fields.flatMap((f) => f.discrepancy_flags);
 }
+
+/**
+ * Per-field review flags with human-readable field labels — for surfacing in the QS export
+ * and the review UI. Only fields that actually carry a discrepancy flag are returned.
+ */
+export function fieldFlags(e: EnrichedTakeoff): Array<{ field: string; flags: string[] }> {
+  const entries: Array<[string, FieldValue<unknown>]> = [
+    ["Floor area", e.floor_area_m2],
+    ["Garage area", e.garage_area_m2],
+    ["Alfresco area", e.alfresco_area_m2],
+    ["External wall (lm)", e.external_wall_lm],
+    ["Internal wall (lm)", e.internal_wall_lm],
+    ["Roof area", e.roof_area_m2],
+    ["Window count", e.window_count],
+    ["External doors", e.external_door_count],
+    ["Internal doors", e.internal_door_count],
+    ["Bathrooms", e.bathroom_count],
+    ["Ensuites", e.ensuite_count],
+    ["Laundries", e.laundry_count],
+    ["Kitchens", e.kitchen_count],
+    ["Ceiling height", e.ceiling_height_m],
+    ["Foundation", e.foundation_type],
+    ["Windows by room", e.windows_by_room],
+    ["Window schedule", e.windows_schedule],
+    ["Door breakdown", e.door_breakdown],
+    ["Garage door", e.garage_door_size],
+    ["External wall area", e.external_wall_area_m2],
+    ["Total area", e.total_area_m2],
+  ];
+  return entries
+    .filter(([, v]) => v.discrepancy_flags.length > 0)
+    .map(([field, v]) => ({ field, flags: v.discrepancy_flags }));
+}
