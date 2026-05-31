@@ -22,6 +22,11 @@ import {
   type ScaleResult, type PlanIssue, type TakeoffData, type ConceptTakeoffResult,
 } from "@/lib/takeoff/concept.functions";
 import { aggregateWindows, applyWindowAggregate } from "@/lib/takeoff/aggregate-windows";
+import {
+  preferVectorGarage,
+  safeguardScheduleHeights,
+  headDatumSafeguardNote,
+} from "@/lib/takeoff/vector-annotations";
 import type { PlanContext } from "@/lib/takeoff/plan-context";
 import { measurePlanGeometry, overallConfidence, type GeometryApiResult } from "@/lib/takeoff/geometry-api";
 import { resolveGeometryPageIndex, reconcileGeometryPage } from "@/lib/takeoff/page-of-truth";
@@ -501,16 +506,39 @@ function UploadPage() {
 
       const builderName = result.planContext?.builder?.name ?? "Jennian Homes";
 
+      // Phase 4, Slice 1 — vector-first garage. Prefer the deterministic garage width
+      // the geometry engine read from the PDF text layer (the dim-pair nearest a
+      // /garage/i label) over the vision-extracted annotation; falls back to vision
+      // when the vector layer is absent/unusable or the pair is not a real garage door.
+      const vectorAnnotations = geoResult?.vector_annotations;
+      const mergedVec = preferVectorGarage(merged, vectorAnnotations);
+
       // Phase 2b — read the Door & Window Schedule (if found) and reconcile windows.
       // The schedule is canonical for the window set (count + dims); the floor-plan
       // callouts are the fallback when no schedule page exists. Fails soft.
-      const schedule = scheduleBlob
+      const scheduleRaw = scheduleBlob
         ? await blobToBase64(scheduleBlob)
             .then((sb64) => extractWindowScheduleFn({ data: { imageBase64: sb64, builderName } }))
             .catch(() => null)
         : null;
-      const windowAggregate = aggregateWindows(schedule, merged.windows_by_room);
-      const mergedWithWindows = applyWindowAggregate(merged, windowAggregate);
+
+      // Phase 4, Slice 1 — head-datum safeguard. The engine reports the schedule's
+      // shared head/mounting datum; reject any window height read AS that datum (the
+      // Phase-2f over-read) before aggregating. No fabricated heights — a rejected
+      // height becomes null (unknown) and is flagged in the notes.
+      const scheduleSafeguard = safeguardScheduleHeights(scheduleRaw, vectorAnnotations);
+      const schedule = scheduleSafeguard.schedule;
+
+      const windowAggregate = aggregateWindows(schedule, mergedVec.windows_by_room);
+      let mergedWithWindows = applyWindowAggregate(mergedVec, windowAggregate);
+
+      const safeguardNote = headDatumSafeguardNote(scheduleSafeguard);
+      if (safeguardNote) {
+        mergedWithWindows = {
+          ...mergedWithWindows,
+          notes: [mergedWithWindows.notes, safeguardNote].filter(Boolean).join(" "),
+        };
+      }
 
       setTakeoffData(mergedWithWindows);
       setEditedTakeoff(mergedWithWindows);

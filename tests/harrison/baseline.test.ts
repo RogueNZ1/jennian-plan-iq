@@ -39,6 +39,7 @@ import {
 } from "../../src/lib/pdf-page-classify";
 import { aggregateWindows, applyWindowAggregate } from "../../src/lib/takeoff/aggregate-windows";
 import { resolveGeometryPageIndex, reconcileGeometryPage } from "../../src/lib/takeoff/page-of-truth";
+import { preferVectorGarage } from "../../src/lib/takeoff/vector-annotations";
 
 const DIR = resolve(process.cwd(), "tests/fixtures/harrison");
 const RENDER = resolve(DIR, "_render");
@@ -122,16 +123,34 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     const schedPick = pickWindowSchedule(scoredPages);
     out.concept.schedule_page = schedPick ? pages[schedPick.index] : null;
 
+    // ── Phase 3: page-of-truth — this is the run that exposed the bug. Geometry,
+    // left to auto-detect, measured the site plan while the AI selected the A201 floor
+    // plan. Now pin geometry to the AI-classified floor-plan page and record the
+    // reconciliation (requested page vs geometry's page_used). Fetched here (before the
+    // takeoff seam) so the Phase 4 vector_annotations feed the garage override.
+    const conceptGeomPage = resolveGeometryPageIndex(pick ? pick.index : null, pages.map((n) => ({ pageNumber: n })));
+    out.concept.geometry = await geometry("concept.pdf", conceptGeomPage);
+    out.concept.geometry_page_requested = conceptGeomPage ?? null;
+    out.concept.page_reconciliation = reconcileGeometryPage(conceptGeomPage, out.concept.geometry.page_used);
+    const conceptVector = out.concept.geometry.vector_annotations;
+    out.concept.vector_annotations = conceptVector ?? null;
+
     if (pick) {
       const page = pages[pick.index];
       const ctx = ctxByPage[page];
       const rawAnn = await extractAnnotations(b64(`concept-${page}.jpg`), ctx);
       const takeoff = classifyAnnotations(rawAnn, ctx);
 
+      // ── Phase 4, Slice 1: prefer the deterministic vector garage width (the dim-pair
+      // the engine read nearest a /garage/i label) over the vision annotation. Harrison
+      // has no schedule, so only the garage field is hybridised here; falls back to
+      // vision when the vector layer is absent/unusable.
+      const takeoffVec = preferVectorGarage(takeoff, conceptVector);
+
       // No-schedule fallback: reconcile against a null schedule so the source is
       // recorded as "floor_plan_callouts". Windows come only from the W-code callouts.
-      const agg = aggregateWindows(null, takeoff.windows_by_room);
-      const finalTakeoff = applyWindowAggregate(takeoff, agg);
+      const agg = aggregateWindows(null, takeoffVec.windows_by_room);
+      const finalTakeoff = applyWindowAggregate(takeoffVec, agg);
 
       out.concept.chosen_page = page;
       out.concept.raw_window_annotations = rawAnn.openingAnnotations.length;
@@ -144,14 +163,6 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
       out.concept.takeoff = null;
       out.concept.window_source = null;
     }
-    // ── Phase 3: page-of-truth — this is the run that exposed the bug. Geometry,
-    // left to auto-detect, measured the site plan while the AI selected the A201 floor
-    // plan. Now pin geometry to the AI-classified floor-plan page and record the
-    // reconciliation (requested page vs geometry's page_used).
-    const conceptGeomPage = resolveGeometryPageIndex(pick ? pick.index : null, pages.map((n) => ({ pageNumber: n })));
-    out.concept.geometry = await geometry("concept.pdf", conceptGeomPage);
-    out.concept.geometry_page_requested = conceptGeomPage ?? null;
-    out.concept.page_reconciliation = reconcileGeometryPage(conceptGeomPage, out.concept.geometry.page_used);
 
     // Scorecard: deltas vs the QS answer key (report — not all are hard-asserted,
     // since the QS, not any plan's printed number, is truth and some values are AI-read).
@@ -205,5 +216,16 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     // Garage door: 2150×4800 must still classify to the QS double-garage size 4.8×2.1
     // (tolerant 2.0–2.4m height band; 2150 ∈ [2000,2400]).
     expect(out.concept.takeoff.garage_door_size).toBe("4.8×2.1");
+
+    // ── Phase 4, Slice 1 definition of done (vector-first hybrid) ──────────────
+    // The engine reads the garage dim-pair (2,150 × 4,800) nearest the /garage/i label
+    // deterministically — the 2710 vision flake is gone — and resolves the 4.8m double
+    // garage. Harrison carries NO Door & Window Schedule, so the schedule field is null
+    // (the safeguard simply never fires) — proving the no-schedule path is unaffected.
+    expect(out.concept.vector_annotations).not.toBeNull();
+    expect(out.concept.vector_annotations.vector_usable).toBe(true);
+    expect(out.concept.vector_annotations.garage).not.toBeNull();
+    expect(out.concept.vector_annotations.garage.width_mm).toBe(4800);
+    expect(out.concept.vector_annotations.schedule).toBeNull();
   }, 600000);
 });

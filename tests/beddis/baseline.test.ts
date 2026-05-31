@@ -31,6 +31,11 @@ import {
 import { readWindowSchedule } from "../../src/lib/takeoff/extract-window-schedule";
 import { aggregateWindows, applyWindowAggregate } from "../../src/lib/takeoff/aggregate-windows";
 import { resolveGeometryPageIndex, reconcileGeometryPage } from "../../src/lib/takeoff/page-of-truth";
+import {
+  preferVectorGarage,
+  safeguardScheduleHeights,
+  headDatumSafeguardNote,
+} from "../../src/lib/takeoff/vector-annotations";
 
 const DIR = resolve(process.cwd(), "tests/fixtures/beddis");
 const RENDER = resolve(DIR, "_render");
@@ -107,6 +112,18 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     const pick = pickPrimaryFloorplan(scoredPages);
     out.prelim.selected = pick ? { page: prelimPages[pick.index], certainty: pick.certainty } : null;
 
+    // ── Phase 3: page-of-truth — pin geometry to the AI-classified floor-plan page
+    // (resolveGeometryPageIndex) instead of letting it auto-detect (which could land on
+    // the site plan). Record the reconciliation: requested page vs geometry's page_used.
+    // Fetched here (before the takeoff seam) so the Phase 4 vector_annotations are in
+    // scope to feed the garage override + head-datum safeguard, mirroring upload.tsx.
+    const prelimGeomPage = resolveGeometryPageIndex(pick ? pick.index : null, prelimPages.map((n) => ({ pageNumber: n })));
+    out.prelim.geometry = await geometry("prelim.pdf", prelimGeomPage);
+    out.prelim.geometry_page_requested = prelimGeomPage ?? null;
+    out.prelim.page_reconciliation = reconcileGeometryPage(prelimGeomPage, out.prelim.geometry.page_used);
+    const prelimVector = out.prelim.geometry.vector_annotations;
+    out.prelim.vector_annotations = prelimVector ?? null;
+
     if (pick) {
       const page = prelimPages[pick.index];
       const ctx = ctxByPage[page];
@@ -117,34 +134,47 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
       out.prelim.raw_internal_door_annotations = rawAnn.internalDoorAnnotations.length;
       out.prelim.raw_garage_door_annotations = rawAnn.garageDoorAnnotations;
 
+      // ── Phase 4, Slice 1: prefer the deterministic vector garage width (the dim-pair
+      // the engine read nearest a /garage/i label) over the vision annotation; falls
+      // back to vision when the vector layer is absent/unusable.
+      const takeoffVec = preferVectorGarage(takeoff, prelimVector);
+
       // ── Phase 2b: read the Door & Window Schedule as an *additional* window
       // source, then reconcile (schedule wins the canonical window set). The
       // primary floor plan above is untouched — this only supplies windows.
       const schedPick = pickWindowSchedule(scoredPages);
-      const schedule = schedPick
+      const scheduleRaw = schedPick
         ? await readWindowSchedule(b64(`prelim-${prelimPages[schedPick.index]}.jpg`), {
             apiKey: process.env.ANTHROPIC_API_KEY!,
             builderName: ctx.builder.name,
           })
         : null;
-      const agg = aggregateWindows(schedule, takeoff.windows_by_room);
-      const finalTakeoff = applyWindowAggregate(takeoff, agg);
+
+      // ── Phase 4, Slice 1: head-datum safeguard — reject any schedule window height
+      // read AS the engine-detected head/mounting datum (the Phase-2f over-read). Never
+      // fabricates a height; a rejected height becomes null and is flagged in the notes.
+      const scheduleSafeguard = safeguardScheduleHeights(scheduleRaw, prelimVector);
+      const schedule = scheduleSafeguard.schedule;
+
+      const agg = aggregateWindows(schedule, takeoffVec.windows_by_room);
+      let finalTakeoff = applyWindowAggregate(takeoffVec, agg);
+      const safeguardNote = headDatumSafeguardNote(scheduleSafeguard);
+      if (safeguardNote) {
+        finalTakeoff = {
+          ...finalTakeoff,
+          notes: [finalTakeoff.notes, safeguardNote].filter(Boolean).join(" "),
+        };
+      }
 
       out.prelim.takeoff = finalTakeoff;
       out.prelim.schedule_page = schedPick ? prelimPages[schedPick.index] : null;
       out.prelim.window_source = agg.source;
-      out.prelim.schedule_windows = schedule?.windows ?? null;
+      out.prelim.schedule_windows = scheduleRaw?.windows ?? null;
+      out.prelim.head_datum_flagged = scheduleSafeguard.flaggedIds;
     } else {
       out.prelim.chosen_page = null;
       out.prelim.takeoff = null;
     }
-    // ── Phase 3: page-of-truth — pin geometry to the AI-classified floor-plan page
-    // (resolveGeometryPageIndex) instead of letting it auto-detect (which could land on
-    // the site plan). Record the reconciliation: requested page vs geometry's page_used.
-    const prelimGeomPage = resolveGeometryPageIndex(pick ? pick.index : null, prelimPages.map((n) => ({ pageNumber: n })));
-    out.prelim.geometry = await geometry("prelim.pdf", prelimGeomPage);
-    out.prelim.geometry_page_requested = prelimGeomPage ?? null;
-    out.prelim.page_reconciliation = reconcileGeometryPage(prelimGeomPage, out.prelim.geometry.page_used);
 
     // ── CONCEPT: single page floor plan
     const cctx = await recognisePlan(b64("concept-1.jpg"), "concept-1.jpg");
@@ -205,15 +235,40 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     for (let n = 1; n <= 13; n++) {
       expect(ids).toContain("W" + String(n).padStart(2, "0"));
     }
+    // Every window has a width; height is non-null UNLESS the Phase 4 head-datum
+    // safeguard rejected it as a datum mis-read (those become null by design — a
+    // rejected height is honest "unknown", never a fabricated value).
+    const flagged: string[] = out.prelim.head_datum_flagged ?? [];
     for (const w of out.prelim.takeoff.windows_schedule) {
-      expect(w.height_m).not.toBeNull();
       expect(w.width_m).not.toBeNull();
+      if (flagged.includes(w.id)) {
+        expect(w.height_m).toBeNull();
+      } else {
+        expect(w.height_m).not.toBeNull();
+      }
     }
 
     // ── Phase 2c definition of done ───────────────────────────────────────────
     // The garage door now classifies by the height+width combination instead of
     // falling through unparsed. Beddis reads "2,210 x 4,800" (double garage) and
     // must map to the QS double-garage size 4.8×2.1 — matching the answer key.
+    expect(out.prelim.takeoff.garage_door_size).toBe("4.8×2.1");
+
+    // ── Phase 4, Slice 1 definition of done (vector-first hybrid) ──────────────
+    // The geometry engine now surfaces two deterministic vector reads on the
+    // floor-plan page. (1) The garage dim-pair nearest the /garage/i label resolves
+    // to the 4.8m double-garage width — deterministically, no vision flake. (2) The
+    // Door & Window Schedule's shared head/mounting datum is detected by repetition
+    // and used to reject any window height read AS that datum.
+    expect(out.prelim.vector_annotations).not.toBeNull();
+    expect(out.prelim.vector_annotations.vector_usable).toBe(true);
+    expect(out.prelim.vector_annotations.garage).not.toBeNull();
+    expect(out.prelim.vector_annotations.garage.width_mm).toBe(4800);
+    expect(out.prelim.vector_annotations.schedule).not.toBeNull();
+    expect(out.prelim.vector_annotations.schedule.head_datum_mm).toBeGreaterThanOrEqual(1500);
+    expect(out.prelim.vector_annotations.schedule.window_count).toBe(13);
+    // The garage size is unchanged in VALUE (vision and vector agree on 4.8×2.1) but is
+    // now backed by the deterministic vector read rather than the flaky vision one.
     expect(out.prelim.takeoff.garage_door_size).toBe("4.8×2.1");
 
     // ── Phase 2d definition of done (derived fields) ──────────────────────────

@@ -37,6 +37,42 @@ export type GeometryConfidence = {
   notes: string[];
 };
 
+/**
+ * Phase 4, Slice 1 — additive vector-layer annotations read straight from the PDF's
+ * text layer by the geometry engine (no render/OCR/model). Two deterministic facts:
+ *
+ *  - `garage`: the dimension-pair printed nearest a /garage/i label (width = larger
+ *    side). Lets the app prefer a deterministic garage door width over the vision read.
+ *  - `schedule`: a Door & Window Schedule's shared head/mounting datum — a single value
+ *    repeated across every window column. NOT any window's glazed height; surfaced so
+ *    the app can guard against reading the head datum AS a window height.
+ *
+ * Backward-compatible: the whole field is optional. When absent, or when
+ * `vector_usable` is false, the app keeps its existing vision behaviour. No per-job
+ * literals are emitted — the garage is found by label proximity, the datum by repetition.
+ */
+export type VectorGarage = {
+  width_mm: number;
+  height_mm: number;
+  raw: string;
+  page: number;
+  distance_px: number;
+};
+
+export type VectorSchedule = {
+  head_datum_mm: number;
+  datum_repeat: number;
+  window_count: number;
+  page: number;
+};
+
+export type VectorAnnotations = {
+  /** The measured floor-plan page carries a real text layer (not a scan). */
+  vector_usable: boolean;
+  garage: VectorGarage | null;
+  schedule: VectorSchedule | null;
+};
+
 export type GeometryApiResult = {
   success: boolean;
   scale: {
@@ -56,6 +92,12 @@ export type GeometryApiResult = {
   };
   page_used: number;
   total_pages: number;
+  /**
+   * Phase 4, Slice 1 — optional vector-layer reads. Absent on older engine builds
+   * (and on any page without a usable text layer), in which case the app falls back
+   * to its existing vision-derived garage width and schedule handling.
+   */
+  vector_annotations?: VectorAnnotations;
 };
 
 export function overallConfidence(c: GeometryConfidence): "high" | "medium" | "low" {

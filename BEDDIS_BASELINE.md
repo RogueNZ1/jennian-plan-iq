@@ -695,3 +695,92 @@ Beddis auto-detect already landed on the floor plan, so pinning changes **no num
 - **Next reconciliation slices (noted, not built here):** F-021 (Pipeline A silent degraded runs) and
   F-022 (cross-check AI counts vs geometry/CV). Geometry's internal CV/OCR accuracy (e.g. Harrison
   geometry reading floor 60.4) is a separate, out-of-scope track.
+
+---
+
+## 13. Phase 4, Slice 1 — Vector-First Hybrid (TWO proven fields)
+
+**Mode:** cross-repo build (geometry engine `jennian-iq-geometry-api` + app `jennian-plan-iq`), additive
+and backward-compatible both directions. Branch `phase4-slice1` in **both** repos.
+
+**What shipped (and, deliberately, what did not).** The geometry engine now reads positioned text
+straight from the PDF vector layer (PyMuPDF — no render, no OCR, no model) and returns an additive
+`vector_annotations` block on `/measure`. The app consumes exactly **two** deterministic fields through a
+single pure seam (`src/lib/takeoff/vector-annotations.ts`), preferring vector and **falling back to vision**
+when the vector layer is absent/unusable:
+
+1. **GARAGE door width** — the dim-pair nearest a `/garage/i` label (width = larger side), classified
+   through the *same* shared `parseDimsMm` → `classifyGarageDoorAnnotation` the vision path uses.
+2. **SCHEDULE head-datum SAFEGUARD** — the engine detects a Door & Window Schedule's shared
+   head/mounting datum **by repetition** (most-repeated large value on a self-named schedule grid), and the
+   app **rejects** (nulls) any window height read AS that datum. No fabricated heights.
+
+Per-window glazed *heights* are **NOT** emitted: a Step-0 probe found they are not printed as positioned
+numbers for the majority of windows (8/13 on Beddis), so extracting them would mean guessing. Deferred to a
+later slice. **No per-job literals** anywhere: garage by label proximity, datum by repetition — never the
+numbers 4800 / 2210 / 2150, nor pixel positions.
+
+### 13.1 Step 0 — spikes reproduced before wiring
+
+| Fixture (floor-plan page) | garage (nearest /garage/i pair) | schedule datum (by repetition) |
+|---|---|---|
+| Harrison `concept.pdf` idx1 | **4800** (`2,150 x 4,800`, 96.7px) | none (no schedule sheet) ✅ |
+| Beddis `prelim.pdf` idx2 | **4800** (`2,210 x 4,800`, 95.3px) | **2210** ×12 on schedule page idx6 ✅ |
+
+Garage reproduces cleanly on **both** templates. Per-window glazed heights did **not** reproduce → ship the
+datum as a safeguard, not as heights (the Step-0 gate decision).
+
+### 13.2 Re-baseline — Harrison (the 2710 flake from §12.3 is now fixed)
+
+| Field | Before (Phase 3, §12.3) | After (Phase 4) | Status |
+|---|---|---|---|
+| raw vision garage annotation | `2,710` (single-garage misread) | `2,710` (unchanged — vision still flakes) | — |
+| **`garage_door_size`** | **2.7×2.1** ❌ (the out-of-scope flake) | **4.8×2.1** ✅ | **FIXED — deterministic vector override** |
+| `vector_annotations.garage.width_mm` | n/a | **4800** | ✅ from `2,150 x 4,800` |
+| `vector_annotations.schedule` | n/a | **null** | ✅ no schedule sheet → safeguard never fires |
+| window_source | floor_plan_callouts | floor_plan_callouts | unchanged ✅ no-schedule path intact |
+
+The §12.3 garage assertion that was *expected to fail* (vision non-determinism) now **passes** — the engine
+reads the `2,150 × 4,800` pair next to the garage label and the app prefers it over the `2,710` vision flake.
+
+### 13.3 Re-baseline — Beddis (safeguard fires on the live 2f over-read)
+
+| Field | Before | After (Phase 4) | Status |
+|---|---|---|---|
+| `garage_door_size` | 4.8×2.1 | **4.8×2.1** (now vector-backed) | value unchanged, provenance deterministic ✅ |
+| `vector_annotations.garage.width_mm` | n/a | **4800** | ✅ |
+| `vector_annotations.schedule.head_datum_mm` | n/a | **2210** (×12, 13 windows, page idx6) | ✅ |
+| schedule window heights read AS datum (live AI) | 8 of 13 = 2210 (the 2f over-read) | **8 rejected → null + flagged** | ✅ safeguard fired: W01,W02,W05,W06,W07,W08,W11,W13 |
+| window_count | 13 | **13** | unchanged ✅ (count from schedule, intact) |
+| `external_wall_area_m2` (QS D21 = 109.2) | 107.64 | **134.22** | known overshoot — see note |
+
+**Delta note (honest, do not fabricate):** the live `claude-opus-4-5` schedule read returned the **head
+datum (2210)** as the height for 8/13 windows — exactly the Phase-2f over-read this safeguard targets. The
+safeguard correctly **rejected** all 8 (height → null, flagged in `notes`). Because those 8 glazed heights
+are now honestly **unknown** (not fabricated), they drop out of the opening sum, so `external_wall_area_m2`
+moves to **134.22** — a *known overshoot* vs QS 109.2. The prior 107.64 was *coincidentally* near the QS
+figure only because the over-read tall heights happened to offset the un-extracted entrance door; it was not
+correct. Per the agreed scope (**garage + datum safeguard**, defer true per-window heights), this slice
+ships the deterministic guard and surfaces the residual as a flagged low-confidence field rather than a
+tuned number. True per-window glazed heights remain a later slice.
+
+### 13.4 Backward-compatibility / forced fallback
+
+- The `vector_annotations` field is **optional**: absent on older engine builds and on any page without a
+  usable text layer (scan/blank → `vector_usable:false`). When absent, both seam functions return their
+  input unchanged → **today's vision behaviour exactly**. Pinned by unit tests (`resolveGarageDoorSize`,
+  `preferVectorGarage`, `safeguardScheduleHeights` all no-op on `undefined`).
+- A vector garage pair that is **not** a real door (e.g. a `2,649 × 1,400` read, or a `6 120 X 5 950` room
+  footprint) classifies to null via the shared classifier → the app keeps the **vision** value. Proven in
+  the unit suite.
+
+### 13.5 No-regression / determinism
+
+- **Full offline suite 327 passed / 3 skipped** (+18 new `vector-annotations` seam unit tests; +11 new
+  geometry-engine `tests/test_vector.py` pytest cases). Both live baselines (`BEDDIS_LIVE`, `HARRISON_LIVE`)
+  green against local geometry on `:8000`.
+- Geometry vector read is **deterministic** (re-run identical) and **literal-free** — garage by label
+  proximity, datum by repetition. Two templates are **not** proof of generality; template-dependence
+  remains flagged for future fixtures (e.g. a schedule that does not self-name, or a garage label variant).
+- **Pipeline A / `run.ts` untouched.** The change is confined to the geometry `/measure` payload and the
+  app's concept upload seam.
