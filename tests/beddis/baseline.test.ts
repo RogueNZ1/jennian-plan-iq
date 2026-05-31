@@ -30,6 +30,7 @@ import {
 } from "../../src/lib/pdf-page-classify";
 import { readWindowSchedule } from "../../src/lib/takeoff/extract-window-schedule";
 import { aggregateWindows, applyWindowAggregate } from "../../src/lib/takeoff/aggregate-windows";
+import { resolveGeometryPageIndex, reconcileGeometryPage } from "../../src/lib/takeoff/page-of-truth";
 
 const DIR = resolve(process.cwd(), "tests/fixtures/beddis");
 const RENDER = resolve(DIR, "_render");
@@ -39,11 +40,14 @@ const RUN = !!process.env.BEDDIS_LIVE;
 
 const b64 = (p: string) => readFileSync(resolve(RENDER, p)).toString("base64");
 
-async function geometry(pdf: string) {
+async function geometry(pdf: string, page?: number) {
   const buf = readFileSync(resolve(DIR, pdf));
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(buf)], { type: "application/pdf" }), pdf);
-  const res = await fetch(`${GEOMETRY_BASE}/measure`, { method: "POST", body: form });
+  // Phase 3 — pin geometry to the AI-classified floor-plan page (0-based) when provided,
+  // mirroring upload.tsx's measurePlanGeometry(planFile, name, geometryPageIndex).
+  const url = page != null && page >= 0 ? `${GEOMETRY_BASE}/measure?page=${page}` : `${GEOMETRY_BASE}/measure`;
+  const res = await fetch(url, { method: "POST", body: form });
   if (!res.ok) throw new Error(`geometry ${res.status}: ${(await res.text()).slice(0, 200)}`);
   return await res.json();
 }
@@ -134,7 +138,13 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
       out.prelim.chosen_page = null;
       out.prelim.takeoff = null;
     }
-    out.prelim.geometry = await geometry("prelim.pdf");
+    // ── Phase 3: page-of-truth — pin geometry to the AI-classified floor-plan page
+    // (resolveGeometryPageIndex) instead of letting it auto-detect (which could land on
+    // the site plan). Record the reconciliation: requested page vs geometry's page_used.
+    const prelimGeomPage = resolveGeometryPageIndex(pick ? pick.index : null, prelimPages.map((n) => ({ pageNumber: n })));
+    out.prelim.geometry = await geometry("prelim.pdf", prelimGeomPage);
+    out.prelim.geometry_page_requested = prelimGeomPage ?? null;
+    out.prelim.page_reconciliation = reconcileGeometryPage(prelimGeomPage, out.prelim.geometry.page_used);
 
     // ── CONCEPT: single page floor plan
     const cctx = await recognisePlan(b64("concept-1.jpg"), "concept-1.jpg");
@@ -170,6 +180,16 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     expect(out.prelim.chosen_page).toBe(3);
     expect(out.prelim.takeoff.floor_area_m2).not.toBeNull();
     expect(out.prelim.takeoff.external_wall_lm).not.toBeNull();
+
+    // ── Phase 3 definition of done (page-of-truth reconciliation) ─────────────
+    // Geometry now measures the SAME page the AI classified as the floor plan
+    // (chosen_page 3 → geometry 0-based index 2), and the two layers agree. Floor
+    // 165.4 / perimeter 63.8 come from that agreed page — no regression.
+    expect(out.prelim.geometry_page_requested).toBe(out.prelim.chosen_page - 1);
+    expect(out.prelim.geometry.page_used).toBe(out.prelim.chosen_page - 1);
+    expect(out.prelim.page_reconciliation.agreed).toBe(true);
+    expect(out.prelim.geometry.measurements.floor_area_m2).toBe(165.4);
+    expect(out.prelim.geometry.measurements.perimeter_m).toBe(63.8);
 
     // ── Phase 2b definition of done ───────────────────────────────────────────
     // The Door & Window Schedule (prelim page 7 / A501) is recognised as its own

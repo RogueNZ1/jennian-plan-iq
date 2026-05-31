@@ -67,11 +67,22 @@ export function overallConfidence(c: GeometryConfidence): "high" | "medium" | "l
 export async function measurePlanGeometry(
   pdfFile: File | Blob,
   filename = "plan.pdf",
+  /**
+   * Phase 3 — page-of-truth reconciliation. Optional 0-based page index telling the
+   * geometry engine which page to measure (the AI-classified floor plan). Omit to let
+   * geometry auto-detect (the prior behaviour). The engine echoes the page it used as
+   * `page_used`, so callers can confirm the request took effect.
+   */
+  page?: number,
 ): Promise<GeometryApiResult | null> {
   try {
     const form = new FormData();
     form.append("file", pdfFile, filename);
-    const res = await fetch(`${GEOMETRY_API_BASE}/measure`, {
+    const url =
+      page != null && page >= 0
+        ? `${GEOMETRY_API_BASE}/measure?page=${page}`
+        : `${GEOMETRY_API_BASE}/measure`;
+    const res = await fetch(url, {
       method: "POST",
       body: form,
     });

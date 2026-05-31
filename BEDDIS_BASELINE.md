@@ -627,3 +627,71 @@ change. The failing assertion is the known **out-of-scope** garage misread.
 - Fix A is a vision-prompt change → **not deterministic**; validated live, heights confidence-flagged.
   Fix B's entrance remains a documented **sub-task** (door extraction with dimensions) — the seam is in
   place, the omission is flagged, and no figure is fabricated to hit 109.2.
+
+---
+
+## 12. Phase 3 — Page-of-truth reconciliation (geometry ↔ AI)
+
+First slice of the loose-coupling/reconciliation debt logged after 2a. The geometry engine and the AI
+path each chose their measurement page **independently**: the Harrison cold run (§9) had geometry
+measure the **site plan** while the AI correctly selected the A201 floor plan — only geometry's own
+190%-mismatch sanity check happened to catch it. This makes the AI's floor-plan classification the
+single **page-of-truth** both layers measure.
+
+### 12.1 Step 1 — investigation (approach before building)
+
+- **The geometry API already accepts the page.** `POST /measure?page=N` takes a **0-based** page index
+  (omit to auto-detect). No geometry-repo / cross-repo contract change — the fix is **app-side only**.
+- **The app already knows the AI page** at the geometry call site: `pickPrimaryFloorplan` sets
+  `selectedIndex`, and `pageAnalyses[selectedIndex].pageNumber` is the floor-plan page (1-based). The
+  call at `upload.tsx` passed **no page**, so geometry ran its own OCR-score auto-detect
+  (`_find_floor_plan_page`) — the silent-divergence source.
+
+### 12.2 Step 2 — implementation (preferred path: force agreement)
+
+- New pure module **`page-of-truth.ts`** (literal-free, reconciles by page **role**):
+  - `resolveGeometryPageIndex(selectedIndex, pages)` → the AI floor-plan page as a 0-based geometry
+    index (`pageNumber − 1`); `undefined` when there's no pick → geometry self-selects (prior behaviour).
+  - `reconcileGeometryPage(requested, page_used)` → `{ agreed, note }`; flags when geometry's reported
+    `page_used` ≠ the page we pinned (out-of-range, a proxy dropped the param, an older build).
+- **`geometry-api.ts`** — `measurePlanGeometry(file, name, page?)` appends `?page=N` when given
+  (backward-compatible optional arg; `run.ts` / Pipeline A keeps auto-detect, out of scope).
+- **`upload.tsx`** — pins geometry to `resolveGeometryPageIndex(selectedIndex, pageAnalyses)` and, as
+  defence-in-depth, pushes the reconciliation note + a `toast.warning` when the pages diverge. Geometry's
+  190%-mismatch sanity check is **retained**, untouched (the geometry repo is not modified at all).
+
+### 12.3 Re-baseline — Harrison (the run that exposed it)
+
+| Field | Before | After (3) | Status |
+|---|---|---|---|
+| AI floor-plan page (`pickPrimaryFloorplan`) | page 2 | **page 2** | classification unchanged |
+| geometry page (auto-detect → **pinned**) | self-selected (could pick site plan) | **page 2 (index 1), pinned to AI** | ✅ forced agreement |
+| `page_reconciliation` | n/a (independent) | **`{ agreed: true }`** | ✅ no divergence |
+| perimeter from agreed page | 60.4 | **60.4** | ✅ floor 170.8 / perim 60.4 from the floor plan |
+| garage_door_size | 2.7×2.1 | 2.7×2.1 | ❌ Pass-1 garage misread `2,710` — **out of scope** (live vision flake) |
+
+Geometry and the AI now **deterministically** resolve to the same A201 floor plan — the site-plan
+measurement of §9 is structurally impossible because geometry is pinned to the AI's classified page.
+The sole failing assertion is the known out-of-scope garage Pass-1 misread (vision non-determinism);
+all Phase 3 page-reconciliation assertions pass.
+
+### 12.4 Re-baseline — Beddis (no regression)
+
+| Field | Before | After (3) | Status |
+|---|---|---|---|
+| AI floor-plan page | page 3 | **page 3** | unchanged ✅ |
+| geometry page | auto → index 2 | **pinned index 2 (= AI page 3)** | ✅ agreed |
+| `page_reconciliation` | n/a | **`{ agreed: true }`** | ✅ |
+| geometry floor / perimeter | 165.4 / 63.8 | **165.4 / 63.8** | unchanged ✅ no regression |
+
+Beddis auto-detect already landed on the floor plan, so pinning changes **no numbers** — it removes the
+*risk* of a future divergent auto-detect. All Beddis hard assertions stay green.
+
+### 12.5 No-regression / determinism + next slices
+
+- **Full offline suite 309 passed / 3 skipped** (+9 new `page-of-truth` unit tests: 1-based→0-based
+  resolution, no-pick/out-of-range → undefined, sparse page numbers by role, and the divergence flag).
+- Reconciliation is **literal-free** and role-based → works single-page, multi-page, and both templates.
+- **Next reconciliation slices (noted, not built here):** F-021 (Pipeline A silent degraded runs) and
+  F-022 (cross-check AI counts vs geometry/CV). Geometry's internal CV/OCR accuracy (e.g. Harrison
+  geometry reading floor 60.4) is a separate, out-of-scope track.

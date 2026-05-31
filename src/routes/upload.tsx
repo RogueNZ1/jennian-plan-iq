@@ -24,6 +24,7 @@ import {
 import { aggregateWindows, applyWindowAggregate } from "@/lib/takeoff/aggregate-windows";
 import type { PlanContext } from "@/lib/takeoff/plan-context";
 import { measurePlanGeometry, overallConfidence, type GeometryApiResult } from "@/lib/takeoff/geometry-api";
+import { resolveGeometryPageIndex, reconcileGeometryPage } from "@/lib/takeoff/page-of-truth";
 import * as XLSX from "xlsx";
 import { normaliseRoomName, classifyGarageDoor } from "@/lib/takeoff/classify";
 import { round2 } from "@/lib/takeoff/utils";
@@ -426,11 +427,18 @@ function UploadPage() {
           ? renderPageForAnalysis(planFile, pageAnalyses[schedulePick.index]?.pageNumber ?? 0).catch(() => null)
           : Promise.resolve(null);
 
+      // Phase 3 — page-of-truth reconciliation. Pin geometry to the SAME page the AI
+      // classified as the floor plan (pickPrimaryFloorplan → selectedIndex), instead of
+      // letting geometry independently auto-detect (which on multi-page sets can land on
+      // the site plan and silently measure the wrong building). Resolved from the page
+      // ROLE, never a page literal; undefined when there is no pick → geometry self-selects.
+      const geometryPageIndex = resolveGeometryPageIndex(selectedIndex, pageAnalyses);
+
       // Run AI extraction and geometry measurement in parallel
       const [result, geoResult, elevBlob, siteBlob, scheduleBlob] = await Promise.all([
         extractConceptTakeoffs({ data: { imageBase64: b64, filename: planFile?.name ?? "plan.jpg" } }) as Promise<ConceptTakeoffResult>,
         planFile
-          ? measurePlanGeometry(planFile, planFile.name).catch(() => null)
+          ? measurePlanGeometry(planFile, planFile.name, geometryPageIndex).catch(() => null)
           : Promise.resolve(null),
         elevBlobP,
         siteBlobP,
@@ -455,6 +463,17 @@ function UploadPage() {
       // AI rooms come from raw label strings on the floor plan.
       const aiRoomLabels = (result.takeoffData as any)?.roomLabels as string[] | undefined;
       const internalWallNotes: string[] = [];
+
+      // Phase 3 — defence-in-depth: confirm geometry actually measured the floor-plan
+      // page we pinned. If page_used diverges from the request (out-of-range, a proxy
+      // dropped the param, an older geometry build), surface it rather than trusting the
+      // wrong sheet. Geometry's own 190%-mismatch sanity check remains the other backstop.
+      const pageReconcile = reconcileGeometryPage(geometryPageIndex, geoResult?.page_used);
+      if (!pageReconcile.agreed && pageReconcile.note) {
+        internalWallNotes.push(pageReconcile.note);
+        toast.warning(pageReconcile.note, { duration: 8000 });
+      }
+
       if (geoRoomCount > 0 && aiRoomLabels && aiRoomLabels.length > 0) {
         // Rooms found by geometry but not by AI (unexpected dimensions)
         if (geoRoomCount > aiRoomLabels.length) {

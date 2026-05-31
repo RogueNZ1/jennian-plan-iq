@@ -38,6 +38,7 @@ import {
   type ScoredPage,
 } from "../../src/lib/pdf-page-classify";
 import { aggregateWindows, applyWindowAggregate } from "../../src/lib/takeoff/aggregate-windows";
+import { resolveGeometryPageIndex, reconcileGeometryPage } from "../../src/lib/takeoff/page-of-truth";
 
 const DIR = resolve(process.cwd(), "tests/fixtures/harrison");
 const RENDER = resolve(DIR, "_render");
@@ -52,11 +53,14 @@ const TRUTH = JSON.parse(readFileSync(resolve(DIR, "ground-truth.json"), "utf8")
 
 const b64 = (p: string) => readFileSync(resolve(RENDER, p)).toString("base64");
 
-async function geometry(pdf: string) {
+async function geometry(pdf: string, page?: number) {
   const buf = readFileSync(resolve(DIR, pdf));
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(buf)], { type: "application/pdf" }), pdf);
-  const res = await fetch(`${GEOMETRY_BASE}/measure`, { method: "POST", body: form });
+  // Phase 3 — pin geometry to the AI-classified floor-plan page (0-based) when provided,
+  // mirroring upload.tsx's measurePlanGeometry(planFile, name, geometryPageIndex).
+  const url = page != null && page >= 0 ? `${GEOMETRY_BASE}/measure?page=${page}` : `${GEOMETRY_BASE}/measure`;
+  const res = await fetch(url, { method: "POST", body: form });
   if (!res.ok) throw new Error(`geometry ${res.status}: ${(await res.text()).slice(0, 200)}`);
   return await res.json();
 }
@@ -140,7 +144,14 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
       out.concept.takeoff = null;
       out.concept.window_source = null;
     }
-    out.concept.geometry = await geometry("concept.pdf");
+    // ── Phase 3: page-of-truth — this is the run that exposed the bug. Geometry,
+    // left to auto-detect, measured the site plan while the AI selected the A201 floor
+    // plan. Now pin geometry to the AI-classified floor-plan page and record the
+    // reconciliation (requested page vs geometry's page_used).
+    const conceptGeomPage = resolveGeometryPageIndex(pick ? pick.index : null, pages.map((n) => ({ pageNumber: n })));
+    out.concept.geometry = await geometry("concept.pdf", conceptGeomPage);
+    out.concept.geometry_page_requested = conceptGeomPage ?? null;
+    out.concept.page_reconciliation = reconcileGeometryPage(conceptGeomPage, out.concept.geometry.page_used);
 
     // Scorecard: deltas vs the QS answer key (report — not all are hard-asserted,
     // since the QS, not any plan's printed number, is truth and some values are AI-read).
@@ -177,6 +188,14 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     expect(out.concept.takeoff).not.toBeNull();
     expect(out.concept.takeoff.floor_area_m2).not.toBeNull();
     expect(out.concept.takeoff.external_wall_lm).not.toBeNull();
+
+    // ── Phase 3 definition of done (page-of-truth reconciliation) ─────────────
+    // Geometry no longer silently measures the site plan: it is pinned to the AI's
+    // floor-plan page and the two layers resolve to the SAME page. The AI floor-plan
+    // page (selected) and geometry's page_used must match (0-based = selected − 1).
+    expect(out.concept.geometry_page_requested).toBe(out.concept.selected.page - 1);
+    expect(out.concept.geometry.page_used).toBe(out.concept.selected.page - 1);
+    expect(out.concept.page_reconciliation.agreed).toBe(true);
 
     // No-schedule path: there is no A501 schedule, so windows must come from the
     // floor-plan callouts. (Records the path Beddis could not exercise.)
