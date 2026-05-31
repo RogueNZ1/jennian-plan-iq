@@ -140,6 +140,11 @@ function vectorWindowCount(vector: VectorAnnotations): number | null {
  * Inputs are the VISION-path readings captured BEFORE the prefer-vector overrides:
  *   - `visionGarageSize` — the vision garage size on the takeoff before preferVectorGarage.
  *   - `visionWindowCount` — the window count on the takeoff before preferVectorOpenings.
+ *   - `visionEntranceWidthMm` — the vision entry-door width (mm) before preferVectorEntrance,
+ *     when vision read one. Optional; cross-checked only when the vector layer carries an
+ *     asserted entrance. In our fixtures vision produces no entry door, so this is normally
+ *     uncheckable (never flagged) — but where a job DOES read one, the asserted/printed
+ *     vector width is cross-checked against it (e.g. a printed frame-to-frame 1430).
  *
  * Returns a report whose `note` is appended to takeoff.notes so the disagreement reaches
  * the live reviewer (not just the baseline doc). Empty/clean when the vector layer is
@@ -149,6 +154,7 @@ export function reconcileVectorVision(
   visionGarageSize: string | null | undefined,
   visionWindowCount: number | null | undefined,
   vector: VectorAnnotations | null | undefined,
+  visionEntranceWidthMm?: number | null | undefined,
 ): ReconciliationReport {
   const fields: FieldReconciliation[] = [];
 
@@ -169,6 +175,18 @@ export function reconcileVectorVision(
         " windows",
       ),
     );
+    // Entry door width: only when the vector layer asserted an entrance. Single-source
+    // in our fixtures (vision reads no entry door) → uncheckable, never a false flag.
+    if (vector.entrance) {
+      fields.push(
+        reconcileScalar(
+          "entrance_door_width",
+          visionEntranceWidthMm ?? null,
+          vector.entrance.width_mm,
+          "mm",
+        ),
+      );
+    }
   }
 
   const flags = fields

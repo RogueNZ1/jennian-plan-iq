@@ -88,6 +88,31 @@ export type VectorOpenings = {
   page: number;
 };
 
+/**
+ * Phase 4, Slice 3 — the entry door, ASSERTED rather than measured. Two probes proved
+ * its frame-to-frame width is not recoverable as a positioned dim-pair (Step 0) nor as
+ * a clean drawn primitive (Step 1): the entry is drawn as a ~900mm leaf in a porch
+ * hatch, the ~1400 frame is annotation-only on one template and absent on the other.
+ *
+ *  - `height_mm`: always the building STANDARD (2.1m). Asserting it dissolves the
+ *    orientation problem and reconciles the two jobs' transposed QS columns.
+ *  - `width_mm`: the printed "Frame to Frame NNNN" when the plan annotates one
+ *    (`width_source: "vector_text"`, data-driven); otherwise the entry-door STANDARD
+ *    width (`width_source: "standard_assumed"`). Both are product standards (same value
+ *    across both ground-truth jobs), not per-job literals; the app FLAGS them as
+ *    assumptions so a human can confirm.
+ *  - `label`: the entry-type room token that anchored it (e.g. "ENTRY", "PORCH").
+ */
+export type VectorEntrance = {
+  type: "entry";
+  width_mm: number;
+  width_source: "vector_text" | "standard_assumed";
+  height_mm: number;
+  height_source: "standard_assumed";
+  label: string;
+  page: number;
+};
+
 export type VectorAnnotations = {
   /** The measured floor-plan page carries a real text layer (not a scan). */
   vector_usable: boolean;
@@ -95,6 +120,8 @@ export type VectorAnnotations = {
   schedule: VectorSchedule | null;
   /** Phase 4, Slice 2 — opening widths + W-code count. Optional: absent on older engines. */
   openings?: VectorOpenings | null;
+  /** Phase 4, Slice 3 — asserted entry door. Optional: absent on older engines. */
+  entrance?: VectorEntrance | null;
 };
 
 export type GeometryApiResult = {

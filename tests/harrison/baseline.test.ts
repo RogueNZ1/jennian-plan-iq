@@ -44,6 +44,8 @@ import {
   preferVectorOpenings,
   resolveOpeningWidths,
   visionOpeningWidthsMm,
+  preferVectorEntrance,
+  entranceAssumptionNote,
 } from "../../src/lib/takeoff/vector-annotations";
 import { reconcileVectorVision } from "../../src/lib/takeoff/reconcile-annotations";
 
@@ -171,12 +173,35 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
       finalTakeoff = preferVectorOpenings(finalTakeoff, conceptVector);
       out.concept.opening_widths = resolveOpeningWidths(visionOpeningWidthsMm(finalTakeoff), conceptVector);
 
+      // ── Phase 4, Slice 3: fold the ASSERTED entrance door into the opening set. Harrison
+      // prints "Frame to Frame 1430" near the entry/porch label, so the engine reads WIDTH
+      // 1430 (width_source "vector_text", data-driven); HEIGHT is the asserted standard
+      // 2.1m. Ext-wall area is NOT recomputed. Capture the VISION entry-door width (if any)
+      // before the override so F-022 can cross-check it.
+      const visionEntranceWidthMm =
+        finalTakeoff.windows_by_room?.entrance?.width_m != null
+          ? Math.round(finalTakeoff.windows_by_room.entrance.width_m * 1000)
+          : null;
+      finalTakeoff = preferVectorEntrance(finalTakeoff, conceptVector);
+      const entranceNote = entranceAssumptionNote(conceptVector);
+      if (entranceNote) {
+        finalTakeoff = {
+          ...finalTakeoff,
+          notes: [finalTakeoff.notes, entranceNote].filter(Boolean).join(" "),
+        };
+      }
+
       // ── F-022: vector ↔ vision cross-check. Harrison is the TRUE POSITIVE — vision read
       // the garage as 2710 (→ "2.7×2.1") while the vector layer read 4800; the paths
       // disagree materially, so reconciliation flags garage_door_width (vector still wins
       // the value, 4.8×2.1). The window count (vision callouts ~15 vs vector 14) is within
       // tolerance → not flagged. The disagreement note rides on takeoff.notes.
-      const reconciliation = reconcileVectorVision(visionGarageSize, visionWindowCount, conceptVector);
+      const reconciliation = reconcileVectorVision(
+        visionGarageSize,
+        visionWindowCount,
+        conceptVector,
+        visionEntranceWidthMm,
+      );
       if (reconciliation.note) {
         finalTakeoff = {
           ...finalTakeoff,
@@ -185,6 +210,7 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
       }
       out.concept.reconciliation = reconciliation;
       out.concept.vision_garage_size = visionGarageSize;
+      out.concept.entrance = finalTakeoff.windows_by_room?.entrance ?? null;
 
       out.concept.chosen_page = page;
       out.concept.raw_window_annotations = rawAnn.openingAnnotations.length;
@@ -303,5 +329,31 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     expect(out.concept.takeoff.garage_door_size).toBe("4.8×2.1");
     // The window count agreed across paths (15 vs 14, within tolerance) → no false flag.
     expect(out.concept.reconciliation.fields.find((f: any) => f.field === "window_count").status).toBe("agree");
+
+    // ── Phase 4, Slice 3 definition of done (asserted entrance — printed width) ─
+    // Harrison annotates "Frame to Frame 1430" near the entry/porch label, so the engine
+    // reads the WIDTH data-driven (1430mm, width_source "vector_text") while still
+    // ASSERTING the standard 2.1m height. This is the data-driven counterpart to Beddis'
+    // standard-assumed width. The door is folded into the opening set; ext-wall is NOT
+    // recomputed (stays gated on the window heights).
+    expect(out.concept.vector_annotations.entrance).not.toBeNull();
+    expect(out.concept.vector_annotations.entrance.height_mm).toBe(2100);
+    expect(out.concept.vector_annotations.entrance.height_source).toBe("standard_assumed");
+    expect(out.concept.vector_annotations.entrance.width_mm).toBe(1430);
+    expect(out.concept.vector_annotations.entrance.width_source).toBe("vector_text");
+    // Folded into the opening set as 1.43 wide × 2.1 high.
+    expect(out.concept.entrance).toEqual({ qty: 1, height_m: 2.1, width_m: 1.43 });
+    expect(out.concept.takeoff.windows_by_room.entrance).toEqual({ qty: 1, height_m: 2.1, width_m: 1.43 });
+    // Honesty rails: height flagged assumed-standard; the width is CREDITED to the printed
+    // frame-to-frame dimension (not flagged as assumed); ext-wall stays not-recomputed.
+    expect(out.concept.takeoff.notes).toContain("height assumed standard 2.1m");
+    expect(out.concept.takeoff.notes).toContain("width 1.43m read from the printed frame-to-frame dimension");
+    expect(out.concept.takeoff.notes).toContain("not recomputed");
+    // Single-source (vision reads no entry door) → the entrance width cross-check is
+    // uncheckable, never a false flag — even though a printed width exists on the vector side.
+    const recEntrance = out.concept.reconciliation.fields.find(
+      (f: any) => f.field === "entrance_door_width",
+    );
+    expect(recEntrance.status).toBe("uncheckable");
   }, 600000);
 });

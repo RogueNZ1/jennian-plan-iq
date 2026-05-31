@@ -27,6 +27,8 @@ import {
   safeguardScheduleHeights,
   headDatumSafeguardNote,
   preferVectorOpenings,
+  preferVectorEntrance,
+  entranceAssumptionNote,
 } from "@/lib/takeoff/vector-annotations";
 import { reconcileVectorVision } from "@/lib/takeoff/reconcile-annotations";
 import type { PlanContext } from "@/lib/takeoff/plan-context";
@@ -548,6 +550,26 @@ function UploadPage() {
       // it is NOT recomputed here.
       mergedWithWindows = preferVectorOpenings(mergedWithWindows, vectorAnnotations);
 
+      // Phase 4, Slice 3 — asserted entry door. The engine emits an entrance (height the
+      // building standard 2.1m; width the printed frame-to-frame number when annotated,
+      // else the entry-door standard 1.4m) which we fold into the opening set here and
+      // flag as an assumption. Capture the VISION entry-door width (if vision read one)
+      // BEFORE the override so F-022 can cross-check it. Does NOT recompute ext-wall: that
+      // stays gated on the unresolved window heights — adding the entrance must not imply
+      // ext-wall is complete.
+      const visionEntranceWidthMm =
+        mergedWithWindows.windows_by_room?.entrance?.width_m != null
+          ? Math.round(mergedWithWindows.windows_by_room.entrance.width_m * 1000)
+          : null;
+      mergedWithWindows = preferVectorEntrance(mergedWithWindows, vectorAnnotations);
+      const entranceNote = entranceAssumptionNote(vectorAnnotations);
+      if (entranceNote) {
+        mergedWithWindows = {
+          ...mergedWithWindows,
+          notes: [mergedWithWindows.notes, entranceNote].filter(Boolean).join(" "),
+        };
+      }
+
       const safeguardNote = headDatumSafeguardNote(scheduleSafeguard);
       if (safeguardNote) {
         mergedWithWindows = {
@@ -566,6 +588,7 @@ function UploadPage() {
         visionGarageSize,
         visionWindowCount,
         vectorAnnotations,
+        visionEntranceWidthMm,
       );
       if (reconciliation.note) {
         mergedWithWindows = {

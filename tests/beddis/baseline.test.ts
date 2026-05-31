@@ -38,6 +38,8 @@ import {
   preferVectorOpenings,
   resolveOpeningWidths,
   visionOpeningWidthsMm,
+  preferVectorEntrance,
+  entranceAssumptionNote,
 } from "../../src/lib/takeoff/vector-annotations";
 import { reconcileVectorVision } from "../../src/lib/takeoff/reconcile-annotations";
 
@@ -175,6 +177,25 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
       finalTakeoff = preferVectorOpenings(finalTakeoff, prelimVector);
       out.prelim.opening_widths = resolveOpeningWidths(visionOpeningWidthsMm(finalTakeoff), prelimVector);
 
+      // ── Phase 4, Slice 3: fold the ASSERTED entrance door into the opening set
+      // (windows_by_room.entrance). HEIGHT is the building standard 2.1m (asserted, not
+      // measured); WIDTH is the printed frame-to-frame number when the engine read one,
+      // else the entry-door standard 1.4m. Ext-wall area is NOT recomputed — it stays
+      // gated on the per-window heights. Capture the VISION entry-door width (if any)
+      // before the override so F-022 can cross-check it.
+      const visionEntranceWidthMm =
+        finalTakeoff.windows_by_room?.entrance?.width_m != null
+          ? Math.round(finalTakeoff.windows_by_room.entrance.width_m * 1000)
+          : null;
+      finalTakeoff = preferVectorEntrance(finalTakeoff, prelimVector);
+      const entranceNote = entranceAssumptionNote(prelimVector);
+      if (entranceNote) {
+        finalTakeoff = {
+          ...finalTakeoff,
+          notes: [finalTakeoff.notes, entranceNote].filter(Boolean).join(" "),
+        };
+      }
+
       const safeguardNote = headDatumSafeguardNote(scheduleSafeguard);
       if (safeguardNote) {
         finalTakeoff = {
@@ -186,7 +207,12 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
       // ── F-022: vector ↔ vision cross-check. Beddis is the TRUE NEGATIVE — vision and
       // vector agree on the 4.8m garage and 13 windows, so reconciliation must flag
       // NOTHING (no false positive). The note rides on takeoff.notes when it fires.
-      const reconciliation = reconcileVectorVision(visionGarageSize, visionWindowCount, prelimVector);
+      const reconciliation = reconcileVectorVision(
+        visionGarageSize,
+        visionWindowCount,
+        prelimVector,
+        visionEntranceWidthMm,
+      );
       if (reconciliation.note) {
         finalTakeoff = {
           ...finalTakeoff,
@@ -194,6 +220,7 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
         };
       }
       out.prelim.reconciliation = reconciliation;
+      out.prelim.entrance = finalTakeoff.windows_by_room?.entrance ?? null;
 
       out.prelim.takeoff = finalTakeoff;
       out.prelim.schedule_page = schedPick ? prelimPages[schedPick.index] : null;
@@ -342,6 +369,32 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     // no disagreement note to the field.
     expect(out.prelim.takeoff.garage_door_size).toBe("4.8×2.1");
     expect(out.prelim.takeoff.notes).not.toContain("reconciliation:");
+
+    // ── Phase 4, Slice 3 definition of done (asserted entrance door) ──────────
+    // The engine asserts the entry door rather than measuring it: HEIGHT is always the
+    // building standard 2.1m (flagged assumed); WIDTH is the entry-door standard 1.4m on
+    // Beddis (no printed frame-to-frame token → width_source "standard_assumed"). The door
+    // is folded into the opening SET (windows_by_room.entrance) so it lands in the opening
+    // area, but ext-wall area is NOT recomputed — it stays gated on the window heights.
+    expect(out.prelim.vector_annotations.entrance).not.toBeNull();
+    expect(out.prelim.vector_annotations.entrance.height_mm).toBe(2100);
+    expect(out.prelim.vector_annotations.entrance.height_source).toBe("standard_assumed");
+    expect(out.prelim.vector_annotations.entrance.width_mm).toBe(1400);
+    expect(out.prelim.vector_annotations.entrance.width_source).toBe("standard_assumed");
+    // Folded into the opening set as 1.4 wide × 2.1 high.
+    expect(out.prelim.entrance).toEqual({ qty: 1, height_m: 2.1, width_m: 1.4 });
+    expect(out.prelim.takeoff.windows_by_room.entrance).toEqual({ qty: 1, height_m: 2.1, width_m: 1.4 });
+    // Honesty rails: height flagged assumed-standard, width flagged standard, and the
+    // ext-wall note still says the area is not recomputed (stays gated on the heights).
+    expect(out.prelim.takeoff.notes).toContain("height assumed standard 2.1m");
+    expect(out.prelim.takeoff.notes).toContain("width assumed standard 1.4m");
+    expect(out.prelim.takeoff.notes).toContain("not recomputed");
+    // Single-source in our fixtures (vision reads no entry door) → the entrance width
+    // cross-check is uncheckable, never a false flag.
+    const recEntrance = out.prelim.reconciliation.fields.find(
+      (f: any) => f.field === "entrance_door_width",
+    );
+    expect(recEntrance.status).toBe("uncheckable");
 
     // ── Phase 2d definition of done (derived fields) ──────────────────────────
     // external_wall_area_m2 = perimeter × stud − total_opening_area (QS D21 = 109.2),

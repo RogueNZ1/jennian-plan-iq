@@ -280,6 +280,96 @@ export function preferVectorOpenings(
   return { ...takeoff, window_count: res.window_count };
 }
 
+// ── Phase 4, Slice 3 — entrance door (asserted) ────────────────────────────────────
+//
+// The geometry engine emits an ASSERTED entry door (height always the building standard
+// 2.1m; width the printed frame-to-frame number when annotated, else the entry-door
+// standard 1.4m). Two probes proved the width is not measurable as text or as clean
+// geometry, so it is asserted — transparently flagged here so a human can confirm.
+//
+// This module folds the asserted door into the takeoff's opening SET (windows_by_room,
+// the same multiset computeOpeningAreaM2 sums) and surfaces an assumption note. It does
+// NOT recompute external_wall_area_m2: that stays GATED on the still-unresolved per-
+// window glazed heights (a later slice), so adding the entrance must not imply ext-wall
+// is now complete. Backward-compatible: a takeoff with no usable entrance is untouched.
+
+export type EntranceSource = "vector_text" | "standard_assumed";
+
+export interface EntranceResolution {
+  /** The entry door dims in metres, or null when no usable vector entrance exists. */
+  entrance: { qty: number; height_m: number; width_m: number } | null;
+  /** Which layer the WIDTH came from (height is always the asserted standard). */
+  widthSource: EntranceSource | null;
+  /** True when a vector entrance was applied. */
+  applied: boolean;
+}
+
+/**
+ * Resolve the entry door from the vector layer. Returns the asserted door (height +
+ * width in metres) when the floor-plan page has a usable text layer and an entry-type
+ * label was found; otherwise a null resolution (the takeoff keeps whatever it had).
+ */
+export function resolveEntrance(
+  vector: VectorAnnotations | undefined | null,
+): EntranceResolution {
+  if (vector?.vector_usable && vector.entrance) {
+    const e = vector.entrance;
+    return {
+      entrance: {
+        qty: 1,
+        height_m: e.height_mm / 1000,
+        width_m: e.width_mm / 1000,
+      },
+      widthSource: e.width_source,
+      applied: true,
+    };
+  }
+  return { entrance: null, widthSource: null, applied: false };
+}
+
+/**
+ * Apply the asserted entry door onto a takeoff, folding it into windows_by_room under
+ * the `entrance` key (so it joins the opening set computeOpeningAreaM2 sums). Pure:
+ * returns a new object only when a vector entrance was applied; otherwise the input is
+ * returned untouched. Deliberately does NOT recompute external_wall_area_m2 — the ext-
+ * wall area stays gated on per-window heights (see SCOPE NOTE above).
+ */
+export function preferVectorEntrance(
+  takeoff: TakeoffData,
+  vector: VectorAnnotations | undefined | null,
+): TakeoffData {
+  const res = resolveEntrance(vector);
+  if (!res.applied || res.entrance == null) {
+    return takeoff;
+  }
+  const windows_by_room = { ...(takeoff.windows_by_room ?? {}), entrance: res.entrance };
+  return { ...takeoff, windows_by_room };
+}
+
+/**
+ * Human-readable note flagging the entrance door's asserted dimensions, for appending to
+ * takeoff.notes. The HEIGHT is always an assumed building standard; the WIDTH is either
+ * data-driven (the printed frame-to-frame dimension) or the assumed standard. Returns an
+ * empty string when there is no usable vector entrance so callers can `.filter(Boolean)`.
+ */
+export function entranceAssumptionNote(
+  vector: VectorAnnotations | undefined | null,
+): string {
+  const res = resolveEntrance(vector);
+  if (!res.applied || res.entrance == null) return "";
+  const h = res.entrance.height_m;
+  const w = res.entrance.width_m;
+  const widthClause =
+    res.widthSource === "vector_text"
+      ? `width ${w}m read from the printed frame-to-frame dimension`
+      : `width assumed standard ${w}m — confirm`;
+  return (
+    `entrance door: height assumed standard ${h}m — confirm against the plan; ` +
+    `${widthClause}. (Added to the opening set; the external wall area stays ` +
+    `gated on the unresolved window heights and is not recomputed here.)`
+  );
+}
+
 /**
  * Human-readable note for a fired safeguard, for appending to takeoff.notes. Returns
  * an empty string when nothing was flagged so callers can `.filter(Boolean)` it away.
