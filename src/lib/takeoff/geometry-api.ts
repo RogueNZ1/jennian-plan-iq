@@ -66,11 +66,35 @@ export type VectorSchedule = {
   page: number;
 };
 
+/**
+ * Phase 4, Slice 2 — additive opening reads on the measured floor-plan page. Openings
+ * (windows/doors) are dimensioned as a "datum × width" pair; the engine finds the
+ * shared head/mount datum by repetition and returns each opening's WIDTH as its raw
+ * printed token (so the app re-parses it through the shared parseDimsMm), plus the
+ * distinct positioned W-code count.
+ *
+ *  - `window_count`: distinct W-codes on the floor-plan page. The only vector window
+ *    count available on a no-schedule template (Harrison).
+ *  - `widths_raw`: each opening width as its raw printed token ("4,800", "1030").
+ *  - `datum_mm`: the detected head/mount datum (for transparency; not a window height).
+ *
+ * No per-job literals — the datum is found by repetition within a structural
+ * mounting-height band, never matched to a number.
+ */
+export type VectorOpenings = {
+  window_count: number | null;
+  widths_raw: string[];
+  datum_mm: number | null;
+  page: number;
+};
+
 export type VectorAnnotations = {
   /** The measured floor-plan page carries a real text layer (not a scan). */
   vector_usable: boolean;
   garage: VectorGarage | null;
   schedule: VectorSchedule | null;
+  /** Phase 4, Slice 2 — opening widths + W-code count. Optional: absent on older engines. */
+  openings?: VectorOpenings | null;
 };
 
 export type GeometryApiResult = {

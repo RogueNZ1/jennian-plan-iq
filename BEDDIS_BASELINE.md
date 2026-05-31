@@ -784,3 +784,98 @@ tuned number. True per-window glazed heights remain a later slice.
   remains flagged for future fixtures (e.g. a schedule that does not self-name, or a garage label variant).
 - **Pipeline A / `run.ts` untouched.** The change is confined to the geometry `/measure` payload and the
   app's concept upload seam.
+
+## 14. Phase 4, Slice 2 — Vector Widths + Counts (ungated)
+
+**Mode:** build, mostly app-side, additive and backward-compatible. Branch `phase4-slice2` in **both** repos
+(geometry needed a small additive extension; the app carries the consumption seam). Builds directly on
+Slice 1's `vector_annotations` block.
+
+**What shipped (and, deliberately, what did not).** The seam that already prefers the deterministic vector
+read for the garage is widened to two more reproducible facts read off the **floor-plan** vector layer:
+
+1. **Opening WIDTHS** — every opening is dimensioned as a positioned `datum × width` pair. The engine finds
+   the shared head/mount **datum by repetition** (the value inside a structural mounting-height band that
+   recurs most as a pair side — never matched to a number) and emits each opening's **width** as its *raw
+   printed token*. The app re-parses each token through the **same shared `parseDimsMm`** the vision/garage
+   paths use (`resolveOpeningWidths`), preferring the vector multiset and **falling back to the vision
+   widths** when the vector layer is absent/unusable/empty.
+2. **Window/opening COUNT** — the distinct positioned **W-codes** (`W01…Wnn`). On a scheduled job the
+   schedule's W-codes win; on a **no-schedule** template (Harrison) the floor-plan W-codes are the only
+   vector count. `resolveWindowCount` prefers it over the vision callout count, vision fallback intact.
+   `preferVectorOpenings` applies the count onto the takeoff.
+
+**Out of scope — the gate (unchanged from Slice 1).** Per-window glazed **heights** are still **not** built
+or guessed; they are gated on a *second* schedule-bearing ground-truth job (Beddis is the only window
+schedule we have). The Slice 1 head-datum safeguard stays exactly as-is.
+
+**Ext-wall area is NOT resolved by this slice — say it plainly.** Opening *area* needs `H × W`, and the
+heights are still unresolved/rejected, so `external_wall_area_m2` **remains gated**. Slice 2 firms up the
+**width + count** determinism so the area snaps together cleanly once heights land — it does **not** make
+ext-wall correct now. `preferVectorOpenings` deliberately does **not** recompute the ext-wall area (the
+count is height-independent; the area is not).
+
+### 14.1 Geometry extension — deterministic, literal-free (proven on both real PDFs)
+
+The additive `openings` block is computed on the measured floor-plan page (`extract_vector_annotations`).
+Reproduced directly on the real fixtures (PyMuPDF, no render/OCR/model — identical every run):
+
+| Fixture (floor-plan page) | `openings.window_count` | `datum_mm` (by repetition) | opening widths (raw tokens) |
+|---|---|---|---|
+| Harrison `concept.pdf` idx1 (no schedule) | **14** (W01…W14 callouts) | **2150** | `2,400 · 1,500 · 1,030 · 4,800 · 1,430 · 2,400 · 2,000 · 750 · 750` |
+| Beddis `prelim.pdf` idx2 | **13** (W-codes) | **2210** | `800 · 800 · 3,000 · 1,600 · 800 · 2,000 · 4,800 · 1,030 · 2,000` |
+
+Both include the **4,800** double-garage opening; both datums are found by **repetition** inside the
+mounting-height band (excludes room dimensions like 3000+), never matched to 2150/2210. Room-footprint pairs
+(e.g. `6 120 × 5 950`) carry no datum side and are excluded by construction.
+
+### 14.2 Re-baseline — Harrison (the no-schedule template, on the same seam)
+
+| Field | Before (Slice 1) | After (Slice 2) | Status |
+|---|---|---|---|
+| `vector_annotations.openings` | n/a | `{window_count:14, datum_mm:2150, widths×9}` | ✅ new |
+| **`window_count`** | vision callout sum | **14** (vector-preferred W-codes) | ✅ deterministic |
+| `window_source` label | floor_plan_callouts | floor_plan_callouts | unchanged ✅ |
+| opening widths source | (vision) | **vector** (9 widths, incl 4800) | ✅ |
+| `external_wall_area_m2` | (report-only) | **unchanged — still gated** | ✅ not recomputed |
+
+### 14.3 Re-baseline — Beddis (scheduled job; ext-wall flag now rides on the field)
+
+| Field | Before (Slice 1) | After (Slice 2) | Status |
+|---|---|---|---|
+| `vector_annotations.openings` | n/a | `{window_count:13, datum_mm:2210, widths×9}` | ✅ new |
+| `window_count` | 13 (schedule) | **13** (vector schedule W-codes) | unchanged ✅ |
+| opening widths source | (vision/schedule) | **vector** (9 widths, incl 4800) | ✅ |
+| 8/13 glazed heights (live 2f over-read) | rejected → null + flagged | rejected → null + flagged | unchanged ✅ (Slice 1 safeguard) |
+| **ext-wall flag in REAL output** | only in this doc | **rides on `notes`**: "`external_wall_area_m2 is incomplete (an overshoot)…`" | ✅ **the one fix** |
+| `external_wall_area_m2` | 134.22 (overshoot) | 134.22 — **still gated on heights** | unchanged ✅ |
+
+**The ext-wall confidence fix.** Previously the "ext-wall is an overshoot while heights are unknown" caveat
+lived only in this baseline doc. `applyWindowAggregate` now appends a **deterministic flag to `takeoff.notes`
+whenever any schedule window height is unresolved** (null) — so a live reviewer sees `external_wall_area_m2`
+**flagged incomplete on the field itself**, never a clean-looking number. General (fires for any scheduled
+job with unresolved heights), not Beddis-specific.
+
+### 14.4 Backward-compatibility / forced fallback
+
+- `openings` is **optional** on `VectorAnnotations` — absent on older engines / non-usable pages. When
+  absent, `resolveWindowCount`/`resolveOpeningWidths`/`preferVectorOpenings` all return the **vision** value
+  unchanged → today's behaviour exactly. Pinned by unit tests (forced-fallback on `undefined`,
+  `vector_usable:false`, and empty `widths_raw`).
+- Vector widths route through the **shared `parseDimsMm`** (comma/space/metre tolerant: `4.8 → 4800`,
+  `1,030 → 1030`) — no second parser.
+
+### 14.5 No-regression / determinism
+
+- **Full offline suite 346 passed / 3 skipped** (+19 new Slice 2 unit tests in
+  `tests/phase4/vector-openings.test.ts`; Slice 1 seam tests untouched and green). Both live baselines
+  (`BEDDIS_LIVE`, `HARRISON_LIVE`) green against local geometry on `:8000` — widths/counts vector-preferred,
+  deterministic, vision fallback intact.
+- Geometry `openings` read is **deterministic** (re-run identical) and **literal-free** — count by W-codes,
+  datum by repetition, widths as raw tokens parsed app-side. Two templates are **not** proof of generality;
+  template-dependence remains flagged.
+- **Pipeline A / `run.ts` untouched.** Change confined to the geometry `/measure` `openings` block and the
+  app's concept upload seam.
+- **Next slice:** per-window glazed **heights** (gated on a 2nd schedule-bearing ground-truth job) — once
+  they land, the now-deterministic widths + counts let `external_wall_area_m2` snap together and come off the
+  gate.

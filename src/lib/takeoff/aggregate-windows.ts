@@ -116,10 +116,23 @@ export function applyWindowAggregate(takeoff: TakeoffData, agg: WindowAggregate)
 
   const EXT_DOOR_FLAG =
     "external-door openings (entrance etc.) are not extracted from the windows-only schedule and are excluded from the opening sum — external_wall_area_m2 is a slight overshoot; confirm external doors against the QS.";
-  const notes =
-    externalDoors.length === 0
-      ? [takeoff.notes, EXT_DOOR_FLAG].filter(Boolean).join(" ")
-      : takeoff.notes;
+  // Phase 4, Slice 2 — the ext-wall confidence flag must ride on the FIELD itself in
+  // real output (not only in the baseline doc): whenever a glazed window height is
+  // unresolved (rejected by the head-datum safeguard, or simply not read) that window
+  // is dropped from the opening sum, so external_wall_area_m2 is incomplete — an
+  // overshoot — until the heights land. Flag it deterministically so a reviewer never
+  // sees a clean-looking number while heights are still unknown.
+  const HEIGHTS_INCOMPLETE_FLAG =
+    "one or more glazed window heights are unresolved (rejected as head-datum mis-reads or not read) and are excluded from the opening sum — external_wall_area_m2 is incomplete (an overshoot) and remains gated until the glazed pane heights are resolved.";
+  const heightsUnresolved = windows_schedule.some((w) => w.height_m == null && w.width_m != null);
+
+  const notes = [
+    takeoff.notes,
+    externalDoors.length === 0 ? EXT_DOOR_FLAG : "",
+    heightsUnresolved ? HEIGHTS_INCOMPLETE_FLAG : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return { ...takeoff, window_count: agg.window_count, windows_schedule, external_wall_area_m2, notes };
 }

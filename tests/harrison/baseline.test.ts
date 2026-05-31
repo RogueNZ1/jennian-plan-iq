@@ -39,7 +39,12 @@ import {
 } from "../../src/lib/pdf-page-classify";
 import { aggregateWindows, applyWindowAggregate } from "../../src/lib/takeoff/aggregate-windows";
 import { resolveGeometryPageIndex, reconcileGeometryPage } from "../../src/lib/takeoff/page-of-truth";
-import { preferVectorGarage } from "../../src/lib/takeoff/vector-annotations";
+import {
+  preferVectorGarage,
+  preferVectorOpenings,
+  resolveOpeningWidths,
+  visionOpeningWidthsMm,
+} from "../../src/lib/takeoff/vector-annotations";
 
 const DIR = resolve(process.cwd(), "tests/fixtures/harrison");
 const RENDER = resolve(DIR, "_render");
@@ -150,7 +155,14 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
       // No-schedule fallback: reconcile against a null schedule so the source is
       // recorded as "floor_plan_callouts". Windows come only from the W-code callouts.
       const agg = aggregateWindows(null, takeoffVec.windows_by_room);
-      const finalTakeoff = applyWindowAggregate(takeoffVec, agg);
+      let finalTakeoff = applyWindowAggregate(takeoffVec, agg);
+
+      // ── Phase 4, Slice 2: prefer the deterministic vector window COUNT. Harrison has
+      // NO schedule, so the only vector count is the floor-plan W-codes (W01…W14). Also
+      // resolve the opening WIDTHS off the vector layer (parsed via the shared
+      // parseDimsMm). Ext-wall area stays gated on heights and is NOT recomputed.
+      finalTakeoff = preferVectorOpenings(finalTakeoff, conceptVector);
+      out.concept.opening_widths = resolveOpeningWidths(visionOpeningWidthsMm(finalTakeoff), conceptVector);
 
       out.concept.chosen_page = page;
       out.concept.raw_window_annotations = rawAnn.openingAnnotations.length;
@@ -227,5 +239,25 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     expect(out.concept.vector_annotations.garage).not.toBeNull();
     expect(out.concept.vector_annotations.garage.width_mm).toBe(4800);
     expect(out.concept.vector_annotations.schedule).toBeNull();
+
+    // ── Phase 4, Slice 2 definition of done (vector widths + counts, ungated) ──
+    // No schedule → the ONLY vector window count is the floor-plan W-codes (W01…W14),
+    // and it is preferred over the vision callout count. Opening widths are read off the
+    // vector layer deterministically (parsed via the shared parseDimsMm) and include the
+    // 4.8m double garage. This proves the no-schedule template on the same seam. Ext-wall
+    // area stays gated on per-window heights (a later slice) and is not resolved here.
+    expect(out.concept.vector_annotations.openings).not.toBeNull();
+    expect(out.concept.vector_annotations.openings.window_count).toBeGreaterThanOrEqual(13);
+    expect(out.concept.vector_annotations.openings.datum_mm).toBeGreaterThanOrEqual(1500);
+    expect(out.concept.vector_annotations.openings.widths_raw.length).toBeGreaterThan(0);
+    // Window count is the vector-preferred floor-plan W-code count.
+    expect(out.concept.takeoff.window_count).toBe(out.concept.vector_annotations.openings.window_count);
+    expect(out.concept.window_source).toBe("floor_plan_callouts"); // source label unchanged
+    expect(out.concept.opening_widths.source).toBe("vector");
+    expect(out.concept.opening_widths.preferred_vector).toBe(true);
+    expect(out.concept.opening_widths.widths_mm.length).toBe(
+      out.concept.vector_annotations.openings.widths_raw.length,
+    );
+    expect(out.concept.opening_widths.widths_mm).toContain(4800);
   }, 600000);
 });

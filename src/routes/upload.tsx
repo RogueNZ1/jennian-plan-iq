@@ -26,6 +26,7 @@ import {
   preferVectorGarage,
   safeguardScheduleHeights,
   headDatumSafeguardNote,
+  preferVectorOpenings,
 } from "@/lib/takeoff/vector-annotations";
 import type { PlanContext } from "@/lib/takeoff/plan-context";
 import { measurePlanGeometry, overallConfidence, type GeometryApiResult } from "@/lib/takeoff/geometry-api";
@@ -531,6 +532,15 @@ function UploadPage() {
 
       const windowAggregate = aggregateWindows(schedule, mergedVec.windows_by_room);
       let mergedWithWindows = applyWindowAggregate(mergedVec, windowAggregate);
+
+      // Phase 4, Slice 2 — vector-preferred window COUNT. Prefer the deterministic
+      // positioned W-code count from the engine (schedule W-codes, else floor-plan
+      // W-codes — the only vector count on a no-schedule template) over the vision
+      // count; falls back to vision when the vector layer is absent/unusable. Opening
+      // WIDTHS are firmed up deterministically by the engine too (resolveOpeningWidths)
+      // ahead of the heights slice; ext-wall area stays gated on per-window heights, so
+      // it is NOT recomputed here.
+      mergedWithWindows = preferVectorOpenings(mergedWithWindows, vectorAnnotations);
 
       const safeguardNote = headDatumSafeguardNote(scheduleSafeguard);
       if (safeguardNote) {

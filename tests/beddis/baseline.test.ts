@@ -35,6 +35,9 @@ import {
   preferVectorGarage,
   safeguardScheduleHeights,
   headDatumSafeguardNote,
+  preferVectorOpenings,
+  resolveOpeningWidths,
+  visionOpeningWidthsMm,
 } from "../../src/lib/takeoff/vector-annotations";
 
 const DIR = resolve(process.cwd(), "tests/fixtures/beddis");
@@ -158,6 +161,14 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
 
       const agg = aggregateWindows(schedule, takeoffVec.windows_by_room);
       let finalTakeoff = applyWindowAggregate(takeoffVec, agg);
+
+      // ── Phase 4, Slice 2: prefer the deterministic vector window COUNT (the schedule
+      // W-codes) over the vision count, and resolve the opening WIDTHS multiset from the
+      // vector layer (each width parsed through the shared parseDimsMm). Ext-wall area is
+      // NOT recomputed — it stays gated on the per-window heights (still unresolved).
+      finalTakeoff = preferVectorOpenings(finalTakeoff, prelimVector);
+      out.prelim.opening_widths = resolveOpeningWidths(visionOpeningWidthsMm(finalTakeoff), prelimVector);
+
       const safeguardNote = headDatumSafeguardNote(scheduleSafeguard);
       if (safeguardNote) {
         finalTakeoff = {
@@ -270,6 +281,31 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     // The garage size is unchanged in VALUE (vision and vector agree on 4.8×2.1) but is
     // now backed by the deterministic vector read rather than the flaky vision one.
     expect(out.prelim.takeoff.garage_door_size).toBe("4.8×2.1");
+
+    // ── Phase 4, Slice 2 definition of done (vector widths + counts, ungated) ──
+    // The engine now also surfaces the floor-plan opening WIDTHS and a positioned
+    // W-code COUNT. The window count is vector-preferred (the schedule's 13 W-codes);
+    // the widths are read deterministically off the vector layer (parsed through the
+    // shared parseDimsMm). Ext-wall area is NOT resolved here — it stays gated on the
+    // per-window heights, which are still unresolved (flagged below).
+    expect(out.prelim.vector_annotations.openings).not.toBeNull();
+    expect(out.prelim.vector_annotations.openings.window_count).toBe(13);
+    expect(out.prelim.vector_annotations.openings.datum_mm).toBeGreaterThanOrEqual(1500);
+    expect(out.prelim.vector_annotations.openings.widths_raw.length).toBeGreaterThan(0);
+    // Window count is the vector-preferred W-code count (13), not a vision flake.
+    expect(out.prelim.takeoff.window_count).toBe(13);
+    // Opening widths resolved from the vector layer (preferred), deterministic and
+    // identical in length to the engine's positioned width tokens; includes the 4.8m
+    // double-garage opening.
+    expect(out.prelim.opening_widths.source).toBe("vector");
+    expect(out.prelim.opening_widths.preferred_vector).toBe(true);
+    expect(out.prelim.opening_widths.widths_mm.length).toBe(
+      out.prelim.vector_annotations.openings.widths_raw.length,
+    );
+    expect(out.prelim.opening_widths.widths_mm).toContain(4800);
+    // The ext-wall confidence flag must RIDE ON THE FIELD in real output: with heights
+    // rejected by the safeguard, external_wall_area_m2 is incomplete and says so.
+    expect(out.prelim.takeoff.notes).toContain("external_wall_area_m2 is incomplete");
 
     // ── Phase 2d definition of done (derived fields) ──────────────────────────
     // external_wall_area_m2 = perimeter × stud − total_opening_area (QS D21 = 109.2),

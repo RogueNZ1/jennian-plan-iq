@@ -29,7 +29,7 @@
 import type { TakeoffData } from "./takeoff-types";
 import type { VectorAnnotations } from "./geometry-api";
 import type { WindowScheduleData, ScheduleWindow } from "./extract-window-schedule";
-import { classifyGarageDoorAnnotation } from "./classify";
+import { classifyGarageDoorAnnotation, parseDimsMm } from "./classify";
 import { computeOpeningAreaM2, computeExternalWallAreaM2 } from "./derive-fields";
 
 /**
@@ -152,6 +152,132 @@ export function safeguardScheduleHeights(
   });
 
   return { schedule: { ...schedule, windows }, flaggedIds, headDatumMm };
+}
+
+// ── Phase 4, Slice 2 — opening WIDTHS + window COUNT (vector-preferred) ─────────
+//
+// The engine reads two further deterministic facts off the floor-plan vector layer:
+// each opening's WIDTH (the non-datum side of a positioned "datum × width" pair) and
+// the distinct positioned W-code COUNT. Both are preferred over the vision reads —
+// the vector value is the printed number — and fall back to vision when the vector
+// layer is absent, not usable, or carries no openings (a scan / older engine).
+//
+// SCOPE NOTE (heights still gated): this slice firms up width + count determinism so
+// the external-wall opening area snaps together cleanly once per-window glazed HEIGHTS
+// land (a later slice, gated on a second schedule-bearing ground-truth job). It does
+// NOT resolve external_wall_area_m2 — that needs H×W and heights are still unresolved.
+// preferVectorOpenings therefore deliberately does not recompute the ext-wall area.
+
+export type CountSource = "vector_schedule" | "vector_openings" | "vision";
+
+export interface WindowCountResolution {
+  /** The canonical window count, vector-preferred. */
+  window_count: number | null;
+  /** Which layer the count came from — for transparency / the scorecard. */
+  source: CountSource;
+  /** True when a vector count was preferred over the vision count. */
+  preferred_vector: boolean;
+}
+
+/**
+ * Resolve the canonical window count, preferring the deterministic vector read when the
+ * floor-plan page has a usable text layer. A Door & Window Schedule's W-code count wins
+ * first (it is the authoritative window set); otherwise the floor-plan W-code count
+ * (the only vector count available on a no-schedule template such as Harrison). Falls
+ * back to the vision count when no usable vector count exists.
+ */
+export function resolveWindowCount(
+  visionCount: number | null | undefined,
+  vector: VectorAnnotations | undefined | null,
+): WindowCountResolution {
+  if (vector?.vector_usable) {
+    const sched = vector.schedule?.window_count;
+    if (typeof sched === "number" && sched > 0) {
+      return { window_count: sched, source: "vector_schedule", preferred_vector: true };
+    }
+    const op = vector.openings?.window_count;
+    if (typeof op === "number" && op > 0) {
+      return { window_count: op, source: "vector_openings", preferred_vector: true };
+    }
+  }
+  return { window_count: visionCount ?? null, source: "vision", preferred_vector: false };
+}
+
+export type WidthsSource = "vector" | "vision";
+
+export interface OpeningWidthsResolution {
+  /** Opening widths in mm, ascending. Vector-preferred when a usable layer carries them. */
+  widths_mm: number[];
+  source: WidthsSource;
+  preferred_vector: boolean;
+}
+
+/**
+ * The vision opening-width multiset (mm) carried by a takeoff: the schedule widths when
+ * a schedule was read, otherwise the floor-plan callout widths (expanded by qty). This
+ * is the fallback the vector widths are preferred over.
+ */
+export function visionOpeningWidthsMm(takeoff: TakeoffData): number[] {
+  const out: number[] = [];
+  const sched = takeoff.windows_schedule;
+  if (sched && sched.length > 0) {
+    for (const w of sched) {
+      if (w.width_m != null && w.width_m > 0) out.push(Math.round(w.width_m * 1000));
+    }
+  } else if (takeoff.windows_by_room) {
+    for (const w of Object.values(takeoff.windows_by_room)) {
+      if (w && w.width_m > 0) {
+        const qty = w.qty > 0 ? w.qty : 1;
+        for (let i = 0; i < qty; i++) out.push(Math.round(w.width_m * 1000));
+      }
+    }
+  }
+  return out.sort((a, b) => a - b);
+}
+
+/**
+ * Resolve the opening-width multiset, preferring the vector reads when a usable layer
+ * carries them. Each vector width arrives as its raw printed token and is parsed here
+ * through the SAME shared dimension reader the vision path uses (parseDimsMm) — no
+ * second, divergent parser. Falls back to the supplied vision widths when the vector
+ * layer is absent, not usable, or carries no opening widths.
+ */
+export function resolveOpeningWidths(
+  visionWidthsMm: number[],
+  vector: VectorAnnotations | undefined | null,
+): OpeningWidthsResolution {
+  if (vector?.vector_usable && vector.openings && vector.openings.widths_raw.length > 0) {
+    const widths_mm = vector.openings.widths_raw
+      .map((raw) => parseDimsMm(raw)[0])
+      .filter((v): v is number => typeof v === "number" && v > 0)
+      .sort((a, b) => a - b);
+    if (widths_mm.length > 0) {
+      return { widths_mm, source: "vector", preferred_vector: true };
+    }
+  }
+  return { widths_mm: [...visionWidthsMm].sort((a, b) => a - b), source: "vision", preferred_vector: false };
+}
+
+/**
+ * Apply the vector-preferred window COUNT onto a takeoff. Pure — returns a new object
+ * only when the vector count is preferred AND differs from what is already on the
+ * takeoff; otherwise the input is returned untouched.
+ *
+ * Deliberately does NOT recompute external_wall_area_m2: the opening area depends on
+ * per-window HEIGHTS, which remain unresolved/flagged this slice, so the ext-wall area
+ * stays gated (see SCOPE NOTE above). Only the count — a height-independent fact — is
+ * updated here. The widths are resolved separately (resolveOpeningWidths) for the
+ * scorecard and to firm up determinism ahead of the heights slice.
+ */
+export function preferVectorOpenings(
+  takeoff: TakeoffData,
+  vector: VectorAnnotations | undefined | null,
+): TakeoffData {
+  const res = resolveWindowCount(takeoff.window_count, vector);
+  if (!res.preferred_vector || res.window_count === takeoff.window_count) {
+    return takeoff;
+  }
+  return { ...takeoff, window_count: res.window_count };
 }
 
 /**
