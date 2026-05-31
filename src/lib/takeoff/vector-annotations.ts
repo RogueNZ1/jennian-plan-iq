@@ -280,34 +280,41 @@ export function preferVectorOpenings(
   return { ...takeoff, window_count: res.window_count };
 }
 
-// ── Phase 4, Slice 3 — entrance door (asserted) ────────────────────────────────────
+// ── Phase 4, Slice 3 — entrance door (asserted height, data-driven-or-unknown width) ──
 //
-// The geometry engine emits an ASSERTED entry door (height always the building standard
-// 2.1m; width the printed frame-to-frame number when annotated, else the entry-door
-// standard 1.4m). Two probes proved the width is not measurable as text or as clean
-// geometry, so it is asserted — transparently flagged here so a human can confirm.
+// The geometry engine emits an entry door whose HEIGHT is always the building standard
+// 2.1m (genuinely uniform + unreliable to read → asserting it generalises) and whose
+// WIDTH is the printed frame-to-frame number when the plan annotates one (data-driven),
+// else UNRESOLVED. The width is NEVER asserted to a standard: entry-door widths genuinely
+// vary, so a fixed "standard width" would be an overfit to one job's QS rather than a
+// measurement. An unknown width is honestly flagged for confirmation, not fabricated.
 //
-// This module folds the asserted door into the takeoff's opening SET (windows_by_room,
-// the same multiset computeOpeningAreaM2 sums) and surfaces an assumption note. It does
-// NOT recompute external_wall_area_m2: that stays GATED on the still-unresolved per-
-// window glazed heights (a later slice), so adding the entrance must not imply ext-wall
-// is now complete. Backward-compatible: a takeoff with no usable entrance is untouched.
+// This module folds the door into the takeoff's opening SET (windows_by_room, the multiset
+// computeOpeningAreaM2 sums) ONLY when the width is known — an unknown-width opening can
+// contribute no area, so it stays out of the set and is surfaced via the assumption note
+// instead. It does NOT recompute external_wall_area_m2: that stays GATED on the still-
+// unresolved per-window glazed heights (a later slice). Backward-compatible: a takeoff
+// with no usable entrance is untouched.
 
-export type EntranceSource = "vector_text" | "standard_assumed";
+export type EntranceSource = "vector_text" | "unresolved";
 
 export interface EntranceResolution {
-  /** The entry door dims in metres, or null when no usable vector entrance exists. */
-  entrance: { qty: number; height_m: number; width_m: number } | null;
-  /** Which layer the WIDTH came from (height is always the asserted standard). */
+  /**
+   * The entry door dims in metres, or null when no usable vector entrance exists.
+   * `width_m` is null when the plan printed no frame-to-frame width (left unresolved).
+   */
+  entrance: { qty: number; height_m: number; width_m: number | null } | null;
+  /** Which layer the WIDTH came from ("unresolved" when the plan printed none). */
   widthSource: EntranceSource | null;
-  /** True when a vector entrance was applied. */
+  /** True when a vector entrance was found (regardless of whether the width is known). */
   applied: boolean;
 }
 
 /**
- * Resolve the entry door from the vector layer. Returns the asserted door (height +
- * width in metres) when the floor-plan page has a usable text layer and an entry-type
- * label was found; otherwise a null resolution (the takeoff keeps whatever it had).
+ * Resolve the entry door from the vector layer. Returns the door (asserted height + the
+ * printed width, or a null width when none was printed) when the floor-plan page has a
+ * usable text layer and an entry-type label was found; otherwise a null resolution (the
+ * takeoff keeps whatever it had).
  */
 export function resolveEntrance(
   vector: VectorAnnotations | undefined | null,
@@ -318,7 +325,7 @@ export function resolveEntrance(
       entrance: {
         qty: 1,
         height_m: e.height_mm / 1000,
-        width_m: e.width_mm / 1000,
+        width_m: e.width_mm != null ? e.width_mm / 1000 : null,
       },
       widthSource: e.width_source,
       applied: true,
@@ -328,29 +335,38 @@ export function resolveEntrance(
 }
 
 /**
- * Apply the asserted entry door onto a takeoff, folding it into windows_by_room under
- * the `entrance` key (so it joins the opening set computeOpeningAreaM2 sums). Pure:
- * returns a new object only when a vector entrance was applied; otherwise the input is
- * returned untouched. Deliberately does NOT recompute external_wall_area_m2 — the ext-
- * wall area stays gated on per-window heights (see SCOPE NOTE above).
+ * Apply the entry door onto a takeoff, folding it into windows_by_room under the
+ * `entrance` key (so it joins the opening set computeOpeningAreaM2 sums) — but ONLY when
+ * the width is known. An unknown-width entrance contributes no opening area, so it is left
+ * out of the set (and flagged via entranceAssumptionNote) rather than fabricated. Pure:
+ * returns a new object only when a known-width entrance was folded; otherwise the input is
+ * returned untouched. Deliberately does NOT recompute external_wall_area_m2 — the ext-wall
+ * area stays gated on per-window heights (see SCOPE NOTE above).
  */
 export function preferVectorEntrance(
   takeoff: TakeoffData,
   vector: VectorAnnotations | undefined | null,
 ): TakeoffData {
   const res = resolveEntrance(vector);
-  if (!res.applied || res.entrance == null) {
+  if (!res.applied || res.entrance == null || res.entrance.width_m == null) {
     return takeoff;
   }
-  const windows_by_room = { ...(takeoff.windows_by_room ?? {}), entrance: res.entrance };
+  const entrance = {
+    qty: res.entrance.qty,
+    height_m: res.entrance.height_m,
+    width_m: res.entrance.width_m,
+  };
+  const windows_by_room = { ...(takeoff.windows_by_room ?? {}), entrance };
   return { ...takeoff, windows_by_room };
 }
 
 /**
- * Human-readable note flagging the entrance door's asserted dimensions, for appending to
- * takeoff.notes. The HEIGHT is always an assumed building standard; the WIDTH is either
- * data-driven (the printed frame-to-frame dimension) or the assumed standard. Returns an
- * empty string when there is no usable vector entrance so callers can `.filter(Boolean)`.
+ * Human-readable note flagging the entrance door, for appending to takeoff.notes. The
+ * HEIGHT is always an assumed building standard. The WIDTH is either data-driven (the
+ * printed frame-to-frame dimension, folded into the opening set) or UNRESOLVED — the plan
+ * printed none, so it is flagged for confirmation and left out of the opening area rather
+ * than asserted. Returns an empty string when there is no usable vector entrance so
+ * callers can `.filter(Boolean)`.
  */
 export function entranceAssumptionNote(
   vector: VectorAnnotations | undefined | null,
@@ -360,13 +376,13 @@ export function entranceAssumptionNote(
   const h = res.entrance.height_m;
   const w = res.entrance.width_m;
   const widthClause =
-    res.widthSource === "vector_text"
-      ? `width ${w}m read from the printed frame-to-frame dimension`
-      : `width assumed standard ${w}m — confirm`;
+    res.widthSource === "vector_text" && w != null
+      ? `width ${w}m read from the printed frame-to-frame dimension (added to the opening set)`
+      : `width not found on the plan — confirm (left unresolved, not added to the opening area)`;
   return (
     `entrance door: height assumed standard ${h}m — confirm against the plan; ` +
-    `${widthClause}. (Added to the opening set; the external wall area stays ` +
-    `gated on the unresolved window heights and is not recomputed here.)`
+    `${widthClause}. (The external wall area stays gated on the unresolved window ` +
+    `heights and is not recomputed here.)`
   );
 }
 

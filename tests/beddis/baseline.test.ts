@@ -370,31 +370,33 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     expect(out.prelim.takeoff.garage_door_size).toBe("4.8×2.1");
     expect(out.prelim.takeoff.notes).not.toContain("reconciliation:");
 
-    // ── Phase 4, Slice 3 definition of done (asserted entrance door) ──────────
-    // The engine asserts the entry door rather than measuring it: HEIGHT is always the
-    // building standard 2.1m (flagged assumed); WIDTH is the entry-door standard 1.4m on
-    // Beddis (no printed frame-to-frame token → width_source "standard_assumed"). The door
-    // is folded into the opening SET (windows_by_room.entrance) so it lands in the opening
-    // area, but ext-wall area is NOT recomputed — it stays gated on the window heights.
+    // ── Phase 4, Slice 3 definition of done (entrance: asserted height, UNKNOWN width) ──
+    // The engine asserts only the entry door HEIGHT (building standard 2.1m, flagged); the
+    // WIDTH is data-driven-or-unknown and Beddis prints NO frame-to-frame number, so the
+    // width is left UNRESOLVED (null / width_source "unresolved") — NEVER asserted to a
+    // standard (1400 would be an overfit to this job's QS). An unknown-width door can carry
+    // no opening area, so it is flagged in the notes and NOT folded into the opening set.
     expect(out.prelim.vector_annotations.entrance).not.toBeNull();
     expect(out.prelim.vector_annotations.entrance.height_mm).toBe(2100);
     expect(out.prelim.vector_annotations.entrance.height_source).toBe("standard_assumed");
-    expect(out.prelim.vector_annotations.entrance.width_mm).toBe(1400);
-    expect(out.prelim.vector_annotations.entrance.width_source).toBe("standard_assumed");
-    // Folded into the opening set as 1.4 wide × 2.1 high.
-    expect(out.prelim.entrance).toEqual({ qty: 1, height_m: 2.1, width_m: 1.4 });
-    expect(out.prelim.takeoff.windows_by_room.entrance).toEqual({ qty: 1, height_m: 2.1, width_m: 1.4 });
-    // Honesty rails: height flagged assumed-standard, width flagged standard, and the
-    // ext-wall note still says the area is not recomputed (stays gated on the heights).
+    expect(out.prelim.vector_annotations.entrance.width_mm).toBeNull();
+    expect(out.prelim.vector_annotations.entrance.width_source).toBe("unresolved");
+    // Unknown width → the door is NOT folded into the opening set (no fabricated area).
+    expect(out.prelim.entrance).toBeNull();
+    expect(out.prelim.takeoff.windows_by_room.entrance).toBeUndefined();
+    // Honesty rails: height flagged assumed-standard, width flagged not-found (never a
+    // fabricated 1.4), and the ext-wall note still says the area is not recomputed.
     expect(out.prelim.takeoff.notes).toContain("height assumed standard 2.1m");
-    expect(out.prelim.takeoff.notes).toContain("width assumed standard 1.4m");
+    expect(out.prelim.takeoff.notes).toContain("width not found on the plan");
+    expect(out.prelim.takeoff.notes).not.toContain("assumed standard 1.4");
     expect(out.prelim.takeoff.notes).toContain("not recomputed");
-    // Single-source in our fixtures (vision reads no entry door) → the entrance width
-    // cross-check is uncheckable, never a false flag.
+    // The vector width is unresolved (null) → the entrance width cross-check is uncheckable,
+    // never a false flag.
     const recEntrance = out.prelim.reconciliation.fields.find(
       (f: any) => f.field === "entrance_door_width",
     );
     expect(recEntrance.status).toBe("uncheckable");
+    expect(recEntrance.vectorValue).toBeNull();
 
     // ── Phase 2d definition of done (derived fields) ──────────────────────────
     // external_wall_area_m2 = perimeter × stud − total_opening_area (QS D21 = 109.2),

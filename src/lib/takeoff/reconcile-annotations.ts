@@ -142,9 +142,10 @@ function vectorWindowCount(vector: VectorAnnotations): number | null {
  *   - `visionWindowCount` — the window count on the takeoff before preferVectorOpenings.
  *   - `visionEntranceWidthMm` — the vision entry-door width (mm) before preferVectorEntrance,
  *     when vision read one. Optional; cross-checked only when the vector layer carries an
- *     asserted entrance. In our fixtures vision produces no entry door, so this is normally
- *     uncheckable (never flagged) — but where a job DOES read one, the asserted/printed
- *     vector width is cross-checked against it (e.g. a printed frame-to-frame 1430).
+ *     entrance with a KNOWN width (a printed frame-to-frame number). In our fixtures vision
+ *     produces no entry door AND the vector width is single-source/unresolved, so this is
+ *     normally uncheckable (never flagged) — but where a job prints a width AND vision reads
+ *     one, the printed vector width is cross-checked against it (e.g. a frame-to-frame 1430).
  *
  * Returns a report whose `note` is appended to takeoff.notes so the disagreement reaches
  * the live reviewer (not just the baseline doc). Empty/clean when the vector layer is
@@ -175,8 +176,10 @@ export function reconcileVectorVision(
         " windows",
       ),
     );
-    // Entry door width: only when the vector layer asserted an entrance. Single-source
-    // in our fixtures (vision reads no entry door) → uncheckable, never a false flag.
+    // Entry door width: only when the vector layer carries an entrance. The vector width
+    // is null when the plan printed no frame-to-frame number (unresolved), and vision reads
+    // no entry door in our fixtures → either missing side makes the field uncheckable, never
+    // a false flag. reconcileScalar treats a null on either side as uncheckable.
     if (vector.entrance) {
       fields.push(
         reconcileScalar(

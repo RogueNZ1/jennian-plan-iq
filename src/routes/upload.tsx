@@ -550,13 +550,15 @@ function UploadPage() {
       // it is NOT recomputed here.
       mergedWithWindows = preferVectorOpenings(mergedWithWindows, vectorAnnotations);
 
-      // Phase 4, Slice 3 — asserted entry door. The engine emits an entrance (height the
-      // building standard 2.1m; width the printed frame-to-frame number when annotated,
-      // else the entry-door standard 1.4m) which we fold into the opening set here and
-      // flag as an assumption. Capture the VISION entry-door width (if vision read one)
-      // BEFORE the override so F-022 can cross-check it. Does NOT recompute ext-wall: that
-      // stays gated on the unresolved window heights — adding the entrance must not imply
-      // ext-wall is complete.
+      // Phase 4, Slice 3 — entry door: asserted standard HEIGHT (2.1m), data-driven WIDTH.
+      // The engine emits the width only when the plan prints a frame-to-frame number
+      // (e.g. Harrison 1430); otherwise the width is UNRESOLVED (never asserted to a
+      // standard — entry widths vary, so a fixed value would be an overfit). preferVector-
+      // Entrance folds the door into the opening set ONLY when the width is known; an
+      // unknown-width door is flagged via the note and left out of the opening area.
+      // Capture the VISION entry-door width (if vision read one) BEFORE the override so
+      // F-022 can cross-check it. Does NOT recompute ext-wall: that stays gated on the
+      // unresolved window heights — adding the entrance must not imply ext-wall is complete.
       const visionEntranceWidthMm =
         mergedWithWindows.windows_by_room?.entrance?.width_m != null
           ? Math.round(mergedWithWindows.windows_by_room.entrance.width_m * 1000)

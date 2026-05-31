@@ -955,79 +955,88 @@ correspondence across the two paths (not available) and is a documented follow-o
 - **Follow-on:** per-opening width reconciliation (needs opening-level correspondence across paths) and
   per-window heights (the standing gate) remain future slices.
 
-## 16. Phase 4, Slice 3 — Entrance Door (asserted height + measured/printed width)
+## 16. Phase 4, Slice 3 — Entrance Door (asserted height + data-driven-or-unresolved width)
 
 **Mode:** build, cross-repo (geometry emits, app consumes), additive and backward-compatible. Branch
 `entrance-vector` in **both** repos. Scope = the **ENTRY door only** (anchored by an ENTRY/PORCH-type label);
 sliders follow the same principle but have no QS truth to validate against yet → documented follow-on, not
 built blind.
 
-**The domain insight: you don't extract a front-door height — you assert it.** The entry/slider door HEIGHT is
-a building **standard (2.1m)**. Asserting it dissolves the orientation problem (once the height is known, the
-*other* printed number is the width) and reconciles the two jobs' **transposed QS columns**: Beddis' `2.1×1.4`
-and Harrison's `1.4×2.1` are the **same door** — 2.1 high, 1.4 wide. Both jobs agree **width = 1400**.
+**The domain insight is asymmetric — assert what genuinely generalises, flag what doesn't.** The entry/slider
+door HEIGHT is a building **standard (2.1m)** AND it is unreliable to read (datum confusion), so asserting it
+*generalises* the tool and dissolves the orientation problem (once the height is fixed, the other number is the
+width). The WIDTH does **not** generalise: entry-door widths genuinely **vary** (1200 / 1400 / 1600 / sliders),
+so there is no honest "standard width" to assert — a fixed value (e.g. 1400) would be an **overfit to one job's
+QS**, making the green baseline circular (the tool would emit the QS answer regardless of plan content). So the
+width is **read when printed, flagged-unknown otherwise — never asserted**.
 
-### 16.0 Why v1 (text) and v2-geometry both stopped — the evidence
+### 16.0 Why the width is data-driven-or-unresolved (never a standard) — the evidence
 
-- **Step 0 (text / nearest-label) — STOP.** `probe_entrance2.py` proved the frame width is not recoverable as
-  text: Beddis prints **no door token** at the entry; Harrison prints only the prose **"Frame to Frame 1430"**
-  plus a **910 leaf** — no positioned dim-pair.
+- **Step 0 (text / nearest-label).** `probe_entrance2.py` proved the frame width is not recoverable as a
+  positioned dim-pair: Beddis prints **no door token** at the entry; Harrison prints only the prose
+  **"Frame to Frame 1430"** plus a **910 leaf**.
 - **Step 1 (geometric width) — STOP (infeasible without overfitting).** Three drawing-primitive probes showed
   the entry is drawn as a **~900mm door leaf + porch hatch**; the **~1400 frame** exists only as annotation
   (Harrison) or is **absent** (Beddis). The wall-gap was unstable across templates (11194 / 1674 / 15866 mm)
   and the hatch lengths were coincidental (Beddis porch-**depth** 1401 vs Harrison porch-**width** 2208 — an
-  overfit trap). Conclusion: a robust, generic geometric width is **not** achievable here.
-- **Resolution — assert the standard, credit any printed width.** HEIGHT is always the standard 2.1m; WIDTH is
-  the **printed "Frame to Frame NNNN"** when a plan annotates one (data-driven, `width_source:"vector_text"`),
-  else the **entry-door standard 1.4m** (`width_source:"standard_assumed"`). Both 2.1 and 1.4 are **product
-  standards** (identical across two independent jobs), **not per-job literals** — same argument the brief uses
-  for the height. They are named, documented, overridable constants
-  (`STANDARD_ENTRY_DOOR_HEIGHT_MM = 2100`, `STANDARD_ENTRY_DOOR_WIDTH_MM = 1400`) and the app **flags both as
-  assumptions** so a human can confirm.
+  overfit trap). A robust, generic geometric width is **not** achievable here.
+- **Why not just assert a standard width (1400)?** Because entry widths vary across real jobs; 1400 is **only**
+  Beddis's QS number. Asserting it would make a tool that "passes" the Beddis baseline by **emitting the QS
+  answer**, not by reading the plan — circular. Beddis prints no recoverable width, so the only non-overfit
+  answer is **honest-unknown**, surfaced for confirmation.
+- **Resolution — assert the HEIGHT, read the width when printed, flag it unknown otherwise.** HEIGHT is always
+  the standard 2.1m (named/overridable `STANDARD_ENTRY_DOOR_HEIGHT_MM = 2100`, flagged). WIDTH is the printed
+  **"Frame to Frame NNNN"** when a plan annotates one (data-driven, `width_source:"vector_text"`); otherwise
+  `width_mm:null` / `width_source:"unresolved"`, flagged for confirmation. **There is no standard-width
+  constant.**
 
 ### 16.1 What shipped
 
-- **Geometry (`pipeline/vector.py`, committed `37fd7ba`).** `_find_entrance(page, idx)` anchors on an
-  entry-type label (`entry|entrance|foyer|porch`, ≤16 chars), asserts `height_mm:2100` /
-  `height_source:"standard_assumed"`, defaults `width_mm:1400` / `width_source:"standard_assumed"`, and
-  **upgrades the width** to the printed value when a `Frame to Frame NNNN` token sits within range of the label
-  and in a plausible door band [700, 2600]mm → `width_source:"vector_text"`. Emitted as an additive
-  `vector_annotations.entrance`; **absent** (null) when no entry label is found.
-- **App (`vector-annotations.ts`, `reconcile-annotations.ts`, `upload.tsx`).** `resolveEntrance` →
-  `preferVectorEntrance` folds the asserted door into the **opening set** (`windows_by_room.entrance`), so it
-  lands in `computeOpeningAreaM2`. `entranceAssumptionNote` writes the honesty rail to `takeoff.notes`. F-022
-  gains a 4th, optional input (`visionEntranceWidthMm`) and cross-checks `entrance_door_width` **only when the
-  vector layer carries an entrance** — single-source in our fixtures (vision reads no entry door) → status
-  **uncheckable**, never a false flag.
+- **Geometry (`pipeline/vector.py`).** `_find_entrance(page, idx)` anchors on an entry-type label
+  (`entry|entrance|foyer|porch`, ≤16 chars), asserts `height_mm:2100` / `height_source:"standard_assumed"`,
+  and reads the width **only** when a `Frame to Frame NNNN` token sits within range of the label and in a
+  plausible door band [700, 2600]mm → `width_mm:int`, `width_source:"vector_text"`; otherwise `width_mm:null`,
+  `width_source:"unresolved"`. The `STANDARD_ENTRY_DOOR_WIDTH_MM` constant was **removed**. Emitted as an
+  additive `vector_annotations.entrance`; **absent** (null) when no entry label is found.
+- **App (`vector-annotations.ts`, `reconcile-annotations.ts`, `upload.tsx`).** `resolveEntrance` carries
+  `width_m` as `number | null`. `preferVectorEntrance` folds the door into the **opening set**
+  (`windows_by_room.entrance`) **only when the width is known** (an unknown-width opening contributes no area
+  and is returned untouched — `out === base`). `entranceAssumptionNote` writes the honesty rail to
+  `takeoff.notes`. F-022's optional `visionEntranceWidthMm` cross-checks `entrance_door_width` **only when both
+  paths have a width** — Beddis's vector width is `null` → **uncheckable**, never a false flag.
 
-### 16.2 Proven on both fixtures — printed-width AND standard-assumed
+### 16.2 Proven on both fixtures — printed-width AND flagged-unknown
 
 | Fixture | Label | Width | Width source | Height | Folded into opening set | F-022 entrance |
 |---|---|---|---|---|---|---|
-| **Beddis** | `ENTRY` | **1400** | `standard_assumed` (no frame token) | **2100** asserted | `{qty:1, height_m:2.1, width_m:1.4}` | uncheckable (vision had none) |
+| **Beddis** | `ENTRY` | **unknown** (null) | `unresolved` (no frame token) | **2100** asserted | **not folded** (unknown width → no area) | uncheckable (vector width null) |
 | **Harrison** | `PORCH` | **1430** | `vector_text` ("Frame to Frame 1430") | **2100** asserted | `{qty:1, height_m:2.1, width_m:1.43}` | uncheckable (vision had none) |
 
-- **Width came from:** Beddis = **asserted standard** (no printed frame); Harrison = **the printed
-  frame-to-frame dimension (1430)**. Geometry could **not measure** the opening (§16.0 evidence) — neither
-  fixture used a vision fallback because the geometry layer asserted/printed a width directly.
+- **Width came from:** Beddis = **flagged-unknown** (no printed frame, width left unresolved — *not* asserted);
+  Harrison = **the printed frame-to-frame dimension (1430)**. Neither fixture used a vision fallback — Harrison's
+  width was read directly from geometry text, Beddis's has no recoverable source.
 - **Honesty rails live in `takeoff.notes`:** both carry *"entrance door: height assumed standard 2.1m — confirm
-  against the plan"*; Beddis adds *"width assumed standard 1.4m — confirm"*, Harrison instead credits *"width
-  1.43m read from the printed frame-to-frame dimension"*; both end with the ext-wall rail *"the external wall
-  area stays gated on the unresolved window heights and is **not recomputed** here."*
+  against the plan"*; Beddis adds *"width not found on the plan — confirm (left unresolved, not added to the
+  opening area)"*, Harrison instead credits *"width 1.43m read from the printed frame-to-frame dimension (added
+  to the opening set)"*; both end with the ext-wall rail *"the external wall area stays gated on the unresolved
+  window heights and is **not recomputed** here."*
 
 ### 16.3 Honesty rails / no-regression / determinism
 
-- **Ext-wall stays gated.** Adding the entrance to the opening set does **NOT** ungate `external_wall_area_m2` —
+- **No fabricated width — the anti-overfit rail.** Beddis's width is left `null` rather than asserted to 1400,
+  so the baseline can only go green by **reading** a width (Harrison) or by **honestly flagging its absence**
+  (Beddis) — never by emitting the QS answer. The green baseline is no longer circular.
+- **Ext-wall stays gated.** Folding the entrance (when known) does **NOT** ungate `external_wall_area_m2` —
   the 8 unresolved window heights still block it; it stays flagged incomplete (Beddis ext-wall area unchanged at
   the Slice-2 value). No QS field is silently "completed" by the assertion.
-- **No-regression.** Full offline suite **374 passed / 3 skipped** (+15 new unit tests in
-  `tests/phase4/vector-entrance.test.ts`, pinning the asserted height, the standard-vs-printed width, the
-  opening-set fold, the no-ext-wall-recompute, and the F-022 entrance cross-check). Both live baselines
-  (`BEDDIS_LIVE`, `HARRISON_LIVE`) green against local geometry on `:8000`; floor 165.4 (Beddis) / 60.4
-  (Harrison) unchanged.
-- **Determinism / no per-job literals.** Width is fully data-driven where printed (Harrison 1430); the standard
-  constants are named/documented/overridable product standards, not fixture values. Geometry is additive and
-  backward-compatible (entrance absent on older engines / pages without an entry label). **Pipeline A /
-  `run.ts` untouched**; `scraper.py` excluded.
+- **No-regression.** Full offline suite **376 passed / 3 skipped** (+17 unit tests in
+  `tests/phase4/vector-entrance.test.ts`, pinning the asserted height, the printed-vs-unresolved width, the
+  conditional opening-set fold, the no-ext-wall-recompute, and the F-022 entrance cross-check). Both live
+  baselines (`BEDDIS_LIVE`, `HARRISON_LIVE`) green against local geometry on `:8000`; floor 165.4 (Beddis) /
+  60.4 (Harrison) unchanged.
+- **Determinism / no per-job literals.** Width is fully data-driven where printed (Harrison 1430) and otherwise
+  unresolved; the only asserted constant is the height (a named/documented/overridable product standard, not a
+  fixture value). Geometry is additive and backward-compatible (entrance absent on older engines / pages without
+  an entry label). **Pipeline A / `run.ts` untouched**; `scraper.py` excluded.
 - **Follow-on:** slider doors (same assert-the-height principle, no QS truth yet) and the standing per-window
   height gate remain future slices.

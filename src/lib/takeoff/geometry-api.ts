@@ -89,24 +89,28 @@ export type VectorOpenings = {
 };
 
 /**
- * Phase 4, Slice 3 — the entry door, ASSERTED rather than measured. Two probes proved
- * its frame-to-frame width is not recoverable as a positioned dim-pair (Step 0) nor as
- * a clean drawn primitive (Step 1): the entry is drawn as a ~900mm leaf in a porch
- * hatch, the ~1400 frame is annotation-only on one template and absent on the other.
+ * Phase 4, Slice 3 — the entry door: asserted HEIGHT, data-driven-or-unresolved WIDTH.
+ * Two probes proved the frame-to-frame width is not recoverable as a positioned dim-pair
+ * (Step 0) nor as a clean drawn primitive (Step 1): the entry is drawn as a ~900mm leaf
+ * in a porch hatch, the ~1400 frame is annotation-only on one template and absent on the
+ * other.
  *
- *  - `height_mm`: always the building STANDARD (2.1m). Asserting it dissolves the
- *    orientation problem and reconciles the two jobs' transposed QS columns.
+ *  - `height_mm`: always the building STANDARD (2.1m). Height is genuinely uniform across
+ *    entry doors AND unreliable to read (datum confusion), so asserting it generalises;
+ *    it dissolves the orientation problem and reconciles the two jobs' transposed QS
+ *    columns. The app FLAGS it as a standard assumption so a human can confirm.
  *  - `width_mm`: the printed "Frame to Frame NNNN" when the plan annotates one
- *    (`width_source: "vector_text"`, data-driven); otherwise the entry-door STANDARD
- *    width (`width_source: "standard_assumed"`). Both are product standards (same value
- *    across both ground-truth jobs), not per-job literals; the app FLAGS them as
- *    assumptions so a human can confirm.
+ *    (`width_source: "vector_text"`, data-driven, e.g. Harrison 1430); otherwise `null`
+ *    with `width_source: "unresolved"` — the width is NEVER asserted to a standard, because
+ *    entry-door widths genuinely vary (1200/1400/1600/sliders) so a fixed value would be an
+ *    overfit to one job's QS, not a measurement. The app FLAGS an unresolved width for
+ *    confirmation rather than fabricating one.
  *  - `label`: the entry-type room token that anchored it (e.g. "ENTRY", "PORCH").
  */
 export type VectorEntrance = {
   type: "entry";
-  width_mm: number;
-  width_source: "vector_text" | "standard_assumed";
+  width_mm: number | null;
+  width_source: "vector_text" | "unresolved";
   height_mm: number;
   height_source: "standard_assumed";
   label: string;

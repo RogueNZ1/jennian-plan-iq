@@ -3,17 +3,20 @@
  * Phase 4, Slice 3 — asserted entrance door.
  *
  * Pure unit tests for the entrance additions to vector-annotations.ts and the F-022
- * entrance cross-check. The entry door is ASSERTED, not measured (two probes proved the
- * ~1400 frame width is not recoverable as text or as clean geometry):
+ * entrance cross-check. The entry door has an ASSERTED height and a DATA-DRIVEN-OR-UNKNOWN
+ * width (two probes proved the ~1400 frame width is not recoverable as text or geometry):
  *
  *   - HEIGHT is always the building standard (2.1m), flagged assumed.
  *   - WIDTH is the printed frame-to-frame number when the engine read one
- *     (width_source "vector_text", e.g. Harrison 1430), else the entry-door standard
- *     1.4m (width_source "standard_assumed", e.g. Beddis), flagged assumed.
- *   - The door is folded into the opening SET (windows_by_room.entrance) but ext-wall
- *     area is NOT recomputed — it stays gated on the unresolved window heights.
- *   - F-022 cross-checks the entrance width only when vision read one too (single-source
- *     in our fixtures → uncheckable, never a false flag).
+ *     (width_source "vector_text", e.g. Harrison 1430). Otherwise it is UNRESOLVED
+ *     (width_mm null, width_source "unresolved", e.g. Beddis) and flagged for confirmation
+ *     — NEVER asserted to a standard, because entry widths vary (a fixed value would be an
+ *     overfit to one job's QS).
+ *   - The door is folded into the opening SET (windows_by_room.entrance) ONLY when the
+ *     width is known; an unknown-width door is flagged and left out of the opening area.
+ *     Ext-wall area is NOT recomputed either way — it stays gated on the window heights.
+ *   - F-022 cross-checks the entrance width only when BOTH paths have one (vision reads no
+ *     entry door, and the vector width is single-source/unresolved → uncheckable, no flag).
  */
 import { describe, it, expect } from "vitest";
 import {
@@ -65,8 +68,8 @@ const usableVector = (over: Partial<VectorAnnotations> = {}): VectorAnnotations 
 
 const entrance = (over: Partial<VectorEntrance> = {}): VectorEntrance => ({
   type: "entry",
-  width_mm: 1400,
-  width_source: "standard_assumed",
+  width_mm: null,
+  width_source: "unresolved",
   height_mm: 2100,
   height_source: "standard_assumed",
   label: "ENTRY",
@@ -74,7 +77,7 @@ const entrance = (over: Partial<VectorEntrance> = {}): VectorEntrance => ({
   ...over,
 });
 
-// Beddis: no printed frame token → asserted standard 1400×2100.
+// Beddis: no printed frame token → width UNRESOLVED (null), height asserted 2100.
 const beddisVector = usableVector({ entrance: entrance() });
 // Harrison: printed "Frame to Frame 1430" → data-driven width 1430, asserted height.
 const harrisonVector = usableVector({
@@ -84,11 +87,11 @@ const harrisonVector = usableVector({
 // ── 1. resolveEntrance ─────────────────────────────────────────────────────────
 
 describe("resolveEntrance", () => {
-  it("asserts standard 1.4×2.1 when no frame token (Beddis)", () => {
+  it("leaves width unresolved (null), asserts the 2.1 height when no frame token (Beddis)", () => {
     const r = resolveEntrance(beddisVector);
     expect(r.applied).toBe(true);
-    expect(r.entrance).toEqual({ qty: 1, height_m: 2.1, width_m: 1.4 });
-    expect(r.widthSource).toBe("standard_assumed");
+    expect(r.entrance).toEqual({ qty: 1, height_m: 2.1, width_m: null });
+    expect(r.widthSource).toBe("unresolved");
   });
 
   it("uses the printed frame-to-frame width, asserts the height (Harrison)", () => {
@@ -108,9 +111,16 @@ describe("resolveEntrance", () => {
 // ── 2. preferVectorEntrance ────────────────────────────────────────────────────
 
 describe("preferVectorEntrance", () => {
-  it("folds the asserted door into the opening set (windows_by_room.entrance)", () => {
-    const out = preferVectorEntrance(takeoff(), beddisVector);
-    expect(out.windows_by_room?.entrance).toEqual({ qty: 1, height_m: 2.1, width_m: 1.4 });
+  it("folds the door into the opening set when the width is known (Harrison)", () => {
+    const out = preferVectorEntrance(takeoff(), harrisonVector);
+    expect(out.windows_by_room?.entrance).toEqual({ qty: 1, height_m: 2.1, width_m: 1.43 });
+  });
+
+  it("does NOT fold an unknown-width door into the opening set (Beddis no-op)", () => {
+    const base = takeoff();
+    const out = preferVectorEntrance(base, beddisVector);
+    expect(out).toBe(base); // unresolved width → returned untouched, no fabricated entry
+    expect(out.windows_by_room?.entrance).toBeUndefined();
   });
 
   it("preserves existing windows_by_room rooms", () => {
@@ -120,8 +130,8 @@ describe("preferVectorEntrance", () => {
     expect(out.windows_by_room?.entrance).toEqual({ qty: 1, height_m: 2.1, width_m: 1.43 });
   });
 
-  it("does NOT recompute external_wall_area_m2 (ext-wall stays gated)", () => {
-    const out = preferVectorEntrance(takeoff({ external_wall_area_m2: 109.2 }), beddisVector);
+  it("does NOT recompute external_wall_area_m2 even when it folds (ext-wall stays gated)", () => {
+    const out = preferVectorEntrance(takeoff({ external_wall_area_m2: 109.2 }), harrisonVector);
     expect(out.external_wall_area_m2).toBe(109.2); // unchanged — heights still gate it
   });
 
@@ -131,20 +141,21 @@ describe("preferVectorEntrance", () => {
     expect(preferVectorEntrance(base, usableVector({ entrance: null }))).toBe(base);
   });
 
-  it("the entrance area lands in computeOpeningAreaM2 once applied", () => {
-    const out = preferVectorEntrance(takeoff(), beddisVector);
+  it("the known-width entrance area lands in computeOpeningAreaM2 once applied", () => {
+    const out = preferVectorEntrance(takeoff(), harrisonVector);
     const area = computeOpeningAreaM2({ windowsByRoom: out.windows_by_room });
-    expect(area).toBeCloseTo(1.4 * 2.1, 5); // 2.94 m²
+    expect(area).toBe(3); // round2(1.43 × 2.1 = 3.003) = 3.00 m²
   });
 });
 
 // ── 3. entranceAssumptionNote ──────────────────────────────────────────────────
 
 describe("entranceAssumptionNote", () => {
-  it("flags the height assumption and the standard-assumed width (Beddis)", () => {
+  it("flags the height assumption and the UNRESOLVED width (Beddis)", () => {
     const note = entranceAssumptionNote(beddisVector);
     expect(note).toContain("height assumed standard 2.1m");
-    expect(note).toContain("width assumed standard 1.4m");
+    expect(note).toContain("width not found on the plan"); // honest unknown, not asserted
+    expect(note).not.toContain("assumed standard 1.4"); // never fabricates a width
     expect(note).toContain("not recomputed"); // ext-wall honesty rail
   });
 
@@ -178,12 +189,21 @@ describe("reconcileVectorVision — entrance width", () => {
     expect(r.flags).toHaveLength(0);
   });
 
-  it("disagrees + flags when the two paths materially diverge", () => {
-    // vision read the 900 leaf, vector asserted the 1400 frame = 36% apart → flag.
-    const r = reconcileVectorVision(null, null, beddisVector, 900);
+  it("disagrees + flags when the two paths materially diverge (printed vector width)", () => {
+    // vision read the 900 leaf, vector printed the 1430 frame = 37% apart → flag.
+    const r = reconcileVectorVision(null, null, harrisonVector, 900);
     const f = r.fields.find((x) => x.field === "entrance_door_width");
     expect(f?.status).toBe("disagree");
     expect(r.note).toContain("entrance_door_width");
+  });
+
+  it("is uncheckable when the vector width is unresolved, even if vision read one (Beddis)", () => {
+    // Beddis vector width is null (unresolved) → no comparison possible → no false flag.
+    const r = reconcileVectorVision(null, null, beddisVector, 900);
+    const f = r.fields.find((x) => x.field === "entrance_door_width");
+    expect(f?.status).toBe("uncheckable");
+    expect(f?.vectorValue).toBeNull();
+    expect(r.flags).toHaveLength(0);
   });
 
   it("adds no entrance field when the vector layer carries no entrance", () => {
