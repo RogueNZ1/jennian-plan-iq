@@ -18,7 +18,7 @@ const ANTHROPIC_MODEL = "claude-opus-4-5";
 export interface ScheduleWindow {
   /** Schedule ID exactly as printed, e.g. "W01". */
   id: string;
-  /** Height in mm (the first number in HEIGHT × WIDTH), or null if unreadable. */
+  /** Glazed-pane height in mm (the unit's own opening height, NOT the head/mounting datum), or null if unreadable. */
   heightMm: number | null;
   /** Width in mm (the second number), or null if unreadable. */
   widthMm: number | null;
@@ -41,14 +41,27 @@ YOUR TASK — read and return only, do not interpret or calculate:
 1. WINDOWS: Return every WINDOW entry. Window IDs are typically "W01", "W02", … "W13".
    For each window return:
    - id: the exact ID label as printed (e.g. "W01")
-   - heightMm: the height in mm (the FIRST number of the HEIGHT × WIDTH pair)
-   - widthMm: the width in mm (the SECOND number)
+   - heightMm: the GLAZED PANE height in mm — the window unit's own opening height
+     (the FIRST number of the unit's HEIGHT × WIDTH size, the dimension printed
+     against the joinery unit itself)
+   - widthMm: the width in mm (the SECOND number of that pair)
    If a dimension is genuinely unreadable, return null for that number — do NOT guess.
+
+   CRITICAL — height is the WINDOW's own height, not its mounting height:
+   - An elevation may also print a MOUNTING / HEAD datum — the floor-to-top-of-joinery
+     installation height (a tall figure, often ~2.0–2.2 m, frequently shared by many
+     windows because they all hang from the same head line). That datum is NOT the
+     window's size. Do NOT return it as heightMm.
+   - When a unit shows BOTH a tall head/mounting datum AND a shorter pane height (e.g.
+     a head datum stacked above a sill height that together equal the mounting figure),
+     return the SHORTER glazed-pane height — the size of the window opening itself.
+   - A window's HEIGHT × WIDTH size pair is the joinery unit's own dimensions; the head
+     datum is a separate installation reference. Read the unit size.
 
 RULES:
 - Include EVERY window ID shown, even if its dimensions repeat another window's.
 - Do NOT include door entries (IDs like "D01", "GD", garage doors, entry doors).
-- Do NOT deduplicate by size — W04 and W05 may share 2210 × 2210 and are still two windows.
+- Do NOT deduplicate by size — two windows may share a size and are still two windows.
 - Read the printed numbers. Do not measure pixels or substitute defaults.
 
 Return exactly this JSON structure:

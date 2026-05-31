@@ -544,3 +544,86 @@ path Beddis prelim discards). All Beddis hard assertions stay green.
   slider, the dropped `4300×3600` box, the `≥3000` boundary (`2999` kept / `3000` dropped), and the
   full Harrison 15-callout set → `window_count 15`.
 - Full offline suite **300 passed / 3 skipped**; Phases 1 / 2a / 2b / 2c / 2d unchanged.
+
+---
+
+## 11. Phase 2f — Schedule-path head over-read + entrance omission
+
+Targets the residual on the **schedule** path. Diagnosed in Step 1: every Beddis schedule window read
+`heightMm 2210` — the floor-to-top-of-joinery **head/mounting datum**, not the window's own glazed
+pane — and the **entrance/external doors** were absent from the opening sum. Two independent errors
+pulling opposite ways on `external_wall_area_m2 = perimeter × stud − opening_area`: tall heads
+*inflate* the opening (wall too small); the missing entrance *shrinks* it (wall too big).
+
+### 11.1 Fix A — read the glazed pane height, not the head datum (vision-prompt)
+
+`WINDOW_SCHEDULE_SYSTEM_PROMPT` now instructs the reader to return each window's **glazed-pane
+height** (the joinery unit's own opening), and to reject the tall floor-to-head **mounting datum** when
+both are shown — when a unit prints a head datum stacked over a sill height, return the shorter pane
+height. No `2210`/`2.21` literal and no per-window patch: it's a conceptual instruction (unit size vs
+installation reference), so it generalises to any Jennian schedule. Because it's a model-prompt change
+it is **not deterministically unit-testable** — validated on a live Beddis re-baseline and the heights
+are confidence-flagged, not pinned.
+
+### 11.2 Fix B — external doors in the schedule-path opening sum (sub-task + flag)
+
+Per the brief, Fix B first **confirms** the entrance is actually extracted with dimensions. It is
+**not**: the Beddis A501 schedule lists windows only (no `D-`/`GD` rows), and the floor-plan callouts
+carry no `2.1×1.4` entrance opening. That triggers the brief's *"not extracted at all → sub-task;
+include what's reliably available, confidence-flag the rest, do not fabricate"* branch — so **no 2.94
+entrance is invented**. The change is structural, not a tuned number:
+
+- `computeOpeningAreaM2` is now **door-aware**: a new `externalDoors` input sums dimensioned external
+  doors **when a caller supplies them**. The old hard comment *"external doors … are NOT included
+  here"* is gone — the function no longer structurally excludes them.
+- `applyWindowAggregate` (schedule path only) feeds external doors via a `collectScheduleExternalDoors`
+  **seam** that returns `[]` today (no dimensioned external-door source exists yet) and, when empty,
+  appends a **confidence flag** to `notes`: *"external-door openings … are excluded … ext-wall area is
+  a slight overshoot; confirm against the QS."* The seam is where a future door-extraction pass plugs
+  in; until then nothing is fabricated and the omission is surfaced.
+
+Scope is the **schedule path only** — Harrison is callout-path and already folds its entrance into
+`windows_by_room`, so it never passes `externalDoors` (default `undefined`) and is untouched.
+
+### 11.3 Re-baseline — Beddis (the schedule path, the thing being fixed)
+
+| Field | Before (2e) | After (2f) | QS truth | Δ after | Status |
+|---|---|---|---|---|---|
+| prelim `window_source` | schedule | **schedule** | schedule | — | unchanged ✅ |
+| prelim `window_count` | 13 | **13** | 13 | — | unchanged ✅ |
+| prelim `garage_door_size` | 4.8×2.1 | **4.8×2.1** | 4.8×2.1 | — | unchanged ✅ |
+| schedule heights | all `2.21` | **varied** `[2.21, 0.7, 1.3, 1.61, 1.1, 1.1, …]` | per-unit glazed | — | ✅ Fix A reads pane heights; floor-to-head sliders legitimately stay 2.21 |
+| **external_wall_area_m2** (D21) | 104.29 (Δ −4.91) | **107.64** | 109.2 | **−1.56** | ✅ closer; residual = still-tall slider heads partly offsetting the un-extracted entrance |
+| prelim `notes` | (areas) | **+ entrance-omission flag** | — | — | ✅ Fix B confidence flag present |
+| total_area_m2 (D14) | 165.4 | 165.4 | 167.1 | −1.7 | unchanged (no alfresco on prelim summary) |
+
+Fix A moved 5 sill-mounted windows off the head datum onto their glazed heights; the remaining `2.21`
+reads are floor-to-head sliders/stackers whose glazed pane genuinely reaches the head line. Ext-wall
+area improved from Δ−4.91 to **Δ−1.56**. It is **not** at 109.2 and was never tuned to be: the residual
+is the honest sum of a partially-corrected head read and the deliberately-not-fabricated entrance,
+which the `notes` flag documents.
+
+### 11.4 Re-baseline — Harrison (confirm callout path untouched)
+
+| Field | 2e | 2f live re-run | QS truth | Status |
+|---|---|---|---|---|
+| `window_source` | floor_plan_callouts | **floor_plan_callouts** | callouts | unchanged ✅ |
+| `external_wall_area_m2` | 97.59 | 96.54 | 98.07 | live re-read variance only — see note |
+| `garage_door_size` | 2.7×2.1 | 2.7×2.1 | 4.8×2.1 | ❌ Pass-1 garage misread `2,710` — **out of scope** |
+
+Harrison's path is **structurally unchanged**: its `computeOpeningAreaM2` call passes no
+`externalDoors` (default `undefined` → identical arithmetic) and `aggregateWindows` returns
+`floor_plan_callouts`, so `applyWindowAggregate` early-returns the takeoff with no `notes` flag and no
+re-derivation. The 97.59→96.54 difference is entirely **live Pass-1 non-determinism** on the
+callout/garage reads (this run misread the garage as `2,710` and re-read a few callouts), not a code
+change. The failing assertion is the known **out-of-scope** garage misread.
+
+### 11.5 No-regression / determinism
+
+- **Full offline suite 300 passed / 3 skipped** — `derive-fields` (new optional `externalDoors`,
+  default off), `aggregate-windows` (new seam + flag), and the prompt change introduce no failures.
+- **McAlevey replay golden unchanged** — the prompt change touches only the live schedule reader; the
+  golden is an offline replay and `computeOpeningAreaM2` with no `externalDoors` is byte-identical.
+- Fix A is a vision-prompt change → **not deterministic**; validated live, heights confidence-flagged.
+  Fix B's entrance remains a documented **sub-task** (door extraction with dimensions) — the seam is in
+  place, the omission is flagged, and no figure is fabricated to hit 109.2.

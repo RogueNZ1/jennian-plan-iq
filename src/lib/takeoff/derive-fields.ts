@@ -23,12 +23,16 @@ import { round2 } from "./utils";
  * Windows: the Door & Window Schedule list is the canonical source when present
  * (Σ height × width); otherwise the floor-plan callouts (Σ qty × height × width).
  * Garage door: recovered from the classified size label/annotation.
+ * External doors (entrance, ranchsliders read as doors, etc.): summed when a caller
+ * supplies dimensioned openings via `externalDoors`.
  *
  * NOTE on completeness: the QS opening total also folds in the entrance + any other
- * external doors. IQ does not yet extract those as dimensioned openings, so they are
- * NOT included here — this field inherits whatever the opening extraction omits (or
- * over-reads). That is expected: the derived ext-wall area is only as good as the
- * openings feeding it.
+ * external doors. This function now sums them WHEN a caller provides them
+ * (`externalDoors`); if a job does not extract external doors as dimensioned openings
+ * (e.g. a Door & Window Schedule that lists windows only), they are simply absent and
+ * the derived ext-wall area is a known slight OVERSHOOT — the caller should
+ * confidence-flag that omission rather than fabricate a figure. This field is only as
+ * good as the openings feeding it.
  *
  * Returns null when there are no openings to sum at all.
  */
@@ -36,6 +40,7 @@ export function computeOpeningAreaM2(args: {
   windowsSchedule?: ScheduleWindowEntry[] | null;
   windowsByRoom?: WindowsByRoom | null;
   garageDoorSize?: string | null;
+  externalDoors?: Array<{ height_m: number | null; width_m: number | null }> | null;
 }): number | null {
   let total = 0;
   let counted = false;
@@ -52,6 +57,18 @@ export function computeOpeningAreaM2(args: {
     for (const w of Object.values(args.windowsByRoom)) {
       if (w && w.height_m > 0 && w.width_m > 0) {
         total += w.qty * w.height_m * w.width_m;
+        counted = true;
+      }
+    }
+  }
+
+  // External doors (when a caller extracts them with dimensions). Kept separate from
+  // the window sources above so a schedule job that lists windows only still adds its
+  // doors when another pass supplies them — never fabricated here.
+  if (args.externalDoors && args.externalDoors.length > 0) {
+    for (const d of args.externalDoors) {
+      if (d.height_m != null && d.width_m != null && d.height_m > 0 && d.width_m > 0) {
+        total += d.height_m * d.width_m;
         counted = true;
       }
     }

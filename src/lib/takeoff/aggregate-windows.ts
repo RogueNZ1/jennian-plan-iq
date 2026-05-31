@@ -61,6 +61,21 @@ export function aggregateWindows(
 const mmToM = (mm: number | null): number | null => (mm !== null ? round2(mm / 1000) : null);
 
 /**
+ * Phase 2f / Fix B seam: collect dimensioned external-door openings to feed the
+ * opening sum on the schedule path. A windows-only Door & Window Schedule does not
+ * list external doors with sizes, and IQ does not yet extract them elsewhere as
+ * dimensioned openings, so this returns [] today — the entrance/external doors are a
+ * documented follow-on sub-task. When a future pass attaches dimensioned external
+ * doors to the takeoff, return them here and the opening sum picks them up
+ * automatically. Never fabricates a size.
+ */
+function collectScheduleExternalDoors(
+  _takeoff: TakeoffData,
+): Array<{ height_m: number | null; width_m: number | null }> {
+  return [];
+}
+
+/**
  * Apply a window aggregate onto a TakeoffData. When a schedule was read it sets the
  * canonical window_count and attaches the schedule list (converted mm → m); the
  * floor-plan windows_by_room is left intact for room context. Pure — returns a new
@@ -81,9 +96,17 @@ export function applyWindowAggregate(takeoff: TakeoffData, agg: WindowAggregate)
   // window set is known — the floor-plan callouts classifyAnnotations saw were
   // partial/empty on a scheduled job. Stud = the takeoff's ceiling_height_m (2.4),
   // perimeter = external_wall_lm; both already on the takeoff.
+  //
+  // Phase 2f / Fix B: external doors (entrance etc.) belong in the opening sum, but a
+  // windows-only Door & Window Schedule does not list them with dimensions. We pass
+  // whatever dimensioned external-door openings are reliably available (none yet on the
+  // schedule path) — never fabricated — and confidence-flag the omission below so the
+  // derived ext-wall area is a known slight overshoot rather than a tuned figure.
+  const externalDoors = collectScheduleExternalDoors(takeoff);
   const opening_area_m2 = computeOpeningAreaM2({
     windowsSchedule: windows_schedule,
     garageDoorSize: takeoff.garage_door_size,
+    externalDoors,
   });
   const external_wall_area_m2 = computeExternalWallAreaM2(
     takeoff.external_wall_lm,
@@ -91,5 +114,12 @@ export function applyWindowAggregate(takeoff: TakeoffData, agg: WindowAggregate)
     opening_area_m2,
   );
 
-  return { ...takeoff, window_count: agg.window_count, windows_schedule, external_wall_area_m2 };
+  const EXT_DOOR_FLAG =
+    "external-door openings (entrance etc.) are not extracted from the windows-only schedule and are excluded from the opening sum — external_wall_area_m2 is a slight overshoot; confirm external doors against the QS.";
+  const notes =
+    externalDoors.length === 0
+      ? [takeoff.notes, EXT_DOOR_FLAG].filter(Boolean).join(" ")
+      : takeoff.notes;
+
+  return { ...takeoff, window_count: agg.window_count, windows_schedule, external_wall_area_m2, notes };
 }
