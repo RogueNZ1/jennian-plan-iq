@@ -16,7 +16,7 @@
  * env.ASSETS binding before falling back to the SSR handler.
  */
 
-import { writeFileSync, copyFileSync, cpSync, mkdirSync } from "fs";
+import { writeFileSync, copyFileSync, cpSync, mkdirSync, readdirSync, readFileSync } from "fs";
 import { join } from "path";
 
 const root = new URL("..", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1");
@@ -161,3 +161,58 @@ writeFileSync(join(clientDir, "_worker.js"), workerWrapper);
 cpSync(serverAssets, clientAssets, { recursive: true, force: true });
 
 console.log("✓ Cloudflare Pages: wrote _worker.js (with ASSETS binding, security headers), server.js and server assets into dist/client/");
+
+// ── Guard (v1.2.1): the geometry base must NOT leak into the prod bundle ──────────────
+// Prod must resolve geometry to the same-origin proxy (/api/geometry). A dev override of
+// VITE_GEOMETRY_API_BASE (e.g. http://localhost:8000 in .env.local) bakes into `vite build`
+// and ships to prod — every browser then fetches localhost (nothing there) → measurePlanGeometry
+// returns null → takeoffs silently fall back to vision-only. Scan the FINAL app bundle and fail
+// the build if a non-proxy geometry base appears. _worker.js is excluded: it legitimately holds
+// the Railway proxy upstream (GEOMETRY_API_UPSTREAM) — that's the server-side hop, not the bundle.
+const GEOMETRY_LEAK_PATTERNS = [
+  "http://localhost",
+  "localhost:8000",
+  "jennian-iq-geometry-api-production.up.railway.app",
+];
+
+// Narrow to the geometry-api chunk: GEOMETRY_API_BASE is a module-level const in
+// geometry-api.ts, so any baked override lands in `geometry-api-*.js` (client + SSR copies).
+// Scanning the whole bundle false-positives on unrelated third-party localhost refs
+// (supabase-realtime's localhost:9999, a window.origin fallback) in index-*.js, and on
+// _worker.js's legitimate Railway proxy upstream.
+const geometryChunks = [];
+const geometryLeaks = [];
+for (const entry of readdirSync(clientDir, { recursive: true, withFileTypes: true })) {
+  if (!entry.isFile() || !entry.name.endsWith(".js")) continue;
+  if (!entry.name.includes("geometry-api")) continue;
+  const dir = entry.parentPath ?? entry.path;
+  const full = join(dir, entry.name);
+  geometryChunks.push(full);
+  const text = readFileSync(full, "utf8");
+  for (const pat of GEOMETRY_LEAK_PATTERNS) {
+    if (text.includes(pat)) geometryLeaks.push({ file: full.replace(root, "."), match: pat });
+  }
+}
+
+if (geometryChunks.length === 0) {
+  // The guard couldn't find its target — chunk naming may have changed. Don't silently pass.
+  console.warn(
+    "⚠ Geometry-base guard: no geometry-api chunk found to scan — verify the geometry base manually (chunk naming may have changed).",
+  );
+}
+
+if (geometryLeaks.length > 0) {
+  const first = geometryLeaks[0];
+  console.error(
+    `\n✗ Geometry base leaked into the prod bundle (found '${first.match}' in ${first.file}).\n` +
+      "  Prod must resolve geometry to /api/geometry — a dev override of VITE_GEOMETRY_API_BASE\n" +
+      "  has leaked; move it from .env.local to .env.development.local.",
+  );
+  if (geometryLeaks.length > 1) {
+    console.error(
+      "  matches: " + geometryLeaks.map((l) => `${l.match} @ ${l.file}`).join(", "),
+    );
+  }
+  process.exit(1);
+}
+console.log("✓ Geometry-base guard: bundle resolves geometry to the /api/geometry proxy (no dev override leaked).");
