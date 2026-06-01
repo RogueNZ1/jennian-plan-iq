@@ -1,5 +1,5 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { createFileRoute, Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 import { AppLayout, PageHeader } from "@/components/jennian/AppLayout";
 import { useRoles } from "@/hooks/use-roles";
 import { Breadcrumbs } from "@/components/jennian/Breadcrumbs";
@@ -85,6 +85,13 @@ function JobDetail() {
     laundry: true, garage: true, alfresco: false, hallway: true,
   });
 
+  // Quick-upload autostart: /upload navigates here with history state { autostart: true } so
+  // a fresh upload runs the PERSISTING takeoff once, with no manual click. Read-only here.
+  const autostart = useRouterState({
+    select: (s) => Boolean((s.location.state as { autostart?: boolean } | undefined)?.autostart),
+  });
+  const autostartConsumedRef = useRef(false);
+
   async function refreshHasData() {
     const counts = await Promise.all([
       supabase.from("extracted_quantities").select("id", { count: "exact", head: true }).eq("job_id", jobId),
@@ -156,6 +163,22 @@ function JobDetail() {
     })();
     return () => { cancelled = true; };
   }, [jobId]);
+
+  // Quick-upload autostart consumer: when arriving from /upload with { autostart: true }, fire
+  // the SAME handler the "Start Takeoff" button uses — detectAndStartTakeoff — exactly once,
+  // preserving the text-layer gate (text → automatic; scanned/<40 chars → vision). Guards:
+  // ref so re-renders never re-fire; only after the initial load; and a no-op if this job
+  // already has a takeoff_runs row (never auto-rerun / burn tokens on an existing job).
+  useEffect(() => {
+    if (!autostart) return;
+    if (autostartConsumedRef.current) return;
+    if (loading) return; // wait until job + latest takeoff_runs row have loaded
+    if (takeoffRun !== null) return; // already has a run → do nothing
+    if (detecting || takeoffOpen || visionOpen) return; // not while one is already starting
+    autostartConsumedRef.current = true;
+    void detectAndStartTakeoff();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autostart, loading, takeoffRun, detecting, takeoffOpen, visionOpen]);
 
   const runByModule: Record<string, ModuleRun | undefined> = Object.fromEntries(
     runs.map((r) => [r.module_id, r]),

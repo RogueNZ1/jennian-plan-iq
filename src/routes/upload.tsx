@@ -296,7 +296,13 @@ function UploadPage() {
           .eq("id", job.id);
         seedAllModulesForJob(job.id);
         toast.success("Job uploaded successfully.");
-        navigate({ to: "/jobs/$jobId", params: { jobId: job.id } });
+        // Quick-upload: tell the job page to auto-run the PERSISTING takeoff once on arrival
+        // (history state, not a URL param). The job page consumes it via detectAndStartTakeoff.
+        navigate({
+          to: "/jobs/$jobId",
+          params: { jobId: job.id },
+          state: { autostart: true } as never,
+        });
       } else {
         await supabase
           .from("jobs")
@@ -1214,13 +1220,24 @@ function UploadPage() {
                 >
                   <ArrowLeft className="h-4 w-4" /> Back
                 </button>
-                <button
-                  type="button"
-                  onClick={exportToExcel}
-                  className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 shadow-sm"
-                >
-                  <Download className="h-4 w-4" /> Export to QS (.xlsx)
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={exportToExcel}
+                    className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-5 py-2.5 text-sm font-medium hover:bg-accent"
+                  >
+                    <Download className="h-4 w-4" /> Export to QS (.xlsx)
+                  </button>
+                  {/* Quick-upload: persist the job and auto-run the saved takeoff (Pipeline A).
+                      Reuses persist(true) → /jobs/:jobId with { autostart: true }. */}
+                  <button
+                    type="button"
+                    onClick={() => persist(true)}
+                    className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 shadow-sm"
+                  >
+                    <Wand2 className="h-4 w-4" /> Save &amp; Run Takeoff
+                  </button>
+                </div>
               </div>
             </div>
           )}
