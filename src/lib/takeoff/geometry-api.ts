@@ -172,21 +172,38 @@ export async function measurePlanGeometry(
    */
   page?: number,
 ): Promise<GeometryApiResult | null> {
-  try {
-    const form = new FormData();
-    form.append("file", pdfFile, filename);
-    const url =
-      page != null && page >= 0
-        ? `${GEOMETRY_API_BASE}/measure?page=${page}`
-        : `${GEOMETRY_API_BASE}/measure`;
-    const res = await fetch(url, {
-      method: "POST",
-      body: form,
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as GeometryApiResult;
-    return data.success ? data : null;
-  } catch {
-    return null;
+  // One POST attempt at a given page (or auto-detect when undefined). The FormData body is
+  // single-use, so it is rebuilt per attempt.
+  const attempt = async (p: number | undefined): Promise<GeometryApiResult | null> => {
+    try {
+      const form = new FormData();
+      form.append("file", pdfFile, filename);
+      const url =
+        p != null && p >= 0
+          ? `${GEOMETRY_API_BASE}/measure?page=${p}`
+          : `${GEOMETRY_API_BASE}/measure`;
+      const res = await fetch(url, { method: "POST", body: form });
+      if (!res.ok) return null;
+      const data = (await res.json()) as GeometryApiResult;
+      return data.success ? data : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const pinned = page != null && page >= 0 ? page : undefined;
+  let data = await attempt(pinned);
+  if (!data && pinned != null) {
+    // The pinned page failed (out of range, scale not detected on that sheet, a transient
+    // engine error, …). Degrade to auto-detect rather than nulling geometry entirely. This
+    // stays OBSERVABLE: the engine echoes the page it actually used as `page_used`, and the
+    // caller's reconcileGeometryPage(pinned, page_used) raises a confidence flag whenever
+    // auto-detect lands on a DIFFERENT page — so a wrong auto-detect can't masquerade as a
+    // confirmed pinned-page measurement.
+    console.warn(
+      `[geometry] page=${pinned} failed; retrying with auto-detect (flagged if it lands on a different page).`,
+    );
+    data = await attempt(undefined);
   }
+  return data;
 }
