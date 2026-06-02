@@ -188,6 +188,63 @@ export async function loadEnrichedTakeoffJson(jobId: string): Promise<EnrichedTa
 }
 
 /**
+ * Stage 2b — derive the fixed-slot windowsByRoom from the flat openings[] list.
+ *
+ * Mirrors the relational matchWindowOpening keyword routing, but sources the cells from the
+ * enriched takeoff's openings[] instead of the relational opening_schedule rows. Each opening
+ * is assigned to the FIRST slot (in QS row order) whose keywords match its room, then the slot
+ * aggregates: qty = number of openings routed there (the un-merged count), height/width = the
+ * first routed opening's dims (the QS sheet holds one row per slot, so same-room openings
+ * collapse exactly as today). Glazed window-type openings (window/slider/garage_window) fill the
+ * window slots; the solid sectional_door (glazed:false) routes to the garage-door slot, never a
+ * window row — the glazed flag's only cell-level role, since the template has no glazed cell.
+ * Per-opening cladding is carried onto the slot (unused by the sheet today; available for a
+ * future cladding-code cell). Pure; returns a fresh map.
+ */
+const WINDOW_SLOT_SPECS: ReadonlyArray<{ key: keyof QSExportData["windowsByRoom"]; keywords: string[] }> = [
+  { key: "bed1", keywords: ["bed 1", "bedroom 1", "master"] },
+  { key: "ensuite", keywords: ["ensuite"] },
+  { key: "bed2", keywords: ["bed 2", "bedroom 2"] },
+  { key: "bed3", keywords: ["bed 3", "bedroom 3"] },
+  { key: "bed4", keywords: ["bed 4", "bedroom 4"] },
+  { key: "toilet", keywords: ["toilet", "wc", "powder"] },
+  { key: "bathroom", keywords: ["bathroom", "bath"] },
+  { key: "kitchen", keywords: ["kitchen"] },
+  { key: "familyLiving", keywords: ["family", "living", "open plan"] },
+  { key: "dining", keywords: ["dining"] },
+  { key: "lounge", keywords: ["lounge"] },
+  { key: "garageWindow", keywords: ["garage"] },
+  { key: "entrance", keywords: ["entrance", "entry", "foyer", "hall"] },
+];
+const WINDOW_TYPES = new Set<Opening["type"]>(["window", "slider", "garage_window"]);
+
+export function openingsToWindowsByRoom(openings: Opening[]): QSExportData["windowsByRoom"] {
+  const slots: QSExportData["windowsByRoom"] = {};
+  const put = (key: keyof QSExportData["windowsByRoom"], o: Opening) => {
+    const ex = slots[key];
+    if (ex) ex.qty += 1;
+    else slots[key] = { cladding: o.cladding ?? "", qty: 1, height: o.height_m, width: o.width_m };
+  };
+
+  let garageDoorIdx = 0;
+  for (const o of openings) {
+    if (o.type === "sectional_door") {
+      // Solid garage door → the garage-door slot, never a window row.
+      put(garageDoorIdx === 0 ? "garageDoor1" : "garageDoor2", o);
+      garageDoorIdx += 1;
+      continue;
+    }
+    if (!WINDOW_TYPES.has(o.type)) continue;
+    const room = (o.room ?? "").toLowerCase();
+    const spec = WINDOW_SLOT_SPECS.find((s) => s.keywords.some((k) => room.includes(k)));
+    if (!spec) continue;
+    // Kitchen overflow → second+ kitchen window goes to kitchenExtra (mirrors the relational path).
+    put(spec.key === "kitchen" && slots.kitchen != null ? "kitchenExtra" : spec.key, o);
+  }
+  return slots;
+}
+
+/**
  * Overlay the enriched takeoff onto a relational QSExportData base. When `enriched` is null
  * (every pre-convergence job) the base is returned UNCHANGED apart from a source tag — the
  * export is byte-identical to today (PERMANENT fallback, not a migration bridge). When present,
@@ -211,10 +268,18 @@ export function applyEnrichedTakeoff(
     exteriorWallHeightM: studM ?? base.exteriorWallHeightM,
     reviewFlags: fieldFlags(enriched),
     takeoffSource: "enriched",
-    // Stage 2a — thread the flat opening list through (read-only data, not yet written
-    // to any cell). Present only on the enriched path; the relational fallback above
-    // leaves it undefined, so both paths' .xlsx output is unchanged (byte-identical).
+    // Stage 2a — thread the flat opening list through. Present only on the enriched path;
+    // the relational fallback above leaves it undefined.
     openings: enriched.openings ?? null,
+    // Stage 2b — migrate the window CELLS' source: derive the fixed-slot windowsByRoom from
+    // openings[] when the enriched takeoff carries them, else keep the relational base map
+    // (the live fallback, intact until the Beddis gate passes). The window COUNT is NOT
+    // touched here — it stays vector-sourced (enriched.window_count) until the Harrison
+    // re-typing lands.
+    windowsByRoom:
+      enriched.openings && enriched.openings.length > 0
+        ? openingsToWindowsByRoom(enriched.openings)
+        : base.windowsByRoom,
   };
 }
 
