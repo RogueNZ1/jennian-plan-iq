@@ -34,7 +34,7 @@ import {
   type ScheduleSafeguardResult,
 } from "./vector-annotations";
 import { aggregateWindows, applyWindowAggregate } from "./aggregate-windows";
-import { deriveOpenings, deriveOpeningTotals } from "./derive-fields";
+import { deriveOpenings, deriveOpeningTotals, foldSymbolOpenings } from "./derive-fields";
 import {
   reconcileVectorVision,
   type ReconciliationReport,
@@ -212,11 +212,22 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   // Stage 2a — re-derive the flat opening list from the FINAL composed window set
   // (post vector + aggregate), so the persisted/exported openings reflect the same
   // window set the QS fields do. Additive passthrough — not yet written to any cell.
-  const composedOpenings = deriveOpenings({
+  const baseOpenings = deriveOpenings({
     windowsSchedule: t.windows_schedule ?? null,
     windowsByRoom: t.windows_by_room,
     garageDoorSize: t.garage_door_size,
   });
+  // Route 2 — fold in the label-anchored single-width openings (no-schedule path only).
+  // A no-op when the engine returns no symbol_openings (schedule/datum jobs) → those takeoffs
+  // are unchanged. Reconciles the sectional callout against the garage door size.
+  const folded = foldSymbolOpenings(
+    baseOpenings,
+    vectorAnnotations?.symbol_openings,
+    t.garage_door_size,
+    vectorAnnotations?.entrance,
+  );
+  const composedOpenings = folded.openings;
+  const composedGarageDoorSize = folded.garage_door_size;
   const composedOpeningTotals = deriveOpeningTotals(composedOpenings);
   const reconFlag = (field: string): string | null =>
     reconciliation.fields.find((f) => f.field === field)?.flag ?? null;
@@ -278,8 +289,10 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     windows_schedule: fv(t.windows_schedule ?? null, schedule ? "schedule" : "vision"),
     door_breakdown: fv(t.door_breakdown, "vision"),
     garage_door_size: fv(
-      t.garage_door_size,
-      garageChanged ? "vector" : "vision",
+      // Route 2 — the sectional callout reconciles the garage size (e.g. fixes a garbled vision
+      // read); composedGarageDoorSize == t.garage_door_size when no sectional callout applied.
+      composedGarageDoorSize,
+      composedGarageDoorSize !== t.garage_door_size ? "vector" : garageChanged ? "vector" : "vision",
       reconConf(reconStatusOf("garage_door_width")),
       flagsFor(reconFlag("garage_door_width")),
     ),

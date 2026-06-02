@@ -12,7 +12,7 @@ export type OpeningType =
   | "entrance";
 
 /** Where an opening's dimensions came from. */
-export type OpeningSource = "vision" | "vector" | "asserted";
+export type OpeningSource = "vision" | "vector" | "asserted" | "callout" | "unresolved";
 
 /**
  * A single exterior opening — the flat, per-opening model (Stage 1). Mirrors the
@@ -32,7 +32,13 @@ export type Opening = {
   cladding: string | null;
   /** height_m × width_m, rounded to 2dp. */
   area_m2: number;
+  /** Primary/width provenance (e.g. "callout" for a label-anchored single-width opening). */
   source: OpeningSource;
+  /** Height provenance, when it differs from the width source (Route 2): "asserted" (standard
+   * 2.1m), "callout"/"vision" (read), or "unresolved" (unknown — flagged). Optional. */
+  height_source?: OpeningSource;
+  /** Per-opening review flags (e.g. asserted height, ambiguous/unresolved width). Optional. */
+  flags?: string[];
   confidence: "high" | "medium" | "low";
 };
 

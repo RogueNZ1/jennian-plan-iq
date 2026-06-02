@@ -13,7 +13,8 @@
  * These helpers are pure and literal-free — no per-job constants. They are only as
  * accurate as the openings/areas feeding them (documented per call site).
  */
-import type { WindowsByRoom, ScheduleWindowEntry, Opening } from "./takeoff-types";
+import type { WindowsByRoom, ScheduleWindowEntry, Opening, OpeningType } from "./takeoff-types";
+import type { VectorSymbolOpening, VectorEntrance } from "./geometry-api";
 import { classifyGarageDoorAnnotation } from "./classify";
 import { round2 } from "./utils";
 
@@ -171,6 +172,130 @@ export function deriveOpenings(args: {
   }
 
   return openings;
+}
+
+/**
+ * Route 2 — fold the label-anchored single-width openings (vector symbol_openings, no-schedule
+ * path) into openings[]. Each gets its WIDTH from the printed callout (source "callout") and an
+ * ASSERTED standard 2.1m height (flagged) — except a garage window, whose height is left
+ * unresolved (flagged), never fabricated. glazed=false only for the sectional door.
+ *
+ * Reconciles to avoid double-count: the callout sectional REPLACES any garage-door-derived
+ * sectional already in openings[] (callout wins — fixes a garbled vision garage read) and
+ * returns the canonical garage_door_size label; the callout entry REPLACES any entrance-room
+ * opening the vision/entrance path produced. slider / garage_window / PA door are appended.
+ *
+ * Pure. Returns the merged openings plus the reconciled garage_door_size (unchanged when no
+ * sectional callout). A no-op (returns the inputs) when symbolOpenings is empty/absent.
+ */
+const STANDARD_OPENING_HEIGHT_M = 2.1;
+const ASSERTED_HEIGHT_FLAG =
+  "height assumed standard 2.1m — confirm against the elevation/joinery schedule";
+const SYMBOL_ROOM: Record<VectorSymbolOpening["type"], string> = {
+  sectional_door: "Garage",
+  garage_window: "Garage",
+  pa_door: "Garage",
+  slider: "Lounge",
+  entrance: "Entry",
+};
+const ENTRY_ROOM_RE = /entr|entry|foyer|porch/i;
+
+function symbolToOpening(s: VectorSymbolOpening): Opening {
+  const width_m = round2(s.width_mm / 1000) ?? 0;
+  const glazed = s.type !== "sectional_door";
+  const flags: string[] = [];
+  let height_m = STANDARD_OPENING_HEIGHT_M;
+  let height_source: Opening["height_source"] = "asserted";
+  if (s.type === "garage_window") {
+    // Width-only callout: the garage-window head height is not on the plan → unresolved.
+    height_m = 0;
+    height_source = "unresolved";
+    flags.push("garage window height unresolved — confirm against the elevation/schedule");
+  } else {
+    flags.push(ASSERTED_HEIGHT_FLAG);
+  }
+  return {
+    type: s.type as OpeningType,
+    room: SYMBOL_ROOM[s.type],
+    height_m,
+    width_m,
+    glazed,
+    cladding: null,
+    area_m2: round2(height_m * width_m) ?? 0,
+    source: "callout",
+    height_source,
+    flags,
+    confidence: "medium", // width exact (callout); height asserted → medium, flagged
+  };
+}
+
+function entranceFallbackOpening(v: VectorEntrance): Opening {
+  // Present-but-flagged entry: the plan has an entry/porch but the width is not a clean
+  // callout (e.g. a named door product). Width from vector_text when the plan printed one,
+  // else UNRESOLVED (never asserted to a standard); height asserted 2.1m. Counted, flagged.
+  const resolved = v.width_mm != null;
+  const width_m = resolved ? (round2(v.width_mm! / 1000) ?? 0) : 0;
+  const flags = [ASSERTED_HEIGHT_FLAG];
+  if (!resolved) flags.push("entry width unresolved (ambiguous/product label) — confirm; standard single-entry size is the fallback");
+  return {
+    type: "entrance",
+    room: "Entry",
+    height_m: STANDARD_OPENING_HEIGHT_M,
+    width_m,
+    glazed: true,
+    cladding: null,
+    area_m2: round2(STANDARD_OPENING_HEIGHT_M * width_m) ?? 0,
+    source: resolved ? "callout" : "unresolved",
+    height_source: "asserted",
+    flags,
+    confidence: resolved ? "medium" : "low",
+  };
+}
+
+export function foldSymbolOpenings(
+  openings: Opening[],
+  symbolOpenings: VectorSymbolOpening[] | null | undefined,
+  garageDoorSize: string | null,
+  vectorEntrance?: VectorEntrance | null,
+): { openings: Opening[]; garage_door_size: string | null } {
+  // symbol_openings present == the no-schedule path (the engine only returns it then). The
+  // whole fold — including the entry fallback — is gated on it, so schedule/datum jobs
+  // (which also carry a vector.entrance) are a strict no-op and stay byte-unchanged.
+  const hasSyms = !!symbolOpenings && symbolOpenings.length > 0;
+  if (!hasSyms) {
+    return { openings, garage_door_size: garageDoorSize };
+  }
+  const recovered = symbolOpenings!.map(symbolToOpening);
+  const hasSectional = recovered.some((o) => o.type === "sectional_door");
+  const hasEntrance = recovered.some((o) => o.type === "entrance");
+
+  // Drop the entries the callouts supersede, to avoid double-count:
+  //  - any existing sectional_door (the garage-door-derived one) when a callout sectional exists;
+  //  - any existing entrance-room opening (vision typed it "window") when a callout entry exists.
+  const kept = openings.filter((o) => {
+    if (hasSectional && o.type === "sectional_door") return false;
+    if (hasEntrance && o.type !== "sectional_door" && ENTRY_ROOM_RE.test(o.room ?? "")) return false;
+    return true;
+  });
+
+  // Reconcile garage_door_size: the callout sectional wins (fixes a garbled vision read).
+  const sectional = recovered.find((o) => o.type === "sectional_door");
+  const garage_door_size = sectional
+    ? `${sectional.width_m}×${sectional.height_m}`
+    : garageDoorSize;
+
+  const merged = [...kept, ...recovered];
+
+  // Entry fallback: if no entrance opening was recovered (no clean callout) but the plan
+  // carries an entry/porch (vector.entrance), emit it present-but-flagged — never dropped.
+  const hasEntry =
+    merged.some((o) => o.type === "entrance") ||
+    merged.some((o) => ENTRY_ROOM_RE.test(o.room ?? ""));
+  if (!hasEntry && vectorEntrance) {
+    merged.push(entranceFallbackOpening(vectorEntrance));
+  }
+
+  return { openings: merged, garage_door_size };
 }
 
 /**

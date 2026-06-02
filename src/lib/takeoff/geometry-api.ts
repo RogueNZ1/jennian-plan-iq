@@ -117,6 +117,20 @@ export type VectorEntrance = {
   page: number;
 };
 
+/**
+ * Route 2 — a non-window opening recovered from its label-anchored single-width callout on a
+ * no-schedule floor plan (sectional door / ranchslider / garage window / PA door / entry).
+ * WIDTH only (the printed callout); heights/glaze are asserted app-side. Present only on the
+ * no-schedule path (the engine returns it when its W-code/datum opening reader found nothing).
+ */
+export type VectorSymbolOpening = {
+  type: "sectional_door" | "slider" | "garage_window" | "pa_door" | "entrance";
+  width_mm: number;
+  width_source: "callout";
+  label_dist_mm: number;
+  page: number;
+};
+
 export type VectorAnnotations = {
   /** The measured floor-plan page carries a real text layer (not a scan). */
   vector_usable: boolean;
@@ -126,6 +140,8 @@ export type VectorAnnotations = {
   openings?: VectorOpenings | null;
   /** Phase 4, Slice 3 — asserted entry door. Optional: absent on older engines. */
   entrance?: VectorEntrance | null;
+  /** Route 2 — label-anchored single-width openings (no-schedule path). Optional/null otherwise. */
+  symbol_openings?: VectorSymbolOpening[] | null;
 };
 
 export type GeometryApiResult = {
