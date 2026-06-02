@@ -34,7 +34,7 @@ import {
   type ScheduleSafeguardResult,
 } from "./vector-annotations";
 import { aggregateWindows, applyWindowAggregate } from "./aggregate-windows";
-import { deriveOpenings, deriveOpeningTotals, foldSymbolOpenings } from "./derive-fields";
+import { deriveOpenings, deriveOpeningTotals, foldSymbolOpenings, computeExternalWallAreaM2 } from "./derive-fields";
 import {
   reconcileVectorVision,
   type ReconciliationReport,
@@ -229,6 +229,15 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   const composedOpenings = folded.openings;
   const composedGarageDoorSize = folded.garage_door_size;
   const composedOpeningTotals = deriveOpeningTotals(composedOpenings);
+  // Route 2 — when symbol openings were folded in (no-schedule path), re-derive the external
+  // wall AREA from the now-richer opening total (perimeter × stud − Σ opening area). This is
+  // the ext-wall $ fix: the recovered sectional/slider/PA/entry openings are subtracted, so
+  // the area shrinks toward the QS figure. A strict no-op otherwise (folded === baseOpenings →
+  // same reference), so schedule/datum jobs keep their existing ext-wall value untouched.
+  const composedExtWallAreaM2 =
+    folded.openings !== baseOpenings && composedOpeningTotals.total_opening_sqm != null
+      ? computeExternalWallAreaM2(t.external_wall_lm, t.ceiling_height_m, composedOpeningTotals.total_opening_sqm)
+      : t.external_wall_area_m2;
   const reconFlag = (field: string): string | null =>
     reconciliation.fields.find((f) => f.field === field)?.flag ?? null;
   const reconStatusOf = (field: string): FieldReconciliation["status"] | undefined =>
@@ -296,7 +305,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       reconConf(reconStatusOf("garage_door_width")),
       flagsFor(reconFlag("garage_door_width")),
     ),
-    external_wall_area_m2: fv(t.external_wall_area_m2, "derived", null, extWallFlags),
+    external_wall_area_m2: fv(composedExtWallAreaM2, "derived", null, extWallFlags),
     total_area_m2: fv(t.total_area_m2, "derived"),
     // Global, backward-compatible view: identical to the bare TakeoffData.notes string.
     notes: t.notes,
