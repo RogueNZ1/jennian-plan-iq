@@ -34,6 +34,7 @@ import {
   type ScheduleSafeguardResult,
 } from "./vector-annotations";
 import { aggregateWindows, applyWindowAggregate } from "./aggregate-windows";
+import { deriveOpenings, deriveOpeningTotals } from "./derive-fields";
 import {
   reconcileVectorVision,
   type ReconciliationReport,
@@ -208,6 +209,15 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
 
   // ── enrichment: wrap the final bare values in per-field provenance ───────────────
   const t = mergedWithWindows;
+  // Stage 2a — re-derive the flat opening list from the FINAL composed window set
+  // (post vector + aggregate), so the persisted/exported openings reflect the same
+  // window set the QS fields do. Additive passthrough — not yet written to any cell.
+  const composedOpenings = deriveOpenings({
+    windowsSchedule: t.windows_schedule ?? null,
+    windowsByRoom: t.windows_by_room,
+    garageDoorSize: t.garage_door_size,
+  });
+  const composedOpeningTotals = deriveOpeningTotals(composedOpenings);
   const reconFlag = (field: string): string | null =>
     reconciliation.fields.find((f) => f.field === field)?.flag ?? null;
   const reconStatusOf = (field: string): FieldReconciliation["status"] | undefined =>
@@ -277,6 +287,10 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     total_area_m2: fv(t.total_area_m2, "derived"),
     // Global, backward-compatible view: identical to the bare TakeoffData.notes string.
     notes: t.notes,
+    // Stage 2a — flat opening list + glazed-split totals (additive passthrough).
+    openings: composedOpenings,
+    total_opening_sqm: composedOpeningTotals.total_opening_sqm,
+    glazed_sqm: composedOpeningTotals.glazed_sqm,
   };
 
   return { enriched, reconciliation, pageReconcile, scheduleSafeguard };

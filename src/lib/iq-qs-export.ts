@@ -14,6 +14,7 @@ import type { MarkupDoorType } from "@/lib/takeoff/types";
 import { normaliseRoomName } from "@/lib/takeoff/classify";
 import { round2 } from "@/lib/takeoff/utils";
 import { fieldFlags, type EnrichedTakeoff } from "@/lib/takeoff/enriched-takeoff";
+import type { Opening } from "@/lib/takeoff/takeoff-types";
 
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
 type OpeningRow = Database["public"]["Tables"]["opening_schedule"]["Row"];
@@ -132,6 +133,14 @@ export type QSExportData = {
   reviewFlags?: Array<{ field: string; flags: string[] }>;
   /** Which source built the takeoff fields: the enriched takeoff_json, or the relational rows. */
   takeoffSource?: "enriched" | "relational";
+  /**
+   * Stage 2a — the flat per-opening list from the enriched takeoff (window/slider/
+   * garage_window/sectional_door/pa_door/entrance, each with glazed + area). Read-only
+   * data threaded through for the Stage 2b glazed-split/cladding consumer; NOT yet
+   * written to any cell. Present only on the enriched path; undefined on the relational
+   * fallback. Optional so existing QSExportData literals + the .xlsx output are unaffected.
+   */
+  openings?: Opening[] | null;
 };
 
 export type ElectricalItem = {
@@ -202,6 +211,10 @@ export function applyEnrichedTakeoff(
     exteriorWallHeightM: studM ?? base.exteriorWallHeightM,
     reviewFlags: fieldFlags(enriched),
     takeoffSource: "enriched",
+    // Stage 2a — thread the flat opening list through (read-only data, not yet written
+    // to any cell). Present only on the enriched path; the relational fallback above
+    // leaves it undefined, so both paths' .xlsx output is unchanged (byte-identical).
+    openings: enriched.openings ?? null,
   };
 }
 

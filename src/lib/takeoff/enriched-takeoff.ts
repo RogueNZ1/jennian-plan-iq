@@ -18,6 +18,7 @@ import type {
   WindowsByRoom,
   DoorBreakdown,
   ScheduleWindowEntry,
+  Opening,
 } from "./takeoff-types";
 
 /** Where a field's value came from (the provenance we already track in the seam). */
@@ -72,6 +73,15 @@ export type EnrichedTakeoff = {
    * so existing notes consumers (and `unwrapTakeoff`) need no change.
    */
   notes: string;
+  /**
+   * Stage 2a — flat per-opening list carried through additively (raw passthrough, not a
+   * provenance-wrapped FieldValue: each Opening already carries its own source/confidence).
+   * Optional so pre-Stage-2 enriched payloads round-trip unchanged. Persisted + read by the
+   * QS export consumer (Stage 2b); not yet written to any cell.
+   */
+  openings?: Opening[] | null;
+  total_opening_sqm?: number | null;
+  glazed_sqm?: number | null;
 };
 
 /** Build a FieldValue with sensible defaults. */
@@ -119,6 +129,11 @@ export function unwrapTakeoff(e: EnrichedTakeoff): TakeoffData {
   if (e.windows_schedule.value != null) {
     bare.windows_schedule = e.windows_schedule.value;
   }
+  // Stage 2a — project the flat opening list back when the enriched payload carries it
+  // (absent on pre-Stage-2 payloads → bare omits it, mirroring windows_schedule).
+  if (e.openings != null) bare.openings = e.openings;
+  if (e.total_opening_sqm != null) bare.total_opening_sqm = e.total_opening_sqm;
+  if (e.glazed_sqm != null) bare.glazed_sqm = e.glazed_sqm;
   return bare;
 }
 
