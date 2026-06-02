@@ -57,6 +57,17 @@ supabase/.temp/
 /tests/fixtures/harrison/_render/
 /tests/fixtures/harrison/_pagetext/
 
+# 15A Russell St + O'Neil (Lot 800) joinery fixtures — same rule: commit ONLY
+# ground-truth.json; keep the client plan PDFs + derived renders/page-text out of git.
+/tests/fixtures/15a/*.pdf
+/tests/fixtures/15a/_render/
+/tests/fixtures/15a/_pagetext/
+/tests/fixtures/oneil/*.pdf
+/tests/fixtures/oneil/_render/
+/tests/fixtures/oneil/_pagetext/
+# Legacy loose copies of the 15A plan PDFs (now relocated into 15a/); keep them out too.
+/tests/fixtures/15a-russell-st-*.pdf
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
