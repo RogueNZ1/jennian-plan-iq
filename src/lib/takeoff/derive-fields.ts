@@ -13,7 +13,7 @@
  * These helpers are pure and literal-free — no per-job constants. They are only as
  * accurate as the openings/areas feeding them (documented per call site).
  */
-import type { WindowsByRoom, ScheduleWindowEntry } from "./takeoff-types";
+import type { WindowsByRoom, ScheduleWindowEntry, Opening } from "./takeoff-types";
 import { classifyGarageDoorAnnotation } from "./classify";
 import { round2 } from "./utils";
 
@@ -86,6 +86,113 @@ export function computeOpeningAreaM2(args: {
   }
 
   return counted ? round2(total) : null;
+}
+
+/**
+ * Stage 1 — build the flat per-opening list from the canonical window set.
+ *
+ * LOSSLESS by construction and source-aligned with computeOpeningAreaM2: the Door &
+ * Window Schedule is the canonical window source when present (one Opening per W-entry,
+ * individual H × W preserved); otherwise the floor-plan callouts (each windows_by_room
+ * room un-merged into `qty` individual Opening entries). The sectional garage door is
+ * appended from its classified size label. No fabrication — an entry is emitted only
+ * for a window/garage value that already exists on the takeoff.
+ *
+ * Stage 1 type fidelity: vision does not yet separate sliders / garage windows / PA /
+ * entrance from plain windows, so every glazed entry is typed "window" here and the
+ * garage door "sectional_door". Finer typing + glazed/cladding routing are later stages;
+ * this stage only proves the flat list maps the CURRENT extraction without loss.
+ */
+export function deriveOpenings(args: {
+  windowsSchedule?: ScheduleWindowEntry[] | null;
+  windowsByRoom?: WindowsByRoom | null;
+  garageDoorSize?: string | null;
+}): Opening[] {
+  const openings: Opening[] = [];
+
+  const sched = args.windowsSchedule;
+  if (sched && sched.length > 0) {
+    // Schedule path: one opening per W-entry, individual dims preserved. A schedule
+    // entry whose height was rejected (head-datum safeguard) carries width only → its
+    // area is 0 here, never fabricated, but the opening is still listed (no loss).
+    for (const w of sched) {
+      const h = w.height_m ?? 0;
+      const wd = w.width_m ?? 0;
+      openings.push({
+        type: "window",
+        room: w.id ?? null,
+        height_m: h,
+        width_m: wd,
+        glazed: true,
+        cladding: null,
+        area_m2: round2(h * wd) ?? 0,
+        source: "vision",
+        confidence: "high",
+      });
+    }
+  } else if (args.windowsByRoom) {
+    // Callout path: un-merge each room's qty into individual entries (same dims).
+    for (const [room, w] of Object.entries(args.windowsByRoom)) {
+      if (!w) continue;
+      for (let i = 0; i < w.qty; i++) {
+        openings.push({
+          type: "window",
+          room,
+          height_m: w.height_m,
+          width_m: w.width_m,
+          glazed: true,
+          cladding: null,
+          area_m2: round2(w.height_m * w.width_m) ?? 0,
+          source: "vision",
+          confidence: "medium",
+        });
+      }
+    }
+  }
+
+  // Sectional garage door: solid (glazed:false), recovered from the classified label.
+  if (args.garageDoorSize) {
+    const gd = classifyGarageDoorAnnotation(args.garageDoorSize);
+    if (gd) {
+      const h = gd.heightMm / 1000;
+      const wd = gd.widthMm / 1000;
+      openings.push({
+        type: "sectional_door",
+        room: "Garage",
+        height_m: round2(h) ?? 0,
+        width_m: round2(wd) ?? 0,
+        glazed: false,
+        cladding: null,
+        area_m2: round2(h * wd) ?? 0,
+        source: "vision",
+        confidence: "medium",
+      });
+    }
+  }
+
+  return openings;
+}
+
+/**
+ * Stage 1 — totals derived from the flat opening list.
+ *  - window_count: glazed window-type openings (window/slider/garage_window) — doors
+ *    excluded, matching the bench's window_count semantics and the existing field.
+ *  - total_opening_sqm: Σ area over ALL openings (incl. the sectional door).
+ *  - glazed_sqm: Σ area over glazed openings only.
+ */
+export function deriveOpeningTotals(openings: Opening[]): {
+  window_count: number | null;
+  total_opening_sqm: number | null;
+  glazed_sqm: number | null;
+} {
+  if (openings.length === 0) {
+    return { window_count: null, total_opening_sqm: null, glazed_sqm: null };
+  }
+  const WINDOW_TYPES = new Set<Opening["type"]>(["window", "slider", "garage_window"]);
+  const window_count = openings.filter((o) => WINDOW_TYPES.has(o.type)).length || null;
+  const total_opening_sqm = round2(openings.reduce((s, o) => s + o.area_m2, 0));
+  const glazed_sqm = round2(openings.filter((o) => o.glazed).reduce((s, o) => s + o.area_m2, 0));
+  return { window_count, total_opening_sqm, glazed_sqm };
 }
 
 /**

@@ -2,7 +2,7 @@ import type { RawAnnotations } from './extract-annotations';
 import type { PlanContext } from './plan-context';
 import type { TakeoffData, WindowsByRoom } from './takeoff-types';
 import { normaliseRoomName, classifyGarageDoorAnnotation, parseDimsMm } from './classify';
-import { computeOpeningAreaM2, computeExternalWallAreaM2, computeTotalAreaM2 } from './derive-fields';
+import { computeOpeningAreaM2, computeExternalWallAreaM2, computeTotalAreaM2, deriveOpenings, deriveOpeningTotals } from './derive-fields';
 import { round2 } from './utils';
 
 interface ParsedDimension {
@@ -122,6 +122,16 @@ export function classifyAnnotations(raw: RawAnnotations, context: PlanContext): 
   const external_wall_area_m2 = computeExternalWallAreaM2(perimeterM, ceiling_height_m, opening_area_m2);
   const total_area_m2 = computeTotalAreaM2(floor_area, alfresco_area);
 
+  // ── Stage 1: flat per-opening list (additive, alongside windows_by_room) ───────
+  // Built from the same callout source feeding opening_area_m2. On a scheduled job
+  // applyWindowAggregate RE-derives this from the canonical schedule set, mirroring
+  // the ext-wall re-derivation above.
+  const openings = deriveOpenings({
+    windowsByRoom: Object.keys(windows_by_room).length > 0 ? windows_by_room : null,
+    garageDoorSize: garage_door_size,
+  });
+  const openingTotals = deriveOpeningTotals(openings);
+
   // Alfresco is a known-fuzzy read (QS-side number doesn't always equal the plan's
   // printed porch). Flag it low-confidence for human confirm when present.
   const notes = alfresco_area !== null
@@ -153,5 +163,8 @@ export function classifyAnnotations(raw: RawAnnotations, context: PlanContext): 
     notes,
     external_wall_area_m2,
     total_area_m2,
+    openings,
+    total_opening_sqm: openingTotals.total_opening_sqm,
+    glazed_sqm: openingTotals.glazed_sqm,
   };
 }

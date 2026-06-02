@@ -1,5 +1,4 @@
 {
-  "note": "Canonical harness plan: JM-0003 source PDF unavailable locally; substituted mcalevey.pdf (on-disk geometry validation fixture). See FIX_LOG.md.",
   "pipeline": {
     "planContext": {
       "builder": "Jennian Homes",
@@ -59,49 +58,99 @@
       "garage_door_size": "6044",
       "notes": "",
       "external_wall_area_m2": 118.11,
-      "total_area_m2": 136.3
+      "total_area_m2": 136.3,
+      "openings": [
+        {
+          "type": "window",
+          "room": "Bed 1 (Master)",
+          "height_m": 2.15,
+          "width_m": 0.6,
+          "glazed": true,
+          "cladding": null,
+          "area_m2": 1.29,
+          "source": "vision",
+          "confidence": "medium"
+        },
+        {
+          "type": "window",
+          "room": "Bed 1 (Master)",
+          "height_m": 2.15,
+          "width_m": 0.6,
+          "glazed": true,
+          "cladding": null,
+          "area_m2": 1.29,
+          "source": "vision",
+          "confidence": "medium"
+        },
+        {
+          "type": "window",
+          "room": "Bathroom",
+          "height_m": 1.1,
+          "width_m": 1.2,
+          "glazed": true,
+          "cladding": null,
+          "area_m2": 1.32,
+          "source": "vision",
+          "confidence": "medium"
+        },
+        {
+          "type": "window",
+          "room": "Bathroom",
+          "height_m": 1.1,
+          "width_m": 1.2,
+          "glazed": true,
+          "cladding": null,
+          "area_m2": 1.32,
+          "source": "vision",
+          "confidence": "medium"
+        },
+        {
+          "type": "window",
+          "room": "Bed 2",
+          "height_m": 1.3,
+          "width_m": 1.5,
+          "glazed": true,
+          "cladding": null,
+          "area_m2": 1.95,
+          "source": "vision",
+          "confidence": "medium"
+        },
+        {
+          "type": "window",
+          "room": "Entrance",
+          "height_m": 1.3,
+          "width_m": 1.8,
+          "glazed": true,
+          "cladding": null,
+          "area_m2": 2.34,
+          "source": "vision",
+          "confidence": "medium"
+        },
+        {
+          "type": "window",
+          "room": "Dining",
+          "height_m": 1.3,
+          "width_m": 1.5,
+          "glazed": true,
+          "cladding": null,
+          "area_m2": 1.95,
+          "source": "vision",
+          "confidence": "medium"
+        },
+        {
+          "type": "window",
+          "room": "Dining",
+          "height_m": 1.3,
+          "width_m": 1.5,
+          "glazed": true,
+          "cladding": null,
+          "area_m2": 1.95,
+          "source": "vision",
+          "confidence": "medium"
+        }
+      ],
+      "total_opening_sqm": 13.41,
+      "glazed_sqm": 13.41
     }
-  },
-  "geometry": {
-    "floor_area_m2": 136.3,
-    "perimeter_m": 54.8,
-    "external_wall_length_m": 55.98,
-    "internal_wall_length_m": 7.57,
-    "window_count": 8,
-    "internal_door_count": 8,
-    "garage_door_size": "6044",
-    "roof_area_m2": 156.75
-  },
-  "runs": [
-    {
-      "floor_area_m2": 136.3,
-      "perimeter_m": 54.8,
-      "external_wall_length_m": 55.98,
-      "internal_wall_length_m": 7.57,
-      "window_count": 8,
-      "internal_door_count": 8,
-      "garage_door_size": "6044",
-      "roof_area_m2": 156.75
-    },
-    {
-      "floor_area_m2": 136.3,
-      "perimeter_m": 54.8,
-      "external_wall_length_m": 55.98,
-      "internal_wall_length_m": 7.57,
-      "window_count": 8,
-      "internal_door_count": 8,
-      "garage_door_size": "6044",
-      "roof_area_m2": 156.75
-    },
-    {
-      "floor_area_m2": 136.3,
-      "perimeter_m": 54.8,
-      "external_wall_length_m": 55.98,
-      "internal_wall_length_m": 7.57,
-      "window_count": 8,
-      "internal_door_count": 8,
-      "garage_door_size": "6044",
-      "roof_area_m2": 156.75
-    }
-  ]
+  }
 }

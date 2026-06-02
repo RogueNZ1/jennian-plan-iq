@@ -16,7 +16,7 @@
  */
 import type { TakeoffData, WindowsByRoom, ScheduleWindowEntry } from "./takeoff-types";
 import type { ScheduleWindow, WindowScheduleData } from "./extract-window-schedule";
-import { computeOpeningAreaM2, computeExternalWallAreaM2 } from "./derive-fields";
+import { computeOpeningAreaM2, computeExternalWallAreaM2, deriveOpenings, deriveOpeningTotals } from "./derive-fields";
 import { round2 } from "./utils";
 
 export interface WindowAggregate {
@@ -134,5 +134,24 @@ export function applyWindowAggregate(takeoff: TakeoffData, agg: WindowAggregate)
     .filter(Boolean)
     .join(" ");
 
-  return { ...takeoff, window_count: agg.window_count, windows_schedule, external_wall_area_m2, notes };
+  // Stage 1 — re-derive the flat opening list from the canonical schedule set (the
+  // floor-plan callouts classifyAnnotations saw were partial on a scheduled job),
+  // mirroring the ext-wall re-derivation above. Same source preference as
+  // computeOpeningAreaM2 → total_opening_sqm tracks opening_area_m2.
+  const openings = deriveOpenings({
+    windowsSchedule: windows_schedule,
+    garageDoorSize: takeoff.garage_door_size,
+  });
+  const openingTotals = deriveOpeningTotals(openings);
+
+  return {
+    ...takeoff,
+    window_count: agg.window_count,
+    windows_schedule,
+    external_wall_area_m2,
+    notes,
+    openings,
+    total_opening_sqm: openingTotals.total_opening_sqm,
+    glazed_sqm: openingTotals.glazed_sqm,
+  };
 }

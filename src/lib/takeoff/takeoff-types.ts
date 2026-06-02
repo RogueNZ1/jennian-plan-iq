@@ -2,6 +2,40 @@ export type WindowsByRoom = {
   [room: string]: { qty: number; height_m: number; width_m: number };
 };
 
+/** Exterior-opening type taxonomy (matches the joinery ground-truth bench). */
+export type OpeningType =
+  | "window"
+  | "slider"
+  | "garage_window"
+  | "sectional_door"
+  | "pa_door"
+  | "entrance";
+
+/** Where an opening's dimensions came from. */
+export type OpeningSource = "vision" | "vector" | "asserted";
+
+/**
+ * A single exterior opening — the flat, per-opening model (Stage 1). Mirrors the
+ * joinery bench shape so the bench can grade per-opening + the glazed split directly.
+ * Additive: lives alongside windows_by_room, which remains the canonical room map
+ * until the export consumer is migrated (Stage 2).
+ */
+export type Opening = {
+  type: OpeningType;
+  /** Room label as written on the plan, or null (e.g. a schedule entry with no room link). */
+  room: string | null;
+  height_m: number;
+  width_m: number;
+  /** Whether the opening is glazed. False only for the solid sectional/roller garage door. */
+  glazed: boolean;
+  /** Cladding the opening sits in (Rockcote/Oblique/brick/…), or null when not yet routed. */
+  cladding: string | null;
+  /** height_m × width_m, rounded to 2dp. */
+  area_m2: number;
+  source: OpeningSource;
+  confidence: "high" | "medium" | "low";
+};
+
 /** A single window read from the Door & Window Schedule (Phase 2b). */
 export type ScheduleWindowEntry = {
   id: string;
@@ -55,4 +89,15 @@ export type TakeoffData = {
    * unaffected.
    */
   total_area_m2?: number | null;
+  /**
+   * Stage 1 — the flat, per-opening list (window/slider/garage_window/sectional_door/
+   * pa_door/entrance), derived losslessly from the canonical window set (schedule when
+   * present, else windows_by_room) plus the sectional garage door. Additive: present
+   * alongside windows_by_room. Optional so existing TakeoffData literals are unaffected.
+   */
+  openings?: Opening[] | null;
+  /** Derived from openings[]: Σ area_m2 over ALL openings (glazed + the sectional door). */
+  total_opening_sqm?: number | null;
+  /** Derived from openings[]: Σ area_m2 over glazed openings only (excludes the sectional door). */
+  glazed_sqm?: number | null;
 };
