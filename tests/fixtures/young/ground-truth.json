@@ -1,0 +1,42 @@
+{
+  "joinery_bench": {
+    "source": "Young (JM-0004) floor-plan extraction — PROVISIONAL. No QS joinery bench available yet; window dims/rooms are read from the floor-plan W×H callouts (H×W order, per the 15A/O'Neil convention) and the slider/entry from the Route 2 + entry paths. Verify against the QS before treating as canonical. Authored to exercise the datum-strength gate fix (Young's 1920 room-depth datum must NOT veto the symbol path).",
+    "cladding_mode": "unknown",
+    "note": "No garage on this plan (no GARAGE label). The 1920mm 'datum' is the repeated room DEPTH of Bath/WC/Laundry (2970×1920, 1010×1920, 1670×1920 = room footprints, NOT openings) — the weak-datum false positive this fixture guards against. glazed=true for all (no sectional_door). window_count counts window/slider (no garage_window; entry excluded). Entry door is the unlabelled 860 leaf → recovered as a flagged PORCH-anchored entry with asserted 2.1m height, width provisional.",
+    "openings": [
+      { "type": "window", "room": "Lounge", "height_m": 1.8, "width_m": 0.6, "glazed": true, "cladding": null },
+      { "type": "window", "room": "Lounge", "height_m": 1.8, "width_m": 0.6, "glazed": true, "cladding": null },
+      { "type": "window", "room": "Lounge", "height_m": 1.4, "width_m": 1.3, "glazed": true, "cladding": null },
+      { "type": "window", "room": "WC", "height_m": 1.1, "width_m": 0.7, "glazed": true, "cladding": null },
+      { "type": "window", "room": "WC", "height_m": 1.1, "width_m": 0.7, "glazed": true, "cladding": null },
+      { "type": "window", "room": "Bed 1", "height_m": 1.3, "width_m": 1.8, "glazed": true, "cladding": null },
+      { "type": "window", "room": "Bed 2", "height_m": 1.3, "width_m": 1.5, "glazed": true, "cladding": null },
+      { "type": "window", "room": "Bed 3", "height_m": 1.3, "width_m": 1.5, "glazed": true, "cladding": null },
+      { "type": "window", "room": "Kitchen", "height_m": 1.8, "width_m": 0.6, "glazed": true, "cladding": null },
+      { "type": "slider", "room": "Dining", "height_m": 2.1, "width_m": 2.4, "glazed": true, "cladding": null, "width_source": "callout" },
+      {
+        "type": "entrance",
+        "room": "Entry",
+        "height_m": 2.1,
+        "width_m": 0.86,
+        "glazed": true,
+        "cladding": null,
+        "height_source": "asserted",
+        "width_unconfirmed": true,
+        "note": "unlabelled 860 entry leaf; anchored on 'PORCH AREA:' label, width provisional (no frame-to-frame on plan)"
+      }
+    ],
+    "derived": {
+      "total_openings": 11,
+      "total_opening_sqm": 19.69,
+      "glazed_sqm": 19.69,
+      "window_count": 10
+    },
+    "no_garage": true,
+    "weak_datum_phantoms": {
+      "datum_mm": 1920,
+      "phantom_widths_mm": [2970, 1010, 1670],
+      "explanation": "Bath/WC/Laundry room widths at the repeated 1920mm room depth — must be discarded, not surfaced as openings."
+    }
+  }
+}
