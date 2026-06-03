@@ -176,7 +176,15 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       ? Math.round(mergedWithWindows.windows_by_room.entrance.width_m * 1000)
       : null;
   mergedWithWindows = preferVectorEntrance(mergedWithWindows, vectorAnnotations);
-  const entranceNote = entranceAssumptionNote(vectorAnnotations);
+  let entranceNote = entranceAssumptionNote(vectorAnnotations);
+  // Route 2 — when symbol openings are folded, Stage C RE-derives external_wall_area_m2 from
+  // the corrected opening set, so the entrance note's "(…not recomputed here.)" clause is stale
+  // and contradicts the (now recomputed) figure. Strip just that clause. Gated on symbol_openings
+  // → schedule jobs (Beddis/Harrison, no fold) keep the note verbatim, byte-unchanged.
+  const willRecomputeExtWall = !!(vectorAnnotations?.symbol_openings && vectorAnnotations.symbol_openings.length > 0);
+  const STALE_EXTWALL_CLAUSE =
+    " (The external wall area stays gated on the unresolved window heights and is not recomputed here.)";
+  if (entranceNote && willRecomputeExtWall) entranceNote = entranceNote.replace(STALE_EXTWALL_CLAUSE, "");
   if (entranceNote) {
     mergedWithWindows = {
       ...mergedWithWindows,

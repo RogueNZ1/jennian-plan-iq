@@ -128,6 +128,9 @@ export type VectorSymbolOpening = {
   width_mm: number;
   width_source: "callout";
   label_dist_mm: number;
+  /** The room/living label the callout anchored to (e.g. "DINING") — rooms the opening to its
+   * real room instead of a fixed default, so it lands in the right QS slot. Optional (older engines). */
+  room_label?: string;
   page: number;
 };
 

@@ -200,6 +200,14 @@ const SYMBOL_ROOM: Record<VectorSymbolOpening["type"], string> = {
 };
 const ENTRY_ROOM_RE = /entr|entry|foyer|porch/i;
 
+/** Title-case + strip punctuation from a vector room label ("DINING" → "Dining"). */
+function normRoomLabel(label?: string): string | null {
+  if (!label) return null;
+  const cleaned = label.replace(/[^A-Za-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+  if (!cleaned) return null;
+  return cleaned.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function symbolToOpening(s: VectorSymbolOpening): Opening {
   const width_m = round2(s.width_mm / 1000) ?? 0;
   const glazed = s.type !== "sectional_door";
@@ -216,7 +224,9 @@ function symbolToOpening(s: VectorSymbolOpening): Opening {
   }
   return {
     type: s.type as OpeningType,
-    room: SYMBOL_ROOM[s.type],
+    // Room from the matched anchor label (e.g. the slider's "DINING"), so it lands in its real
+    // QS slot instead of the fixed default; fall back to the default only when no label came through.
+    room: normRoomLabel(s.room_label) ?? SYMBOL_ROOM[s.type],
     height_m,
     width_m,
     glazed,
