@@ -287,11 +287,14 @@ export async function buildQSExportData(
   jobId: string,
   files?: ExtractedFile[],
 ): Promise<QSExportData> {
-  const [jobRes, itemsRes, openingsRes, doorCountsRes] = await Promise.all([
+  const [jobRes, itemsRes, openingsRes, doorCountsRes, eqRes] = await Promise.all([
     supabase.from("jobs").select("*").eq("id", jobId).single(),
     supabase.from("module_items").select("*").eq("job_id", jobId),
     supabase.from("opening_schedule").select("*").eq("job_id", jobId),
     supabase.from("door_counts").select("*").eq("job_id", jobId).maybeSingle(),
+    // Fold extracted_quantities for jobs that have them but no takeoff_json (legacy text-run
+    // orphans). Appears in "5. Data Input House" alongside module_items.
+    supabase.from("extracted_quantities").select("*").eq("job_id", jobId),
   ]);
 
   if (jobRes.error) throw new Error(`Failed to load job: ${jobRes.error.message}`);
@@ -299,7 +302,41 @@ export async function buildQSExportData(
   if (openingsRes.error) throw new Error(`Failed to load opening schedule: ${openingsRes.error.message}`);
   if (doorCountsRes.error) throw new Error(`Failed to load door counts: ${doorCountsRes.error.message}`);
   const job = jobRes.data;
-  const items: ModuleItemRow[] = itemsRes.data ?? [];
+  const moduleItemsBase: ModuleItemRow[] = itemsRes.data ?? [];
+
+  // Merge extracted_quantities rows as synthetic module_items when module_items is empty.
+  // This preserves data for jobs that went through the text-extraction path (run.ts Pipeline A)
+  // before the wizard-persist path existed. They appear in "5. Data Input House" as iq-core rows.
+  const eqRows = eqRes.data ?? [];
+  const eqSynthetic: ModuleItemRow[] = moduleItemsBase.length === 0 && eqRows.length > 0
+    ? eqRows.map((q: { id: string; quantity_type: string; approved_value: number | null; extracted_value: number | null; confidence: string | null; unit: string | null }) => ({
+        id: q.id,
+        run_id: "",
+        job_id: jobId,
+        module_id: "iq-core",
+        label: q.quantity_type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+        extracted_value: String(q.approved_value ?? q.extracted_value ?? ""),
+        approved_value: q.approved_value != null ? String(q.approved_value) : null,
+        confidence: q.confidence ?? "mid",
+        review_status: "review_required",
+        notes: null,
+        basis: null,
+        sort_order: 0,
+        data_source: "Uploaded Plan Text",
+        source_evidence: null,
+        measurement_id: null,
+        opening_id: null,
+        plan_page_number: null,
+        file_id: null,
+        source: null,
+        value_source: "extracted",
+        description: null,
+        unit: q.unit,
+        updated_at: "",
+        created_at: "",
+      } as ModuleItemRow))
+    : [];
+  const items: ModuleItemRow[] = [...moduleItemsBase, ...eqSynthetic];
 
   // Convergence Slice 6 — the canonical enriched takeoff (takeoff_json) is the PRIMARY source
   // when present; null for every pre-convergence job → relational fallback (overlay applied at

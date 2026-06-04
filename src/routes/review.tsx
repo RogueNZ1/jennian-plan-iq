@@ -14,7 +14,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
-import { Download, FileSpreadsheet, History, CheckCircle2, ArrowRight, ArrowLeft,
+import { FileSpreadsheet, History, CheckCircle2, ArrowRight, ArrowLeft,
   Wand2, ScanEye, Info,
   Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain, AlertTriangle, ShoppingCart, Layers } from "lucide-react";
 import { useEffect, useMemo, useState, useRef, lazy, Suspense } from "react";
@@ -29,6 +29,7 @@ const PlanCanvas = lazy(() =>
 import { OpeningScheduleTab } from "@/components/jennian/OpeningScheduleTab";
 import { ValidationTab } from "@/components/jennian/ValidationTab";
 import { loadMeasurements, loadOpenings, type PlanMeasurement } from "@/lib/iq-measurements";
+import { buildQSExportData, writeIQDataSheetFull } from "@/lib/iq-qs-export";
 import { AutomaticTakeoffDialog } from "@/components/jennian/AutomaticTakeoffDialog";
 import { VisionTakeoffDialog } from "@/components/jennian/VisionTakeoffDialog";
 
@@ -136,21 +137,6 @@ function ReviewPage() {
     toast.success("Job approved.");
   }
 
-  function exportRows() {
-    if (!job) return [];
-    return rows.map((r) => ({
-      "Job Number": job.job_number,
-      "Client Name": job.client_name,
-      "Address": job.address,
-      "Quantity Type": r.quantity_type,
-      "Unit": r.unit,
-      "Extracted Value": r.extracted_value,
-      "Final Approved Value": r.approved_value ?? r.extracted_value,
-      "Confidence": r.confidence,
-      "Notes": r.notes ?? "",
-    }));
-  }
-
   async function logExport(type: "csv" | "excel") {
     if (!job || !user) return;
     await supabase.from("export_logs").insert({ job_id: job.id, exported_by: user.id, export_type: type });
@@ -160,68 +146,28 @@ function ReviewPage() {
     }
   }
 
-  async function exportCsv() {
-    if (!job) return;
-    const data = exportRows();
-    const ws = XLSX.utils.json_to_sheet(data);
-    const csv = XLSX.utils.sheet_to_csv(ws);
-    triggerDownload(new Blob([csv], { type: "text/csv;charset=utf-8" }), `${job.job_number}-quantities.csv`);
-    await logExport("csv");
-    toast.success("CSV exported.");
-  }
-
-  async function exportExcel() {
+  // Single IQ Data Sheet export — same handler as jobs.$jobId.tsx → buildQSExportData → writeIQDataSheetFull.
+  const [exportingIQ, setExportingIQ] = useState(false);
+  async function exportIQDataSheet() {
     if (!job || !jobId) return;
-    const [openings, measurements] = await Promise.all([
-      loadOpenings(jobId).catch(() => []),
-      loadMeasurements(jobId).catch(() => []),
-    ]);
-
-    const wb = XLSX.utils.book_new();
-
-    // Sheet 1 — IQ Core quantities
-    const wsQ = XLSX.utils.json_to_sheet(exportRows());
-    XLSX.utils.book_append_sheet(wb, wsQ, "IQ Core");
-
-    // Sheet 2 — Opening schedule
-    const openingData = openings.map((o) => ({
-      "Type": o.opening_type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-      "Width (mm)": o.width_mm,
-      "Height (mm)": o.height_mm ?? "",
-      "Room / Location": o.room_name ?? "",
-      "Quantity": o.quantity,
-      "Page": o.plan_page_number,
-      "Source": o.source,
-      "Confidence": o.confidence,
-      "Status": o.review_status === "confirmed" ? "Confirmed" : "Review Required",
-      "Notes": o.notes ?? "",
-    }));
-    const wsO = XLSX.utils.json_to_sheet(
-      openingData.length ? openingData : [{ "Type": "No openings recorded" }],
-    );
-    XLSX.utils.book_append_sheet(wb, wsO, "Openings");
-
-    // Sheet 3 — Plan measurements
-    const measurementData = measurements.map((m) => ({
-      "Type": m.measurement_type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-      "Label": m.label ?? "",
-      "Length (m)": m.calculated_length_m != null ? Number(m.calculated_length_m.toFixed(3)) : "",
-      "Area (m²)": m.calculated_area_m2 != null ? Number(m.calculated_area_m2.toFixed(3)) : "",
-      "Page": m.plan_page_number,
-      "Source": m.source,
-      "Confidence": m.confidence,
-      "Status": m.review_status === "confirmed" ? "Confirmed" : m.review_status === "excluded" ? "Excluded" : "Review Required",
-      "Notes": m.notes ?? "",
-    }));
-    const wsM = XLSX.utils.json_to_sheet(
-      measurementData.length ? measurementData : [{ "Type": "No measurements recorded" }],
-    );
-    XLSX.utils.book_append_sheet(wb, wsM, "Measurements");
-
-    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    triggerDownload(new Blob([buf], { type: "application/octet-stream" }), `${job.job_number}-quantities.xlsx`);
-    await logExport("excel");
-    toast.success("Excel exported.");
+    setExportingIQ(true);
+    try {
+      const data = await buildQSExportData(jobId);
+      const bytes = await writeIQDataSheetFull({ ...data, jobId });
+      const surname = data.clientSurname || data.clientName.split(" ").pop() || "Client";
+      const filename = `${data.jmwNumber || data.jobNumber}-IQ-Data-${surname}.xlsx`;
+      const blob = new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      await logExport("excel");
+      toast.success("IQ Data Sheet exported — paste into your QS");
+    } catch (err) {
+      toast.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setExportingIQ(false);
+    }
   }
 
   if (loading) {
@@ -266,8 +212,7 @@ function ReviewPage() {
                   <CheckCircle2 className="h-4 w-4" /> Approve Job
                 </button>
               )}
-              <button onClick={exportCsv} className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3.5 py-2 text-sm font-medium hover:bg-accent"><Download className="h-4 w-4" /> Export CSV</button>
-              <button onClick={exportExcel} className="inline-flex items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"><FileSpreadsheet className="h-4 w-4" /> Export Excel</button>
+              <button onClick={exportIQDataSheet} disabled={exportingIQ} className="inline-flex items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-70"><FileSpreadsheet className="h-4 w-4" />{exportingIQ ? "Exporting…" : "Export IQ Data Sheet"}</button>
             </div>
           }
         />

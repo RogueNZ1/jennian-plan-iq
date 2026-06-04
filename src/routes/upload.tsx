@@ -396,6 +396,11 @@ function UploadPage() {
           ...(enriched.alfresco_area_m2.value != null
             ? [{ moduleId: "iq-core", label: "Alfresco Area", unit: "m²", value: enriched.alfresco_area_m2.value } as ItemSpec]
             : []),
+          // Coverage Area (roof m²) — surfaces takeoff_json.roof_area_m2 in "5. Data Input House".
+          // The QS paste sheet has no dedicated roof-area paste cell; it lives in the data sheet.
+          ...(enriched.roof_area_m2.value != null
+            ? [{ moduleId: "iq-roofing", label: "Coverage Area", unit: "m²", value: enriched.roof_area_m2.value } as ItemSpec]
+            : []),
         ];
         for (const spec of itemSpecs) {
           if (spec.value == null) continue;
@@ -419,7 +424,9 @@ function UploadPage() {
           }
         }
 
-        // (e) Write door_counts from door_breakdown (no confirmed_at — user confirms in DoorCountPanel).
+        // (e) Write door_counts from door_breakdown. confirmed_at is set so buildQSExportData's
+        // gate (confirmedCounts?.confirmed_at) fires and writes H187/192/193 in the paste sheet.
+        // The user saw and accepted these counts in the wizard preview.
         const db = enriched.door_breakdown?.value;
         if (db && (db.standard > 0 || db.cavity_sliders > 0 || db.double_doors > 0 || db.barn_sliders > 0)) {
           const { error: dcErr } = await supabase.from("door_counts").insert({
@@ -428,6 +435,7 @@ function UploadPage() {
             cavity_sliders: db.cavity_sliders,
             double_doors: db.double_doors,
             barn_sliders: db.barn_sliders,
+            confirmed_at: new Date().toISOString(),
           } as never);
           if (dcErr) {
             console.warn("[persist-wizard] door_counts insert failed:", dcErr.code, dcErr.message);
