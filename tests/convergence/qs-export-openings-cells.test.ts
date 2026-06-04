@@ -104,8 +104,17 @@ describe("Stage 2b — window cells migrate to openings[] (equivalent on McAleve
     expect(relational.windowsByRoom).toEqual({ bed1: { cladding: "", qty: 9, height: 1, width: 1 } });
   });
 
-  it("the sheet BUILDER reads windowsByRoom only — injecting openings on a base changes nothing", () => {
-    const injected = baseData({ openings: enriched.openings ?? [] });
-    expect(buildQSDataInputSheet(injected)).toEqual(buildQSDataInputSheet(baseData()));
+  it("the sheet BUILDER now reads data.openings — injecting non-empty openings triggers the flat block (different from relational)", () => {
+    // Stage 2b assumed the builder never read data.openings; the flat-block change (Stage 3)
+    // inverted that: when openings[] is non-empty the builder writes one row per opening in
+    // columns A-G starting at row 40, instead of the old D/E/F per-room slots. The two layouts
+    // are intentionally different — no equivalence is expected or required.
+    const withOpenings = buildQSDataInputSheet(baseData({ openings: enriched.openings ?? [] }));
+    const withoutOpenings = buildQSDataInputSheet(baseData()); // null openings → relational slots
+    // Flat block has A39="Type"; relational has C39="Cladding type…"
+    expect((withOpenings["A39"] as XLSX.CellObject | undefined)?.v).toBe("Type");
+    expect((withoutOpenings["A39"] as XLSX.CellObject | undefined)?.v).toBeUndefined();
+    // The two sheets are NOT equal (the flat block writes different cells than the slot rows)
+    expect(withOpenings).not.toEqual(withoutOpenings);
   });
 });

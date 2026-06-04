@@ -978,45 +978,78 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
   }
 
   // --- ③ WINDOWS & OPENINGS ---
-  // Rows match "5. Data Input House " sheet exactly: C=cladding type (1=brick/2=other — GAP: not written by IQ),
-  // D=qty, E=height(m), F=width(m)
+  // BRANCHED: enriched path (data.openings present) → flat per-opening block (one row per
+  // opening, no keyword routing, no collapse, no silent drops). Relational path (openings
+  // absent) → old per-room slot block, unchanged — exact fallback for legacy/null jobs.
   lbl("A38", "③ WINDOWS & OPENINGS", sectionStyle);
-  lbl("C39", "Cladding type (1/2) — enter in QS");
-  lbl("D39", "Qty");
-  lbl("E39", "H (m)");
-  lbl("F39", "W (m)");
 
-  const windowRooms: Array<{
-    key: keyof QSExportData["windowsByRoom"];
-    roomLabel: string;
-    row: number;
-  }> = [
-    { key: "bed1",         roomLabel: "Bed 1 (Master)", row: 41 },
-    { key: "ensuite",      roomLabel: "Ensuite",         row: 43 },
-    { key: "bed2",         roomLabel: "Bed 2",           row: 45 },
-    { key: "bed3",         roomLabel: "Bed 3",           row: 47 },
-    { key: "bed4",         roomLabel: "Bed 4",           row: 49 },
-    { key: "bathroom",     roomLabel: "Bathroom",        row: 52 },
-    { key: "kitchen",      roomLabel: "Kitchen",         row: 54 },
-    { key: "familyLiving", roomLabel: "Family/Living",   row: 56 },
-    { key: "dining",       roomLabel: "Dining",          row: 59 },
-    { key: "lounge",       roomLabel: "Lounge",          row: 62 },
-    { key: "garageWindow", roomLabel: "Garage Window",   row: 65 },
-    { key: "garageDoor1",  roomLabel: "Garage Door",     row: 67 },
-    { key: "entrance",     roomLabel: "Entrance",        row: 72 },
-  ];
+  if (data.openings && data.openings.length > 0) {
+    // ── FLAT PER-OPENING BLOCK (enriched path) ────────────────────────────────────────
+    // Column headers: Type | Room | H (m) | W (m) | Area (m²) | Glazed | Cladding/Notes
+    lbl("A39", "Type",             labelStyle);
+    lbl("B39", "Room",             labelStyle);
+    lbl("C39", "H (m)",            labelStyle);
+    lbl("D39", "W (m)",            labelStyle);
+    lbl("E39", "Area (m²)",        labelStyle);
+    lbl("F39", "Glazed",           labelStyle);
+    lbl("G39", "Cladding / Notes", labelStyle);
 
-  for (const { key, roomLabel, row } of windowRooms) {
-    lbl(`A${row}`, roomLabel);
-    const room = data.windowsByRoom[key];
-    if (room) {
-      // Write cladding type code to C column when derived from elevation data
-      if (data.claddingTypeCode != null) {
-        ws[`C${row}`] = { v: data.claddingTypeCode, t: "n", s: yellowStyle };
+    // Solid (non-glazed) rows use a light-grey fill so reviewers can see the sectional
+    // door at a glance. All other openings (incl. entrance w=0) use the standard yellow.
+    const solidStyle = { fill: { patternType: "solid", fgColor: { rgb: "EBEBEB" } } };
+    let r = 40;
+    for (const o of data.openings) {
+      const s = o.glazed ? yellowStyle : solidStyle;
+      ws[`A${r}`] = { v: o.type,                                    t: "s", s };
+      ws[`B${r}`] = { v: o.room ?? "",                              t: "s", s };
+      ws[`C${r}`] = { v: o.height_m,                                t: "n", s };
+      ws[`D${r}`] = { v: o.width_m,                                 t: "n", s }; // 0 = unresolved; shown, not dropped
+      ws[`E${r}`] = { v: o.area_m2,                                 t: "n", s };
+      ws[`F${r}`] = { v: o.glazed ? "Y" : "N",                      t: "s", s };
+      ws[`G${r}`] = { v: o.cladding ?? (o.flags?.join("; ") ?? ""), t: "s", s };
+      r++;
+    }
+  } else {
+    // ── RELATIONAL SLOT BLOCK (unchanged — exact fallback for old/null-openings jobs) ──
+    // Rows match "5. Data Input House " sheet exactly: C=cladding type (1=brick/2=other),
+    // D=qty, E=height(m), F=width(m)
+    lbl("C39", "Cladding type (1/2) — enter in QS");
+    lbl("D39", "Qty");
+    lbl("E39", "H (m)");
+    lbl("F39", "W (m)");
+
+    const windowRooms: Array<{
+      key: keyof QSExportData["windowsByRoom"];
+      roomLabel: string;
+      row: number;
+    }> = [
+      { key: "bed1",         roomLabel: "Bed 1 (Master)", row: 41 },
+      { key: "ensuite",      roomLabel: "Ensuite",         row: 43 },
+      { key: "bed2",         roomLabel: "Bed 2",           row: 45 },
+      { key: "bed3",         roomLabel: "Bed 3",           row: 47 },
+      { key: "bed4",         roomLabel: "Bed 4",           row: 49 },
+      { key: "bathroom",     roomLabel: "Bathroom",        row: 52 },
+      { key: "kitchen",      roomLabel: "Kitchen",         row: 54 },
+      { key: "familyLiving", roomLabel: "Family/Living",   row: 56 },
+      { key: "dining",       roomLabel: "Dining",          row: 59 },
+      { key: "lounge",       roomLabel: "Lounge",          row: 62 },
+      { key: "garageWindow", roomLabel: "Garage Window",   row: 65 },
+      { key: "garageDoor1",  roomLabel: "Garage Door",     row: 67 },
+      { key: "entrance",     roomLabel: "Entrance",        row: 72 },
+    ];
+
+    for (const { key, roomLabel, row } of windowRooms) {
+      lbl(`A${row}`, roomLabel);
+      const room = data.windowsByRoom[key];
+      if (room) {
+        // Write cladding type code to C column when derived from elevation data
+        if (data.claddingTypeCode != null) {
+          ws[`C${row}`] = { v: data.claddingTypeCode, t: "n", s: yellowStyle };
+        }
+        val(`D${row}`, room.qty);
+        val(`E${row}`, room.height);
+        val(`F${row}`, room.width);
       }
-      val(`D${row}`, room.qty);
-      val(`E${row}`, room.height);
-      val(`F${row}`, room.width);
     }
   }
 
@@ -1092,7 +1125,7 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
     { wch: 15 }, // D — measurements / window qty
     { wch: 15 }, // E — window height / downpipes
     { wch: 15 }, // F — first floor / window width
-    { wch: 15 }, // G — (spare)
+    { wch: 22 }, // G — Cladding / Notes (flat-block path)
     { wch: 15 }, // H — garage door / interior door counts
     { wch: 25 }, // I — job info values
   ];

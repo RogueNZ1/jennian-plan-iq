@@ -1,0 +1,290 @@
+{
+  "notes": "alfresco_area_m2 read from the porch/alfresco label — low confidence; confirm against QS. entrance door: height assumed standard 2.1m — confirm against the plan; width not found on the plan — confirm (left unresolved, not added to the opening area).",
+  "openings": [
+    {
+      "room": "Bed 1 (Master)",
+      "type": "window",
+      "glazed": true,
+      "source": "vision",
+      "area_m2": 2.34,
+      "width_m": 1.8,
+      "cladding": null,
+      "height_m": 1.3,
+      "confidence": "medium"
+    },
+    {
+      "room": "Bed 2",
+      "type": "window",
+      "glazed": true,
+      "source": "vision",
+      "area_m2": 1.95,
+      "width_m": 1.5,
+      "cladding": null,
+      "height_m": 1.3,
+      "confidence": "medium"
+    },
+    {
+      "room": "Kitchen",
+      "type": "window",
+      "glazed": true,
+      "source": "vision",
+      "area_m2": 1.08,
+      "width_m": 0.6,
+      "cladding": null,
+      "height_m": 1.8,
+      "confidence": "medium"
+    },
+    {
+      "room": "Lounge",
+      "type": "window",
+      "glazed": true,
+      "source": "vision",
+      "area_m2": 1.82,
+      "width_m": 1.3,
+      "cladding": null,
+      "height_m": 1.4,
+      "confidence": "medium"
+    },
+    {
+      "room": "Wc",
+      "type": "window",
+      "glazed": true,
+      "source": "vision",
+      "area_m2": 0.77,
+      "width_m": 0.7,
+      "cladding": null,
+      "height_m": 1.1,
+      "confidence": "medium"
+    },
+    {
+      "room": "Bathroom",
+      "type": "window",
+      "glazed": true,
+      "source": "vision",
+      "area_m2": 0.77,
+      "width_m": 0.7,
+      "cladding": null,
+      "height_m": 1.1,
+      "confidence": "medium"
+    },
+    {
+      "room": "Laundry",
+      "type": "window",
+      "glazed": true,
+      "source": "vision",
+      "area_m2": 1.08,
+      "width_m": 0.6,
+      "cladding": null,
+      "height_m": 1.8,
+      "confidence": "medium"
+    },
+    {
+      "room": "Laundry",
+      "type": "window",
+      "glazed": true,
+      "source": "vision",
+      "area_m2": 1.08,
+      "width_m": 0.6,
+      "cladding": null,
+      "height_m": 1.8,
+      "confidence": "medium"
+    },
+    {
+      "room": "Dining",
+      "type": "slider",
+      "flags": [
+        "height assumed standard 2.1m — confirm against the elevation/joinery schedule"
+      ],
+      "glazed": true,
+      "source": "callout",
+      "area_m2": 5.04,
+      "width_m": 2.4,
+      "cladding": null,
+      "height_m": 2.1,
+      "confidence": "medium",
+      "height_source": "asserted"
+    },
+    {
+      "room": "Entry",
+      "type": "entrance",
+      "flags": [
+        "height assumed standard 2.1m — confirm against the elevation/joinery schedule",
+        "entry width unresolved (ambiguous/product label) — confirm; standard single-entry size is the fallback"
+      ],
+      "glazed": true,
+      "source": "unresolved",
+      "area_m2": 0,
+      "width_m": 0,
+      "cladding": null,
+      "height_m": 2.1,
+      "confidence": "low",
+      "height_source": "asserted"
+    }
+  ],
+  "glazed_sqm": 15.93,
+  "roof_area_m2": {
+    "value": 115.34,
+    "source": "vision",
+    "confidence": null,
+    "discrepancy_flags": []
+  },
+  "window_count": {
+    "value": 8,
+    "source": "vision",
+    "confidence": null,
+    "discrepancy_flags": []
+  },
+  "ensuite_count": {
+    "value": null,
+    "source": "vision",
+    "confidence": null,
+    "discrepancy_flags": []
+  },
+  "floor_area_m2": {
+    "value": 100.3,
+    "source": "geometry",
+    "confidence": "high",
+    "discrepancy_flags": []
+  },
+  "kitchen_count": {
+    "value": 1,
+    "source": "vision",
+    "confidence": null,
+    "discrepancy_flags": []
+  },
+  "laundry_count": {
+    "value": 1,
+    "source": "vision",
+    "confidence": null,
+    "discrepancy_flags": []
+  },
+  "total_area_m2": {
+    "value": 101.2,
+    "source": "derived",
+    "confidence": null,
+    "discrepancy_flags": []
+  },
+  "bathroom_count": {
+    "value": 1,
+    "source": "vision",
+    "confidence": null,
+    "discrepancy_flags": []
+  },
+  "door_breakdown": {
+    "value": null,
+    "source": "vision",
+    "confidence": null,
+    "discrepancy_flags": []
+  },
+  "garage_area_m2": {
+    "value": null,
+    "source": "vision",
+    "confidence": null,
+    "discrepancy_flags": []
+  },
+  "foundation_type": {
+    "value": null,
+    "source": "vision",
+    "confidence": null,
+    "discrepancy_flags": []
+  },
+  "windows_by_room": {
+    "value": {
+      "Wc": {
+        "qty": 1,
+        "width_m": 0.7,
+        "height_m": 1.1
+      },
+      "Bed 2": {
+        "qty": 1,
+        "width_m": 1.5,
+        "height_m": 1.3
+      },
+      "Lounge": {
+        "qty": 1,
+        "width_m": 1.3,
+        "height_m": 1.4
+      },
+      "Kitchen": {
+        "qty": 1,
+        "width_m": 0.6,
+        "height_m": 1.8
+      },
+      "Laundry": {
+        "qty": 2,
+        "width_m": 0.6,
+        "height_m": 1.8
+      },
+      "Bathroom": {
+        "qty": 1,
+        "width_m": 0.7,
+        "height_m": 1.1
+      },
+      "Bed 1 (Master)": {
+        "qty": 1,
+        "width_m": 1.8,
+        "height_m": 1.3
+      }
+    },
+    "source": "vision",
+    "confidence": null,
+    "discrepancy_flags": [
+      "entrance door: height assumed standard 2.1m — confirm against the plan; width not found on the plan — confirm (left unresolved, not added to the opening area)."
+    ]
+  },
+  "alfresco_area_m2": {
+    "value": 0.9,
+    "source": "vision",
+    "confidence": null,
+    "discrepancy_flags": []
+  },
+  "ceiling_height_m": {
+    "value": 2.4,
+    "source": "geometry",
+    "confidence": null,
+    "discrepancy_flags": []
+  },
+  "external_wall_lm": {
+    "value": 44.6,
+    "source": "geometry",
+    "confidence": "high",
+    "discrepancy_flags": []
+  },
+  "garage_door_size": {
+    "value": null,
+    "source": "vision",
+    "confidence": null,
+    "discrepancy_flags": []
+  },
+  "internal_wall_lm": {
+    "value": 13.84,
+    "source": "geometry",
+    "confidence": "high",
+    "discrepancy_flags": []
+  },
+  "windows_schedule": {
+    "value": null,
+    "source": "vision",
+    "confidence": null,
+    "discrepancy_flags": []
+  },
+  "total_opening_sqm": 15.93,
+  "external_door_count": {
+    "value": null,
+    "source": "vision",
+    "confidence": null,
+    "discrepancy_flags": []
+  },
+  "internal_door_count": {
+    "value": 7,
+    "source": "vision",
+    "confidence": null,
+    "discrepancy_flags": []
+  },
+  "external_wall_area_m2": {
+    "value": 91.11,
+    "source": "derived",
+    "confidence": null,
+    "discrepancy_flags": []
+  }
+}
