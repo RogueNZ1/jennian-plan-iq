@@ -21,7 +21,7 @@ import {
   extractScaleFactor, checkPlanIssues, extractConceptTakeoffs, extractWindowScheduleFn,
   type ScaleResult, type PlanIssue, type TakeoffData, type ConceptTakeoffResult,
 } from "@/lib/takeoff/concept.functions";
-import { composeTakeoff } from "@/lib/takeoff/compose-takeoff";
+import { composeTakeoff, type ComposeTakeoffResult } from "@/lib/takeoff/compose-takeoff";
 import { unwrapTakeoff } from "@/lib/takeoff/enriched-takeoff";
 import type { PlanContext } from "@/lib/takeoff/plan-context";
 import { measurePlanGeometry, overallConfidence, type GeometryApiResult } from "@/lib/takeoff/geometry-api";
@@ -104,6 +104,9 @@ function UploadPage() {
   const [errorsAcknowledged, setErrorsAcknowledged] = useState(false);
   const [takeoffData, setTakeoffData] = useState<TakeoffData | null>(null);
   const [editedTakeoff, setEditedTakeoff] = useState<TakeoffData | null>(null);
+  // Holds the full composeTakeoff result (including enriched + openings[]) so persist(true)
+  // can write the wizard's already-computed takeoff directly without re-running the AI.
+  const [composedResult, setComposedResult] = useState<ComposeTakeoffResult | null>(null);
   const [planContext, setPlanContext] = useState<PlanContext | null>(null);
   const [geometryResult, setGeometryResult] = useState<GeometryApiResult | null>(null);
 
@@ -294,15 +297,147 @@ function UploadPage() {
             ...(crossRefResult ? { cross_reference_data: crossRefResult } : {}),
           } as never)
           .eq("id", job.id);
-        seedAllModulesForJob(job.id);
+
+        // Seed module_runs shells (no module_items created — those come from the writes below).
+        await seedAllModulesForJob(job.id);
+
+        // ── Persist wizard takeoff ──────────────────────────────────────────────────────────
+        // The wizard already computed a full enriched takeoff (geometry + vector + openings).
+        // Write it directly so the job page export shows the wizard's data, not an empty
+        // re-run. Three writes: takeoff_json (scalar overlay), opening_schedule (flat block),
+        // module_items (data sheet labels). The autostart guard on the job page
+        // (takeoffRun !== null) suppresses runAutomaticTakeoff once the takeoff_runs row exists.
+
+        const enriched = composedResult?.enriched ?? null;
+        if (!enriched) {
+          // No wizard takeoff available (user navigated here without running the in-memory
+          // extraction). Fall back to letting the job page auto-run normally.
+          toast.success("Job uploaded — running takeoff…");
+          navigate({ to: "/jobs/$jobId", params: { jobId: job.id }, state: { autostart: true } as never });
+          return;
+        }
+
+        // (a) INSERT a takeoff_runs row so loadEnrichedTakeoffJson finds it + autostart guard fires.
+        const now = new Date().toISOString();
+        const { data: runRow, error: runErr } = await supabase
+          .from("takeoff_runs")
+          .insert({
+            job_id: job.id,
+            started_by: user.id,
+            started_at: now,
+            completed_at: now,
+            status: "completed",
+            summary: {} as never,
+          })
+          .select("id")
+          .single();
+        if (runErr || !runRow) {
+          toast.error("Failed to create takeoff record — job saved but export may be empty.");
+          navigate({ to: "/jobs/$jobId", params: { jobId: job.id } });
+          return;
+        }
+        const runId = runRow.id as string;
+
+        // (b) Write takeoff_json via the existing persister (scalar overlay for D12/D15/D19/D20 + openings).
+        const { persistEnrichedTakeoff } = await import("@/lib/takeoff/persist-takeoff");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tjResult = await persistEnrichedTakeoff(supabase as any, runId, enriched);
+        if (!tjResult.written) {
+          console.warn("[persist-wizard] takeoff_json write failed:", tjResult.error);
+        }
+
+        // (c) Write opening_schedule rows (flat block ③ in the QS export).
+        // Per-row error logging so we see the real Postgres code if RLS or constraint fires.
+        const { buildComposedOpeningRows, openingRowKey } = await import("@/lib/takeoff/extract-openings");
+        const openings = enriched.openings ?? [];
+        if (openings.length > 0) {
+          const existingKeys = new Set<string>();
+          const { rows: openingRows } = buildComposedOpeningRows(openings, existingKeys);
+          for (const row of openingRows) {
+            const { error: osErr } = await supabase.from("opening_schedule").insert({
+              job_id: job.id,
+              plan_page_number: 1,
+              quantity: 1,
+              source: "Composed takeoff",
+              review_status: "review_required",
+              created_by: user.id,
+              ...row,
+            });
+            if (osErr) {
+              console.warn("[persist-wizard] opening_schedule insert failed:",
+                osErr.code, osErr.message, (osErr as { details?: string }).details ?? "");
+            }
+          }
+        }
+
+        // (d) INSERT module_items for the key labels buildQSExportData.getNum() reads.
+        // Labels chosen for EXACT match with getNum's needle strings (case-insensitive exact):
+        //   "floor area" → "Floor Area", "stud height" → "Stud Height",
+        //   "exterior wall length" → "Exterior Wall Length",
+        //   "external perimeter" (partial) → "External Perimeter",
+        //   "alfresco" (partial) → "Alfresco Area"
+        // Units: lm for linear distances; m² for areas; mm for stud height (getNum divides by 1000 if > 10).
+        const { data: moduleRunRows } = await supabase
+          .from("module_runs")
+          .select("id, module_id")
+          .eq("job_id", job.id);
+        const runIdByModule: Record<string, string> = Object.fromEntries(
+          (moduleRunRows ?? []).map((r: { id: string; module_id: string }) => [r.module_id, r.id]),
+        );
+        interface ItemSpec { moduleId: string; label: string; unit: string; value: number | null }
+        const itemSpecs: ItemSpec[] = [
+          { moduleId: "iq-core",    label: "Floor Area",            unit: "m²", value: enriched.floor_area_m2.value },
+          { moduleId: "iq-core",    label: "Stud Height",           unit: "mm", value: enriched.ceiling_height_m.value != null ? Math.round(enriched.ceiling_height_m.value * 1000) : null },
+          { moduleId: "iq-framing", label: "Exterior Wall Length",  unit: "lm", value: enriched.external_wall_lm.value },
+          { moduleId: "iq-cladding",label: "External Perimeter",    unit: "lm", value: enriched.external_wall_lm.value },
+          { moduleId: "iq-framing", label: "External Walls",        unit: "lm", value: enriched.external_wall_lm.value },
+          { moduleId: "iq-framing", label: "Internal Walls",        unit: "lm", value: enriched.internal_wall_lm.value },
+          { moduleId: "iq-linings", label: "Internal Wall Length",  unit: "lm", value: enriched.internal_wall_lm.value },
+          ...(enriched.alfresco_area_m2.value != null
+            ? [{ moduleId: "iq-core", label: "Alfresco Area", unit: "m²", value: enriched.alfresco_area_m2.value } as ItemSpec]
+            : []),
+        ];
+        for (const spec of itemSpecs) {
+          if (spec.value == null) continue;
+          const runIdForModule = runIdByModule[spec.moduleId];
+          if (!runIdForModule) continue;
+          const { error: miErr } = await supabase.from("module_items").insert({
+            job_id: job.id,
+            run_id: runIdForModule,
+            module_id: spec.moduleId,
+            label: spec.label,
+            extracted_value: String(spec.value),
+            unit: spec.unit,
+            confidence: "high",
+            review_status: "review_required",
+            value_source: "extracted",
+            sort_order: 0,
+          });
+          if (miErr) {
+            console.warn("[persist-wizard] module_items insert failed:",
+              spec.label, miErr.code, miErr.message);
+          }
+        }
+
+        // (e) Write door_counts from door_breakdown (no confirmed_at — user confirms in DoorCountPanel).
+        const db = enriched.door_breakdown?.value;
+        if (db && (db.standard > 0 || db.cavity_sliders > 0 || db.double_doors > 0 || db.barn_sliders > 0)) {
+          const { error: dcErr } = await supabase.from("door_counts").insert({
+            job_id: job.id,
+            standard: db.standard,
+            cavity_sliders: db.cavity_sliders,
+            double_doors: db.double_doors,
+            barn_sliders: db.barn_sliders,
+          } as never);
+          if (dcErr) {
+            console.warn("[persist-wizard] door_counts insert failed:", dcErr.code, dcErr.message);
+          }
+        }
+
         toast.success("Job uploaded successfully.");
-        // Quick-upload: tell the job page to auto-run the PERSISTING takeoff once on arrival
-        // (history state, not a URL param). The job page consumes it via detectAndStartTakeoff.
-        navigate({
-          to: "/jobs/$jobId",
-          params: { jobId: job.id },
-          state: { autostart: true } as never,
-        });
+        // No autostart state: the takeoff_runs row exists, so the job page's guard
+        // (takeoffRun !== null → return) will suppress the re-run on arrival.
+        navigate({ to: "/jobs/$jobId", params: { jobId: job.id } });
       } else {
         await supabase
           .from("jobs")
@@ -487,6 +622,8 @@ function UploadPage() {
       // composeTakeoff now returns the ENRICHED per-field shape (Slice 2). Unwrap to the bare
       // TakeoffData the rest of /upload (state, cross-reference, exportToExcel) consumes —
       // values are identical to before; the provenance/flags ride on composed.enriched.
+      // Store the full result so persist(true) can write the wizard's takeoff without re-running.
+      setComposedResult(composed);
       const mergedWithWindows = unwrapTakeoff(composed.enriched);
 
       // Side-effect kept OUT of the pure boundary: warn the reviewer when geometry measured
