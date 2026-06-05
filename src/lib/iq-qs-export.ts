@@ -942,6 +942,132 @@ export function buildReviewNotesSheet(
   return ws;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// DROP-IN PASTE SHEET — positional clone of Jennian Master_Updated_8_DROPIN
+// Cell addresses must match the master's "IQ Input" tab exactly (D4/E4/F4,
+// rows 41-72 for windows, H175-H180 for garage, H187/190/192/193 for doors).
+// All values are plain numbers/text (no formulas) — Ctrl+A → copy → paste-values.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Slot key → row in the master's IQ Input sheet. */
+const DROP_IN_SLOT_ROW: Record<string, number> = {
+  bed1: 41, ensuite: 43, bed2: 45, bed3: 47, bed4: 49,
+  toilet: 51,           // WC maps to Toilet row
+  bathroom: 52, kitchen: 54, familyLiving: 56,
+  dining: 59, lounge: 62, garageWindow: 65,
+  // garageDoor1 / garageDoor2 handled via H175-H180 garage block
+  // Laundry window: no slot → dropped
+};
+// All window/PA-door/entrance rows that must be zeroed before writing actuals
+const ALL_OPENING_ROWS = [41, 43, 45, 47, 49, 51, 52, 54, 56, 59, 62, 65, 67, 68, 70, 72];
+
+export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
+  const ws: XLSX.WorkSheet = {};
+  const yellow = { fill: { patternType: "solid", fgColor: { rgb: "FFFF00" } } };
+
+  /** Write a value cell (number or string). */
+  function put(addr: string, v: number | string) {
+    ws[addr] = { v, t: typeof v === "number" ? "n" : "s", s: yellow };
+  }
+  /** Write a zero (must be explicit, not skipped). */
+  function zero(addr: string) { ws[addr] = { v: 0, t: "n", s: yellow }; }
+
+  // ── Job info ──────────────────────────────────────────────────────────────
+  if (data.clientName)    put("I3", data.clientName);
+  if (data.streetAddress) put("I4", data.streetAddress);
+  // City from parsed address — no hardcoded fallback (task requirement)
+  if (data.city)          put("I5", data.city);
+  if (data.jmwNumber)     put("I8", data.jmwNumber);
+  ws["B9"] = { v: new Date().toLocaleDateString("en-NZ"), t: "s", s: yellow };
+
+  // ── ② Core measurements ───────────────────────────────────────────────────
+  if (data.floorAreaM2 != null)     put("D4",  data.floorAreaM2);
+  if (data.perimeterLm != null)     put("E4",  data.perimeterLm);
+  // F4: first floor area — 0 for single-storey (master uses it in roof calc)
+  put("F4", data.firstFloorAreaM2 ?? 0);
+  if (data.alfrescoAreaM2 != null)  put("D13", data.alfrescoAreaM2);
+  // D20: stud height in mm (master expects mm; QSExportData carries studHeightMm)
+  if (data.studHeightMm != null)    put("D20", data.studHeightMm);
+
+  // ── ③ Windows & openings — zero ALL room rows first (kills template defaults)
+  for (const row of ALL_OPENING_ROWS) {
+    zero(`D${row}`); zero(`E${row}`); zero(`F${row}`);
+  }
+
+  // Accumulate per-slot: { qty, height_m, width_m }
+  const slotData: Record<number, { qty: number; height_m: number; width_m: number }> = {};
+
+  function addToSlot(row: number, h: number, w: number) {
+    if (slotData[row]) { slotData[row].qty += 1; }
+    else               { slotData[row] = { qty: 1, height_m: h, width_m: w }; }
+  }
+
+  if (data.openings && data.openings.length > 0) {
+    // Flat openings[] path (enriched jobs — the primary path)
+    for (const o of data.openings) {
+      if (o.type === "sectional_door") continue; // → garage H-block
+      if (o.type === "entrance") { addToSlot(72, o.height_m, o.width_m); continue; }
+      if (o.type === "pa_door")  { addToSlot(70, o.height_m, o.width_m); continue; }
+      // window / slider / garage_window
+      const room = (o.room ?? "").toLowerCase();
+      if (room.includes("laundry")) continue; // no laundry-window slot → drop
+      const spec = WINDOW_SLOT_SPECS.find((s) => s.keywords.some((k) => room.includes(k)));
+      if (!spec) continue;
+      const row = DROP_IN_SLOT_ROW[spec.key as string];
+      if (!row) continue;
+      addToSlot(row, o.height_m, o.width_m);
+    }
+  } else {
+    // Relational windowsByRoom fallback (legacy / null-openings jobs)
+    const wbr = data.windowsByRoom;
+    for (const [slotKey, val] of Object.entries(wbr)) {
+      if (!val) continue;
+      if (slotKey === "garageDoor1" || slotKey === "garageDoor2") continue; // → garage block
+      if (slotKey === "kitchenExtra") {
+        // fold overflow into kitchen (row 54)
+        if (slotData[54]) slotData[54].qty += val.qty;
+        else slotData[54] = { qty: val.qty, height_m: val.height, width_m: val.width };
+        continue;
+      }
+      const row = slotKey === "entrance" ? 72 : DROP_IN_SLOT_ROW[slotKey];
+      if (!row) continue;
+      addToSlot(row, val.height, val.width);
+    }
+  }
+
+  // Write accumulated slots → D/E/F (qty/height_m/width_m; height already in metres)
+  for (const [rowStr, s] of Object.entries(slotData)) {
+    const row = Number(rowStr);
+    put(`D${row}`, s.qty);
+    if (s.height_m > 0) put(`E${row}`, Math.round(s.height_m * 1000) / 1000);
+    if (s.width_m  > 0) put(`F${row}`, Math.round(s.width_m  * 1000) / 1000);
+  }
+
+  // ── Garage doors — H175-H180 (zero all, set matched size) ─────────────────
+  for (const row of [175, 176, 177, 178, 179, 180]) zero(`H${row}`);
+  if (data.garageDoor48x21Std       > 0) put("H175", data.garageDoor48x21Std);
+  if (data.garageDoor48x21Insulated > 0) put("H176", data.garageDoor48x21Insulated);
+  if (data.garageDoor24x21Std       > 0) put("H177", data.garageDoor24x21Std);
+  if (data.garageDoor24x21Insulated > 0) put("H178", data.garageDoor24x21Insulated);
+  if (data.garageDoor27x21Std       > 0) put("H179", data.garageDoor27x21Std);
+  if (data.garageDoor27x21Insulated > 0) put("H180", data.garageDoor27x21Insulated);
+
+  // ── Interior doors — H187/190/192/193 (zero first, then actuals) ──────────
+  zero("H187"); zero("H190"); zero("H192"); zero("H193");
+  if (data.intDoorStandard   > 0) put("H187", data.intDoorStandard);
+  if (data.intDoorBarnSlider > 0) put("H190", data.intDoorBarnSlider);
+  if (data.intDoorDouble     > 0) put("H192", data.intDoorDouble);
+  if (data.intDoorCavitySlider > 0) put("H193", data.intDoorCavitySlider);
+
+  // Column widths: A=labels, D-F=numeric data, H=door/garage counts, I=job info
+  ws["!cols"] = [
+    { wch: 30 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
+    { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 28 },
+  ];
+  ws["!ref"] = "A1:I210";
+  return ws;
+}
+
 export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
   const ws: XLSX.WorkSheet = {};
 
@@ -1274,9 +1400,10 @@ export async function writeIQDataSheetFull(
 
   XLSX.utils.book_append_sheet(wb, wsData, "5. Data Input House ");
 
-  // QS-aligned paste sheet — cell addresses match Jennian_QS_IQ_Updated.xlsm exactly
-  const wsQSInput = buildQSDataInputSheet(data);
-  XLSX.utils.book_append_sheet(wb, wsQSInput, "IQ Data Input");
+  // Drop-in paste sheet — cell addresses match the master's IQ Input tab exactly.
+  // Ctrl+A → copy → paste-values into master. Replaces the retired D12-style sheet.
+  const wsDropIn = buildDropInSheet(data);
+  XLSX.utils.book_append_sheet(wb, wsDropIn, "IQ Input");
 
   return XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
 }
