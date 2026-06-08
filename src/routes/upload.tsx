@@ -347,27 +347,36 @@ function UploadPage() {
         }
 
         // (c) Write opening_schedule rows (flat block ③ in the QS export).
-        // Per-row error logging so we see the real Postgres code if RLS or constraint fires.
-        const { buildComposedOpeningRows, openingRowKey } = await import("@/lib/takeoff/extract-openings");
-        const openings = enriched.openings ?? [];
-        if (openings.length > 0) {
-          const existingKeys = new Set<string>();
-          const { rows: openingRows } = buildComposedOpeningRows(openings, existingKeys);
-          for (const row of openingRows) {
-            const { error: osErr } = await supabase.from("opening_schedule").insert({
-              job_id: job.id,
-              plan_page_number: 1,
-              quantity: 1,
-              source: "Composed takeoff",
-              review_status: "review_required",
-              created_by: user.id,
-              ...row,
-            });
-            if (osErr) {
-              console.warn("[persist-wizard] opening_schedule insert failed:",
-                osErr.code, osErr.message, (osErr as { details?: string }).details ?? "");
+        // FAIL-SOFT: opening_schedule is the deprecated relational projection — the canonical
+        // opening set lives in takeoff_json (written in step (b) above). buildComposedOpeningRows
+        // can be unavailable at runtime (its definition is not in the deployed bundle), which
+        // threw here and blocked the entire save. Mirror run.ts's fail-soft persist: log and
+        // continue — never block the save on the projection write. (a)/(b) have already persisted
+        // the canonical data. Per-row error logging surfaces the real Postgres code on RLS/constraint.
+        try {
+          const { buildComposedOpeningRows } = await import("@/lib/takeoff/extract-openings");
+          const openings = enriched.openings ?? [];
+          if (openings.length > 0) {
+            const existingKeys = new Set<string>();
+            const { rows: openingRows } = buildComposedOpeningRows(openings, existingKeys);
+            for (const row of openingRows) {
+              const { error: osErr } = await supabase.from("opening_schedule").insert({
+                job_id: job.id,
+                plan_page_number: 1,
+                quantity: 1,
+                source: "Composed takeoff",
+                review_status: "review_required",
+                created_by: user.id,
+                ...row,
+              });
+              if (osErr) {
+                console.warn("[persist-wizard] opening_schedule insert failed:",
+                  osErr.code, osErr.message, (osErr as { details?: string }).details ?? "");
+              }
             }
           }
+        } catch (openErr) {
+          console.warn("[persist-wizard] opening_schedule write skipped — composed openings unavailable; save continues:", openErr);
         }
 
         // (d) INSERT module_items for the key labels buildQSExportData.getNum() reads.
