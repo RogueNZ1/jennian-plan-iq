@@ -400,12 +400,12 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     // Unknown width → the door is NOT folded into the opening set (no fabricated area).
     expect(out.prelim.entrance).toBeNull();
     expect(out.prelim.takeoff.windows_by_room.entrance).toBeUndefined();
-    // Honesty rails: height flagged assumed-standard, width flagged not-found (never a
-    // fabricated 1.4), and the ext-wall note still says the area is not recomputed.
+    // Honesty rails: height flagged assumed-standard, width flagged as the last-resort
+    // assumed 1.0m (never a fabricated measured 1.4), and the entry door is counted now.
     expect(out.prelim.takeoff.notes).toContain("height assumed standard 2.1m");
-    expect(out.prelim.takeoff.notes).toContain("width not found on the plan");
+    expect(out.prelim.takeoff.notes).toContain("width assumed 1.0m — confirm against plan");
     expect(out.prelim.takeoff.notes).not.toContain("assumed standard 1.4");
-    expect(out.prelim.takeoff.notes).toContain("not recomputed");
+    expect(out.prelim.takeoff.notes).toContain("counted in the opening area");
     // The vector width is unresolved (null) → the entrance width cross-check is uncheckable,
     // never a false flag.
     const recEntrance = out.prelim.reconciliation.fields.find(
@@ -443,12 +443,12 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     // Entrance unknown-width flag rides on windows_by_room (asserted height, width not found).
     const wbrFlags = cmp.windows_by_room.discrepancy_flags.join(" ");
     expect(wbrFlags).toContain("height assumed standard 2.1m");
-    expect(wbrFlags).toContain("width not found on the plan");
+    expect(wbrFlags).toContain("width assumed 1.0m — confirm against plan");
     // Derived ext-wall area is flagged incomplete (Beddis heads unresolved) on its own field.
     expect(cmp.external_wall_area_m2.source).toBe("derived");
     expect(cmp.external_wall_area_m2.discrepancy_flags.join(" ")).toContain("incomplete");
     // The global notes view still carries every migrated flag (backward-compat / M2 survival).
     expect(cmp.notes).toBe(out.prelim.composed_bare.notes);
-    expect(cmp.notes).toContain("width not found on the plan");
+    expect(cmp.notes).toContain("width assumed 1.0m — confirm against plan");
   }, 600000);
 });

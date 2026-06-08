@@ -1009,23 +1009,29 @@ width is **read when printed, flagged-unknown otherwise — never asserted**.
 
 | Fixture | Label | Width | Width source | Height | Folded into opening set | F-022 entrance |
 |---|---|---|---|---|---|---|
-| **Beddis** | `ENTRY` | **unknown** (null) | `unresolved` (no frame token) | **2100** asserted | **not folded** (unknown width → no area) | uncheckable (vector width null) |
+| **Beddis** | `ENTRY` | **unknown** (null) | `unresolved` (no frame token) | **2100** asserted | **folded** (assumed 1.0m width, flagged) | uncheckable (vector width null) |
 | **Harrison** | `PORCH` | **1430** | `vector_text` ("Frame to Frame 1430") | **2100** asserted | `{qty:1, height_m:2.1, width_m:1.43}` | uncheckable (vision had none) |
 
-- **Width came from:** Beddis = **flagged-unknown** (no printed frame, width left unresolved — *not* asserted);
-  Harrison = **the printed frame-to-frame dimension (1430)**. Neither fixture used a vision fallback — Harrison's
-  width was read directly from geometry text, Beddis's has no recoverable source.
+- **Unresolved opening widths are no longer left null.** When the plan doesn't print a width, IQ applies a single
+  documented last-resort fallback (`ASSUMED_OPENING_WIDTH_M = 1.0 m`), counts the opening in the glass/opening
+  area, and surfaces the assumption as a review flag ("width assumed 1.0m — confirm against plan"). The fallback
+  fires only on genuine gaps and never overwrites a width read from the plan. (Harrison still credits its printed
+  frame-to-frame 1430; Beddis, with no printed frame, takes the flagged 1.0m fallback.)
 - **Honesty rails live in `takeoff.notes`:** both carry *"entrance door: height assumed standard 2.1m — confirm
-  against the plan"*; Beddis adds *"width not found on the plan — confirm (left unresolved, not added to the
-  opening area)"*, Harrison instead credits *"width 1.43m read from the printed frame-to-frame dimension (added
-  to the opening set)"*; both end with the ext-wall rail *"the external wall area stays gated on the unresolved
-  window heights and is **not recomputed** here."*
+  against the plan"*; Beddis adds *"width assumed 1.0m — confirm against plan"* (the last-resort fallback, flagged),
+  Harrison instead credits *"width 1.43m read from the printed frame-to-frame dimension"*; both now end with
+  *"counted in the opening area"* — the entry door is folded into the opening set on every path (route-2 symbol
+  fold or the schedule entry fold) and the external wall area is recomputed to deduct it.
 
 ### 16.3 Honesty rails / no-regression / determinism
 
-- **No fabricated width — the anti-overfit rail.** Beddis's width is left `null` rather than asserted to 1400,
-  so the baseline can only go green by **reading** a width (Harrison) or by **honestly flagging its absence**
-  (Beddis) — never by emitting the QS answer. The green baseline is no longer circular.
+- **Anti-overfit, restated.** This reverses the earlier "never assert a width" stance, and the reason is the role
+  of the glass total: it drives both the cladding deduction (glass area subtracted from the wall) and the glazing
+  cost (area × rate). Silently omitting an unresolved opening is wrong in three directions at once — it under-counts
+  glass, over-counts cladding, and under-costs glazing. A flagged assumption keeps the total complete while making
+  the uncertainty visible. The anti-overfit principle is preserved, not abandoned: IQ still never fabricates a width
+  over real plan data, and every assumed value is flagged for human confirmation rather than hidden — the shift is
+  from "omit silently" to "assume openly and flag."
 - **Ext-wall stays gated.** Folding the entrance (when known) does **NOT** ungate `external_wall_area_m2` —
   the 8 unresolved window heights still block it; it stays flagged incomplete (Beddis ext-wall area unchanged at
   the Slice-2 value). No QS field is silently "completed" by the assertion.

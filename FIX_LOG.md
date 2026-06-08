@@ -166,3 +166,80 @@ Tasks 1–4 done; suite 222 passed / 1 skipped (gated live). Reproducibility del
 via the golden/cached-replay fixture. New findings F-019/F-020/F-021/F-022 logged;
 F-021→Phase 5, F-022→Phase 5 (reconciliation, tied to F-009). `run.ts` untouched.
 Phase 2 is a separate run.
+
+---
+
+## F-023 — door/window classification leak + zero-width opening rows (DIAGNOSIS ONLY)
+
+**Date:** 2026-06-08
+**Status:** Read-only audit. **No code changed.** Generalised root cause + fix
+direction below; no patch to any one job's values.
+
+### Trigger
+A job exported with the entrance door bleeding into the master's IQ Input window
+grid (rows 41–72): one row counted with an asserted height and a **zero width**
+(a counted-but-arealess phantom), plus an asserted-height opening sitting in a
+window slot. The master throws a window mismatch on the export.
+
+### Pipeline trace — where the door enters and why it isn't separated
+On the no-schedule / vector-usable path the entrance enters the opening set at the
+**compose stage**, via `foldSymbolOpenings` → `entranceFallbackOpening`
+(`derive-fields.ts:242-263`, called from `compose-takeoff.ts:231-236`). It is
+correctly typed `"entrance"` there. The separation failure is distributed, and the
+type signal degrades at every earlier stage:
+
+- **`extractAnnotations`** — the vision prompt asks for a window-vs-door boolean
+  (`extract-annotations.ts:53`) but it is collapsed into the overloaded
+  `nearOpening` field (`extract-annotations.ts:9-10,118`). "Is a window" and "is
+  near an opening" become one bit; the door/window distinction is lost at read time.
+- **`classifyAnnotations`** — gates only on `nearOpening` (`classify-annotations.ts:48-49`)
+  and types every surviving opening `"window"` (`derive-fields.ts:122,144`). No
+  door/window discriminator exists here.
+- **compose/fold** — the only place the entrance is correctly typed `"entrance"`…
+  which the exporter then writes straight back into the shared window grid.
+
+### Zero-width row — origin and why it survives to export
+`entranceFallbackOpening` sets `width_m = 0` (not null) when the entry width is
+unresolved, with height asserted to the standard (`derive-fields.ts:246-247`).
+Nothing downstream treats "unresolved/flagged" as a drop condition:
+- `deriveOpenings` emits it with `area_m2: 0` (`derive-fields.ts:129`).
+- `deriveOpeningTotals` sums the zero in (`derive-fields.ts:328`) — no zero-area filter.
+- `buildDropInSheet` writes `qty` and height unconditionally and only guards the
+  **width cell** (`if (s.width_m > 0) put(F…)`, `iq-qs-export.ts:1042-1043`) — it
+  guards the value, not the row. Result: `D=qty, E=height, F=0` lands as a counted row.
+
+A counted opening with zero width/area is a legal, un-dropped state through every layer.
+
+### Reconciliation point (which mismatch)
+**Count-vs-area**, not schedule-vs-callout (single-path job — no two sums to diverge)
+and not a raw total-count check. The phantom row is **counted but contributes zero
+area**, so `Σ qty` and `Σ qty×h×w` over rows 41–72 stop moving together. Aggravated by
+an existing in-IQ type asymmetry: `deriveOpeningTotals.window_count` **excludes**
+`entrance` (`derive-fields.ts:326-327`) while the exported grid **includes** the
+entrance row — so IQ's reported `window_count` (N) and the grid's populated-row count
+(N+1) already disagree before the master opens the file.
+
+### Root cause — as a class
+1. **No type segregation at the export boundary.** Door-class openings
+   (`entrance`, `pa_door`, sectional) are correctly typed upstream but written into
+   the same contiguous block the master reads as the window schedule. Opening type
+   is computed, then ignored where it matters most.
+2. **Zero-width / zero-area rows are a legal, un-dropped state.** The pipeline keeps
+   unresolved-width openings as `width=0, area=0` "to avoid loss" but never enforces
+   the reciprocal invariant that a *counted* row must have positive area. The
+   exporter's width guard protects the cell, not the row.
+
+### Generalised fix direction (no job-specific values)
+- Carry opening **type** to the export boundary and route by type, not by row-range
+  proximity: door-class types → door slots only; window grid accepts glazed
+  window-class types only, so an entrance can never occupy a window row regardless
+  of room-keyword match.
+- Make IQ's reported `window_count` and the populated window-grid row count derive
+  from the **same** type filter (today `derive-fields.ts:326` and the exporter loop differ).
+- Define one invariant — *a row may be counted with positive area, or omitted; never
+  counted with zero area* — and enforce it at the export gate: an opening whose
+  resolved area is 0 is **dropped from the counted grid and surfaced as a review
+  flag** (the flag already exists, `derive-fields.ts:249`), not written as a phantom row.
+
+**Disposition:** ties into the F-009 / Phase-5 convergence work (single opening
+source, reconciliation). No code touched in this entry.

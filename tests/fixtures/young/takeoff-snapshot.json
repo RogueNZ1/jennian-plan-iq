@@ -1,5 +1,5 @@
 {
-  "notes": "alfresco_area_m2 read from the porch/alfresco label — low confidence; confirm against QS. entrance door: height assumed standard 2.1m — confirm against the plan; width not found on the plan — confirm (left unresolved, not added to the opening area).",
+  "notes": "alfresco_area_m2 read from the porch/alfresco label — low confidence; confirm against QS. entrance door: height assumed standard 2.1m — confirm against the plan; width assumed 1.0m — confirm against plan; counted in the opening area.",
   "openings": [
     {
       "room": "Bed 1 (Master)",
@@ -109,19 +109,19 @@
       "type": "entrance",
       "flags": [
         "height assumed standard 2.1m — confirm against the elevation/joinery schedule",
-        "entry width unresolved (ambiguous/product label) — confirm; standard single-entry size is the fallback"
+        "width assumed 1.0m — confirm against plan"
       ],
       "glazed": true,
       "source": "unresolved",
-      "area_m2": 0,
-      "width_m": 0,
+      "area_m2": 2.1,
+      "width_m": 1.0,
       "cladding": null,
       "height_m": 2.1,
       "confidence": "low",
       "height_source": "asserted"
     }
   ],
-  "glazed_sqm": 15.93,
+  "glazed_sqm": 18.03,
   "roof_area_m2": {
     "value": 115.34,
     "source": "vision",
@@ -229,7 +229,7 @@
     "source": "vision",
     "confidence": null,
     "discrepancy_flags": [
-      "entrance door: height assumed standard 2.1m — confirm against the plan; width not found on the plan — confirm (left unresolved, not added to the opening area)."
+      "entrance door: height assumed standard 2.1m — confirm against the plan; width assumed 1.0m — confirm against plan; counted in the opening area."
     ]
   },
   "alfresco_area_m2": {
@@ -268,7 +268,7 @@
     "confidence": null,
     "discrepancy_flags": []
   },
-  "total_opening_sqm": 15.93,
+  "total_opening_sqm": 18.03,
   "external_door_count": {
     "value": null,
     "source": "vision",
@@ -282,7 +282,7 @@
     "discrepancy_flags": []
   },
   "external_wall_area_m2": {
-    "value": 91.11,
+    "value": 89.01,
     "source": "derived",
     "confidence": null,
     "discrepancy_flags": []

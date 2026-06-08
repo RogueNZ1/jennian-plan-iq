@@ -360,10 +360,10 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     expect(out.concept.entrance).toEqual({ qty: 1, height_m: 2.1, width_m: 1.43 });
     expect(out.concept.takeoff.windows_by_room.entrance).toEqual({ qty: 1, height_m: 2.1, width_m: 1.43 });
     // Honesty rails: height flagged assumed-standard; the width is CREDITED to the printed
-    // frame-to-frame dimension (not flagged as assumed); ext-wall stays not-recomputed.
+    // frame-to-frame dimension (not flagged as assumed); the entry door is counted in the opening area.
     expect(out.concept.takeoff.notes).toContain("height assumed standard 2.1m");
     expect(out.concept.takeoff.notes).toContain("width 1.43m read from the printed frame-to-frame dimension");
-    expect(out.concept.takeoff.notes).toContain("not recomputed");
+    expect(out.concept.takeoff.notes).toContain("counted in the opening area");
     // Single-source (vision reads no entry door) → the entrance width cross-check is
     // uncheckable, never a false flag — even though a printed width exists on the vector side.
     const recEntrance = out.concept.reconciliation.fields.find(

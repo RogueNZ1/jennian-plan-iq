@@ -102,9 +102,11 @@ export type VectorOpenings = {
  *  - `width_mm`: the printed "Frame to Frame NNNN" when the plan annotates one
  *    (`width_source: "vector_text"`, data-driven, e.g. Harrison 1430); otherwise `null`
  *    with `width_source: "unresolved"` — the width is NEVER asserted to a standard, because
- *    entry-door widths genuinely vary (1200/1400/1600/sliders) so a fixed value would be an
- *    overfit to one job's QS, not a measurement. The app FLAGS an unresolved width for
- *    confirmation rather than fabricating one.
+ *    entry-door widths genuinely vary (1200/1400/1600/sliders) so a measured value is never
+ *    invented HERE, at the geometry layer — the width stays null/unresolved. Downstream,
+ *    derive-fields applies a flagged last-resort assumed width (ASSUMED_OPENING_WIDTH_M) only
+ *    when the plan width could not be read, so the glass/joinery total stays complete; that
+ *    assumption is surfaced as a review flag for confirmation, never presented as a measurement.
  *  - `label`: the entry-type room token that anchored it (e.g. "ENTRY", "PORCH").
  */
 export type VectorEntrance = {

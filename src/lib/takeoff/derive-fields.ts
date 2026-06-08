@@ -19,6 +19,27 @@ import { classifyGarageDoorAnnotation } from "./classify";
 import { round2 } from "./utils";
 
 /**
+ * Last-resort fallback width (metres) for an opening whose plan width could not be read.
+ * Opening widths vary, so this is a coarse standard — it fires ONLY when no real width
+ * exists (null/≤0) and NEVER overwrites an extracted/measured width (gaps only). Every
+ * opening that uses it is review-flagged ("width assumed 1.0m — confirm against plan") so
+ * the glass/joinery total stays COMPLETE — qty and area move together, never a 0-area
+ * phantom row — while a human confirms the value against the plan.
+ */
+export const ASSUMED_OPENING_WIDTH_M = 1.0;
+export const ASSUMED_WIDTH_FLAG = "width assumed 1.0m — confirm against plan";
+
+/**
+ * Resolve an opening width in metres. Returns the real width untouched whenever one exists;
+ * applies ASSUMED_OPENING_WIDTH_M ONLY for a genuinely missing width (null/≤0). `assumed`
+ * tells the caller to attach ASSUMED_WIDTH_FLAG. Never overwrites a real width.
+ */
+function resolveOpeningWidthM(widthM: number | null | undefined): { width_m: number; assumed: boolean } {
+  if (widthM != null && widthM > 0) return { width_m: widthM, assumed: false };
+  return { width_m: ASSUMED_OPENING_WIDTH_M, assumed: true };
+}
+
+/**
  * Total area of EVERY extracted opening, in m².
  *
  * Windows: the Door & Window Schedule list is the canonical source when present
@@ -113,12 +134,13 @@ export function deriveOpenings(args: {
 
   const sched = args.windowsSchedule;
   if (sched && sched.length > 0) {
-    // Schedule path: one opening per W-entry, individual dims preserved. A schedule
-    // entry whose height was rejected (head-datum safeguard) carries width only → its
-    // area is 0 here, never fabricated, but the opening is still listed (no loss).
+    // Schedule path: one opening per W-entry, individual dims preserved. A schedule entry
+    // whose WIDTH could not be read gets the last-resort assumed width (flagged), so the
+    // glass total stays complete — never a 0-area phantom. (A null HEIGHT is a separate,
+    // out-of-scope gap and still yields area 0 here.)
     for (const w of sched) {
       const h = w.height_m ?? 0;
-      const wd = w.width_m ?? 0;
+      const { width_m: wd, assumed } = resolveOpeningWidthM(w.width_m);
       openings.push({
         type: "window",
         room: w.id ?? null,
@@ -128,23 +150,27 @@ export function deriveOpenings(args: {
         cladding: null,
         area_m2: round2(h * wd) ?? 0,
         source: "vision",
+        ...(assumed ? { flags: [ASSUMED_WIDTH_FLAG] } : {}),
         confidence: "high",
       });
     }
   } else if (args.windowsByRoom) {
-    // Callout path: un-merge each room's qty into individual entries (same dims).
+    // Callout path: un-merge each room's qty into individual entries (same dims). A room
+    // whose width could not be read gets the last-resort assumed width (flagged), never 0-area.
     for (const [room, w] of Object.entries(args.windowsByRoom)) {
       if (!w) continue;
+      const { width_m: wd, assumed } = resolveOpeningWidthM(w.width_m);
       for (let i = 0; i < w.qty; i++) {
         openings.push({
           type: "window",
           room,
           height_m: w.height_m,
-          width_m: w.width_m,
+          width_m: wd,
           glazed: true,
           cladding: null,
-          area_m2: round2(w.height_m * w.width_m) ?? 0,
+          area_m2: round2(w.height_m * wd) ?? 0,
           source: "vision",
+          ...(assumed ? { flags: [ASSUMED_WIDTH_FLAG] } : {}),
           confidence: "medium",
         });
       }
@@ -240,13 +266,14 @@ function symbolToOpening(s: VectorSymbolOpening): Opening {
 }
 
 function entranceFallbackOpening(v: VectorEntrance): Opening {
-  // Present-but-flagged entry: the plan has an entry/porch but the width is not a clean
-  // callout (e.g. a named door product). Width from vector_text when the plan printed one,
-  // else UNRESOLVED (never asserted to a standard); height asserted 2.1m. Counted, flagged.
-  const resolved = v.width_mm != null;
-  const width_m = resolved ? (round2(v.width_mm! / 1000) ?? 0) : 0;
+  // Present-but-flagged entry: the plan has an entry/porch. Width from vector_text when the
+  // plan printed a frame-to-frame number; otherwise the last-resort assumed width (flagged),
+  // so the entry contributes its glass area and never lands as a 0-area phantom. Height
+  // asserted 2.1m. Counted, flagged, never dropped.
+  const printed = v.width_mm != null ? (round2(v.width_mm / 1000) ?? null) : null;
+  const { width_m, assumed } = resolveOpeningWidthM(printed);
   const flags = [ASSERTED_HEIGHT_FLAG];
-  if (!resolved) flags.push("entry width unresolved (ambiguous/product label) — confirm; standard single-entry size is the fallback");
+  if (assumed) flags.push(ASSUMED_WIDTH_FLAG);
   return {
     type: "entrance",
     room: "Entry",
@@ -255,10 +282,10 @@ function entranceFallbackOpening(v: VectorEntrance): Opening {
     glazed: true,
     cladding: null,
     area_m2: round2(STANDARD_OPENING_HEIGHT_M * width_m) ?? 0,
-    source: resolved ? "callout" : "unresolved",
+    source: assumed ? "unresolved" : "callout",
     height_source: "asserted",
     flags,
-    confidence: resolved ? "medium" : "low",
+    confidence: assumed ? "low" : "medium",
   };
 }
 
@@ -306,6 +333,28 @@ export function foldSymbolOpenings(
   }
 
   return { openings: merged, garage_door_size };
+}
+
+/**
+ * Schedule-path analogue of the route-2 entry fold. The Door & Window Schedule lists windows
+ * only — never the entry door — so on the schedule path the entrance is missing from openings[]
+ * (and thus from glazed_sqm / total_opening_sqm / the ext-wall deduction). This appends it
+ * ONCE, from the SAME single source the route-2 path uses: the vector entrance, built by the
+ * shared entranceFallbackOpening (asserted standard height; the printed width when present,
+ * else the ASSUMED_OPENING_WIDTH_M fallback, flagged). Counted once — a no-op when an entrance
+ * (or any entry-room opening) is already present, mirroring foldSymbolOpenings' dedup. The
+ * caller gates this to the schedule path (no symbol_openings) so the route-2 fold is never
+ * double-applied. Pure: returns a new array only when an entrance is appended; else the input.
+ */
+export function foldScheduleEntrance(
+  openings: Opening[],
+  vectorEntrance: VectorEntrance | null | undefined,
+): Opening[] {
+  if (!vectorEntrance) return openings;
+  const alreadyHasEntry =
+    openings.some((o) => o.type === "entrance" || ENTRY_ROOM_RE.test(o.room ?? ""));
+  if (alreadyHasEntry) return openings;
+  return [...openings, entranceFallbackOpening(vectorEntrance)];
 }
 
 /**

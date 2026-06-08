@@ -30,7 +30,7 @@ import type { TakeoffData } from "./takeoff-types";
 import type { VectorAnnotations } from "./geometry-api";
 import type { WindowScheduleData, ScheduleWindow } from "./extract-window-schedule";
 import { classifyGarageDoorAnnotation, parseDimsMm } from "./classify";
-import { computeOpeningAreaM2, computeExternalWallAreaM2 } from "./derive-fields";
+import { computeOpeningAreaM2, computeExternalWallAreaM2, ASSUMED_WIDTH_FLAG } from "./derive-fields";
 
 /**
  * How close (mm) a schedule window's read height must sit to the engine's head datum
@@ -361,12 +361,14 @@ export function preferVectorEntrance(
 }
 
 /**
- * Human-readable note flagging the entrance door, for appending to takeoff.notes. The
- * HEIGHT is always an assumed building standard. The WIDTH is either data-driven (the
- * printed frame-to-frame dimension, folded into the opening set) or UNRESOLVED — the plan
- * printed none, so it is flagged for confirmation and left out of the opening area rather
- * than asserted. Returns an empty string when there is no usable vector entrance so
- * callers can `.filter(Boolean)`.
+ * Human-readable note flagging the entrance door, for appending to takeoff.notes. The HEIGHT
+ * is always an assumed building standard. The WIDTH is either data-driven (the printed
+ * frame-to-frame dimension) or, when the plan printed none, the last-resort assumed width
+ * (ASSUMED_WIDTH_FLAG) — never a measured value. Either way the entry door IS counted in the
+ * opening area now (folded once on every path: the route-2 symbol fold or the schedule entry
+ * fold), so the note no longer claims it is left out or that the external wall area is not
+ * recomputed. Returns an empty string when there is no usable vector entrance so callers can
+ * `.filter(Boolean)`.
  */
 export function entranceAssumptionNote(
   vector: VectorAnnotations | undefined | null,
@@ -377,12 +379,11 @@ export function entranceAssumptionNote(
   const w = res.entrance.width_m;
   const widthClause =
     res.widthSource === "vector_text" && w != null
-      ? `width ${w}m read from the printed frame-to-frame dimension (added to the opening set)`
-      : `width not found on the plan — confirm (left unresolved, not added to the opening area)`;
+      ? `width ${w}m read from the printed frame-to-frame dimension`
+      : ASSUMED_WIDTH_FLAG;
   return (
     `entrance door: height assumed standard ${h}m — confirm against the plan; ` +
-    `${widthClause}. (The external wall area stays gated on the unresolved window ` +
-    `heights and is not recomputed here.)`
+    `${widthClause}; counted in the opening area.`
   );
 }
 

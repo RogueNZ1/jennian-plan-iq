@@ -34,7 +34,7 @@ import {
   type ScheduleSafeguardResult,
 } from "./vector-annotations";
 import { aggregateWindows, applyWindowAggregate } from "./aggregate-windows";
-import { deriveOpenings, deriveOpeningTotals, foldSymbolOpenings, computeExternalWallAreaM2 } from "./derive-fields";
+import { deriveOpenings, deriveOpeningTotals, foldSymbolOpenings, foldScheduleEntrance, computeExternalWallAreaM2 } from "./derive-fields";
 import {
   reconcileVectorVision,
   type ReconciliationReport,
@@ -176,15 +176,11 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       ? Math.round(mergedWithWindows.windows_by_room.entrance.width_m * 1000)
       : null;
   mergedWithWindows = preferVectorEntrance(mergedWithWindows, vectorAnnotations);
-  let entranceNote = entranceAssumptionNote(vectorAnnotations);
-  // Route 2 — when symbol openings are folded, Stage C RE-derives external_wall_area_m2 from
-  // the corrected opening set, so the entrance note's "(…not recomputed here.)" clause is stale
-  // and contradicts the (now recomputed) figure. Strip just that clause. Gated on symbol_openings
-  // → schedule jobs (Beddis/Harrison, no fold) keep the note verbatim, byte-unchanged.
-  const willRecomputeExtWall = !!(vectorAnnotations?.symbol_openings && vectorAnnotations.symbol_openings.length > 0);
-  const STALE_EXTWALL_CLAUSE =
-    " (The external wall area stays gated on the unresolved window heights and is not recomputed here.)";
-  if (entranceNote && willRecomputeExtWall) entranceNote = entranceNote.replace(STALE_EXTWALL_CLAUSE, "");
+  // Entry-door note: flags the asserted height + the width source (printed, or the assumed
+  // last-resort fallback). The entrance is folded into the opening set on every path (route-2
+  // symbol fold or the schedule entry fold), and the ext-wall area is recomputed accordingly,
+  // so entranceAssumptionNote no longer claims "not added"/"not recomputed" — no clause to strip.
+  const entranceNote = entranceAssumptionNote(vectorAnnotations);
   if (entranceNote) {
     mergedWithWindows = {
       ...mergedWithWindows,
@@ -234,16 +230,24 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     t.garage_door_size,
     vectorAnnotations?.entrance,
   );
-  const composedOpenings = folded.openings;
+  // Schedule path — the windows-only Door & Window Schedule omits the entry door, so fold it
+  // into openings[] from the SAME vector entrance + shared builder the route-2 path uses, so
+  // glazed_sqm / total_opening_sqm / the ext-wall deduction all include it (counted once).
+  // Strictly gated OFF when symbol_openings fired (route-2 already added the entrance) → no
+  // double-count; foldScheduleEntrance's own dedup is a further backstop.
+  const hasSymbolOpenings = !!(vectorAnnotations?.symbol_openings && vectorAnnotations.symbol_openings.length > 0);
+  const composedOpenings = hasSymbolOpenings
+    ? folded.openings
+    : foldScheduleEntrance(folded.openings, vectorAnnotations?.entrance);
   const composedGarageDoorSize = folded.garage_door_size;
   const composedOpeningTotals = deriveOpeningTotals(composedOpenings);
-  // Route 2 — when symbol openings were folded in (no-schedule path), re-derive the external
-  // wall AREA from the now-richer opening total (perimeter × stud − Σ opening area). This is
-  // the ext-wall $ fix: the recovered sectional/slider/PA/entry openings are subtracted, so
-  // the area shrinks toward the QS figure. A strict no-op otherwise (folded === baseOpenings →
-  // same reference), so schedule/datum jobs keep their existing ext-wall value untouched.
+  // Re-derive the external wall AREA from the now-richer opening total (perimeter × stud −
+  // Σ opening area) whenever the opening set grew — the route-2 symbol fold OR the schedule
+  // entry fold above — so external_wall_area_m2 and glazed_sqm move together by the same
+  // amount. A strict no-op otherwise (composedOpenings === baseOpenings → same reference), so
+  // jobs with neither fold keep their existing ext-wall value untouched.
   const composedExtWallAreaM2 =
-    folded.openings !== baseOpenings && composedOpeningTotals.total_opening_sqm != null
+    composedOpenings !== baseOpenings && composedOpeningTotals.total_opening_sqm != null
       ? computeExternalWallAreaM2(t.external_wall_lm, t.ceiling_height_m, composedOpeningTotals.total_opening_sqm)
       : t.external_wall_area_m2;
   const reconFlag = (field: string): string | null =>

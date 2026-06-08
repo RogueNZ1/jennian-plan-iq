@@ -103,8 +103,8 @@ const FIXTURES = [
     expectedCount: 10,
     criticalRows: [
       (os: Opening[]) => expect(os.some(o => o.type === "slider" && (o.room ?? "").toLowerCase().includes("din") && Math.abs(o.width_m - 2.4) < 0.05 && o.glazed)).toBe(true),
-      // entrance w=0: present (not dropped) even though width is 0
-      (os: Opening[]) => expect(os.some(o => o.type === "entrance" && o.width_m === 0)).toBe(true),
+      // entrance: present with the last-resort assumed width (1.0m) — counted, not a 0-area phantom
+      (os: Opening[]) => expect(os.some(o => o.type === "entrance" && o.width_m === 1.0 && o.area_m2 > 0)).toBe(true),
       // WC: present (no longer dropped by missing slot)
       (os: Opening[]) => expect(os.some(o => o.type === "window" && (o.room ?? "").toLowerCase() === "wc")).toBe(true),
     ],
