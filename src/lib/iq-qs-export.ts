@@ -171,6 +171,15 @@ export type ElectricalSchedule = {
  * always falls back to the relational rows. `select("*")` is used deliberately: it never errors
  * on a column that does not exist yet, it simply omits it.
  */
+/**
+ * How many recent takeoff_runs rows to scan for a usable payload. A failed or incomplete
+ * re-run writes a row whose takeoff_json is null; taking only the single latest row made
+ * one bad re-run silently flip the whole export onto the relational fallback (the canonical
+ * openings — sliders, sectional doors — then never reach the sheets). Scanning a small
+ * window returns the most recent run that actually carries the canonical takeoff.
+ */
+const ENRICHED_RUN_SCAN_LIMIT = 5;
+
 export async function loadEnrichedTakeoffJson(jobId: string): Promise<EnrichedTakeoff | null> {
   try {
     const res = await supabase
@@ -178,10 +187,14 @@ export async function loadEnrichedTakeoffJson(jobId: string): Promise<EnrichedTa
       .select("*")
       .eq("job_id", jobId)
       .order("started_at", { ascending: false })
-      .limit(1);
-    const row = res.data?.[0] as Record<string, unknown> | undefined;
-    const tj = row?.["takeoff_json"];
-    return tj && typeof tj === "object" ? (tj as EnrichedTakeoff) : null;
+      .limit(ENRICHED_RUN_SCAN_LIMIT);
+    for (const row of (res.data ?? []) as Array<Record<string, unknown>>) {
+      const tj = row["takeoff_json"];
+      // First (most recent) row carrying a real payload wins; null/absent rows are skipped
+      // client-side so a missing column (pre-migration) still degrades gracefully to null.
+      if (tj && typeof tj === "object") return tj as EnrichedTakeoff;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -961,6 +974,28 @@ const DROP_IN_SLOT_ROW: Record<string, number> = {
 // All window/PA-door/entrance rows that must be zeroed before writing actuals
 const ALL_OPENING_ROWS = [41, 43, 45, 47, 49, 51, 52, 54, 56, 59, 62, 65, 67, 68, 70, 72];
 
+/**
+ * Standard sectional garage-door widths (m) → the drop-in H-row of the STANDARD
+ * (non-insulated) count cell. Canonical openings[] carry no insulation information, so a
+ * canonical-sourced door always lands in the standard bin; the relational item-label path
+ * (which can read "insulated") wins whenever it has data — see the dedupe rule in
+ * buildDropInSheet's garage block.
+ */
+const GARAGE_DOOR_STD_H_ROW_BY_WIDTH_M: ReadonlyArray<{ width_m: number; row: number }> = [
+  { width_m: 4.8, row: 175 },
+  { width_m: 2.4, row: 177 },
+  { width_m: 2.7, row: 179 },
+];
+/** Width tolerance (m) when matching a sectional door to a standard H-row bin. */
+const GARAGE_DOOR_WIDTH_TOL_M = 0.05;
+/**
+ * Master rows for NON-STANDARD-width sectional doors — the dims-capable "Garage Door"
+ * rows (D=qty, E=height m, F=width m, like the window rows). A width with no H-bin
+ * (e.g. a 3.0) is written here with its real dimensions, NEVER silently re-binned to a
+ * standard size and never dropped. Both rows are already zeroed via ALL_OPENING_ROWS.
+ */
+const NON_STANDARD_GARAGE_DOOR_ROWS = [67, 68] as const;
+
 export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   const ws: XLSX.WorkSheet = {};
   const yellow = { fill: { patternType: "solid", fgColor: { rgb: "FFFF00" } } };
@@ -1002,10 +1037,14 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     else               { slotData[row] = { qty: 1, height_m: h, width_m: w }; }
   }
 
+  // Canonical sectional doors collected from openings[] — routed in the garage block below.
+  // (Previously these were skipped with a comment claiming H-block routing that never existed.)
+  const sectionalDoors: Opening[] = [];
+
   if (data.openings && data.openings.length > 0) {
     // Flat openings[] path (enriched jobs — the primary path)
     for (const o of data.openings) {
-      if (o.type === "sectional_door") continue; // → garage H-block
+      if (o.type === "sectional_door") { sectionalDoors.push(o); continue; } // → garage block
       if (o.type === "entrance") { addToSlot(72, o.height_m, o.width_m); continue; }
       if (o.type === "pa_door")  { addToSlot(70, o.height_m, o.width_m); continue; }
       // window / slider / garage_window
@@ -1044,13 +1083,55 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   }
 
   // ── Garage doors — H175-H180 (zero all, set matched size) ─────────────────
+  // Source rule (dedupe — never both): the relational item-label counters win when they
+  // carry ANY door, because labels can state insulation, which canonical openings cannot.
+  // Only when the relational path is EMPTY (the enriched-only case that previously left
+  // the whole block at zero) is the block filled from canonical openings[] sectionals.
   for (const row of [175, 176, 177, 178, 179, 180]) zero(`H${row}`);
-  if (data.garageDoor48x21Std       > 0) put("H175", data.garageDoor48x21Std);
-  if (data.garageDoor48x21Insulated > 0) put("H176", data.garageDoor48x21Insulated);
-  if (data.garageDoor24x21Std       > 0) put("H177", data.garageDoor24x21Std);
-  if (data.garageDoor24x21Insulated > 0) put("H178", data.garageDoor24x21Insulated);
-  if (data.garageDoor27x21Std       > 0) put("H179", data.garageDoor27x21Std);
-  if (data.garageDoor27x21Insulated > 0) put("H180", data.garageDoor27x21Insulated);
+  const relationalGarageTotal =
+    data.garageDoor48x21Std + data.garageDoor48x21Insulated +
+    data.garageDoor24x21Std + data.garageDoor24x21Insulated +
+    data.garageDoor27x21Std + data.garageDoor27x21Insulated;
+  if (relationalGarageTotal > 0) {
+    if (data.garageDoor48x21Std       > 0) put("H175", data.garageDoor48x21Std);
+    if (data.garageDoor48x21Insulated > 0) put("H176", data.garageDoor48x21Insulated);
+    if (data.garageDoor24x21Std       > 0) put("H177", data.garageDoor24x21Std);
+    if (data.garageDoor24x21Insulated > 0) put("H178", data.garageDoor24x21Insulated);
+    if (data.garageDoor27x21Std       > 0) put("H179", data.garageDoor27x21Std);
+    if (data.garageDoor27x21Insulated > 0) put("H180", data.garageDoor27x21Insulated);
+  } else if (sectionalDoors.length > 0) {
+    // Canonical fill. Standard widths → the standard H count bins (tolerance match);
+    // anything else → the dims-capable Garage Door rows, real size preserved.
+    const stdCounts: Record<number, number> = {};
+    const nonStandardGroups = new Map<string, { qty: number; height_m: number; width_m: number }>();
+    for (const o of sectionalDoors) {
+      const bin = GARAGE_DOOR_STD_H_ROW_BY_WIDTH_M.find(
+        (b) => Math.abs(o.width_m - b.width_m) <= GARAGE_DOOR_WIDTH_TOL_M,
+      );
+      if (bin) {
+        stdCounts[bin.row] = (stdCounts[bin.row] ?? 0) + 1;
+      } else {
+        const key = `${o.width_m}x${o.height_m}`;
+        const g = nonStandardGroups.get(key);
+        if (g) g.qty += 1;
+        else nonStandardGroups.set(key, { qty: 1, height_m: o.height_m, width_m: o.width_m });
+      }
+    }
+    for (const [rowStr, qty] of Object.entries(stdCounts)) put(`H${Number(rowStr)}`, qty);
+    // More distinct non-standard sizes than rows is pathological for a house; fold the
+    // overflow's qty into the last row so the COUNT stays visible rather than dropping.
+    const groups = [...nonStandardGroups.values()];
+    const overflow = groups.splice(NON_STANDARD_GARAGE_DOOR_ROWS.length);
+    if (overflow.length > 0 && groups.length > 0) {
+      for (const g of overflow) groups[groups.length - 1].qty += g.qty;
+    }
+    groups.forEach((g, i) => {
+      const row = NON_STANDARD_GARAGE_DOOR_ROWS[i];
+      put(`D${row}`, g.qty);
+      if (g.height_m > 0) put(`E${row}`, Math.round(g.height_m * 1000) / 1000);
+      if (g.width_m  > 0) put(`F${row}`, Math.round(g.width_m  * 1000) / 1000);
+    });
+  }
 
   // ── Interior doors — H187/190/192/193 (zero first, then actuals) ──────────
   zero("H187"); zero("H190"); zero("H192"); zero("H193");

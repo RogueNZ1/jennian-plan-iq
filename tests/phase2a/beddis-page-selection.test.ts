@@ -31,9 +31,13 @@ function scoredFromText(text: string): ScoredPage & { type: string } {
 }
 
 describe.skipIf(!hasFixtures)("Phase 2a — Beddis prelim page selection (offline, real text)", () => {
-  const pages = PAGES.map((p) =>
-    scoredFromText(readFileSync(resolve(TEXT_DIR, `prelim-${p}.txt`), "utf8")),
-  );
+  // Guarded: the describe callback still executes during collection even when skipped,
+  // so the (gitignored, client-sensitive) fixture read must not run eagerly without them.
+  const pages = hasFixtures
+    ? PAGES.map((p) =>
+        scoredFromText(readFileSync(resolve(TEXT_DIR, `prelim-${p}.txt`), "utf8")),
+      )
+    : [];
 
   it("selects a floor-plan page (non-null)", () => {
     const pick = pickPrimaryFloorplan(pages);
