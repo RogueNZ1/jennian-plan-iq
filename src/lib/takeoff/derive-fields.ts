@@ -234,20 +234,48 @@ function normRoomLabel(label?: string): string | null {
   return cleaned.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/**
+ * Resolve an opening HEIGHT on the symbol (Route 2) path, mirroring the
+ * resolveOpeningWidths contract: a real extracted height ALWAYS wins and is never
+ * overwritten; an unresolved height is ASSERTED to the standard and FLAGGED
+ * ("height assumed — confirm"), never left at 0 — a 0 height zeroes the opening's
+ * area_m2 (understating glazing and overstating external wall area) and drops its
+ * height cell from the QS export.
+ *
+ * SCOPE: the symbol path ONLY. The deriveOpenings schedule branch must NOT route
+ * through this — its head-datum safeguard intentionally rejects suspect heights, and
+ * asserting a standard over that rejection regresses the Beddis baseline.
+ */
+export function resolveOpeningHeightM(extractedHeightMm?: number | null): {
+  height_m: number;
+  height_source: NonNullable<Opening["height_source"]>;
+  flag: string | null;
+} {
+  if (extractedHeightMm != null && extractedHeightMm > 0) {
+    return {
+      height_m: round2(extractedHeightMm / 1000) ?? 0,
+      height_source: "callout",
+      flag: null,
+    };
+  }
+  return {
+    height_m: STANDARD_OPENING_HEIGHT_M,
+    height_source: "asserted",
+    flag: ASSERTED_HEIGHT_FLAG,
+  };
+}
+
 function symbolToOpening(s: VectorSymbolOpening): Opening {
   const width_m = round2(s.width_mm / 1000) ?? 0;
   const glazed = s.type !== "sectional_door";
   const flags: string[] = [];
-  let height_m = STANDARD_OPENING_HEIGHT_M;
-  let height_source: Opening["height_source"] = "asserted";
-  if (s.type === "garage_window") {
-    // Width-only callout: the garage-window head height is not on the plan → unresolved.
-    height_m = 0;
-    height_source = "unresolved";
-    flags.push("garage window height unresolved — confirm against the elevation/schedule");
-  } else {
-    flags.push(ASSERTED_HEIGHT_FLAG);
-  }
+  // Every symbol type — including garage_window, which was previously pinned to an
+  // unresolved 0 height — resolves through the shared height resolver: an extracted
+  // height (newer engines) wins; otherwise the standard is asserted and flagged.
+  const resolved = resolveOpeningHeightM(s.height_mm);
+  const height_m = resolved.height_m;
+  const height_source = resolved.height_source;
+  if (resolved.flag) flags.push(resolved.flag);
   return {
     type: s.type as OpeningType,
     // Room from the matched anchor label (e.g. the slider's "DINING"), so it lands in its real

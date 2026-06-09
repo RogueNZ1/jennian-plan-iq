@@ -133,6 +133,10 @@ export type VectorSymbolOpening = {
   /** The room/living label the callout anchored to (e.g. "DINING") — rooms the opening to its
    * real room instead of a fixed default, so it lands in the right QS slot. Optional (older engines). */
   room_label?: string;
+  /** A real extracted height for the opening, when a newer engine reads one (e.g. a H-callout
+   * or elevation read). Optional: absent on all current engines. When present it ALWAYS wins
+   * over the app-side asserted standard — see resolveOpeningHeightM. */
+  height_mm?: number | null;
   page: number;
 };
 

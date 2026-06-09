@@ -45,8 +45,10 @@ describe("Route 2 — foldSymbolOpenings", () => {
     expect(sec.flags?.join(" ")).toContain("height assumed standard 2.1m");
 
     const gw = byType(r.openings, "garage_window")!;
-    expect(gw).toMatchObject({ width_m: 2, height_m: 0, glazed: true, height_source: "unresolved" });
-    expect(gw.flags?.join(" ")).toContain("garage window height unresolved");
+    // Phase 2: garage_window resolves like every other symbol type — asserted standard
+    // height, FLAGGED — instead of the old unresolved 0 (which zeroed its area + E-cell).
+    expect(gw).toMatchObject({ width_m: 2, height_m: 2.1, glazed: true, height_source: "asserted" });
+    expect(gw.flags?.join(" ")).toContain("height assumed standard 2.1m");
 
     expect(byType(r.openings, "slider")).toMatchObject({ width_m: 2, height_m: 2.1, glazed: true, source: "callout" });
     expect(byType(r.openings, "entrance")).toMatchObject({ width_m: 1.03, height_m: 2.1, glazed: true });
@@ -82,5 +84,47 @@ describe("Route 2 — foldSymbolOpenings", () => {
     const entries = r.openings.filter((o) => o.type === "entrance");
     expect(entries.length).toBe(1);
     expect(entries[0].width_m).toBe(1.03); // the callout, not the unresolved fallback
+  });
+});
+
+// ── Phase 2 — resolveOpeningHeightM (symbol path height resolver) ────────────
+import { resolveOpeningHeightM } from "../../src/lib/takeoff/derive-fields";
+
+describe("Phase 2 — resolveOpeningHeightM", () => {
+  it("unresolved (no extracted height) → asserted standard 2.1m, FLAGGED — never 0", () => {
+    const r = resolveOpeningHeightM(undefined);
+    expect(r.height_m).toBe(2.1);
+    expect(r.height_source).toBe("asserted");
+    expect(r.flag).toContain("height assumed standard 2.1m");
+    expect(resolveOpeningHeightM(null)).toEqual(r);
+  });
+
+  it("a REAL extracted height always wins and is never overwritten (no flag)", () => {
+    const r = resolveOpeningHeightM(1300);
+    expect(r.height_m).toBe(1.3);
+    expect(r.height_source).toBe("callout");
+    expect(r.flag).toBeNull();
+  });
+
+  it("a zero/garbage extracted height does not count as resolved", () => {
+    expect(resolveOpeningHeightM(0).height_source).toBe("asserted");
+    expect(resolveOpeningHeightM(-500).height_source).toBe("asserted");
+  });
+
+  it("garage_window via the fold: flagged standard height with REAL area, not 0 area", () => {
+    const r = foldSymbolOpenings([], [sym("garage_window", 2000)], null);
+    const gw = byType(r.openings, "garage_window")!;
+    expect(gw.height_m).toBe(2.1);
+    expect(gw.area_m2).toBe(4.2); // 2.1 × 2.0 — previously 0, which understated glazing
+    expect(gw.height_source).toBe("asserted");
+  });
+
+  it("garage_window with an engine-supplied height_mm keeps the extracted height (never overwritten)", () => {
+    const withHeight: VectorSymbolOpening = { ...sym("garage_window", 2000), height_mm: 1300 };
+    const r = foldSymbolOpenings([], [withHeight], null);
+    const gw = byType(r.openings, "garage_window")!;
+    expect(gw.height_m).toBe(1.3);
+    expect(gw.height_source).toBe("callout");
+    expect(gw.flags ?? []).toEqual([]); // no asserted-height flag on a real read
   });
 });
