@@ -82,6 +82,14 @@ export type EnrichedTakeoff = {
   openings?: Opening[] | null;
   total_opening_sqm?: number | null;
   glazed_sqm?: number | null;
+  /**
+   * Geometry room footprints (label + measured width/depth), persisted so they survive the
+   * run: the crop-on-anomaly gate (missing-window detector) and the crop localizer's
+   * footprint expansion both need them, and previously they were used in-flight and lost.
+   * Raw passthrough like `openings`; optional so pre-existing payloads round-trip unchanged.
+   * NOT projected into the bare TakeoffData (no consumer there), so goldens are untouched.
+   */
+  rooms?: Array<{ label: string; width_m: number; depth_m: number }> | null;
 };
 
 /** Build a FieldValue with sensible defaults. */

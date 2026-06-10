@@ -325,6 +325,10 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     openings: composedOpenings,
     total_opening_sqm: composedOpeningTotals.total_opening_sqm,
     glazed_sqm: composedOpeningTotals.glazed_sqm,
+    // Persist the geometry room footprints (labels + dims) — the crop-on-anomaly gate and
+    // the crop localizer need them after the run. Conditional spread: payloads from
+    // geometry-less runs stay byte-identical to today.
+    ...(m?.rooms && m.rooms.length > 0 ? { rooms: m.rooms } : {}),
   };
 
   return { enriched, reconciliation, pageReconcile, scheduleSafeguard };
