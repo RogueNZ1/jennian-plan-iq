@@ -1,0 +1,82 @@
+# Sweep Haydon's shared SharePoint folders: masked inventory of each tree, hunt the LIVE
+# QS master workbook (Jennian_QS_IQ_Updated_v4.xlsm or nearest), upload it as a run
+# artifact (retrievable via API — never committed to the public repo), publish the
+# inventory to ops-results. Also lists floorplan-looking PDFs as future bench candidates.
+name: sp-recon
+on:
+  push:
+    branches: [convergence]
+    paths: ['.github/workflows/sp-recon.yml']
+permissions:
+  contents: write
+jobs:
+  recon:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sweep folders
+        id: sweep
+        env:
+          LINKS: ${{ secrets.SP_SHARE_LINKS }}
+        run: |
+          set +e
+          O=/tmp/recon.txt; : > $O
+          QS_HIT=""; QS_ORIGIN=""; QS_JAR=""
+          N=0
+          while IFS= read -r LINK; do
+            [ -z "$LINK" ] && continue
+            N=$((N+1)); JAR=/tmp/jar$N; rm -f $JAR
+            FINAL=$(curl -sL -c $JAR -o /tmp/landing.html -w '%{url_effective}' "$LINK")
+            case "$FINAL" in *login.microsoftonline*) echo "link $N: org-only — skipped" >> $O; continue;; esac
+            ORIGIN=$(echo "$FINAL" | sed -E 's#(https://[^/]+).*#\1#')
+            FPATH=$(python3 -c "import sys,urllib.parse as u; q=u.parse_qs(u.urlsplit(sys.argv[1]).query); print(u.unquote(q.get('id',[''])[0]))" "$FINAL")
+            [ -z "$FPATH" ] && FPATH=$(grep -oE '"serverRelativeUrl":"[^"]+"' /tmp/landing.html | head -1 | cut -d'"' -f4)
+            echo "── link $N: $(basename "$FPATH" | cut -c1-24) ──" >> $O
+            [ -z "$FPATH" ] && continue
+            api() { curl -s -b $JAR -H "Accept: application/json;odata=nometadata" "$1"; }
+            enc() { python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$1"; }
+            QUEUE="$FPATH"; SCANNED=0
+            while [ -n "$QUEUE" ] && [ "$SCANNED" -lt 60 ]; do
+              P=$(echo "$QUEUE" | head -1); QUEUE=$(echo "$QUEUE" | tail -n +2); SCANNED=$((SCANNED+1))
+              FILES=$(api "$ORIGIN/sites/Company/_api/web/GetFolderByServerRelativeUrl('$(enc "$P")')/Files?\$select=Name,ServerRelativeUrl,Length")
+              # masked inventory: xlsm/xlsx always; pdfs that look like floorplans
+              echo "$FILES" | jq -r --arg d "$(basename "$P" | cut -c1-16)" '.value[]? | select(.Name | test("\\.(xlsm|xlsx)$"; "i")) | "  [\($d)] XLS \(.Name[0:34]) (\((.Length|tonumber)/1024 | floor)KB)"' >> $O
+              echo "$FILES" | jq -r --arg d "$(basename "$P" | cut -c1-16)" '.value[]? | select(.Name | test("floor ?plan|2026[._-]"; "i")) | select(.Name | test("\\.pdf$"; "i")) | "  [\($d)] PLAN \(.Name[0:30])"' >> $O
+              if [ -z "$QS_HIT" ]; then
+                QS_HIT=$(echo "$FILES" | jq -r '[.value[]? | select(.Name | test("jennian.*qs|qs.*(iq|master|updated)|updated_v"; "i")) | select(.Name | test("\\.xlsm?$"; "i"))][0].ServerRelativeUrl // empty')
+                [ -n "$QS_HIT" ] && { QS_ORIGIN="$ORIGIN"; QS_JAR="$JAR"; echo "  ★ QS MASTER CANDIDATE: $(basename "$QS_HIT" | cut -c1-40)" >> $O; }
+              fi
+              DEPTH=$(echo "$P" | awk -F/ '{print NF}'); BASE=$(echo "$FPATH" | awk -F/ '{print NF}')
+              if [ $((DEPTH - BASE)) -lt 3 ]; then
+                SUBS=$(api "$ORIGIN/sites/Company/_api/web/GetFolderByServerRelativeUrl('$(enc "$P")')/Folders?\$select=ServerRelativeUrl" | jq -r '.value[]?.ServerRelativeUrl' | grep -v "/Forms$")
+                [ -n "$SUBS" ] && QUEUE=$(printf "%s\n%s" "$QUEUE" "$SUBS" | grep -v '^$')
+              fi
+            done
+            echo "  (folders scanned: $SCANNED)" >> $O
+          done << LINKSEOF
+          $LINKS
+          LINKSEOF
+          if [ -n "$QS_HIT" ]; then
+            ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe='/'))" "$QS_HIT")
+            curl -s -b "$QS_JAR" -o /tmp/qs-live.xlsm "$QS_ORIGIN$ENC"
+            SZ=$(stat -c%s /tmp/qs-live.xlsm 2>/dev/null || echo 0)
+            echo "QS download: $SZ bytes, $(file -b /tmp/qs-live.xlsm | cut -c1-40)" >> $O
+            head -c4 /tmp/qs-live.xlsm | grep -q "PK" && echo "qs=1" >> "$GITHUB_OUTPUT" || echo "qs=" >> "$GITHUB_OUTPUT"
+          else
+            echo "qs=" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Upload QS workbook as artifact
+        if: steps.sweep.outputs.qs == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: qs-live
+          path: /tmp/qs-live.xlsm
+          retention-days: 1
+      - name: Publish inventory (always)
+        if: always()
+        run: |
+          git config user.name "ops[bot]"; git config user.email "noreply@github.com"
+          git checkout --orphan ops-results && { git rm -rf -q . || true; }
+          mkdir -p results && cp /tmp/recon.txt results/recon.txt
+          git add results && git commit -q -m "sp-recon ${{ github.run_id }}" && git push -f origin ops-results
