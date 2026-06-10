@@ -1,8 +1,12 @@
 # Deploy main → Cloudflare Pages project "jennian-iq-prod" under Haydon's business
 # account (the old jennian-iq.pages.dev is an orphan under an inaccessible login).
-# Creates the project on first run with GEOMETRY_API_KEY in the production env, builds
-# with the Supabase VITE vars inlined, deploys honestly (pipefail), publishes the
-# subdomain + outcome to ops-results. Secrets never echoed.
+# Creates the project on first run, binds GEOMETRY_API_KEY + ANTHROPIC_API_KEY as Pages
+# SECRETS in the production env (re-put every deploy — see ROOT CAUSE note below), builds
+# with the Supabase VITE vars inlined, deploys honestly (pipefail), gates on the geometry
+# proxy AND on both runtime secrets being bound, publishes the outcome to ops-results.
+# Secrets never echoed. A missing required repo secret fails the deploy at preflight —
+# we do not ship builds whose runtime config is known-broken (lesson: ANTHROPIC_API_KEY
+# was silently absent from prod for weeks; scale extraction's AI fallback was dead).
 name: deploy-pages
 on:
   push:
@@ -14,18 +18,38 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Preflight — required repo secrets
+        env:
+          CF: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCT: ${{ secrets.CF_ID_CANDIDATE_A }}
+          GEOM: ${{ secrets.CF_EXTRA_64 }}
+          ANTH: ${{ secrets.ANTHROPIC_API_KEY }}
+          VSPK: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          missing=""
+          [ -z "$CF" ]   && missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -z "$ACCT" ] && missing="$missing CF_ID_CANDIDATE_A"
+          [ -z "$GEOM" ] && missing="$missing CF_EXTRA_64(GEOMETRY_API_KEY)"
+          [ -z "$ANTH" ] && missing="$missing ANTHROPIC_API_KEY"
+          [ -z "$VSPK" ] && missing="$missing VITE_SUPABASE_PUBLISHABLE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Deploy blocked — missing required repo secrets:$missing — add at Settings > Secrets and variables > Actions. Refusing to ship a build with known-broken runtime config."
+            exit 1
+          fi
+          echo "All required secrets present."
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Ensure project exists + bind geometry secret
+      - name: Ensure project exists + bind runtime secrets
         id: project
         env:
           CF: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           ACCT: ${{ secrets.CF_ID_CANDIDATE_A }}
           GEOM: ${{ secrets.CF_EXTRA_64 }}
+          ANTH: ${{ secrets.ANTHROPIC_API_KEY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ID_CANDIDATE_A }}
         run: |
@@ -40,9 +64,12 @@ jobs:
           # 503 "Geometry API not configured"). The ONLY binding that survives is a Pages SECRET,
           # which `wrangler pages secret put` uploads. It persists across deployments — but any
           # REST PATCH that nulls env_vars deletes it too (secrets live in the same store), so
-          # re-put it on every deploy. Idempotent and cheap.
+          # re-put it on every deploy. Idempotent and cheap. Same treatment for ANTHROPIC_API_KEY
+          # (concept pipeline: scale extraction AI fallback, site plan, elevations — opus direct).
           echo "$GEOM" | npx wrangler pages secret put GEOMETRY_API_KEY --project-name=jennian-iq-prod >> /tmp/deploy.txt 2>&1
-          echo "secret-put exit: $?" >> /tmp/deploy.txt
+          echo "secret-put GEOMETRY_API_KEY exit: $?" >> /tmp/deploy.txt
+          echo "$ANTH" | npx wrangler pages secret put ANTHROPIC_API_KEY --project-name=jennian-iq-prod >> /tmp/deploy.txt 2>&1
+          echo "secret-put ANTHROPIC_API_KEY exit: $?" >> /tmp/deploy.txt
           curl -s -H "Authorization: Bearer $CF" "https://api.cloudflare.com/client/v4/accounts/$ACCT/pages/projects/jennian-iq-prod" > /tmp/r.json
           jq -r '"subdomain: " + (.result.subdomain // "?")' /tmp/r.json >> /tmp/deploy.txt
       - name: Build (Supabase vars inlined)
@@ -67,7 +94,7 @@ jobs:
           # SECRET (put in the earlier step) — the only binding that reaches wrangler
           # deploys in config-managed mode. A runner-generated wrangler.toml was tried
           # and CRASHES wrangler 4.x next to the repo's wrangler.jsonc (dual config).
-          # The post-deploy gate below is the proof either way.
+          # The post-deploy gates below are the proof either way.
           npx wrangler pages deploy dist/client --project-name=jennian-iq-prod --branch=main 2>&1 | tee /tmp/wr.log | tail -4 >> /tmp/deploy.txt
           echo "── wrangler log (vars/secret/warn lines) ──" >> /tmp/deploy.txt
           grep -in "toml\|vars\|binding\|warn\|ignor\|error" /tmp/wr.log >> /tmp/deploy.txt || echo "(no matches)" >> /tmp/deploy.txt
@@ -77,6 +104,21 @@ jobs:
           CODE=$(curl -s -o /tmp/gbody -w '%{http_code}' --max-time 20 "https://jennian-iq-prod.pages.dev/api/geometry/health" || echo ERR)
           echo "geometry-proxy: $CODE $(head -c 100 /tmp/gbody)" >> /tmp/deploy.txt
           [ "$CODE" = "200" ] || { echo "GEOMETRY PROXY UNHEALTHY ($CODE) — failing the deploy gate" >> /tmp/deploy.txt; exit 1; }
+      - name: Verify runtime secrets bound (post-deploy gate)
+        env:
+          CF: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCT: ${{ secrets.CF_ID_CANDIDATE_A }}
+        run: |
+          curl -s -H "Authorization: Bearer $CF" "https://api.cloudflare.com/client/v4/accounts/$ACCT/pages/projects/jennian-iq-prod" > /tmp/p.json
+          ok=1
+          for S in GEOMETRY_API_KEY ANTHROPIC_API_KEY; do
+            if grep -q "\"$S\"" /tmp/p.json; then
+              echo "binding $S: present" >> /tmp/deploy.txt
+            else
+              echo "binding $S: MISSING from project config" >> /tmp/deploy.txt; ok=0
+            fi
+          done
+          [ "$ok" = "1" ] || { echo "RUNTIME SECRET BINDING MISSING — failing the deploy gate" >> /tmp/deploy.txt; exit 1; }
       - name: Publish status (always)
         if: always()
         run: |
