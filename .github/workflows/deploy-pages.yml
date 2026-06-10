@@ -1,0 +1,69 @@
+# Deploy main → Cloudflare Pages (jennian-iq.pages.dev) — the REAL production with the
+# geometry proxy worker. Previously deployed only by manual wrangler runs, so production
+# silently froze at whatever was last hand-pushed. The account id is auto-identified from
+# the token's own /accounts listing (two candidate ids were supplied). Status publishes
+# to ops-results (results/deploy.txt). Secrets are never echoed.
+name: deploy-pages
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Identify account id
+        id: acct
+        env:
+          CF: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          A: ${{ secrets.CF_ID_CANDIDATE_A }}
+          B: ${{ secrets.CF_ID_CANDIDATE_B }}
+        run: |
+          set +e
+          : > /tmp/deploy.txt
+          IDS=$(curl -s -H "Authorization: Bearer $CF" "https://api.cloudflare.com/client/v4/accounts" | jq -r '.result[]?.id')
+          echo "accounts visible to token: $(echo "$IDS" | wc -l)" >> /tmp/deploy.txt
+          ACCT=""
+          for id in $IDS; do
+            [ "$id" = "$A" ] && ACCT="$A"
+            [ "$id" = "$B" ] && ACCT="$B"
+          done
+          [ -z "$ACCT" ] && ACCT=$(echo "$IDS" | head -1)
+          if [ "$ACCT" = "$A" ]; then echo "account id = candidate A" >> /tmp/deploy.txt
+          elif [ "$ACCT" = "$B" ]; then echo "account id = candidate B" >> /tmp/deploy.txt
+          else echo "account id = token's own first account (neither candidate)" >> /tmp/deploy.txt; fi
+          echo "acct=$ACCT" >> "$GITHUB_OUTPUT"
+          curl -s -H "Authorization: Bearer $CF" "https://api.cloudflare.com/client/v4/accounts/$ACCT/pages/projects" | jq -r '.result[]?.name' | sed 's/^/pages project: /' >> /tmp/deploy.txt
+      - name: Build
+        id: build
+        continue-on-error: true
+        run: npx vite build && node scripts/cf-pages-postbuild.mjs
+      - name: Deploy to Pages
+        id: deploy
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ steps.acct.outputs.acct }}
+        run: |
+          npx wrangler pages deploy dist/client --project-name=jennian-iq --branch=main 2>&1 | tail -5 | tee -a /tmp/deploy.txt
+      - name: Publish status (always)
+        if: always()
+        run: |
+          echo "build: ${{ steps.build.outcome }} | deploy: ${{ steps.deploy.outcome }}" >> /tmp/deploy.txt
+          git config user.name "ops[bot]"; git config user.email "noreply@github.com"
+          git checkout --orphan ops-results && { git rm -rf -q . || true; }
+          mkdir -p results && cp /tmp/deploy.txt results/deploy.txt
+          git add results && git commit -q -m "deploy-pages run ${{ github.run_id }}"
+          git push -f origin ops-results
+      - name: Propagate
+        if: steps.deploy.outcome != 'success'
+        run: exit 1
