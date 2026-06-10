@@ -9,6 +9,7 @@
 # was silently absent from prod for weeks; scale extraction's AI fallback was dead).
 name: deploy-pages
 on:
+  workflow_dispatch:
   push:
     branches: [main]
 permissions:
