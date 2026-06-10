@@ -54,7 +54,8 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ steps.acct.outputs.acct }}
         run: |
-          npx wrangler pages deploy dist/client --project-name=jennian-iq --branch=main 2>&1 | tail -5 | tee -a /tmp/deploy.txt
+          set -o pipefail
+          npx wrangler pages deploy dist/client --project-name=jennian-iq --branch=main 2>&1 | tee /tmp/wrangler.log | tail -5 >> /tmp/deploy.txt
       - name: Publish status (always)
         if: always()
         run: |
