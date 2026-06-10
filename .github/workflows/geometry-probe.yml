@@ -1,0 +1,43 @@
+# Three-way probe of the geometry pipeline:
+#   A) prod proxy  (pages.dev/api/geometry/health)  — what the app experiences
+#   B) Railway direct, NO key                        — is the service up + auth-gated?
+#   C) Railway direct, WITH our GEOMETRY_API_KEY     — is OUR key actually valid?
+# Verdict matrix: A fail + B 401 + C 200  → proxy env wrong (Pages project env)
+#                 A fail + B 401 + C 401  → CF_EXTRA_64 is NOT the geometry key
+#                 B unreachable           → Railway service down/cold
+name: geometry-probe
+on:
+  push:
+    branches: [convergence]
+    paths: ['.github/workflows/geometry-probe.yml']
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe
+        env:
+          KEY: ${{ secrets.CF_EXTRA_64 }}
+        run: |
+          O=/tmp/probe.txt; : > $O
+          probe() { # name url extra-args...
+            N="$1"; U="$2"; shift 2
+            CODE=$(curl -s -o /tmp/body -w '%{http_code}' --max-time 20 "$@" "$U" || echo "ERR")
+            echo "[$N] $CODE $(head -c 160 /tmp/body | tr '\n' ' ')" >> $O
+          }
+          for P in /health /healthz /; do
+            probe "proxy$P"        "https://jennian-iq-prod.pages.dev/api/geometry$P"
+            probe "railway-nokey$P" "https://jennian-iq-geometry-api-production.up.railway.app$P"
+            probe "railway-key$P"   "https://jennian-iq-geometry-api-production.up.railway.app$P" -H "x-api-key: $KEY" -H "Authorization: Bearer $KEY"
+          done
+          cat $O
+      - name: Publish
+        if: always()
+        run: |
+          git config user.name "ops[bot]"; git config user.email "noreply@github.com"
+          git checkout --orphan ops-results && { git rm -rf -q . || true; }
+          mkdir -p results && cp /tmp/probe.txt results/geometry-probe.txt
+          git add results && git commit -q -m "geometry-probe ${{ github.run_id }}" && git push -f origin ops-results
