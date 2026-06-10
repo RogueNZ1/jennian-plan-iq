@@ -31,22 +31,22 @@ jobs:
           echo "shape: $(jq -c 'if type=="object" then keys else type end' /tmp/r.json 2>&1)" >> /tmp/ops.txt
           echo "users len: $(jq -r '.users | length' /tmp/r.json 2>&1)" >> /tmp/ops.txt
           echo "first id: $(jq -r '.users[0].id // "none"' /tmp/r.json 2>&1 | cut -c1-13)" >> /tmp/ops.txt
-          UID=$(jq -r --arg e "$EMAIL" '.users[]? | select(.email==$e) | .id' /tmp/r.json 2>>/tmp/ops.txt | head -1)
-          echo "lookup uid: [${UID:0:8}] (jq rc=$?)" >> /tmp/ops.txt
-          if [ -z "$UID" ]; then
+          USER_ID=$(jq -r --arg e "$EMAIL" '.users[]? | select(.email==$e) | .id' /tmp/r.json 2>>/tmp/ops.txt | head -1)
+          echo "lookup uid: [${USER_ID:0:8}] (jq rc=$?)" >> /tmp/ops.txt
+          if [ -z "$USER_ID" ]; then
             C=$(A -X POST -H "Content-Type: application/json" -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\",\"email_confirm\":true}" "$URL/auth/v1/admin/users")
             echo "admin create HTTP $C" >> /tmp/ops.txt
             jq -r '.msg // .message // .error_description // .error // "ok"' /tmp/r.json >> /tmp/ops.txt 2>&1
-            UID=$(jq -r '.id // empty' /tmp/r.json 2>>/tmp/ops.txt)
+            USER_ID=$(jq -r '.id // empty' /tmp/r.json 2>>/tmp/ops.txt)
           else
-            C=$(A -X PUT -H "Content-Type: application/json" -d "{\"password\":\"$PASSWORD\"}" "$URL/auth/v1/admin/users/$UID")
+            C=$(A -X PUT -H "Content-Type: application/json" -d "{\"password\":\"$PASSWORD\"}" "$URL/auth/v1/admin/users/$USER_ID")
             echo "admin pw-sync HTTP $C (user existed)" >> /tmp/ops.txt
           fi
-          echo "uid: [${UID:0:8}]" >> /tmp/ops.txt
-          if [ -z "$UID" ]; then echo "FAILED: no uid" >> /tmp/ops.txt; exit 1; fi
-          C=$(A -X POST -H "Content-Type: application/json" -H "Prefer: resolution=ignore-duplicates" -d "[{\"user_id\":\"$UID\",\"role\":\"estimator\"}]" "$URL/rest/v1/user_roles")
+          echo "uid: [${USER_ID:0:8}]" >> /tmp/ops.txt
+          if [ -z "$USER_ID" ]; then echo "FAILED: no uid" >> /tmp/ops.txt; exit 1; fi
+          C=$(A -X POST -H "Content-Type: application/json" -H "Prefer: resolution=ignore-duplicates" -d "[{\"user_id\":\"$USER_ID\",\"role\":\"estimator\"}]" "$URL/rest/v1/user_roles")
           echo "role grant HTTP $C" >> /tmp/ops.txt
-          A "$URL/rest/v1/user_roles?user_id=eq.$UID&select=role" > /dev/null
+          A "$URL/rest/v1/user_roles?user_id=eq.$USER_ID&select=role" > /dev/null
           echo "roles: $(cat /tmp/r.json)" >> /tmp/ops.txt
           exit 0
       - name: Publish status (always)
