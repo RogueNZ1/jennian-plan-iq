@@ -1,5 +1,5 @@
-# One-shot: list the jennian-iq Pages project's recent deployments so the deploy claim is
-# verified from Cloudflare's own records, not wrangler's exit code.
+# Deep Cloudflare diagnostic: token verify + pages project list under BOTH candidate
+# account ids, with raw success flags and error codes (never bodies that could leak).
 name: cf-verify
 on:
   push:
@@ -16,10 +16,20 @@ jobs:
       - env:
           CF: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           A: ${{ secrets.CF_ID_CANDIDATE_A }}
+          B: ${{ secrets.CF_ID_CANDIDATE_B }}
         run: |
-          curl -s -H "Authorization: Bearer $CF" "https://api.cloudflare.com/client/v4/accounts/$A/pages/projects/jennian-iq/deployments?per_page=5" \
-            | jq -r '.result[]? | [.created_on, .environment, (.deployment_trigger.metadata.branch // "manual"), (.deployment_trigger.type // "?"), .latest_stage.status] | @tsv' > /tmp/v.txt || echo "API call failed" > /tmp/v.txt
+          set +e
+          O=/tmp/v.txt; : > $O
+          q() { curl -s -H "Authorization: Bearer $CF" "$1" > /tmp/r.json; echo "$2 success=$(jq -r '.success' /tmp/r.json) errors=$(jq -c '[.errors[]? | {code, message}]' /tmp/r.json)" >> $O; }
+          q "https://api.cloudflare.com/client/v4/user/tokens/verify" "token-verify:"
+          jq -r '"token status: " + (.result.status // "?")' /tmp/r.json >> $O
+          q "https://api.cloudflare.com/client/v4/accounts" "accounts-list:"
+          jq -r '.result[]? | "account: \(.id[0:8])… \(.name)"' /tmp/r.json >> $O
+          q "https://api.cloudflare.com/client/v4/accounts/$A/pages/projects" "pages-list(A):"
+          jq -r '.result[]? | "project(A): \(.name) → \(.subdomain)"' /tmp/r.json >> $O
+          q "https://api.cloudflare.com/client/v4/accounts/$B/pages/projects" "pages-list(B):"
+          jq -r '.result[]? | "project(B): \(.name) → \(.subdomain)"' /tmp/r.json >> $O
           git config user.name "ops[bot]"; git config user.email "noreply@github.com"
           git checkout --orphan ops-results && { git rm -rf -q . || true; }
-          mkdir -p results && cp /tmp/v.txt results/cf-deployments.txt
-          git add results && git commit -q -m "cf-verify ${{ github.run_id }}" && git push -f origin ops-results
+          mkdir -p results && cp $O results/cf-diag.txt
+          git add results && git commit -q -m "cf-diag ${{ github.run_id }}" && git push -f origin ops-results
