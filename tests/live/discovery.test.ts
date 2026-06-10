@@ -59,6 +59,19 @@ describe.skipIf(!LIVE)("LIVE DISCOVERY (report-only)", () => {
     }
   });
 
+  it("jobs.specifications column provisioned?", async () => {
+    // Report-only: the spec-picker migration (20260611000000) is applied via the
+    // Supabase SQL editor. This probe tells the session whether it has landed.
+    const res = await supabase.from("jobs").select("specifications").limit(1);
+    if (res.error) {
+      console.log("[disc] jobs.specifications: MISSING —", res.error.message,
+        "→ run: alter table jobs add column if not exists specifications jsonb;");
+    } else {
+      console.log("[disc] jobs.specifications: PRESENT — sample:",
+        JSON.stringify(res.data?.[0]?.specifications ?? null)?.slice(0, 60));
+    }
+  });
+
   it("storage buckets + workbook objects", async () => {
     const url = process.env.SUPABASE_URL!;
     const key = process.env.SUPABASE_PUBLISHABLE_KEY!;

@@ -69,6 +69,13 @@ describe.skipIf(!LIVE)("LIVE — JM-0020 export faithfulness", () => {
     console.log("[live] IQ garage row 44 + B24:", cell(ws, "B44"), cell(ws, "C44"), cell(ws, "D44"), "|", cell(ws, "B24"));
     console.log("[live] IQ doors B27-30:", [27, 28, 29, 30].map((r) => cell(ws, `B${r}`)));
     console.log("[live] rooms persisted:", enriched?.rooms?.length ?? 0, (enriched?.rooms ?? []).map((r) => r.label).join("|"));
+    // SPECIFICATIONS block (report-only): proves jobs.specifications reads through
+    // the live export path and the fixed-row block renders. Counts stay 0 until
+    // selections are made in the app — the header must render regardless.
+    const specAnswered = Object.keys(data.specifications ?? {}).length;
+    console.log("[live] specifications answered:", specAnswered,
+      "| header row 100:", String(cell(ws, "A100") ?? "").slice(0, 30),
+      "| heating B162:", cell(ws, "B162") ?? "(blank)");
   });
 
   it("the export runs on the ENRICHED path (loader found a real takeoff_json)", () => {
