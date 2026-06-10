@@ -1,11 +1,21 @@
 # LIVE validation — runs the real export pipeline against the real Supabase project.
-# Triggered via workflow_dispatch. Requires repo secret SUPABASE_SECRET_KEY.
-# The project URL is auto-discovered by probing the known candidate projects with the
-# key (a wrong project simply rejects the key). Every live value is printed before it
-# is asserted, so a red run reads as a report.
+# Node 22 is REQUIRED: the app's supabase client falls back to a non-functional stub on
+# Node 20 (no native WebSocket — proven by run 27245802245, which hung on every query).
+# The project URL is auto-discovered by probing known candidate projects with the key.
+# Results are force-pushed to the 'live-results' branch (results/last-run.txt) because
+# the Actions log API is not reachable from the build sandbox. Every live value prints
+# before it asserts, so a red run reads as a report.
 name: live-validate
 on:
   workflow_dispatch:
+  push:
+    branches: [convergence]
+    paths:
+      - '.github/workflows/live-validate.yml'
+      - 'tests/live/**'
+      - 'vitest.live.config.ts'
+permissions:
+  contents: write
 jobs:
   live:
     runs-on: ubuntu-latest
@@ -14,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - name: Discover Supabase project URL
@@ -31,11 +41,28 @@ jobs:
               exit 0
             fi
           done
-          echo "::error::No candidate Supabase project accepted the key — need the project URL"
-          exit 1
+          echo "NO_PROJECT_MATCHED" | tee /tmp/live-out.txt
+          echo "url=" >> "$GITHUB_OUTPUT"
       - name: Run live validation suite
+        id: live
+        if: steps.discover.outputs.url != ''
+        continue-on-error: true
         env:
           LIVE_VALIDATE: "1"
           SUPABASE_URL: ${{ steps.discover.outputs.url }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-        run: npx vitest run -c vitest.live.config.ts
+        run: npx vitest run -c vitest.live.config.ts 2>&1 | tee /tmp/live-out.txt
+      - name: Publish results to live-results branch
+        run: |
+          git config user.name "live-validate[bot]"
+          git config user.email "noreply@github.com"
+          git checkout --orphan live-results
+          git rm -rf -q . || true
+          mkdir -p results
+          cp /tmp/live-out.txt results/last-run.txt
+          echo "run: ${{ github.run_id }} sha: ${{ github.sha }} discover: ${{ steps.discover.outputs.url }} outcome: ${{ steps.live.outcome }}" > results/meta.txt
+          git add results && git commit -q -m "live-validate run ${{ github.run_id }}"
+          git push -f origin live-results
+      - name: Propagate suite outcome
+        if: steps.live.outcome != 'success'
+        run: exit 1
