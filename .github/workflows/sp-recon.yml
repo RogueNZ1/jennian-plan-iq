@@ -6,7 +6,7 @@ name: sp-recon
 on:
   push:
     branches: [convergence]
-    paths: ['.github/workflows/sp-recon.yml']
+    paths: ['.github/workflows/sp-recon.yml', 'scripts/qs-verify.py']
 permissions:
   contents: write
 jobs:
