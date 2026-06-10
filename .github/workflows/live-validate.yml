@@ -1,18 +1,11 @@
 # LIVE validation — runs the real export pipeline against the real Supabase project.
-# Results are pushed to the 'live-results' branch (results/last-run.txt) so they are
-# readable via raw.githubusercontent.com — the Actions log blobs are not reachable
-# from the build sandbox. Requires secrets SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
+# Triggered via workflow_dispatch. Requires repo secret SUPABASE_SECRET_KEY.
+# The project URL is auto-discovered by probing the known candidate projects with the
+# key (a wrong project simply rejects the key). Every live value is printed before it
+# is asserted, so a red run reads as a report.
 name: live-validate
 on:
   workflow_dispatch:
-  push:
-    branches: [convergence]
-    paths:
-      - '.github/workflows/live-validate.yml'
-      - 'tests/live/**'
-      - 'vitest.live.config.ts'
-permissions:
-  contents: write
 jobs:
   live:
     runs-on: ubuntu-latest
@@ -24,25 +17,25 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Discover Supabase project URL
+        id: discover
+        env:
+          KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          for ref in vcufpzokvdsvuqrcficq ukegudqobnmiesudtjen; do
+            url="https://${ref}.supabase.co"
+            code=$(curl -s -o /dev/null -w "%{http_code}" -H "apikey: $KEY" -H "Authorization: Bearer $KEY" "$url/rest/v1/jobs?select=id&limit=1")
+            echo "$url -> HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "url=$url" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "::error::No candidate Supabase project accepted the key — need the project URL"
+          exit 1
       - name: Run live validation suite
-        id: live
-        continue-on-error: true
         env:
           LIVE_VALIDATE: "1"
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: npx vitest run -c vitest.live.config.ts 2>&1 | tee /tmp/live-out.txt
-      - name: Publish results to live-results branch
-        run: |
-          git config user.name "live-validate[bot]"
-          git config user.email "noreply@github.com"
-          git checkout --orphan live-results
-          git rm -rf -q . || true
-          mkdir -p results
-          cp /tmp/live-out.txt results/last-run.txt
-          echo "run: ${{ github.run_id }} sha: ${{ github.sha }} outcome: ${{ steps.live.outcome }}" > results/meta.txt
-          git add results && git commit -q -m "live-validate run ${{ github.run_id }}"
-          git push -f origin live-results
-      - name: Propagate suite outcome
-        if: steps.live.outcome == 'failure'
-        run: exit 1
+          SUPABASE_URL: ${{ steps.discover.outputs.url }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: npx vitest run -c vitest.live.config.ts
