@@ -18,15 +18,29 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Probe proxy post-redeploy
+      - name: Inspect project config + deployments
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACC: ${{ secrets.CF_ID_CANDIDATE_A }}
         run: |
           O=/tmp/probe.txt; : > $O
-          for I in 1 2 3; do
-            CODE=$(curl -s -o /tmp/body -w '%{http_code}' --max-time 20 "https://jennian-iq-prod.pages.dev/api/geometry/health" || echo ERR)
-            echo "[proxy/health try$I] $CODE $(head -c 120 /tmp/body | tr '\n' ' ')" >> $O
-            [ "$CODE" = "200" ] && break
-            sleep 10
-          done
+          curl -s -H "Authorization: Bearer $CF_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CF_ACC/pages/projects/jennian-iq-prod" \
+            | python3 -c "
+          import json,sys
+          p=json.load(sys.stdin)['result']
+          print('production_branch:', p.get('production_branch'))
+          for envk in ('production','preview'):
+              ev=(p.get('deployment_configs') or {}).get(envk,{}).get('env_vars') or {}
+              print(f'{envk} env keys:', sorted(ev.keys()))
+          " >> $O 2>&1
+          curl -s -H "Authorization: Bearer $CF_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CF_ACC/pages/projects/jennian-iq-prod/deployments?per_page=4" \
+            | python3 -c "
+          import json,sys
+          for d in json.load(sys.stdin)['result'][:4]:
+              print('deploy:', d.get('environment'), '| branch', (d.get('deployment_trigger') or {}).get('metadata',{}).get('branch'), '|', d.get('created_on'), '|', d.get('id')[:8])
+          " >> $O 2>&1
           cat $O
       - name: Publish
         if: always()
