@@ -103,16 +103,16 @@ function paDoor(): Opening {
 describe("SPECIFICATIONS block — coded cells", () => {
   const heating = specById("heating")!;
   const shower = specById("shower")!;
-  const septic = specById("septic_tank")!;
+  const cooktop = specById("cooktop")!;
 
   it("answered specs write code to B and label to C at the fixed row", () => {
     const ws = buildDropInSheet(base({ specifications: { heating: 2, shower: 2 } }));
     expect(cellVal(ws, `B${heating.row}`)).toBe(2);
-    expect(cellVal(ws, `C${heating.row}`)).toBe("High wall heatpump");
+    expect(cellVal(ws, `C${heating.row}`)).toBe("High wall heat pump");
     expect(cellVal(ws, `B${shower.row}`)).toBe(2);
-    expect(cellVal(ws, `C${shower.row}`)).toBe("Fully tiled");
+    expect(cellVal(ws, `C${shower.row}`)).toBe("Tiled wet-floor");
     expect(cellVal(ws, `A${heating.row}`)).toBe("heating");
-    expect(cellVal(ws, `D${heating.row}`)).toBe("electrical_heating");
+    expect(cellVal(ws, `D${heating.row}`)).toBe("heating");
   });
 
   it("unanswered specs leave B and C blank — the export never invents a selection", () => {
@@ -123,15 +123,10 @@ describe("SPECIFICATIONS block — coded cells", () => {
     expect(cellVal(ws, `A${shower.row}`)).toBe("shower");
   });
 
-  it("explicit N/A writes 0 — distinct from blank", () => {
-    const ws = buildDropInSheet(base({ specifications: { septic_tank: 0 } }));
-    expect(cellVal(ws, `B${septic.row}`)).toBe(0);
-    expect(cellVal(ws, `C${septic.row}`)).toBe("N/A");
-  });
-
-  it("a code outside the spec's option set is dropped, not exported", () => {
-    const ws = buildDropInSheet(base({ specifications: { heating: 99 } }));
+  it("a code outside the spec's option set is dropped, not exported (incl. an N/A 0 — no v2 spec defines one)", () => {
+    const ws = buildDropInSheet(base({ specifications: { heating: 99, cooktop: 0 } }));
     expect(cellVal(ws, `B${heating.row}`)).toBeUndefined();
+    expect(cellVal(ws, `B${cooktop.row}`)).toBeUndefined();
   });
 
   it("missing specifications map → all spec rows blank, header still present", () => {

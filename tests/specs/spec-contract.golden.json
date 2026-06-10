@@ -1,395 +1,18 @@
 {
-  "version": 1,
+  "version": 2,
   "headerRow": 100,
   "specs": [
     {
-      "id": "priority",
+      "id": "services",
       "row": 101,
       "codes": [
         1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "property_type",
-      "row": 102,
-      "codes": [
-        1,
         2
-      ]
-    },
-    {
-      "id": "soil_test",
-      "row": 103,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "survey",
-      "row": 104,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "council_services",
-      "row": 105,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "septic_tank",
-      "row": 106,
-      "codes": [
-        0,
-        1,
-        2
-      ]
-    },
-    {
-      "id": "water_tanks",
-      "row": 107,
-      "codes": [
-        0,
-        1,
-        2
-      ]
-    },
-    {
-      "id": "water_tank_base",
-      "row": 108,
-      "codes": [
-        0,
-        1,
-        2
-      ]
-    },
-    {
-      "id": "water_pump",
-      "row": 109,
-      "codes": [
-        0,
-        1,
-        2
-      ]
-    },
-    {
-      "id": "rural_access",
-      "row": 110,
-      "codes": [
-        0,
-        1,
-        2
-      ]
-    },
-    {
-      "id": "vehicle_crossing",
-      "row": 111,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "fencing",
-      "row": 112,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "foundations",
-      "row": 113,
-      "codes": [
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "roof_style",
-      "row": 114,
-      "codes": [
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "roof_material",
-      "row": 115,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "stud_height",
-      "row": 116,
-      "codes": [
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "ceiling_feature",
-      "row": 117,
-      "codes": [
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "posts",
-      "row": 118,
-      "codes": [
-        0,
-        1,
-        2
-      ]
-    },
-    {
-      "id": "garage_door",
-      "row": 119,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "window_glazing",
-      "row": 120,
-      "codes": [
-        1,
-        2,
-        3,
-        4
-      ]
-    },
-    {
-      "id": "front_door",
-      "row": 121,
-      "codes": [
-        1,
-        2,
-        3,
-        4
-      ]
-    },
-    {
-      "id": "cat_flap",
-      "row": 122,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "insulation",
-      "row": 123,
-      "codes": [
-        1,
-        2,
-        3,
-        4
-      ]
-    },
-    {
-      "id": "acoustic_system",
-      "row": 124,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "gib_cove",
-      "row": 125,
-      "codes": [
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "interior_door_type",
-      "row": 126,
-      "codes": [
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "master_robe",
-      "row": 127,
-      "codes": [
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "ceiling_hatch",
-      "row": 128,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "bathroom_vanity",
-      "row": 129,
-      "codes": [
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "taps",
-      "row": 130,
-      "codes": [
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "mirror",
-      "row": 131,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "bath",
-      "row": 132,
-      "codes": [
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "tiles_around_bath",
-      "row": 133,
-      "codes": [
-        0,
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "shower",
-      "row": 134,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "towel_rail",
-      "row": 135,
-      "codes": [
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "toilet",
-      "row": 136,
-      "codes": [
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "basin_in_toilet",
-      "row": 137,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "ensuite_vanity",
-      "row": 138,
-      "codes": [
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "ensuite_mirror",
-      "row": 139,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "ensuite_bath",
-      "row": 140,
-      "codes": [
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "ensuite_tiles_around_bath",
-      "row": 141,
-      "codes": [
-        0,
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "ensuite_shower",
-      "row": 142,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "ensuite_towel_rail",
-      "row": 143,
-      "codes": [
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "ensuite_toilet",
-      "row": 144,
-      "codes": [
-        1,
-        2,
-        3
       ]
     },
     {
       "id": "kitchen_pc",
-      "row": 145,
+      "row": 102,
       "codes": [
         1,
         2,
@@ -399,43 +22,8 @@
       ]
     },
     {
-      "id": "walkin_pantry",
-      "row": 146,
-      "codes": [
-        0,
-        1,
-        2,
-        3,
-        4
-      ]
-    },
-    {
-      "id": "benchtop",
-      "row": 147,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "splashback",
-      "row": 148,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "waste_disposal",
-      "row": 149,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "dishwasher",
-      "row": 150,
+      "id": "laundry_pc",
+      "row": 103,
       "codes": [
         1,
         2,
@@ -444,35 +32,25 @@
     },
     {
       "id": "cooktop",
-      "row": 151,
+      "row": 104,
       "codes": [
         1,
         2,
-        3,
-        4
+        3
       ]
     },
     {
       "id": "oven",
-      "row": 152,
+      "row": 105,
       "codes": [
         1,
         2,
-        3,
-        4
+        3
       ]
     },
     {
-      "id": "fridge_plumbing",
-      "row": 153,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "laundry_unit",
-      "row": 154,
+      "id": "dishwasher",
+      "row": 106,
       "codes": [
         1,
         2,
@@ -481,64 +59,16 @@
     },
     {
       "id": "hot_water",
-      "row": 155,
+      "row": 107,
       "codes": [
         1,
-        2
-      ]
-    },
-    {
-      "id": "electrical_spec",
-      "row": 156,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "home_hub",
-      "row": 157,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "alarm",
-      "row": 158,
-      "codes": [
-        0,
-        1,
-        2
-      ]
-    },
-    {
-      "id": "doorbell",
-      "row": 159,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "solar_power",
-      "row": 160,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "feature_lighting",
-      "row": 161,
-      "codes": [
-        1,
-        2
+        2,
+        3
       ]
     },
     {
       "id": "heating",
-      "row": 162,
+      "row": 108,
       "codes": [
         1,
         2,
@@ -547,51 +77,24 @@
       ]
     },
     {
-      "id": "heat_transfer_kit",
-      "row": 163,
+      "id": "shower",
+      "row": 109,
       "codes": [
         1,
         2
       ]
     },
     {
-      "id": "ventilation",
-      "row": 164,
+      "id": "bath",
+      "row": 110,
       "codes": [
         1,
         2
       ]
     },
     {
-      "id": "solatube",
-      "row": 165,
-      "codes": [
-        0,
-        1,
-        2
-      ]
-    },
-    {
-      "id": "beam_vacuum",
-      "row": 166,
-      "codes": [
-        0,
-        1,
-        2
-      ]
-    },
-    {
-      "id": "skylights",
-      "row": 167,
-      "codes": [
-        0,
-        1,
-        2
-      ]
-    },
-    {
-      "id": "carpet",
-      "row": 168,
+      "id": "interior_door_type",
+      "row": 111,
       "codes": [
         1,
         2,
@@ -599,87 +102,40 @@
       ]
     },
     {
-      "id": "vinyl",
-      "row": 169,
-      "codes": [
-        1,
-        2,
-        3
-      ]
-    },
-    {
-      "id": "underlay",
-      "row": 170,
+      "id": "ceiling_hatch",
+      "row": 112,
       "codes": [
         1,
         2
       ]
     },
     {
-      "id": "tiled_floor_entry",
-      "row": 171,
+      "id": "insulation_acoustic",
+      "row": 113,
       "codes": [
-        0,
         1,
         2
       ]
     },
     {
-      "id": "tiled_floor_bath",
-      "row": 172,
+      "id": "insulation_underslab",
+      "row": 114,
       "codes": [
-        0,
         1,
         2
       ]
     },
     {
-      "id": "tiled_floor_ensuite",
-      "row": 173,
+      "id": "insulation_hot_edge",
+      "row": 115,
       "codes": [
-        0,
-        1,
-        2
-      ]
-    },
-    {
-      "id": "tiled_floor_kitchen",
-      "row": 174,
-      "codes": [
-        0,
-        1,
-        2
-      ]
-    },
-    {
-      "id": "tiled_floor_dining",
-      "row": 175,
-      "codes": [
-        0,
-        1,
-        2
-      ]
-    },
-    {
-      "id": "tiled_floor_laundry",
-      "row": 176,
-      "codes": [
-        0,
         1,
         2
       ]
     },
     {
       "id": "garage_carpet",
-      "row": 177,
-      "codes": [
-        1,
-        2
-      ]
-    },
-    {
-      "id": "wall_tiling",
-      "row": 178,
+      "row": 116,
       "codes": [
         1,
         2

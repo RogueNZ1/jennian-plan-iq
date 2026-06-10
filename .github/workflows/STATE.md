@@ -32,30 +32,36 @@ Mapping discovered (Data Input House ← IQ Import):
 - Garage H-block order confirmed: 175/177/179 Standard, 176/178/180 Insulated, **H181 = Travel line (never write)**.
 **SHIPPED 359c860:** the paste sheet now writes the IQ Import tab exactly (fixed positional slots 33-45, B=Qty C=HEIGHT D=WIDTH — fixing the live transposition bug — meta cells, doors B27-30, B24 size string, MANUAL ENTRIES block from A47). Live-validated 5/5 against JM-0020 + Beddis. NEXT: re-run Beddis/Young/JM-0020 takeoffs in-app (stored extractions stale; also first live proof of rooms + door-engine persistence), then Phase 3 gate.
 
-## SPECIFICATIONS picker + contract — SHIPPED 11 Jun (Haydon builds QS against it)
-- Meeting-spec picker on the job page (`SpecificationsPanel`): ~78 coded selections
-  derived from Haydon's client meeting form (ESTIMATING DETAILS rows 38–76), grouped,
-  Rural/Residential first (branches the rural-only services set to auto-N/A).
-  Persists to `jobs.specifications` jsonb. "Confirm rest as standard" is an explicit
-  per-group action — nothing defaults silently.
-- **THE CONTRACT** (load-bearing): fixed rows 101–178 on the IQ Import paste sheet,
-  header row 100. A=spec id, **B=numeric code** (QS reads `'IQ Import'!B{row}`),
-  C=label, D=group. blank=unanswered (never invented), 0=N/A, 1+=selection. Codes
-  follow form print order EXCEPT heating per Haydon's brief: **1=Fully Ducted,
-  2=High Wall, 3=Gas, 4=Log**. Key rows: property_type B102, garage_door B119
-  (kills H176 silent default once QS reads it), shower B134, heating B162.
+## SPECIFICATIONS picker + contract — v2 SHIPPED 11 Jun (Haydon builds QS against it)
+- Meeting-spec picker on the job page (`SpecificationsPanel`): **16 coded specs across
+  10 areas**, finalised live with Haydon. Persists to `jobs.specifications` jsonb.
+- **SCOPE DOCTRINE:** only what is DECIDED IN THE MEETING and cannot be read off a plan.
+  Anything the IQ engine extracts (foundations, roof/gables, stud height, ceiling form,
+  skylights) is deliberately NOT a spec — drawings encode it. Bathroom/ensuite vanity,
+  taps, mirror, front door, posts, glazing, all rural sub-detail etc. were cut.
+- **THE CONTRACT (v2, frozen):** header row 100, specs rows **101–116**. A=spec id,
+  **B=numeric code** (QS reads `'IQ Import'!B{row}`), C=label, D=area. blank=unanswered
+  (never invented), 0=N/A, 1+=selection. Coding: selectors 1=base ascending by value;
+  **upgrade toggles 1=No(standard) 2=Yes** → uniform `=IF(B{row}=2,cost,0)`; heating
+  fixed by brief **1=Fully Ducted 2=High Wall 3=Gas 4=Log**.
+  Rows: services 101, kitchen_pc 102 (10/15/20/25/30K), laundry_pc 103 (2K/4K/Robinhood),
+  cooktop 104, oven 105, dishwasher 106, hot_water 107, **heating 108**, shower 109
+  (acrylic/tiled wet-floor), bath 110 (tiled-in cradle/freestanding), interior_door_type
+  111, ceiling_hatch 112, insulation_acoustic 113, insulation_underslab 114,
+  insulation_hot_edge 115, garage_carpet 116.
 - Append-only forever: `tests/specs/spec-contract.golden.json` freezes id→row→codes;
-  regenerating golden+doc is one deliberate motion (`UPDATE_SPEC_CONTRACT=1`).
-  Handover doc: `docs/SPEC_CONTRACT.md` (auto-generated, sync-tested). Option LABELS
-  marked (verify) came from truncated form text — correctable; codes/rows are not.
-- MANUAL ENTRIES block capped at 25 lines (+summary line) so floating blocks can
-  never reach the spec rows — collision-guarded by test (guard row 95).
-- **MIGRATION PENDING (Haydon, one line in Supabase SQL editor):**
+  regen golden+doc in one motion (`UPDATE_SPEC_CONTRACT=1`). Handover: `docs/SPEC_CONTRACT.md`.
+- v1 (78 specs) was shipped earlier same day then cut to v2 with Haydon before ANY QS
+  wiring existed — so the one-time renumber was free. v2 is the contract to build from.
+- MANUAL ENTRIES block capped at 25 lines so floating blocks can't reach the spec rows
+  (collision-guarded, guard row 95).
+- **MIGRATION STILL PENDING (Haydon, one line in Supabase SQL editor):**
   `alter table jobs add column if not exists specifications jsonb;`
-  Until then the panel shows a provisioning notice (graceful), export emits blank
-  spec block, live discovery probe reports column status each run.
-- NEXT here: Haydon verifies (verify)-marked option labels; wires QS formulas to
-  the B-cells at his pace (contract doc is the handover).
+  Until then panel shows a provisioning notice (graceful), export emits blank spec block,
+  live discovery probe reports column status each run.
+- **NOTE — H176 still live:** garage door was CUT from the picker, so the silent insulated
+  default (~$2,983 on IFERROR) is now wholly the QS workbook's to fix. Shower acrylic-vs-tiled
+  IS in v2 (row 109).
 
 ## Cladding engine — V1 SHIPPED (deterministic core + sheet surface)
 - `src/lib/cladding/cladding-engine.ts`: pure computeCladding() — wall rect (measured

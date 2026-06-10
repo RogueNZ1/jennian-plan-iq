@@ -72,27 +72,34 @@ describe("spec schema invariants", () => {
     expect(heating.options.find((o) => o.code === 4)!.label.toLowerCase()).toContain("log");
   });
 
-  it("shower codes: 1 = standard acrylic, 2 = fully tiled", () => {
+  it("shower codes: 1 = acrylic, 2 = tiled wet-floor", () => {
     const shower = SPECS.find((s) => s.id === "shower")!;
     expect(shower.options.find((o) => o.code === 1)!.label.toLowerCase()).toContain("acrylic");
     expect(shower.options.find((o) => o.code === 2)!.label.toLowerCase()).toContain("tiled");
   });
 
-  it("property_type: 1 = residential, 2 = rural; rural-only specs auto-N/A on residential", () => {
-    const pt = SPECS.find((s) => s.id === "property_type")!;
-    expect(pt.options.find((o) => o.code === 1)!.label).toBe("Residential");
-    expect(pt.options.find((o) => o.code === 2)!.label).toBe("Rural");
-    const targets = autoNaTargets({ property_type: 1 });
-    expect(targets).toContain("septic_tank");
-    expect(targets).toContain("water_tanks");
-    expect(targets).toContain("water_pump");
-    expect(targets).toContain("rural_access");
-    // and nothing auto-N/As when rural is chosen
-    expect(autoNaTargets({ property_type: 2 })).toEqual([]);
+  it("services: 1 = residential, 2 = rural", () => {
+    const svc = SPECS.find((s) => s.id === "services")!;
+    expect(svc.options.find((o) => o.code === 1)!.label).toBe("Residential");
+    expect(svc.options.find((o) => o.code === 2)!.label).toBe("Rural");
   });
 
-  it("autoNaTargets never overrides a made choice", () => {
-    expect(autoNaTargets({ property_type: 1, septic_tank: 1 })).not.toContain("septic_tank");
+  it("upgrade toggles use 1=No(standard), 2=Yes for uniform QS IF formulas", () => {
+    for (const id of [
+      "insulation_acoustic",
+      "insulation_underslab",
+      "insulation_hot_edge",
+      "garage_carpet",
+    ]) {
+      const s = SPECS.find((x) => x.id === id)!;
+      expect(s.options.find((o) => o.code === 1)!.label.toLowerCase()).toContain("standard");
+      expect(s.options.find((o) => o.code === 2)!.label).toBe("Yes");
+    }
+  });
+
+  it("no naWhen dependencies in v2 (lean schema, no rural sub-detail)", () => {
+    expect(SPECS.some((s) => s.naWhen)).toBe(false);
+    expect(autoNaTargets({ services: 1 })).toEqual([]);
   });
 
   it("parseSpecifications is defensive", () => {

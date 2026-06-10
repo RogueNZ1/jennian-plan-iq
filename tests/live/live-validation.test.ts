@@ -75,7 +75,7 @@ describe.skipIf(!LIVE)("LIVE — JM-0020 export faithfulness", () => {
     const specAnswered = Object.keys(data.specifications ?? {}).length;
     console.log("[live] specifications answered:", specAnswered,
       "| header row 100:", String(cell(ws, "A100") ?? "").slice(0, 30),
-      "| heating B162:", cell(ws, "B162") ?? "(blank)");
+      "| heating B108:", cell(ws, "B108") ?? "(blank)");
   });
 
   it("the export runs on the ENRICHED path (loader found a real takeoff_json)", () => {
