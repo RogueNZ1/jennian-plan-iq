@@ -144,6 +144,7 @@ export default {
     if (env.ASSETS) {
       const isStaticAsset =
         url.pathname.startsWith("/assets/") ||
+        url.pathname === "/version.json" || // update-watcher contract — must bypass SSR
         /\\.(js|css|woff2?|ttf|otf|png|jpg|jpeg|gif|svg|ico|webp|map)$/.test(url.pathname);
       if (isStaticAsset) {
         const assetRes = await env.ASSETS.fetch(request.clone());
