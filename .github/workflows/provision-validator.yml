@@ -1,0 +1,58 @@
+# One-shot, idempotent: create the claude-validator app account (auth user + estimator
+# role) using the Supabase admin API. Credentials live ONLY in GitHub secrets
+# (VALIDATOR_EMAIL / VALIDATOR_PASSWORD); status publishes to the ops-results branch.
+name: provision-validator
+on:
+  push:
+    branches: [convergence]
+    paths: ['.github/workflows/provision-validator.yml']
+permissions:
+  contents: write
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create user + role (idempotent)
+        env:
+          KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          EMAIL: ${{ secrets.VALIDATOR_EMAIL }}
+          PASSWORD: ${{ secrets.VALIDATOR_PASSWORD }}
+        run: |
+          set -e
+          URL="https://ukegudqobnmiesudtjen.supabase.co"
+          H1="apikey: $KEY"; H2="Authorization: Bearer $KEY"
+          # Find or create the auth user
+          UID=$(curl -s -H "$H1" -H "$H2" "$URL/auth/v1/admin/users?per_page=200" | python3 -c "
+          import json,sys,os
+          users=json.load(sys.stdin).get('users',[])
+          m=[u for u in users if u.get('email')==os.environ['EMAIL']]
+          print(m[0]['id'] if m else '')" )
+          if [ -z "$UID" ]; then
+            UID=$(curl -s -X POST -H "$H1" -H "$H2" -H "Content-Type: application/json" \
+              -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\",\"email_confirm\":true}" \
+              "$URL/auth/v1/admin/users" | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))")
+            echo "created user: ${UID:0:8}…"
+          else
+            # Ensure the password matches the stored secret (rotation-safe)
+            curl -s -X PUT -H "$H1" -H "$H2" -H "Content-Type: application/json" \
+              -d "{\"password\":\"$PASSWORD\"}" "$URL/auth/v1/admin/users/$UID" > /dev/null
+            echo "user exists: ${UID:0:8}… (password synced)"
+          fi
+          [ -n "$UID" ] || { echo "FAILED to resolve user id"; exit 1; }
+          # Grant estimator role (idempotent upsert)
+          curl -s -X POST -H "$H1" -H "$H2" -H "Content-Type: application/json" \
+            -H "Prefer: resolution=ignore-duplicates" \
+            -d "[{\"user_id\":\"$UID\",\"role\":\"estimator\"}]" \
+            "$URL/rest/v1/user_roles" -o /tmp/role.json -w "role grant HTTP %{http_code}\n"
+          ROLES=$(curl -s -H "$H1" -H "$H2" "$URL/rest/v1/user_roles?user_id=eq.$UID&select=role")
+          echo "roles now: $ROLES"
+          { echo "validator: provisioned"; echo "uid: ${UID:0:8}…"; echo "roles: $ROLES"; } > /tmp/ops.txt
+      - name: Publish status to ops-results branch
+        run: |
+          git config user.name "ops[bot]"; git config user.email "noreply@github.com"
+          git checkout --orphan ops-results && git rm -rf -q . || true
+          mkdir -p results && cp /tmp/ops.txt results/provision.txt
+          git add results && git commit -q -m "provision-validator run ${{ github.run_id }}"
+          git push -f origin ops-results
