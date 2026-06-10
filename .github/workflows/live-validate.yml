@@ -1,0 +1,25 @@
+# LIVE validation — runs the real export pipeline against the real Supabase project.
+# Triggered manually (workflow_dispatch). Requires repo secrets:
+#   SUPABASE_URL              — the project URL
+#   SUPABASE_SERVICE_ROLE_KEY — service-role key (bypasses RLS; read paths only are used)
+# The job prints every live value before asserting, so a red run reads as a report.
+name: live-validate
+on:
+  workflow_dispatch:
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run live validation suite
+        env:
+          LIVE_VALIDATE: "1"
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx vitest run -c vitest.live.config.ts
