@@ -109,3 +109,4 @@ describe.skipIf(!LIVE)("LIVE DISCOVERY (report-only)", () => {
     }
   });
 });
+// ops: post-migration verification — 2026-06-10T20:55Z
