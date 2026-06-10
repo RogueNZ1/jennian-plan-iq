@@ -77,7 +77,6 @@ function JobDetail() {
   const [electricalFile, setElectricalFile] = useState<{ id: string; file_name: string; storage_url: string } | null>(null);
   const [generatorOpen, setGeneratorOpen] = useState(false);
   const [geometryBadge, setGeometryBadge] = useState<{ confidence: string; scale: string | null } | null>(null);
-  const [doorCountsConfirmed, setDoorCountsConfirmed] = useState(false);
   const [aiDoorEstimate, setAiDoorEstimate] = useState(0);
   const [roomCounts, setRoomCounts] = useState<RoomCounts>({
     masterBedrooms: 1, bedrooms: 3, bathrooms: 1, ensuites: 1,
@@ -146,7 +145,6 @@ function JobDetail() {
           supabase.from("module_items").select("label, extracted_value").eq("job_id", jobId),
         ]);
         if (!cancelled) {
-          if (dcRes.data?.confirmed_at) setDoorCountsConfirmed(true);
           const doorItem = (miRes.data ?? []).find((i) =>
             i.label?.toLowerCase().includes("internal door") ||
             i.label?.toLowerCase().includes("interior door"),
@@ -636,8 +634,7 @@ function JobDetail() {
               <button
                 type="button"
                 onClick={handleExportIQData}
-                disabled={exportingQS || (hasTakeoffData === true && !doorCountsConfirmed)}
-                title={hasTakeoffData && !doorCountsConfirmed ? "Confirm door counts first" : undefined}
+                disabled={exportingQS}
                 className="inline-flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
               >
                 <FileSpreadsheet className="h-4 w-4" />
