@@ -85,9 +85,16 @@ describe.skipIf(!LIVE)("LIVE — JM-0020 export faithfulness", () => {
 
 describe.skipIf(!LIVE)("LIVE — Beddis schedule path unchanged (vs committed ground truth)", () => {
   it("drop-in window rows match ground-truth-derived expectations", async () => {
-    const id = await jobIdByNumber("%26001%");
+    let id = await jobIdByNumber("%26001%");
     if (!id) {
-      console.log("[live] Beddis (26001) not found by number — report-only skip");
+      // Job numbering differs from the QS job code — fall back to the client name.
+      const byName = await supabase.from("jobs").select("id, job_number").ilike("client_name", "%beddis%").limit(2);
+      if (byName.error) throw new Error(byName.error.message);
+      console.log("[live] Beddis by client name:", (byName.data ?? []).length, "match(es)");
+      id = byName.data?.[0]?.id ?? null;
+    }
+    if (!id) {
+      console.log("[live] Beddis not found by number or client name — report-only skip");
       return;
     }
     const data = await buildQSExportData(id);
