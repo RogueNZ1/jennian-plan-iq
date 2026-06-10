@@ -131,37 +131,44 @@ describe.skipIf(!LIVE)("LIVE — Beddis export faithfulness (export === stored c
     }
     const data = await buildQSExportData(id);
     const ws = buildDropInSheet(data);
-    // FAITHFULNESS: total window-type qty across the slot rows must equal the number of
-    // routable canonical window openings (slot keyword matched, laundry excluded), and the
-    // sectional must land in exactly one place (an H bin or row 67/68) — never both, never
-    // neither. NOTE: agreement with the committed QS ground truth is the PIPELINE's claim —
-    // the stored extraction may be stale (it predates the recent pipeline fixes); re-run the
-    // takeoff in the app to refresh it, and the report lines below show the current delta.
+    // FAITHFULNESS under the IQ Import contract: every routable canonical window opening
+    // must be accounted for EITHER in a slot row's qty (B33-B43, group 1) OR in a manual
+    // block line ("N more @ …" overflow / "Toilet window …" no-slot lines). None invented:
+    // total rendered === total routable. Agreement with QS ground truth stays the
+    // PIPELINE's claim (stored extraction may be stale — re-run the takeoff to refresh).
     const SLOT_KEYWORDS: Array<[number, string[]]> = [
-      [41, ["bed 1", "bedroom 1", "master"]], [43, ["ensuite"]], [45, ["bed 2"]], [47, ["bed 3"]],
-      [49, ["bed 4"]], [51, ["toilet", "wc", "powder"]], [52, ["bathroom", "bath"]], [54, ["kitchen"]],
-      [56, ["family", "living", "open plan"]], [59, ["dining"]], [62, ["lounge"]], [65, ["garage"]],
+      [33, ["bed 1", "bedroom 1", "master"]], [34, ["ensuite"]], [35, ["bed 2"]], [36, ["bed 3"]],
+      [37, ["bed 4"]], [38, ["bathroom", "bath"]], [39, ["kitchen"]],
+      [40, ["family", "living", "open plan"]], [41, ["dining"]], [42, ["lounge"]], [43, ["garage"]],
     ];
-    const windowsRoutable = (enriched.openings ?? []).filter((o) => {
+    const TOILET = ["toilet", "wc", "powder"];
+    const routable = (enriched.openings ?? []).filter((o) => {
       if (!["window", "slider", "garage_window"].includes(o.type)) return false;
       const room = (o.room ?? "").toLowerCase();
       if (room.includes("laundry")) return false;
-      return SLOT_KEYWORDS.some(([, ks]) => ks.some((k) => room.includes(k)));
+      return SLOT_KEYWORDS.some(([, ks]) => ks.some((k) => room.includes(k))) || TOILET.some((k) => room.includes(k));
     });
-    const slotQtyTotal = SLOT_KEYWORDS.reduce((sum, [row]) => sum + Number(cell(ws, `D${row}`) ?? 0), 0);
-    console.log("[live] Beddis canonical routable windows:", windowsRoutable.length, "→ slot qty total:", slotQtyTotal);
-    expect(slotQtyTotal).toBe(windowsRoutable.length);
+    const slotTotal = SLOT_KEYWORDS.reduce((sum, [row]) => sum + Number(cell(ws, `B${row}`) ?? 0), 0);
+    let manualText = "";
+    for (let r = 47; r < 90; r++) {
+      const v = (ws[`A${r}`] as { v?: unknown } | undefined)?.v;
+      if (typeof v === "string") manualText += v + "\n";
+    }
+    const overflowQty = [...manualText.matchAll(/: (\d+) more @/g)].reduce((s2, m) => s2 + Number(m[1]), 0);
+    const toiletLines = (manualText.match(/• Toilet window /g) ?? []).length;
+    const toiletQtyMarked = [...manualText.matchAll(/• Toilet window .*×(\d+)/g)].reduce((s2, m) => s2 + Number(m[1]) - 1, 0);
+    const rendered = slotTotal + overflowQty + toiletLines + toiletQtyMarked;
+    console.log("[live] Beddis routable:", routable.length, "→ slots:", slotTotal, "overflow:", overflowQty, "toilet:", toiletLines + toiletQtyMarked);
+    expect(rendered).toBe(routable.length);
 
     const sectionals = (enriched.openings ?? []).filter((o) => o.type === "sectional_door");
-    const hTotal = [175, 176, 177, 178, 179, 180].reduce((sum, r) => sum + Number(cell(ws, `H${r}`) ?? 0), 0);
-    const nonStdTotal = [67, 68].reduce((sum, r) => sum + Number(cell(ws, `D${r}`) ?? 0), 0);
-    console.log("[live] Beddis sectionals:", sectionals.length, "→ H bins:", hTotal, "rows67/68:", nonStdTotal);
+    console.log("[live] Beddis sectionals:", sectionals.length, "→ B24:", cell(ws, "B24"), "row44 qty:", cell(ws, "B44"));
     if (sectionals.length > 0) {
-      expect(hTotal + nonStdTotal).toBeGreaterThan(0); // landed somewhere
-      expect(Math.min(hTotal, nonStdTotal)).toBe(0);   // never double-counted across both
+      expect(String(cell(ws, "B24") ?? "")).toMatch(/^\d/); // a real size string
+      expect(Number(cell(ws, "B44"))).toBeGreaterThan(0);
     }
     // Report-only: stored extraction vs committed QS ground truth (pipeline freshness).
-    console.log("[live][report] bed1 row41:", cell(ws, "D41"), cell(ws, "E41"), cell(ws, "F41"),
+    console.log("[live][report] bed1 row33:", cell(ws, "B33"), cell(ws, "C33"), cell(ws, "D33"),
       "(QS ground truth: 2 windows, first 2.1h × 1.6w — mismatch ⇒ stored extraction is stale, re-run the takeoff)");
   });
 });
