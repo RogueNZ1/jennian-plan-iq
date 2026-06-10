@@ -55,7 +55,24 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ID_CANDIDATE_A }}
         run: |
           set -o pipefail
+          # Direct-upload deployments do NOT inherit dashboard env vars (verified live,
+          # 11 Jun: project env set + redeploy still 503). Bake vars into the deployment
+          # via a runner-local wrangler.toml — never committed, value from the secret.
+          cat > wrangler.toml << WREOF
+          name = "jennian-iq-prod"
+          pages_build_output_dir = "dist/client"
+          compatibility_date = "2025-01-01"
+
+          [vars]
+          GEOMETRY_API_KEY = "${{ secrets.CF_EXTRA_64 }}"
+          WREOF
           npx wrangler pages deploy dist/client --project-name=jennian-iq-prod --branch=main 2>&1 | tee /tmp/wr.log | tail -4 >> /tmp/deploy.txt
+      - name: Verify geometry proxy (post-deploy gate)
+        run: |
+          sleep 8
+          CODE=$(curl -s -o /tmp/gbody -w '%{http_code}' --max-time 20 "https://jennian-iq-prod.pages.dev/api/geometry/health" || echo ERR)
+          echo "geometry-proxy: $CODE $(head -c 100 /tmp/gbody)" >> /tmp/deploy.txt
+          [ "$CODE" = "200" ] || { echo "GEOMETRY PROXY UNHEALTHY ($CODE) — failing the deploy gate" >> /tmp/deploy.txt; exit 1; }
       - name: Publish status (always)
         if: always()
         run: |
