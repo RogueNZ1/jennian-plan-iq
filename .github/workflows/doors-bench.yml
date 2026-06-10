@@ -30,18 +30,33 @@ jobs:
         run: |
           set +e
           URL="https://ukegudqobnmiesudtjen.supabase.co"
+          H1="apikey: $KEY"; H2="Authorization: Bearer $KEY"
           : > /tmp/bench.txt
-          # Candidate file rows: floorplan-ish names on alexandra/kanzan-ish jobs first, any floorplan second.
-          ROWS=$(curl -s -H "apikey: $KEY" -H "Authorization: Bearer $KEY" "$URL/rest/v1/uploaded_files?select=id,file_name,storage_url,job_id&file_name=ilike.%25floorplan%25&limit=20")
-          echo "floorplan-named files: $(echo "$ROWS" | jq 'length')" >> /tmp/bench.txt
-          PICK=$(echo "$ROWS" | jq -r '[.[] | select(.file_name | test("2026_03_18"; "i"))][0].storage_url // empty')
-          [ -z "$PICK" ] && PICK=$(echo "$ROWS" | jq -r '.[0].storage_url // empty')
-          echo "picked: $(echo "$ROWS" | jq -r --arg p "$PICK" '[.[] | select(.storage_url==$p)][0].file_name // "none" | .[0:18]')…" >> /tmp/bench.txt
-          if [ -z "$PICK" ]; then echo "NO candidate plan found in storage" >> /tmp/bench.txt; echo "found=" >> "$GITHUB_OUTPUT"; exit 0; fi
-          curl -s -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -o /tmp/plan.pdf "$URL/storage/v1/object/job-files/$PICK"
-          SZ=$(stat -c%s /tmp/plan.pdf 2>/dev/null || echo 0)
-          echo "downloaded bytes: $SZ" >> /tmp/bench.txt
-          if [ "$SZ" -lt 10000 ]; then echo "download too small — likely an error body" >> /tmp/bench.txt; echo "found=" >> "$GITHUB_OUTPUT"; exit 0; fi
+          # Anchor on the JOB first: alexandra client or kanzan address.
+          JOBS=$(curl -s -H "$H1" -H "$H2" "$URL/rest/v1/jobs?select=id,client_name,address&or=(client_name.ilike.%25alexandra%25,address.ilike.%25kanzan%25)&limit=5")
+          echo "candidate jobs: $(echo "$JOBS" | jq -r '[.[] | (.client_name[0:3] + "…/" + (.address[0:10] // "") + "…")] | join(", ")')" >> /tmp/bench.txt
+          IDS=$(echo "$JOBS" | jq -r '[.[].id] | join(",")')
+          ROWS="[]"
+          if [ -n "$IDS" ]; then
+            ROWS=$(curl -s -H "$H1" -H "$H2" "$URL/rest/v1/uploaded_files?select=file_name,storage_url&job_id=in.($IDS)&file_name=ilike.%25floorplan%25&limit=10")
+          fi
+          if [ "$(echo "$ROWS" | jq 'length')" = "0" ]; then
+            echo "no floorplan on those jobs — falling back to any 03[._-]18-named floorplan" >> /tmp/bench.txt
+            ROWS=$(curl -s -H "$H1" -H "$H2" "$URL/rest/v1/uploaded_files?select=file_name,storage_url&file_name=ilike.%25floorplan%25&limit=40")
+            ROWS=$(echo "$ROWS" | jq '[.[] | select(.file_name | test("03[._-]18"))]')
+          fi
+          echo "candidate files: $(echo "$ROWS" | jq 'length')" >> /tmp/bench.txt
+          PICK=$(echo "$ROWS" | jq -r '.[0].storage_url // empty')
+          echo "picked: $(echo "$ROWS" | jq -r '.[0].file_name // "none" | .[0:18]')… path-shape: $(echo "$PICK" | cut -c1-12)…" >> /tmp/bench.txt
+          if [ -z "$PICK" ]; then echo "NO candidate plan found" >> /tmp/bench.txt; echo "found=" >> "$GITHUB_OUTPUT"; exit 0; fi
+          ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe='/'))" "$PICK")
+          for B in job-files plan_pdfs; do
+            curl -s -H "$H1" -H "$H2" -o /tmp/plan.pdf "$URL/storage/v1/object/$B/$ENC"
+            SZ=$(stat -c%s /tmp/plan.pdf 2>/dev/null || echo 0)
+            echo "bucket $B → $SZ bytes" >> /tmp/bench.txt
+            [ "$SZ" -gt 10000 ] && break
+          done
+          if [ "$SZ" -lt 10000 ]; then head -c 200 /tmp/plan.pdf >> /tmp/bench.txt; echo "found=" >> "$GITHUB_OUTPUT"; exit 0; fi
           echo "found=1" >> "$GITHUB_OUTPUT"
       - name: Run the ground-truth bench
         id: bench
