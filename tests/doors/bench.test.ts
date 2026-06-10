@@ -2,8 +2,8 @@
 /**
  * Alexandra bench — the engine's REAL gate (hand-counted ground truth:
  * 12 hinged / 4 double / 1 cavity, entry + garage excluded, zero false positives).
- * Runs wherever the client plan PDF exists (gitignored, same pattern as the goldens):
- * drop it at tests/doors/plans/alexandra.pdf and this runs automatically.
+ * The Alexandra is Jennian's own catalogue plan (own spec lot) — committed as a
+ * fixture so this gate runs on every push, no fetch plumbing, no secrets.
  * Engine README: bench is n=1 — add 1-2 more plans with hand counts before trusting
  * the engine across the catalogue. Each new plan becomes a permanent bench file here.
  */
@@ -25,7 +25,8 @@ describe.skipIf(!has)("door engine — Alexandra bench (hand-counted ground trut
       bench.scaleText ?? "1:100",
     );
     expect(result, "engine returned null on the bench plan").not.toBeNull();
-    expect(result!.counts).toEqual(bench.expected_counts ?? bench.counts);
-    expect(result!.flags).toHaveLength(bench.expected_flags ?? 0);
+    const { flags: expectedFlags = 0, ...expectedCounts } = bench.expected;
+    expect(result!.counts).toEqual(expectedCounts);
+    expect(result!.flags).toHaveLength(expectedFlags);
   }, 60_000);
 });

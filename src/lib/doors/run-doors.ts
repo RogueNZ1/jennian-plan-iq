@@ -26,10 +26,24 @@ export async function runDoorEngine(
     const scale = scaleDenominator(scaleText);
     if (!scale) return null; // no usable scale → no door pass (fail-safe)
     const pdfjs = await import("pdfjs-dist-door/legacy/build/pdf.mjs");
-    // Worker not needed for operator-list extraction in the legacy build.
-    pdfjs.GlobalWorkerOptions.workerSrc = "";
+    // pdf.js refuses a falsy workerSrc even on the fake-worker path. In Vite
+    // builds the ?url import emits the worker as a hashed asset (same pattern
+    // as pdf-pages.ts); in plain Node/vitest that import throws and the bare
+    // specifier fallback lets the fake worker dynamic-import from node_modules.
+    if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+      try {
+        const u = await import("pdfjs-dist-door/legacy/build/pdf.worker.mjs?url");
+        pdfjs.GlobalWorkerOptions.workerSrc = (u as { default: string }).default;
+      } catch {
+        pdfjs.GlobalWorkerOptions.workerSrc = "pdfjs-dist-door/legacy/build/pdf.worker.mjs";
+      }
+    }
     const doc = await pdfjs.getDocument({
-      data: pdfData instanceof Uint8Array ? pdfData : new Uint8Array(pdfData),
+      // pdf.js rejects Node Buffer (a Uint8Array SUBCLASS, so instanceof passes
+      // it through) — always hand over a true Uint8Array view, zero-copy.
+      data: pdfData instanceof Uint8Array
+        ? new Uint8Array(pdfData.buffer, pdfData.byteOffset, pdfData.byteLength)
+        : new Uint8Array(pdfData),
       useWorkerFetch: false,
       isEvalSupported: false,
       disableFontFace: true,

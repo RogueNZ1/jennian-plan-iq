@@ -79,4 +79,5 @@ supabase/.temp/
 *.sln
 *.sw?
 .vercel
-tests/doors/plans/
+tests/doors/plans/*
+!tests/doors/plans/alexandra.pdf
