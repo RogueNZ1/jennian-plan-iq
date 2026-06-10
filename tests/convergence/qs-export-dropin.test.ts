@@ -63,121 +63,163 @@ const YOUNG_OPENINGS: Opening[] = [
   op("entrance","Entry",          2.1, 0),   // ← w=0 unresolved, must appear at row 72
 ];
 
-describe("buildDropInSheet — core cells", () => {
-  it("writes floor area D4, perimeter E4, first-floor F4, alfresco D13, stud-height D20", () => {
+/** All manual-block lines (A48+) joined for matching. */
+function manualBlock(ws: ReturnType<typeof buildDropInSheet>): string {
+  let out = "";
+  for (let r = 47; r < 80; r++) {
+    const v = cellVal(ws, `A${r}`);
+    if (typeof v === "string") out += v + "\n";
+  }
+  return out;
+}
+
+describe("buildDropInSheet — IQ Import meta block (live QS v4_1 contract)", () => {
+  it("writes job/client/address and the QS-read measurement cells", () => {
     const ws = buildDropInSheet(base());
-    expect(cellVal(ws, "D4")).toBe(100.3);
-    expect(cellVal(ws, "E4")).toBe(44.6);
-    expect(cellVal(ws, "F4")).toBe(0);        // single-storey default
-    expect(cellVal(ws, "D13")).toBe(0.9);
-    expect(cellVal(ws, "D20")).toBe(2400);    // mm, not metres
+    expect(cellVal(ws, "B1")).toBe("JM-0015");
+    expect(cellVal(ws, "B2")).toBe("Test Client");
+    expect(cellVal(ws, "B3")).toBe("23 Main St, Feilding"); // street + city, no hardcoded fallback
+    expect(cellVal(ws, "B9")).toBe(100.3);   // floor m² → QS D4
+    expect(cellVal(ws, "B11")).toBe(0.9);    // alfresco → QS D13
+    expect(cellVal(ws, "B12")).toBe(44.6);   // ext wall lm → QS E4
+    expect(cellVal(ws, "B22")).toBe(2.4);    // ceiling in METRES (QS D20 expects m)
   });
 
-  it("writes city from address to I5 without a hardcoded fallback", () => {
-    const ws = buildDropInSheet(base());
-    expect(cellVal(ws, "I5")).toBe("Feilding");
-  });
-
-  it("omits I5 when city is null (no 'Palmerston North' fallback)", () => {
-    const ws = buildDropInSheet(base({ city: null }));
-    expect(cellVal(ws, "I5")).toBeUndefined();
-  });
-});
-
-describe("buildDropInSheet — window routing (openings[] path)", () => {
-  const ws = buildDropInSheet(base({ openings: YOUNG_OPENINGS }));
-
-  it("Bed 1 qty=2 at row 41 (two openings with same room aggregate)", () => {
-    expect(cellVal(ws, "D41")).toBe(2);
-    expect(cellVal(ws, "E41")).toBe(1.3);
-    expect(cellVal(ws, "F41")).toBe(1.8);
-  });
-
-  it("Dining slider at row 59 (type=slider, room=Dining)", () => {
-    expect(cellVal(ws, "D59")).toBe(1);
-    expect(cellVal(ws, "E59")).toBe(2.1);
-    expect(cellVal(ws, "F59")).toBe(2.4);
-  });
-
-  it("WC maps to row 51 (Toilet slot)", () => {
-    expect(cellVal(ws, "D51")).toBe(1);
-    expect(cellVal(ws, "E51")).toBe(1.1);
-    expect(cellVal(ws, "F51")).toBe(0.7);
-  });
-
-  it("entrance at row 72 with w=0 (unresolved, written not dropped)", () => {
-    expect(cellVal(ws, "D72")).toBe(1);
-    expect(cellVal(ws, "E72")).toBe(2.1);
-    // w=0 → not written (zero is the 'already zeroed' value)
-    // Row was pre-zeroed so F72=0 either way; presence of D72=1 proves it was written
-  });
-
-  it("Laundry window is DROPPED (no slot for it)", () => {
-    // No laundry row in the master. Row 70 = Laundry Door (PA door) not laundry window.
-    // The Laundry window opening (room='Laundry') must not reach any slot.
-    // Bed2=45, Bed3=47 etc. should be 0 (no openings for them in Young plan).
-    expect(cellVal(ws, "D45")).toBe(1);   // Bed 2 present
-    // Laundry was the 8th opening — if it leaked into any slot other than 70 that's a bug.
-    // Row 70 should be 0 (no pa_door in Young's openings).
-    expect(cellVal(ws, "D70")).toBe(0);
-  });
-
-  it("zeros ALL rows 41-72 that IQ didn't populate (kills template defaults)", () => {
-    // Bed 3 (row 47), Bed 4 (49), Ensuite (43), Family (56), Lounge (62), etc.
-    // not in Young openings → must be 0, not the template's 200 m² default
-    // Kitchen (54) and Lounge (62) ARE in Young's openings — only check truly empty slots:
-    for (const row of [43, 47, 49, 56, 65, 67, 68]) {
-      expect(cellVal(ws, `D${row}`)).toBe(0);
-    }
-  });
-});
-
-describe("buildDropInSheet — garage doors", () => {
-  it("all H175-H180 are 0 when no garage", () => {
-    const ws = buildDropInSheet(base({ openings: YOUNG_OPENINGS }));
-    for (const row of [175, 176, 177, 178, 179, 180]) {
-      expect(cellVal(ws, `H${row}`)).toBe(0);
-    }
-  });
-
-  it("sets H175=1 for 4.8×2.1 standard, all others 0", () => {
-    const ws = buildDropInSheet(base({ garageDoor48x21Std: 1 }));
-    expect(cellVal(ws, "H175")).toBe(1);
-    for (const row of [176, 177, 178, 179, 180]) expect(cellVal(ws, `H${row}`)).toBe(0);
-  });
-
-  it("sets H179=1 for 2.7×2.1 standard", () => {
-    const ws = buildDropInSheet(base({ garageDoor27x21Std: 1 }));
-    expect(cellVal(ws, "H179")).toBe(1);
-    expect(cellVal(ws, "H175")).toBe(0);
-  });
-});
-
-describe("buildDropInSheet — interior door counts", () => {
-  it("writes H187/190/192/193 from door counts and zeros when 0", () => {
+  it("door breakdown lands at B27-B30 (→ H187/H193/H192/H190)", () => {
     const ws = buildDropInSheet(base({
-      intDoorStandard: 5, intDoorBarnSlider: 0,
-      intDoorDouble: 2,   intDoorCavitySlider: 2,
+      intDoorStandard: 12, intDoorCavitySlider: 1, intDoorDouble: 4, intDoorBarnSlider: 0,
     }));
-    expect(cellVal(ws, "H187")).toBe(5);  // standard
-    expect(cellVal(ws, "H190")).toBe(0);  // barn slider (zeroed)
-    expect(cellVal(ws, "H192")).toBe(2);  // double
-    expect(cellVal(ws, "H193")).toBe(2);  // cavity
+    expect(cellVal(ws, "B27")).toBe(12);
+    expect(cellVal(ws, "B28")).toBe(1);
+    expect(cellVal(ws, "B29")).toBe(4);
+    expect(cellVal(ws, "B30")).toBe(0);
+    expect(cellVal(ws, "B17")).toBe(17); // internal doors total
+  });
+
+  it("never invents roof area — B14 stays blank", () => {
+    const ws = buildDropInSheet(base());
+    expect(cellVal(ws, "B14")).toBe("");
   });
 });
 
-describe("buildDropInSheet — relational fallback (null openings)", () => {
-  it("routes windowsByRoom slots to correct rows when openings[] absent", () => {
+describe("buildDropInSheet — window slots (rows 33-45, B=Qty C=HEIGHT D=WIDTH)", () => {
+  it("Young-shaped fixture lands every room on its positional row", () => {
+    const ws = buildDropInSheet(base({ openings: YOUNG_OPENINGS }));
+    // Bed 1: two identical 1.3H×1.8W aggregate at row 33
+    expect([cellVal(ws, "B33"), cellVal(ws, "C33"), cellVal(ws, "D33")]).toEqual([2, 1.3, 1.8]);
+    // Bed 2 row 35
+    expect([cellVal(ws, "B35"), cellVal(ws, "C35"), cellVal(ws, "D35")]).toEqual([1, 1.3, 1.5]);
+    // Kitchen row 39 — HEIGHT in C (1.8), WIDTH in D (0.6): the transposition fix
+    expect([cellVal(ws, "B39"), cellVal(ws, "C39"), cellVal(ws, "D39")]).toEqual([1, 1.8, 0.6]);
+    // Lounge row 42
+    expect([cellVal(ws, "B42"), cellVal(ws, "C42"), cellVal(ws, "D42")]).toEqual([1, 1.4, 1.3]);
+  });
+
+  it("Dining slider lands on row 41 (dims feed QS E59/F59; qty manual is flagged)", () => {
+    const ws = buildDropInSheet(base({ openings: [op("slider", "Dining", 2.1, 2.4)] }));
+    expect([cellVal(ws, "B41"), cellVal(ws, "C41"), cellVal(ws, "D41")]).toEqual([1, 2.1, 2.4]);
+    expect(manualBlock(ws)).toMatch(/Dining QTY is manual/);
+  });
+
+  it("Toilet/WC has NO IQ slot — routed to the manual block with target row 51", () => {
+    const ws = buildDropInSheet(base({ openings: [op("window", "Wc", 1.1, 0.7)] }));
+    expect(manualBlock(ws)).toMatch(/Toilet window 1\.1H × 0\.7W.*row 51/);
+    // and nothing leaked into a slot
+    for (let r = 33; r <= 45; r++) expect(cellVal(ws, `B${r}`)).toBe(0);
+  });
+
+  it("entrance lands on row 45", () => {
+    const ws = buildDropInSheet(base({ openings: [op("entrance", null, 2.1, 1.0)] }));
+    expect([cellVal(ws, "B45"), cellVal(ws, "C45"), cellVal(ws, "D45")]).toEqual([1, 2.1, 1]);
+  });
+
+  it("PA/laundry door has no IQ feed — manual block, target row 70", () => {
+    const ws = buildDropInSheet(base({ openings: [op("pa_door", "Laundry", 2.0, 0.86)] }));
+    expect(manualBlock(ws)).toMatch(/Laundry\/PA door 2H × 0\.86W.*row 70/);
+  });
+
+  it("every unused slot row is explicitly zeroed (stale paste residue dies)", () => {
+    const ws = buildDropInSheet(base({ openings: [op("window", "Bed 1", 1.3, 1.8)] }));
+    for (const r of [34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 45]) {
+      expect(cellVal(ws, `B${r}`), `B${r}`).toBe(0);
+      expect(cellVal(ws, `C${r}`), `C${r}`).toBe(0);
+      expect(cellVal(ws, `D${r}`), `D${r}`).toBe(0);
+    }
+  });
+
+  it("relational windowsByRoom fallback fills the same slots; kitchenExtra folds into kitchen", () => {
     const ws = buildDropInSheet(base({
       openings: null,
       windowsByRoom: {
-        dining: { cladding: "", qty: 1, height: 2.1, width: 2.4 },
-        bed1:   { cladding: "", qty: 1, height: 1.3, width: 1.8 },
-      },
+        bed1: { qty: 2, height: 1.3, width: 1.8 },
+        kitchen: { qty: 1, height: 1.8, width: 0.6 },
+        kitchenExtra: { qty: 1, height: 0.6, width: 2.4 },
+      } as QSExportData["windowsByRoom"],
     }));
-    expect(cellVal(ws, "D59")).toBe(1);   // dining row
-    expect(cellVal(ws, "E59")).toBe(2.1);
-    expect(cellVal(ws, "F59")).toBe(2.4);
-    expect(cellVal(ws, "D41")).toBe(1);   // bed1 row
+    expect([cellVal(ws, "B33"), cellVal(ws, "C33"), cellVal(ws, "D33")]).toEqual([2, 1.3, 1.8]);
+    expect([cellVal(ws, "B39"), cellVal(ws, "C39"), cellVal(ws, "D39")]).toEqual([1, 1.8, 0.6]);
+    expect(manualBlock(ws)).toMatch(/Kitchen: 1 more @ 0\.6H × 2\.4W/); // second dim-group → manual
+  });
+});
+
+describe("buildDropInSheet — multi-dims per room: slot takes group 1, manual block takes the rest", () => {
+  it("JM-0020 lounge: 2× window in the slot, slider in the manual block with overflow row 63", () => {
+    const ws = buildDropInSheet(base({
+      openings: [
+        op("window", "Lounge", 1.3, 1.8),
+        op("window", "Lounge", 1.3, 1.8),
+        op("slider", "Lounge", 2.1, 2.4),
+      ],
+    }));
+    expect([cellVal(ws, "B42"), cellVal(ws, "C42"), cellVal(ws, "D42")]).toEqual([2, 1.3, 1.8]);
+    const m = manualBlock(ws);
+    expect(m).toMatch(/Lounge: 1 more @ 2\.1H × 2\.4W.*row 63/);
+    expect(m).toMatch(/Lounge QTY is manual/);
+  });
+
+  it("same-dims openings aggregate without any manual lines", () => {
+    const ws = buildDropInSheet(base({
+      openings: [op("window", "Lounge", 1.8, 0.8), op("window", "Lounge", 1.8, 0.8)],
+    }));
+    expect(cellVal(ws, "B42")).toBe(2);
+    expect(manualBlock(ws)).not.toMatch(/Lounge: \d+ more/);
+  });
+});
+
+describe("buildDropInSheet — garage door 1 (row 44) + size string B24", () => {
+  it("no garage anywhere → B24 empty, row 44 zeroed", () => {
+    const ws = buildDropInSheet(base());
+    expect(cellVal(ws, "B24")).toBe("");
+    expect([cellVal(ws, "B44"), cellVal(ws, "C44"), cellVal(ws, "D44")]).toEqual([0, 0, 0]);
+  });
+
+  it("relational insulated 4.8 → B24='4.8x2.1' (H176 string match) + row 44 filled", () => {
+    const ws = buildDropInSheet(base({ garageDoor48x21Insulated: 1 }));
+    expect(cellVal(ws, "B24")).toBe("4.8x2.1");
+    expect([cellVal(ws, "B44"), cellVal(ws, "C44"), cellVal(ws, "D44")]).toEqual([1, 2.1, 4.8]);
+    expect(manualBlock(ws)).toMatch(/only H176.*auto-fills/);
+  });
+
+  it("canonical 3.0×2.1 sectional → exact size string, NEVER re-binned", () => {
+    const ws = buildDropInSheet(base({ openings: [op("sectional_door", "Garage", 2.1, 3.0)] }));
+    expect(cellVal(ws, "B24")).toBe("3x2.1");
+    expect([cellVal(ws, "B44"), cellVal(ws, "C44"), cellVal(ws, "D44")]).toEqual([1, 2.1, 3]);
+  });
+
+  it("two distinct canonical sizes → first on row 44, second in the manual block", () => {
+    const ws = buildDropInSheet(base({
+      openings: [op("sectional_door", "Garage", 2.1, 4.8), op("sectional_door", "Garage", 2.1, 3.0)],
+    }));
+    expect(cellVal(ws, "B24")).toBe("4.8x2.1");
+    expect(manualBlock(ws)).toMatch(/Garage door 3×2\.1 ×1/);
+  });
+
+  it("relational counters win over canonical sectionals (insulation knowledge)", () => {
+    const ws = buildDropInSheet(base({
+      garageDoor24x21Std: 1,
+      openings: [op("sectional_door", "Garage", 2.1, 4.8)],
+    }));
+    expect(cellVal(ws, "B24")).toBe("2.4x2.1");
+    expect([cellVal(ws, "C44"), cellVal(ws, "D44")]).toEqual([2.1, 2.4]);
   });
 });

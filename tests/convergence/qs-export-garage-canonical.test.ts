@@ -59,158 +59,34 @@ const JM0020_OPENINGS: Opening[] = [
   op("sectional_door", "Garage", 2.1, 3.0), // ← non-standard width: rows 67/68, not H-bins
 ];
 
-describe("buildDropInSheet — JM-0020-shaped canonical rendering", () => {
-  const ws = buildDropInSheet(base({ openings: JM0020_OPENINGS }));
-
-  it("lounge slider 2.1×2.4 lands at row 62 (qty/height/width)", () => {
-    expect(cellVal(ws, "D62")).toBe(1);
-    expect(cellVal(ws, "E62")).toBe(2.1);
-    expect(cellVal(ws, "F62")).toBe(2.4);
-  });
-
-  it("3.0×2.1 sectional lands at row 67 with REAL dims — never re-binned to 2.4", () => {
-    expect(cellVal(ws, "D67")).toBe(1);
-    expect(cellVal(ws, "E67")).toBe(2.1);
-    expect(cellVal(ws, "F67")).toBe(3);
-    // The 2.4 standard bin (and every other H bin) must stay 0 — a silent 2.4
-    // re-bin writes a WRONG product onto a quote, which is worse than dropping.
-    for (const row of [175, 176, 177, 178, 179, 180]) {
-      expect(cellVal(ws, `H${row}`)).toBe(0);
-    }
-  });
-
-  it("second non-standard row 68 stays zeroed when only one non-standard door exists", () => {
-    expect(cellVal(ws, "D68")).toBe(0);
-  });
-});
-
-describe("buildDropInSheet — canonical standard-width sectionals fill the H bins", () => {
-  it("4.8×2.1 canonical sectional → H175=1 (std), all other bins 0, row 67 untouched", () => {
-    const ws = buildDropInSheet(base({
-      openings: [op("sectional_door", "Garage", 2.1, 4.8)],
-    }));
-    expect(cellVal(ws, "H175")).toBe(1);
-    for (const row of [176, 177, 178, 179, 180]) expect(cellVal(ws, `H${row}`)).toBe(0);
-    expect(cellVal(ws, "D67")).toBe(0);
-  });
-
-  it("width within tolerance (4.78) still bins to H175", () => {
-    const ws = buildDropInSheet(base({
-      openings: [op("sectional_door", "Garage", 2.1, 4.78)],
-    }));
-    expect(cellVal(ws, "H175")).toBe(1);
-  });
-
-  it("2.7×2.1 → H179; 2.4×2.1 → H177", () => {
-    const ws = buildDropInSheet(base({
-      openings: [
-        op("sectional_door", "Garage", 2.1, 2.7),
-        op("sectional_door", "Garage", 2.1, 2.4),
-      ],
-    }));
-    expect(cellVal(ws, "H179")).toBe(1);
-    expect(cellVal(ws, "H177")).toBe(1);
-  });
-
-  it("mixed: one standard (4.8) + one non-standard (3.0) → H175=1 AND row 67 dims", () => {
-    const ws = buildDropInSheet(base({
-      openings: [
-        op("sectional_door", "Garage", 2.1, 4.8),
-        op("sectional_door", "Garage", 2.1, 3.0),
-      ],
-    }));
-    expect(cellVal(ws, "H175")).toBe(1);
-    expect(cellVal(ws, "D67")).toBe(1);
-    expect(cellVal(ws, "F67")).toBe(3);
-  });
-
-  it("two distinct non-standard sizes → rows 67 then 68", () => {
-    const ws = buildDropInSheet(base({
-      openings: [
-        op("sectional_door", "Garage", 2.1, 3.0),
-        op("sectional_door", "2nd Garage", 2.0, 3.2),
-      ],
-    }));
-    expect(cellVal(ws, "D67")).toBe(1);
-    expect(cellVal(ws, "F67")).toBe(3);
-    expect(cellVal(ws, "D68")).toBe(1);
-    expect(cellVal(ws, "F68")).toBe(3.2);
-  });
-});
-
-describe("buildDropInSheet — dedupe: relational counters win when populated", () => {
-  it("relational insulated 4.8 present → H176=1, canonical 4.8 NOT double-counted at H175", () => {
-    const ws = buildDropInSheet(base({
-      garageDoor48x21Insulated: 1,
-      openings: [op("sectional_door", "Garage", 2.1, 4.8)],
-    }));
-    expect(cellVal(ws, "H176")).toBe(1);
-    expect(cellVal(ws, "H175")).toBe(0); // canonical did not also fire
-    expect(cellVal(ws, "D67")).toBe(0);
-  });
-
-  it("no relational, no canonical sectionals → all garage cells stay 0 (unchanged behaviour)", () => {
-    const ws = buildDropInSheet(base({
-      openings: [op("window", "Bed 1", 1.3, 1.8)],
-    }));
-    for (const row of [175, 176, 177, 178, 179, 180]) expect(cellVal(ws, `H${row}`)).toBe(0);
-    expect(cellVal(ws, "D67")).toBe(0);
-    expect(cellVal(ws, "D68")).toBe(0);
-  });
-});
-
 // ── Overflow rows (verified against the master: blanks under each room are live) ────
-describe("buildDropInSheet — per-room overflow rows for differing dims", () => {
-  it("JM-0020 lounge: window lands on 62, the differing-dims slider on overflow row 63", () => {
+
+describe("buildDropInSheet — IQ Import: JM-0020-shaped canonical rendering", () => {
+  it("non-standard 3.0×2.1 sectional → B24 exact size, row 44 real dims, never re-binned", () => {
     const ws = buildDropInSheet(base({
       openings: [
         op("window", "Lounge", 1.3, 1.8),
         op("slider", "Lounge", 2.1, 2.4),
+        op("sectional_door", "Garage", 2.1, 3.0),
       ],
     }));
-    expect(cellVal(ws, "D62")).toBe(1);
-    expect(cellVal(ws, "E62")).toBe(1.3);
-    expect(cellVal(ws, "F62")).toBe(1.8);
-    expect(cellVal(ws, "D63")).toBe(1);
-    expect(cellVal(ws, "E63")).toBe(2.1);
-    expect(cellVal(ws, "F63")).toBe(2.4);
+    expect(cellVal(ws, "B24")).toBe("3x2.1");
+    expect([cellVal(ws, "B44"), cellVal(ws, "C44"), cellVal(ws, "D44")]).toEqual([1, 2.1, 3]);
+    // lounge: window (arrival group 1) on the slot, slider in the manual block
+    expect([cellVal(ws, "B42"), cellVal(ws, "C42"), cellVal(ws, "D42")]).toEqual([1, 1.3, 1.8]);
   });
 
-  it("same-dims openings still aggregate qty on ONE row (no spurious overflow)", () => {
+  it("standard 4.8 canonical sectional → B24='4.8x2.1' (feeds the QS H176 string match)", () => {
+    const ws = buildDropInSheet(base({ openings: [op("sectional_door", "Garage", 2.1, 4.8)] }));
+    expect(cellVal(ws, "B24")).toBe("4.8x2.1");
+  });
+
+  it("relational counters win over canonical sectionals — single source, never both", () => {
     const ws = buildDropInSheet(base({
-      openings: [op("window", "Lounge", 1.8, 0.8), op("window", "Lounge", 1.8, 0.8)],
+      garageDoor48x21Insulated: 1,
+      openings: [op("sectional_door", "Garage", 2.1, 2.4)],
     }));
-    expect(cellVal(ws, "D62")).toBe(2);
-    expect(cellVal(ws, "D63")).toBe(0);
-  });
-
-  it("15a lounge shape: 2× 1.8×0.8 on 62, the 1.3×1.5 on 63 — third size would take 64", () => {
-    const ws = buildDropInSheet(base({
-      openings: [
-        op("window", "Lounge", 1.8, 0.8),
-        op("window", "Lounge", 1.8, 0.8),
-        op("window", "Lounge", 1.3, 1.5),
-      ],
-    }));
-    expect([cellVal(ws, "D62"), cellVal(ws, "E62"), cellVal(ws, "F62")]).toEqual([2, 1.8, 0.8]);
-    expect([cellVal(ws, "D63"), cellVal(ws, "E63"), cellVal(ws, "F63")]).toEqual([1, 1.3, 1.5]);
-    expect(cellVal(ws, "D64")).toBe(0);
-  });
-
-  it("more dim-groups than rows: overflow qty folds into the LAST row, never dropped", () => {
-    const ws = buildDropInSheet(base({
-      openings: [
-        op("window", "Toilet", 1.1, 0.6),
-        op("window", "Toilet", 0.9, 0.6), // toilet has a single row — qty folds
-      ],
-    }));
-    expect(cellVal(ws, "D51")).toBe(2);
-  });
-
-  it("overflow rows are zeroed when unused (paste kills any estimator leftovers)", () => {
-    const ws = buildDropInSheet(base({ openings: [op("window", "Bed 1", 1.3, 1.8)] }));
-    for (const row of [42, 44, 46, 48, 50, 53, 55, 57, 58, 60, 61, 63, 64, 66]) {
-      expect(cellVal(ws, `D${row}`)).toBe(0);
-    }
+    expect(cellVal(ws, "B24")).toBe("4.8x2.1"); // relational, not the canonical 2.4
+    expect(cellVal(ws, "D44")).toBe(4.8);
   });
 });

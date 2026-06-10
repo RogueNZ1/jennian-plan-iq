@@ -6,8 +6,9 @@
  *   SUPABASE_URL + SUPABASE_PUBLISHABLE_KEY (service-role key in CI) + LIVE_VALIDATE=1
  *
  * Covers the live half of the Phase 1/2/4 validation chain:
- *   1. JM-0020 — lounge slider renders at row 62 (1 / 2.1 / 2.4), non-standard 3.0×2.1
- *      sectional at row 67 with real dims, H175–180 all zero, garage_window height
+ *   1. JM-0020 — IQ Import contract: lounge group 1 on row 42 (B qty / C height / D
+ *      width), extra dim-groups in the manual block, sectional size string at B24,
+ *      garage door 1 on row 44 with real dims, garage_window height
  *      flagged-standard not 0.
  *   2. Beddis — drop-in window cells agree with the committed ground truth (the
  *      schedule path must be unchanged by Phase 2).
@@ -64,9 +65,9 @@ describe.skipIf(!LIVE)("LIVE — JM-0020 export faithfulness", () => {
     loungeOpenings = (enriched?.openings ?? []).filter((o) =>
       ["window", "slider", "garage_window"].includes(o.type) && (o.room ?? "").toLowerCase().includes("lounge"));
     console.log("[live] lounge canonical:", loungeOpenings.map((o) => `${o.type} ${o.height_m}x${o.width_m}`));
-    for (const r of [62, 63, 64]) console.log(`[live] lounge row ${r}:`, cell(ws, `D${r}`), cell(ws, `E${r}`), cell(ws, `F${r}`));
-    console.log("[live] garage row 67:", cell(ws, "D67"), cell(ws, "E67"), cell(ws, "F67"));
-    console.log("[live] H175–180:", [175, 176, 177, 178, 179, 180].map((r) => cell(ws, `H${r}`)));
+    console.log("[live] IQ lounge row 42:", cell(ws, "B42"), cell(ws, "C42"), cell(ws, "D42"));
+    console.log("[live] IQ garage row 44 + B24:", cell(ws, "B44"), cell(ws, "C44"), cell(ws, "D44"), "|", cell(ws, "B24"));
+    console.log("[live] IQ doors B27-30:", [27, 28, 29, 30].map((r) => cell(ws, `B${r}`)));
     console.log("[live] rooms persisted:", enriched?.rooms?.length ?? 0, (enriched?.rooms ?? []).map((r) => r.label).join("|"));
   });
 
@@ -74,37 +75,40 @@ describe.skipIf(!LIVE)("LIVE — JM-0020 export faithfulness", () => {
     expect(enrichedNull).toBe(false);
   });
 
-  it("lounge rows 62-64 FAITHFULLY render canonical: every dim-group on its own row, qty exact", () => {
-    // Master-verified: lounge owns rows 62-64. The permanent claim is FAITHFULNESS —
-    // the rows must equal the canonical lounge openings grouped by dims, whatever the
-    // current extraction says (the extraction itself can change between re-runs).
+  it("lounge slot row 42 carries group 1; every further dim-group appears in the manual block", () => {
+    // LIVE QS v4_1 contract: IQ Import row 42 = Lounge (B qty / C HEIGHT / D WIDTH);
+    // the QS has no second IQ row per room — extra dim-groups must surface as visible
+    // manual lines (A47+). Faithfulness against whatever canonical currently says.
     const groups: Array<{ qty: number; h: number; w: number }> = [];
     for (const o of loungeOpenings) {
       const g = groups.find((x) => x.h === o.height_m && x.w === o.width_m);
       if (g) g.qty += 1; else groups.push({ qty: 1, h: o.height_m, w: o.width_m });
     }
-    const rows = [62, 63, 64].slice(0, Math.max(groups.length, 1));
-    groups.slice(0, 3).forEach((g, i) => {
-      expect(cell(ws, `D${rows[i]}`), `qty row ${rows[i]}`).toBe(g.qty);
-      expect(cell(ws, `E${rows[i]}`), `height row ${rows[i]}`).toBe(g.h);
-      expect(cell(ws, `F${rows[i]}`), `width row ${rows[i]}`).toBe(g.w);
-    });
-    // The slider specifically (the original JM-0020 complaint) must appear SOMEWHERE
-    // in the lounge block when canonical carries one.
+    let manual = "";
+    for (let r = 47; r < 80; r++) {
+      const v = (ws[`A${r}`] as { v?: unknown } | undefined)?.v;
+      if (typeof v === "string") manual += v + "\n";
+    }
+    if (groups.length > 0) {
+      expect(cell(ws, "B42"), "lounge qty").toBe(groups[0].qty);
+      expect(cell(ws, "C42"), "lounge HEIGHT in C").toBe(groups[0].h);
+      expect(cell(ws, "D42"), "lounge WIDTH in D").toBe(groups[0].w);
+      for (const g of groups.slice(1)) {
+        expect(manual, `manual line for ${g.h}x${g.w}`).toContain(`${g.h}H × ${g.w}W`);
+      }
+    }
     const slider = loungeOpenings.find((o) => o.type === "slider");
     if (slider) {
-      const landed = [62, 63, 64].some((r) => cell(ws, `E${r}`) === slider.height_m && cell(ws, `F${r}`) === slider.width_m);
-      expect(landed, "slider dims present in lounge rows 62-64").toBe(true);
-    } else {
-      console.log("[live][report] canonical currently has NO lounge slider — if the plan shows one, the EXTRACTION missed it (pipeline issue, not export)");
+      const inSlot = cell(ws, "C42") === slider.height_m && cell(ws, "D42") === slider.width_m;
+      const inManual = manual.includes(`${slider.height_m}H × ${slider.width_m}W`);
+      expect(inSlot || inManual, "slider present in slot or manual block").toBe(true);
     }
   });
-
-  it("3.0×2.1 sectional at row 67 with REAL dims; H175–180 all zero", () => {
-    expect(cell(ws, "D67")).toBe(1);
-    expect(cell(ws, "E67")).toBe(2.1);
-    expect(cell(ws, "F67")).toBe(3);
-    for (const r of [175, 176, 177, 178, 179, 180]) expect(cell(ws, `H${r}`)).toBe(0);
+  it("3.0×2.1 sectional → B24 exact size string + row 44 REAL dims (never re-binned)", () => {
+    expect(cell(ws, "B24")).toBe("3x2.1");
+    expect(cell(ws, "B44")).toBe(1);
+    expect(cell(ws, "C44")).toBe(2.1);
+    expect(cell(ws, "D44")).toBe(3);
   });
 });
 

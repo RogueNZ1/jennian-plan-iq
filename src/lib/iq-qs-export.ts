@@ -992,6 +992,26 @@ export function buildReviewNotesSheet(
  * their own row; same-dims openings aggregate qty on one row. Rows 69 and 71 are inside
  * the total but their ownership is ambiguous in the master — deliberately unused.
  */
+/**
+ * IQ Import tab slot rows (LIVE QS master v4_1) — POSITIONAL; the QS reads them by row.
+ * overflow = the Data Input House row an extra dim-group should be typed into manually.
+ */
+const IQ_SLOT_ROW: Record<string, { row: number; label: string; overflow?: number }> = {
+  bed1:         { row: 33, label: "Bed 1",          overflow: 42 },
+  ensuite:      { row: 34, label: "Ensuite",        overflow: 44 },
+  bed2:         { row: 35, label: "Bed 2",          overflow: 46 },
+  bed3:         { row: 36, label: "Bed 3",          overflow: 48 },
+  bed4:         { row: 37, label: "Bed 4",          overflow: 50 },
+  bathroom:     { row: 38, label: "Bathroom",       overflow: 53 },
+  kitchen:      { row: 39, label: "Kitchen",        overflow: 55 },
+  familyLiving: { row: 40, label: "Family / Living", overflow: 57 },
+  dining:       { row: 41, label: "Dining",         overflow: 60 },
+  lounge:       { row: 42, label: "Lounge",         overflow: 63 },
+  garageWindow: { row: 43, label: "Garage Windows", overflow: 66 },
+  garageDoor1:  { row: 44, label: "Garage Door 1" },
+  entrance:     { row: 45, label: "Entrance" },
+};
+
 const DROP_IN_SLOT_ROWS: Record<string, ReadonlyArray<number>> = {
   bed1: [41, 42], ensuite: [43, 44], bed2: [45, 46], bed3: [47, 48], bed4: [49, 50],
   toilet: [51],           // WC maps to Toilet row (no spare)
@@ -1030,161 +1050,173 @@ const GARAGE_DOOR_WIDTH_TOL_M = 0.05;
 const NON_STANDARD_GARAGE_DOOR_ROWS = [67, 68] as const;
 
 export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
+  // ════ IQ IMPORT SHEET — retargeted to the LIVE QS master (Jennian_QS_IQ_Updated_v4_1) ════
+  // The live "5. Data Input House" no longer takes pastes: its cells are IFERROR formulas
+  // pulling from an 'IQ Import' tab. This sheet IS that tab's content — the estimator
+  // pastes it at 'IQ Import'!A1. Verified against the live workbook (structure dump,
+  // 10 Jun 2026):
+  //   meta:    B1 job#, B2 client, B3 address, B9 floor m², B11 alfresco, B12 ext-wall lm,
+  //            B22 ceiling m, B24 garage-door size string (H176 compares B24=="4.8x2.1")
+  //   doors:   B27 standard, B28 cavity, B29 doubles, B30 barn (→ H187/H193/H192/H190)
+  //   windows: FIXED slot rows 33-45, columns B=Qty, C=HEIGHT(m), D=WIDTH(m).
+  //            The QS pulls E(Height)←C and F(Width)←D — the OLD export wrote Width in C,
+  //            transposing every window in the live QS (and corrupting the brick-sill
+  //            total). Height-in-C here fixes that by construction. Room order is
+  //            POSITIONAL: 33 Bed1, 34 Ensuite, 35 Bed2, 36 Bed3, 37 Bed4, 38 Bathroom,
+  //            39 Kitchen, 40 Family, 41 Dining, 42 Lounge, 43 GarageWindows,
+  //            44 GarageDoor1, 45 Entrance.
+  //   manual in the live QS (no IQ feed): Toilet (row 51), Dining qty (D59), Lounge qty
+  //            (D62), overflow rows (42,44,…63,64,66), Garage Door 2 (68), Laundry door
+  //            (70), garage H-rows other than H176. Anything we can't feed goes into a
+  //            visible MANUAL ENTRIES block from row 47 — an unfilled cell beats a wrong
+  //            cell, and the estimator sees exactly what to type and where.
   const ws: XLSX.WorkSheet = {};
   const yellow = { fill: { patternType: "solid", fgColor: { rgb: "FFFF00" } } };
-
-  /** Write a value cell (number or string). */
   function put(addr: string, v: number | string) {
     ws[addr] = { v, t: typeof v === "number" ? "n" : "s", s: yellow };
   }
-  /** Write a zero (must be explicit, not skipped). */
-  function zero(addr: string) { ws[addr] = { v: 0, t: "n", s: yellow }; }
+  const r3 = (n: number) => Math.round(n * 1000) / 1000;
+  const dim = (n: number) => String(r3(n)); // 4.8 → "4.8", 3 → "3" (H176 string compare)
 
-  // ── Job info ──────────────────────────────────────────────────────────────
-  if (data.clientName)    put("I3", data.clientName);
-  if (data.streetAddress) put("I4", data.streetAddress);
-  // City from parsed address — no hardcoded fallback (task requirement)
-  if (data.city)          put("I5", data.city);
-  if (data.jmwNumber)     put("I8", data.jmwNumber);
-  ws["B9"] = { v: new Date().toLocaleDateString("en-NZ"), t: "s", s: yellow };
+  // ── meta block (rows 1-24) — every QS-read cell written explicitly ──
+  put("A1", "Job Number");          put("B1", data.jmwNumber ?? "");
+  put("A2", "Client Name");         put("B2", data.clientName ?? "");
+  put("A3", "Address");             put("B3", [data.streetAddress, data.city].filter(Boolean).join(", "));
+  put("A4", "Plan Type");           put("B4", "Jennian IQ");
+  put("A5", "Date Generated");      put("B5", new Date().toISOString().slice(0, 10));
+  put("A8", "Item"); put("B8", "Quantity"); put("C8", "Unit"); put("D8", "Notes");
+  put("A9",  "Floor area");            put("B9",  data.floorAreaM2 ?? 0);    put("C9",  "m²");
+  put("A10", "Garage area");           put("B10", "");                        put("C10", "m²");
+  put("A11", "Alfresco / deck area");  put("B11", data.alfrescoAreaM2 ?? 0);  put("C11", "m²");
+  put("A12", "External wall length");  put("B12", data.perimeterLm ?? 0);     put("C12", "lm");
+  put("A13", "Internal wall length");  put("B13", "");                        put("C13", "lm");
+  put("A14", "Roof area");             put("B14", "");                        put("C14", "m²"); // never invented
+  put("A17", "Internal doors");
+  put("B17", data.intDoorStandard + data.intDoorDouble + data.intDoorCavitySlider + data.intDoorBarnSlider);
+  put("A22", "Ceiling height");        put("B22", data.studHeightMm != null ? r3(data.studHeightMm / 1000) : ""); put("C22", "m");
+  put("A23", "Foundation type");       put("B23", "");
 
-  // ── ② Core measurements ───────────────────────────────────────────────────
-  if (data.floorAreaM2 != null)     put("D4",  data.floorAreaM2);
-  if (data.perimeterLm != null)     put("E4",  data.perimeterLm);
-  // F4: first floor area — 0 for single-storey (master uses it in roof calc)
-  put("F4", data.firstFloorAreaM2 ?? 0);
-  if (data.alfrescoAreaM2 != null)  put("D13", data.alfrescoAreaM2);
-  // D20: stud height in mm (master expects mm; QSExportData carries studHeightMm)
-  if (data.studHeightMm != null)    put("D20", data.studHeightMm);
+  // ── interior doors (rows 26-30) — precedence already resolved upstream ──
+  put("A26", "Door Breakdown"); put("B26", "Qty"); put("C26", "Type");
+  put("A27", "— Standard hinged"); put("B27", data.intDoorStandard);
+  put("A28", "— Cavity sliders");  put("B28", data.intDoorCavitySlider);
+  put("A29", "— Double doors");    put("B29", data.intDoorDouble);
+  put("A30", "— Barn sliders");    put("B30", data.intDoorBarnSlider);
 
-  // ── ③ Windows & openings — zero ALL room rows first (kills template defaults)
-  for (const row of ALL_OPENING_ROWS) {
-    zero(`D${row}`); zero(`E${row}`); zero(`F${row}`);
-  }
-
-  // Accumulate per-slot DIM GROUPS in arrival order: same-dims openings aggregate qty;
-  // a differing-dims opening becomes the next group and lands on the slot's next overflow
-  // row. More groups than rows: the overflow folds its qty into the last row (count never
-  // silently dropped; that row keeps its own dims).
+  // ── window slot accumulation (same grouping semantics as before) ──
   const slotGroups: Record<string, Array<{ qty: number; height_m: number; width_m: number }>> = {};
-
   function addToSlot(slotKey: string, h: number, w: number) {
     const groups = (slotGroups[slotKey] ??= []);
     const g = groups.find((x) => x.height_m === h && x.width_m === w);
     if (g) g.qty += 1;
     else groups.push({ qty: 1, height_m: h, width_m: w });
   }
-
-  // Canonical sectional doors collected from openings[] — routed in the garage block below.
-  // (Previously these were skipped with a comment claiming H-block routing that never existed.)
   const sectionalDoors: Opening[] = [];
+  const manual: string[] = []; // human-visible MANUAL ENTRIES lines
 
   if (data.openings && data.openings.length > 0) {
-    // Flat openings[] path (enriched jobs — the primary path)
     for (const o of data.openings) {
-      if (o.type === "sectional_door") { sectionalDoors.push(o); continue; } // → garage block
+      if (o.type === "sectional_door") { sectionalDoors.push(o); continue; }
       if (o.type === "entrance") { addToSlot("entrance", o.height_m, o.width_m); continue; }
-      if (o.type === "pa_door")  { addToSlot("pa_door", o.height_m, o.width_m); continue; }
-      // window / slider / garage_window
+      if (o.type === "pa_door") {
+        manual.push(`Laundry/PA door ${dim(o.height_m)}H × ${dim(o.width_m)}W → Data Input House row 70`);
+        continue; // row 70 has no IQ feed in the live QS
+      }
       const room = (o.room ?? "").toLowerCase();
-      if (room.includes("laundry")) continue; // no laundry-window slot → drop
+      if (room.includes("laundry")) continue; // no laundry-window slot anywhere
+      if (room.includes("toilet") || /\bwc\b/.test(room)) {
+        manual.push(`Toilet window ${dim(o.height_m)}H × ${dim(o.width_m)}W → Data Input House row 51`);
+        continue; // toilet has no IQ slot
+      }
       const spec = WINDOW_SLOT_SPECS.find((s) => s.keywords.some((k) => room.includes(k)));
-      if (!spec) continue;
-      if (!DROP_IN_SLOT_ROWS[spec.key as string]) continue;
+      if (!spec || !(spec.key as string in IQ_SLOT_ROW)) continue;
       addToSlot(spec.key as string, o.height_m, o.width_m);
     }
   } else {
-    // Relational windowsByRoom fallback (legacy / null-openings jobs)
     const wbr = data.windowsByRoom;
     for (const [slotKey, val] of Object.entries(wbr)) {
       if (!val) continue;
-      if (slotKey === "garageDoor1" || slotKey === "garageDoor2") continue; // → garage block
+      if (slotKey === "garageDoor1" || slotKey === "garageDoor2") continue;
       const key = slotKey === "kitchenExtra" ? "kitchen" : slotKey;
-      if (!DROP_IN_SLOT_ROWS[key]) continue;
-      // kitchenExtra arrives as its own dim-group → lands on the kitchen overflow row 55
-      // with its own dims (previously folded into 54, losing them).
+      if (key === "toilet") {
+        manual.push(`Toilet window ${dim(val.height)}H × ${dim(val.width)}W ×${val.qty} → Data Input House row 51`);
+        continue;
+      }
+      if (!(key in IQ_SLOT_ROW)) continue;
       for (let i = 0; i < val.qty; i++) addToSlot(key, val.height, val.width);
     }
   }
 
-  // Write each slot's dim-groups onto its row list (D/E/F = qty/height/width, metres).
-  for (const [slotKey, groups] of Object.entries(slotGroups)) {
-    const rows = DROP_IN_SLOT_ROWS[slotKey];
-    if (!rows || groups.length === 0) continue;
-    const rendered = groups.slice(0, rows.length);
-    for (const g of groups.slice(rows.length)) rendered[rendered.length - 1].qty += g.qty;
-    rendered.forEach((g, i) => {
-      const row = rows[i];
-      put(`D${row}`, g.qty);
-      if (g.height_m > 0) put(`E${row}`, Math.round(g.height_m * 1000) / 1000);
-      if (g.width_m  > 0) put(`F${row}`, Math.round(g.width_m  * 1000) / 1000);
-    });
-  }
-
-  // ── Garage doors — H175-H180 (zero all, set matched size) ─────────────────
-  // Source rule (dedupe — never both): the relational item-label counters win when they
-  // carry ANY door, because labels can state insulation, which canonical openings cannot.
-  // Only when the relational path is EMPTY (the enriched-only case that previously left
-  // the whole block at zero) is the block filled from canonical openings[] sectionals.
-  for (const row of [175, 176, 177, 178, 179, 180]) zero(`H${row}`);
-  const relationalGarageTotal =
-    data.garageDoor48x21Std + data.garageDoor48x21Insulated +
-    data.garageDoor24x21Std + data.garageDoor24x21Insulated +
-    data.garageDoor27x21Std + data.garageDoor27x21Insulated;
-  if (relationalGarageTotal > 0) {
-    if (data.garageDoor48x21Std       > 0) put("H175", data.garageDoor48x21Std);
-    if (data.garageDoor48x21Insulated > 0) put("H176", data.garageDoor48x21Insulated);
-    if (data.garageDoor24x21Std       > 0) put("H177", data.garageDoor24x21Std);
-    if (data.garageDoor24x21Insulated > 0) put("H178", data.garageDoor24x21Insulated);
-    if (data.garageDoor27x21Std       > 0) put("H179", data.garageDoor27x21Std);
-    if (data.garageDoor27x21Insulated > 0) put("H180", data.garageDoor27x21Insulated);
-  } else if (sectionalDoors.length > 0) {
-    // Canonical fill. Standard widths → the standard H count bins (tolerance match);
-    // anything else → the dims-capable Garage Door rows, real size preserved.
-    const stdCounts: Record<number, number> = {};
-    const nonStandardGroups = new Map<string, { qty: number; height_m: number; width_m: number }>();
-    for (const o of sectionalDoors) {
-      const bin = GARAGE_DOOR_STD_H_ROW_BY_WIDTH_M.find(
-        (b) => Math.abs(o.width_m - b.width_m) <= GARAGE_DOOR_WIDTH_TOL_M,
+  // ── write slots: rows 33-45, B=Qty C=Height D=Width; ALL slots written (zeros kill
+  //    stale paste residue). Group 1 lands in the slot; further dim-groups go to the
+  //    MANUAL block with their Data Input House overflow row — the live QS has no second
+  //    IQ row per room, and a flagged manual line beats a silently folded wrong dim. ──
+  put("A32", "Windows by Room"); put("B32", "Qty"); put("C32", "Height (m)"); put("D32", "Width (m)");
+  for (const [key, slot] of Object.entries(IQ_SLOT_ROW)) {
+    if (key === "garageDoor1") continue; // written from sectionals below
+    const groups = slotGroups[key] ?? [];
+    const g = groups[0];
+    put(`A${slot.row}`, slot.label);
+    put(`B${slot.row}`, g ? g.qty : 0);
+    put(`C${slot.row}`, g && g.height_m > 0 ? r3(g.height_m) : 0);
+    put(`D${slot.row}`, g && g.width_m > 0 ? r3(g.width_m) : 0);
+    for (const extra of groups.slice(1)) {
+      manual.push(
+        `${slot.label}: ${extra.qty} more @ ${dim(extra.height_m)}H × ${dim(extra.width_m)}W → Data Input House overflow row ${slot.overflow ?? "(under " + slot.label + ")"}`
       );
-      if (bin) {
-        stdCounts[bin.row] = (stdCounts[bin.row] ?? 0) + 1;
-      } else {
-        const key = `${o.width_m}x${o.height_m}`;
-        const g = nonStandardGroups.get(key);
-        if (g) g.qty += 1;
-        else nonStandardGroups.set(key, { qty: 1, height_m: o.height_m, width_m: o.width_m });
-      }
     }
-    for (const [rowStr, qty] of Object.entries(stdCounts)) put(`H${Number(rowStr)}`, qty);
-    // More distinct non-standard sizes than rows is pathological for a house; fold the
-    // overflow's qty into the last row so the COUNT stays visible rather than dropping.
-    const groups = [...nonStandardGroups.values()];
-    const overflow = groups.splice(NON_STANDARD_GARAGE_DOOR_ROWS.length);
-    if (overflow.length > 0 && groups.length > 0) {
-      for (const g of overflow) groups[groups.length - 1].qty += g.qty;
+  }
+  if ((slotGroups["dining"] ?? []).length > 0) manual.push("Dining QTY is manual in the QS (D59) — dims auto-fill, enter the count");
+  if ((slotGroups["lounge"] ?? []).length > 0) manual.push("Lounge QTY is manual in the QS (D62) — dims auto-fill, enter the count");
+
+  // ── garage door 1 (row 44) + size string (B24, read by H176) ──
+  const gdSlot = IQ_SLOT_ROW["garageDoor1"];
+  put(`A${gdSlot.row}`, gdSlot.label);
+  // Source rule unchanged: relational item-label counters win (they know insulation);
+  // canonical sectionals fill only when the relational path is empty.
+  const rel = [
+    { n: data.garageDoor48x21Std,       sz: "4.8x2.1", lbl: "4.8×2.1 Standard"  },
+    { n: data.garageDoor48x21Insulated, sz: "4.8x2.1", lbl: "4.8×2.1 Insulated" },
+    { n: data.garageDoor24x21Std,       sz: "2.4x2.1", lbl: "2.4×2.1 Standard"  },
+    { n: data.garageDoor24x21Insulated, sz: "2.4x2.1", lbl: "2.4×2.1 Insulated" },
+    { n: data.garageDoor27x21Std,       sz: "2.7x2.1", lbl: "2.7×2.1 Standard"  },
+    { n: data.garageDoor27x21Insulated, sz: "2.7x2.1", lbl: "2.7×2.1 Insulated" },
+  ].filter((x) => x.n > 0);
+  if (rel.length > 0) {
+    const first = rel[0];
+    const [w, h] = first.sz.split("x").map(Number);
+    put("A24", "Garage door size"); put("B24", first.sz);
+    put(`B${gdSlot.row}`, first.n); put(`C${gdSlot.row}`, h); put(`D${gdSlot.row}`, w);
+    for (const x of rel.slice(1)) manual.push(`Garage door ${x.lbl} ×${x.n} → Data Input House garage block (H175-180)`);
+    manual.push("Garage H-block: only H176 (4.8×2.1 Insulated) auto-fills in the QS — verify/enter the rest manually");
+  } else if (sectionalDoors.length > 0) {
+    const groups: Array<{ qty: number; h: number; w: number }> = [];
+    for (const o of sectionalDoors) {
+      const g = groups.find((x) => x.h === o.height_m && x.w === o.width_m);
+      if (g) g.qty += 1; else groups.push({ qty: 1, h: o.height_m, w: o.width_m });
     }
-    groups.forEach((g, i) => {
-      const row = NON_STANDARD_GARAGE_DOOR_ROWS[i];
-      put(`D${row}`, g.qty);
-      if (g.height_m > 0) put(`E${row}`, Math.round(g.height_m * 1000) / 1000);
-      if (g.width_m  > 0) put(`F${row}`, Math.round(g.width_m  * 1000) / 1000);
-    });
+    const first = groups[0];
+    put("A24", "Garage door size"); put("B24", `${dim(first.w)}x${dim(first.h)}`);
+    put(`B${gdSlot.row}`, first.qty); put(`C${gdSlot.row}`, r3(first.h)); put(`D${gdSlot.row}`, r3(first.w));
+    for (const g of groups.slice(1)) manual.push(`Garage door ${dim(g.w)}×${dim(g.h)} ×${g.qty} → Data Input House row 68 / garage block`);
+  } else {
+    put("A24", "Garage door size"); put("B24", "");
+    put(`B${gdSlot.row}`, 0); put(`C${gdSlot.row}`, 0); put(`D${gdSlot.row}`, 0);
   }
 
-  // ── Interior doors — H187/190/192/193 (zero first, then actuals) ──────────
-  zero("H187"); zero("H190"); zero("H192"); zero("H193");
-  if (data.intDoorStandard   > 0) put("H187", data.intDoorStandard);
-  if (data.intDoorBarnSlider > 0) put("H190", data.intDoorBarnSlider);
-  if (data.intDoorDouble     > 0) put("H192", data.intDoorDouble);
-  if (data.intDoorCavitySlider > 0) put("H193", data.intDoorCavitySlider);
+  // window count meta (B15) = everything in slots + manual-noted toilet lines stay manual
+  const slotWindowTotal = Object.entries(slotGroups)
+    .filter(([k]) => !["entrance", "garageDoor1"].includes(k))
+    .reduce((s, [, gs]) => s + gs.reduce((a, g) => a + g.qty, 0), 0);
+  put("A15", "Windows"); put("B15", slotWindowTotal);
 
-  // Column widths: A=labels, D-F=numeric data, H=door/garage counts, I=job info
-  ws["!cols"] = [
-    { wch: 30 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
-    { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 28 },
-  ];
-  ws["!ref"] = "A1:I210";
+  // ── MANUAL ENTRIES block (row 47+) — the visible flag set ──
+  put("A47", manual.length > 0
+    ? "MANUAL ENTRIES — no IQ feed; enter directly on '5. Data Input House':"
+    : "MANUAL ENTRIES: none — all extracted values feed automatically.");
+  manual.forEach((m, i) => put(`A${48 + i}`, "• " + m));
+
+  ws["!ref"] = `A1:F${Math.max(48 + manual.length, 50)}`;
   return ws;
 }
 
@@ -1526,7 +1558,7 @@ export async function writeIQDataSheetFull(
   // Drop-in paste sheet — cell addresses match the master's IQ Input tab exactly.
   // Ctrl+A → copy → paste-values into master. Replaces the retired D12-style sheet.
   const wsDropIn = buildDropInSheet(data);
-  XLSX.utils.book_append_sheet(wb, wsDropIn, "IQ Input");
+  XLSX.utils.book_append_sheet(wb, wsDropIn, "IQ Import");
 
   return XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
 }
