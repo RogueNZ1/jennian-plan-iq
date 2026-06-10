@@ -21,6 +21,11 @@ type OpeningRow = Database["public"]["Tables"]["opening_schedule"]["Row"];
 
 /* ------------------------------------------------------------------ types */
 
+/** Approved beats extracted on every module-sourced field — exported for tests. */
+export function pickModuleValue(i: { approved_value: string | null; extracted_value: string | null } | undefined): string | null {
+  return i ? (i.approved_value ?? i.extracted_value ?? null) : null;
+}
+
 export type QSExportData = {
   jobNumber: string;
   clientName: string;
@@ -373,10 +378,13 @@ export async function buildQSExportData(
     const needle = label.toLowerCase();
     // Prefer exact label match to avoid collisions
     // (e.g. "wall length" matching both "external wall length" and "internal wall length").
+    // APPROVED WINS: when an estimator has approved/corrected a value in the UI, the
+    // export must carry it — exporting the raw extraction over a human correction was
+    // silent margin erosion (cladding types, areas, every module-sourced field).
+    const pick = pickModuleValue;
     const exact = items.find((i: ModuleItemRow) => i.label?.toLowerCase() === needle);
-    if (exact) return exact.extracted_value ?? null;
-    const partial = items.find((i: ModuleItemRow) => i.label?.toLowerCase().includes(needle));
-    return partial?.extracted_value ?? null;
+    if (exact) return pick(exact);
+    return pick(items.find((i: ModuleItemRow) => i.label?.toLowerCase().includes(needle)));
   }
 
   function getNum(label: string): number | null {

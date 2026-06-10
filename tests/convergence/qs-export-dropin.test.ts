@@ -223,3 +223,15 @@ describe("buildDropInSheet — garage door 1 (row 44) + size string B24", () => 
     expect([cellVal(ws, "C44"), cellVal(ws, "D44")]).toEqual([2.1, 2.4]);
   });
 });
+
+describe("module-item reads — APPROVED value wins over raw extraction", () => {
+  // The estimator's UI correction must reach the export. Exporting the raw extraction
+  // over a human approval was silent margin erosion on every module-sourced field.
+  it("approved > extracted > null", async () => {
+    const { pickModuleValue } = await import("../../src/lib/iq-qs-export");
+    expect(pickModuleValue({ approved_value: "Brick Veneer", extracted_value: "Linea" })).toBe("Brick Veneer");
+    expect(pickModuleValue({ approved_value: null, extracted_value: "Linea" })).toBe("Linea");
+    expect(pickModuleValue({ approved_value: null, extracted_value: null })).toBeNull();
+    expect(pickModuleValue(undefined)).toBeNull();
+  });
+});
