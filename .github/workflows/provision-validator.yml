@@ -22,19 +22,35 @@ jobs:
           EMAIL: ${{ secrets.VALIDATOR_EMAIL }}
           PASSWORD: ${{ secrets.VALIDATOR_PASSWORD }}
         run: |
-          set -e
           URL="https://ukegudqobnmiesudtjen.supabase.co"
-          UID=$(curl -sf -H "apikey: $KEY" -H "Authorization: Bearer $KEY" "$URL/auth/v1/admin/users?per_page=200" | jq -r --arg e "$EMAIL" '.users[] | select(.email==$e) | .id' | head -1)
-          if [ -z "$UID" ]; then
-            UID=$(curl -sf -X POST -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\",\"email_confirm\":true}" "$URL/auth/v1/admin/users" | jq -r '.id // empty')
-            echo "created user ${UID:0:8}" | tee /tmp/ops.txt
+          A() { curl -s -o /tmp/r.json -w "%{http_code}" -H "apikey: $KEY" -H "Authorization: Bearer $KEY" "$@"; }
+          : > /tmp/ops.txt
+          # Path 1 — auth admin API
+          C=$(A "$URL/auth/v1/admin/users?per_page=200"); echo "admin list HTTP $C" >> /tmp/ops.txt
+          UID=""
+          if [ "$C" = "200" ]; then
+            UID=$(jq -r --arg e "$EMAIL" '.users[] | select(.email==$e) | .id' /tmp/r.json | head -1)
+            if [ -z "$UID" ]; then
+              C=$(A -X POST -H "Content-Type: application/json" -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\",\"email_confirm\":true}" "$URL/auth/v1/admin/users")
+              echo "admin create HTTP $C" >> /tmp/ops.txt
+              UID=$(jq -r '.id // empty' /tmp/r.json)
+            else
+              C=$(A -X PUT -H "Content-Type: application/json" -d "{\"password\":\"$PASSWORD\"}" "$URL/auth/v1/admin/users/$UID")
+              echo "admin pw-sync HTTP $C (user existed)" >> /tmp/ops.txt
+            fi
           else
-            curl -sf -X PUT -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d "{\"password\":\"$PASSWORD\"}" "$URL/auth/v1/admin/users/$UID" > /dev/null
-            echo "user exists ${UID:0:8} password synced" | tee /tmp/ops.txt
+            jq -r '.msg // .message // .error_description // .error // "no error field"' /tmp/r.json >> /tmp/ops.txt || true
+            # Path 2 — plain signup (works if confirmations are off or key is privileged)
+            C=$(A -X POST -H "Content-Type: application/json" -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}" "$URL/auth/v1/signup")
+            echo "signup HTTP $C" >> /tmp/ops.txt
+            UID=$(jq -r '.user.id // .id // empty' /tmp/r.json)
+            jq -r 'if .user.confirmed_at or .confirmed_at then "confirmed: yes" else "confirmed: NO (email confirm pending)" end' /tmp/r.json >> /tmp/ops.txt || true
           fi
-          test -n "$UID"
-          curl -s -X POST -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -H "Prefer: resolution=ignore-duplicates" -d "[{\"user_id\":\"$UID\",\"role\":\"estimator\"}]" "$URL/rest/v1/user_roles" -o /dev/null -w "role grant HTTP %{http_code}\n" | tee -a /tmp/ops.txt
-          curl -sf -H "apikey: $KEY" -H "Authorization: Bearer $KEY" "$URL/rest/v1/user_roles?user_id=eq.$UID&select=role" | tee -a /tmp/ops.txt
+          echo "uid: ${UID:0:8}…" >> /tmp/ops.txt
+          test -n "$UID" || exit 1
+          C=$(A -X POST -H "Content-Type: application/json" -H "Prefer: resolution=ignore-duplicates" -d "[{\"user_id\":\"$UID\",\"role\":\"estimator\"}]" "$URL/rest/v1/user_roles")
+          echo "role grant HTTP $C" >> /tmp/ops.txt
+          A "$URL/rest/v1/user_roles?user_id=eq.$UID&select=role" > /dev/null; cat /tmp/r.json >> /tmp/ops.txt
       - name: Publish status (always)
         if: always()
         run: |
