@@ -29,6 +29,7 @@ import { AutomaticTakeoffDialog } from "@/components/jennian/AutomaticTakeoffDia
 import { TakeoffSummary } from "@/components/jennian/TakeoffSummary";
 import { loadLatestTakeoffRun, type LatestTakeoffRun } from "@/lib/takeoff/run";
 import { StartTakeoffPanel } from "@/components/jennian/StartTakeoffPanel";
+import { SpecificationsPanel } from "@/components/jennian/SpecificationsPanel";
 import { VisionTakeoffDialog } from "@/components/jennian/VisionTakeoffDialog";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -451,6 +452,12 @@ function JobDetail() {
               onWorkingPlan={openWorkingPlan}
               detecting={detecting}
             />
+          </div>
+        )}
+
+        {jobId && (
+          <div className="mb-6">
+            <SpecificationsPanel jobId={jobId} />
           </div>
         )}
 

@@ -15,6 +15,13 @@ import { normaliseRoomName } from "@/lib/takeoff/classify";
 import { round2 } from "@/lib/takeoff/utils";
 import { fieldFlags, type EnrichedTakeoff } from "@/lib/takeoff/enriched-takeoff";
 import { computeCladding } from "./cladding/cladding-engine";
+import {
+  SPECS,
+  SPEC_BLOCK_HEADER_ROW,
+  SPEC_LAST_ROW,
+  optionLabel,
+  parseSpecifications,
+} from "./specs/spec-schema";
 import type { Opening } from "@/lib/takeoff/takeoff-types";
 
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
@@ -33,6 +40,8 @@ export type QSExportData = {
   address: string;
   templateId: string | null;
   createdAt: string;
+  /** Meeting-spec answers (spec_id → code) from jobs.specifications. */
+  specifications?: import("@/lib/specs/spec-schema").SpecAnswers | null;
   // Geometry
   floorAreaM2: number | null;
   perimeterLm: number | null;
@@ -767,6 +776,9 @@ export async function buildQSExportData(
     address: resolvedAddress,
     templateId: job.template ?? null,
     createdAt: job.created_at ?? new Date().toISOString(),
+    specifications: parseSpecifications(
+      (job as { specifications?: unknown }).specifications ?? null,
+    ).answers,
     floorAreaM2: getNum("floor area") ?? getNum("total area"),
     perimeterLm,
     firstFloorAreaM2: getNum("first floor") ?? getNum("upper floor"),
@@ -1248,10 +1260,18 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   put("A15", "Windows"); put("B15", slotWindowTotal);
 
   // ── MANUAL ENTRIES block (row 47+) — the visible flag set ──
+  // Capped so the floating blocks can never reach the fixed SPECIFICATIONS
+  // rows (guard tested): ≤25 lines printed, remainder summarised.
+  const MANUAL_LINE_CAP = 25;
   put("A47", manual.length > 0
     ? "MANUAL ENTRIES — no IQ feed; enter directly on '5. Data Input House':"
     : "MANUAL ENTRIES: none — all extracted values feed automatically.");
-  manual.forEach((m, i) => put(`A${48 + i}`, "• " + m));
+  const manualShown = manual.slice(0, MANUAL_LINE_CAP);
+  manualShown.forEach((m, i) => put(`A${48 + i}`, "• " + m));
+  if (manual.length > MANUAL_LINE_CAP) {
+    put(`A${48 + MANUAL_LINE_CAP}`, `• …plus ${manual.length - MANUAL_LINE_CAP} more — see Review Notes sheet`);
+  }
+  const manualRows = Math.min(manual.length, MANUAL_LINE_CAP + 1);
 
   // ── CLADDING (ENGINE) — deterministic, fail-safe; every term sourced, flags visible ──
   // Inputs available today: measured perimeter, extracted stud height + pitch + gable
@@ -1271,7 +1291,7 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     openings: (data.openings ?? []).map((o) => ({ height_m: o.height_m, width_m: o.width_m })),
     claddingTypes: [data.claddingType1, data.claddingType2].filter((t): t is string => !!t),
   });
-  const cladStart = 49 + manual.length;
+  const cladStart = 49 + manualRows;
   put(`A${cladStart}`, "CLADDING (ENGINE) — provable terms; flags need a human:");
   const fmt = (n: number | null) => (n == null ? "NOT COMPUTED" : `${n} m²`);
   put(`A${cladStart + 1}`, `• Wall (perimeter × stud): ${fmt(clad.wallRectAreaM2)}`);
@@ -1282,7 +1302,28 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   for (const pc of clad.perCladding) { put(`A${cr}`, `   – ${pc.type}: ${fmt(pc.areaM2)}`); cr++; }
   for (const f of [...adapterFlags, ...clad.flags]) { put(`A${cr}`, `⚑ ${f}`); cr++; }
 
-  ws["!ref"] = `A1:F${Math.max(cr, 50)}`;
+  // ── SPECIFICATIONS (CODED) — fixed-row contract block ──
+  // The QS reads column B by ABSOLUTE row ('IQ Import'!B{row}). Rows are
+  // permanent (append-only schema, frozen by tests/specs/spec-contract.golden.json).
+  // blank B = not answered (never invented), 0 = N/A, 1+ = selection.
+  // Floating blocks above must stay below SPEC_GUARD_ROW — guarded by test.
+  const specAnswers = data.specifications ?? {};
+  put(`A${SPEC_BLOCK_HEADER_ROW}`, "SPECIFICATIONS (CODED) — QS reads column B by fixed row · blank = not selected · 0 = N/A");
+  put(`B${SPEC_BLOCK_HEADER_ROW}`, "Code");
+  put(`C${SPEC_BLOCK_HEADER_ROW}`, "Selection");
+  put(`D${SPEC_BLOCK_HEADER_ROW}`, "Group");
+  for (const s of SPECS) {
+    put(`A${s.row}`, s.id);
+    const code = specAnswers[s.id];
+    if (code != null && s.options.some((o) => o.code === code)) {
+      put(`B${s.row}`, code);
+      put(`C${s.row}`, optionLabel(s, code) ?? "");
+    }
+    // unanswered → B and C stay blank by construction
+    put(`D${s.row}`, s.group);
+  }
+
+  ws["!ref"] = `A1:F${Math.max(cr, SPEC_LAST_ROW)}`;
   return ws;
 }
 

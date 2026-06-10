@@ -210,6 +210,7 @@ export type Database = {
           plan_thumbnail_url: string | null
           plan_type: string | null
           smw_enabled: boolean
+          specifications: Json | null
           status: Database["public"]["Enums"]["job_status"]
           template: string | null
           updated_at: string
@@ -229,6 +230,7 @@ export type Database = {
           plan_thumbnail_url?: string | null
           plan_type?: string | null
           smw_enabled?: boolean
+          specifications?: Json | null
           status?: Database["public"]["Enums"]["job_status"]
           template?: string | null
           updated_at?: string
@@ -248,6 +250,7 @@ export type Database = {
           plan_thumbnail_url?: string | null
           plan_type?: string | null
           smw_enabled?: boolean
+          specifications?: Json | null
           status?: Database["public"]["Enums"]["job_status"]
           template?: string | null
           updated_at?: string
