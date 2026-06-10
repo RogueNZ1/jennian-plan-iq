@@ -110,7 +110,7 @@ function QuickExport() {
   async function handleCopyIQImport() {
     if (!data) return;
     try {
-      await navigator.clipboard.writeText(dropInSheetToTSV({ ...data, jobId }));
+      await navigator.clipboard.writeText(dropInSheetToTSV(data));
       toast.success("IQ Import block copied — paste at 'IQ Import'!A1 in the QS master");
     } catch (err) {
       toast.error(`Copy failed: ${err instanceof Error ? err.message : String(err)}`);
