@@ -1,0 +1,21 @@
+# Jennian IQ — test gate. Every push and PR runs the full offline suite
+# (483 tests at time of writing): export faithfulness, takeoff derivation,
+# goldens gate, regression locks. A red run here means a QS export defect
+# would have shipped — do not merge red.
+name: tests
+on:
+  push:
+    branches: [main, convergence]
+  pull_request:
+jobs:
+  vitest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run
