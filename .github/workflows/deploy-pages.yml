@@ -62,23 +62,14 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ID_CANDIDATE_A }}
         run: |
           set -o pipefail
-          # Direct-upload deployments do NOT inherit dashboard env vars (verified live,
-          # 11 Jun: project env set + redeploy still 503). Bake vars into the deployment
-          # via a runner-local wrangler.toml — never committed, value from the secret.
-          cat > wrangler.toml << WREOF
-          name = "jennian-iq-prod"
-          pages_build_output_dir = "dist/client"
-          compatibility_date = "2025-01-01"
-
-          [vars]
-          GEOMETRY_API_KEY = "${{ secrets.CF_EXTRA_64 }}"
-          WREOF
-          # toml-only invocation: CLI args can cause wrangler to ignore wrangler.toml vars
-          npx wrangler pages deploy --branch=main 2>&1 | tee /tmp/wr.log | tail -4 >> /tmp/deploy.txt
-          echo "── wrangler.toml as deployed ──" >> /tmp/deploy.txt
-          cat wrangler.toml >> /tmp/deploy.txt
-          echo "── wrangler log (toml/vars/warn lines) ──" >> /tmp/deploy.txt
-          grep -in "toml\|vars\|binding\|warn\|ignor" /tmp/wr.log >> /tmp/deploy.txt || echo "(no matches)" >> /tmp/deploy.txt
+          # Binding strategy (verified live 11 Jun, twice): GEOMETRY_API_KEY is a Pages
+          # SECRET (put in the earlier step) — the only binding that reaches wrangler
+          # deploys in config-managed mode. A runner-generated wrangler.toml was tried
+          # and CRASHES wrangler 4.x next to the repo's wrangler.jsonc (dual config).
+          # The post-deploy gate below is the proof either way.
+          npx wrangler pages deploy dist/client --project-name=jennian-iq-prod --branch=main 2>&1 | tee /tmp/wr.log | tail -4 >> /tmp/deploy.txt
+          echo "── wrangler log (vars/secret/warn lines) ──" >> /tmp/deploy.txt
+          grep -in "toml\|vars\|binding\|warn\|ignor\|error" /tmp/wr.log >> /tmp/deploy.txt || echo "(no matches)" >> /tmp/deploy.txt
       - name: Verify geometry proxy (post-deploy gate)
         run: |
           sleep 8
