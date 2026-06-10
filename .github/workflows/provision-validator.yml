@@ -28,6 +28,9 @@ jobs:
           A() { curl -s -o /tmp/r.json -w "%{http_code}" -H "apikey: $KEY" -H "Authorization: Bearer $KEY" "$@"; }
           : > /tmp/ops.txt
           C=$(A "$URL/auth/v1/admin/users?per_page=200"); echo "admin list HTTP $C" >> /tmp/ops.txt
+          echo "shape: $(jq -c 'if type=="object" then keys else type end' /tmp/r.json 2>&1)" >> /tmp/ops.txt
+          echo "users len: $(jq -r '.users | length' /tmp/r.json 2>&1)" >> /tmp/ops.txt
+          echo "first id: $(jq -r '.users[0].id // "none"' /tmp/r.json 2>&1 | cut -c1-13)" >> /tmp/ops.txt
           UID=$(jq -r --arg e "$EMAIL" '.users[]? | select(.email==$e) | .id' /tmp/r.json 2>>/tmp/ops.txt | head -1)
           echo "lookup uid: [${UID:0:8}] (jq rc=$?)" >> /tmp/ops.txt
           if [ -z "$UID" ]; then
