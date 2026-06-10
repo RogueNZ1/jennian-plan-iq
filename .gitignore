@@ -79,3 +79,4 @@ supabase/.temp/
 *.sln
 *.sw?
 .vercel
+tests/doors/plans/

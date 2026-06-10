@@ -630,11 +630,21 @@ function UploadPage() {
       // vector-first garage/openings, the head-datum safeguard, the asserted entrance and
       // the F-022 reconciliation, folding every honesty flag into takeoff.notes. Pipeline A
       // (run.ts) calls the SAME function — one implementation, no drift.
+      // Deterministic door pass (no AI) — same fail-safe contract as run.ts: any
+      // failure → null → door cells fall back through the precedence chain.
+      const doorEngine = planFile
+        ? await (await import("@/lib/doors/run-doors")).runDoorEngine(
+            await planFile.arrayBuffer(),
+            (geometryPageIndex ?? 0) + 1,
+            geoResult?.scale?.string ?? null,
+          )
+        : null;
       const composed = composeTakeoff({
         visionTakeoff: result.takeoffData,
         geometry: geoResult,
         schedule: scheduleRaw,
         geometryPageIndex,
+        doorEngine,
       });
       // composeTakeoff now returns the ENRICHED per-field shape (Slice 2). Unwrap to the bare
       // TakeoffData the rest of /upload (state, cross-reference, exportToExcel) consumes —

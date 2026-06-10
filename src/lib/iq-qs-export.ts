@@ -109,6 +109,8 @@ export type QSExportData = {
   garageDoor24x21Insulated: number;
   garageDoor27x21Std: number;
   garageDoor27x21Insulated: number;
+  /** True when a HISTORICAL manually-confirmed door count exists (legacy override). */
+  doorCountsConfirmed?: boolean;
   intDoorStandard: number;
   intDoorUGroove: number;
   intDoorVGroove: number;
@@ -284,6 +286,17 @@ export function applyEnrichedTakeoff(
     // Stage 2a — thread the flat opening list through. Present only on the enriched path;
     // the relational fallback above leaves it undefined.
     openings: enriched.openings ?? null,
+    // Interior doors — precedence: HISTORICAL confirmed manual counts (legacy jobs) >
+    // deterministic door engine > module-item labels > opening-schedule fallback (the
+    // latter two are already in base). The engine's counts NEVER include flagged hits.
+    ...(!base.doorCountsConfirmed && enriched.door_counts_auto
+      ? {
+          intDoorStandard: enriched.door_counts_auto.singles,
+          intDoorDouble: enriched.door_counts_auto.doubles,
+          intDoorCavitySlider: enriched.door_counts_auto.cavitySliders,
+          intDoorBarnSlider: enriched.door_counts_auto.barn,
+        }
+      : {}),
     // Stage 2b — migrate the window CELLS' source: derive the fixed-slot windowsByRoom from
     // openings[] when the enriched takeoff carries them, else keep the relational base map
     // (the live fallback, intact until the Beddis gate passes). The window COUNT is NOT
@@ -711,8 +724,11 @@ export async function buildQSExportData(
     heatPumpWallUnit = heatPumps.length;
   }
 
-  // Door count override — when user has confirmed counts via DoorCountPanel, use those
+  // Door count override — HISTORICAL ONLY. The manual DoorCountPanel is removed from the
+  // UI (door counting is the deterministic engine's job now); confirmed rows on existing
+  // jobs are still honoured so past exports stay stable. New jobs never create these.
   const confirmedCounts = doorCountsRes.data;
+  const doorCountsConfirmed = !!confirmedCounts?.confirmed_at;
   if (confirmedCounts?.confirmed_at) {
     intDoorStandard = confirmedCounts.standard;
     intDoorDouble = confirmedCounts.double_doors;
@@ -777,6 +793,7 @@ export async function buildQSExportData(
     garageDoor24x21Insulated,
     garageDoor27x21Std,
     garageDoor27x21Insulated,
+    doorCountsConfirmed,
     intDoorStandard,
     intDoorUGroove,
     intDoorVGroove,

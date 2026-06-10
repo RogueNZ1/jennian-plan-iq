@@ -30,7 +30,6 @@ import { TakeoffSummary } from "@/components/jennian/TakeoffSummary";
 import { loadLatestTakeoffRun, type LatestTakeoffRun } from "@/lib/takeoff/run";
 import { StartTakeoffPanel } from "@/components/jennian/StartTakeoffPanel";
 import { VisionTakeoffDialog } from "@/components/jennian/VisionTakeoffDialog";
-import { DoorCountPanel } from "@/components/jennian/DoorCountPanel";
 import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -595,15 +594,6 @@ function JobDetail() {
           </div>
         )}
 
-        {hasTakeoffData && (
-          <DoorCountPanel
-            jobId={jobId}
-            planThumbnailUrl={null}
-            aiEstimates={{ hinged: aiDoorEstimate, cavitySlider: 0, doubleDoor: 0, barnSlider: 0 }}
-            onConfirmed={() => setDoorCountsConfirmed(true)}
-          />
-        )}
-
         {/* Elevation & Site Plan section */}
         {job && (job.elevation_data || job.site_plan_data) ? (
           <JobElevationSection
@@ -630,9 +620,8 @@ function JobDetail() {
           <div className="px-5 py-3 border-b border-border">
             <div className="text-[13px] font-semibold tracking-tight">Export</div>
             <div className="text-[11px] text-muted-foreground mt-0.5">
-              {hasTakeoffData && !doorCountsConfirmed
-                ? "Confirm door counts above before exporting."
-                : "Export job data to Excel for QS pricing."}
+              Export job data to Excel for QS pricing.
+              {/* Door counts come from the deterministic engine — no manual confirm step. */}
             </div>
           </div>
           <div className="p-4 flex flex-wrap gap-3 items-start">

@@ -60,6 +60,8 @@ export type ComposeTakeoffInput = {
    * or undefined when no page was pinned. Reconciled against `geometry.page_used`.
    */
   geometryPageIndex: number | undefined;
+  /** Deterministic door-engine result for the working page; null/absent → no door pass. */
+  doorEngine?: import("../doors/door-engine").DoorEngineResult | null;
 };
 
 export type ComposeTakeoffResult = {
@@ -104,7 +106,7 @@ function noteDelta(before: string, after: string): string[] {
  * gated on the per-window heights.
  */
 export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult {
-  const { visionTakeoff, geometry, schedule: scheduleRaw, geometryPageIndex } = input;
+  const { visionTakeoff, geometry, schedule: scheduleRaw, geometryPageIndex, doorEngine } = input;
 
   const geoResult = geometry ?? null;
   const m = geoResult?.measurements;
@@ -329,6 +331,14 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     // the crop localizer need them after the run. Conditional spread: payloads from
     // geometry-less runs stay byte-identical to today.
     ...(m?.rooms && m.rooms.length > 0 ? { rooms: m.rooms } : {}),
+    // Door engine passthrough — counts + review flags persist with the takeoff. Conditional
+    // spread: runs without a door pass stay byte-identical to today.
+    ...(doorEngine
+      ? {
+          door_counts_auto: doorEngine.counts,
+          door_flags: doorEngine.flags as unknown as Array<Record<string, unknown>>,
+        }
+      : {}),
   };
 
   return { enriched, reconciliation, pageReconcile, scheduleSafeguard };

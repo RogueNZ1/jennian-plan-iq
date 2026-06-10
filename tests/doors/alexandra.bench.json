@@ -1,0 +1,35 @@
+{
+  "plan": "Alexandra — Lot 96 Kanzan Grove, Feilding (2026_03_18_Floorplan.pdf)",
+  "groundTruthBy": "Haydon Christian, 10 Jun 2026",
+  "scale": 100,
+  "expected": {
+    "singles": 12,
+    "doubles": 4,
+    "cavitySliders": 1,
+    "barn": 0,
+    "flags": 0
+  },
+  "doors": [
+    { "type": "hinged", "widthMm": 810, "near": [607, 387], "label": "north of hall" },
+    { "type": "hinged", "widthMm": 710, "near": [691, 401], "label": "pantry" },
+    { "type": "hinged", "widthMm": 810, "near": [593, 421], "label": "laundry single" },
+    { "type": "hinged", "widthMm": 810, "near": [706, 443], "label": "next to kitchen" },
+    { "type": "hinged", "widthMm": 810, "near": [798, 458], "label": "master" },
+    { "type": "hinged", "widthMm": 810, "near": [606, 472], "label": "bed 3" },
+    { "type": "hinged", "widthMm": 760, "near": [666, 474], "label": "bath" },
+    { "type": "hinged", "widthMm": 810, "near": [747, 474], "label": "bed 2" },
+    { "type": "hinged", "widthMm": 760, "near": [636, 482], "label": "wc" },
+    { "type": "hinged", "widthMm": 760, "near": [836, 492], "label": "wir" },
+    { "type": "hinged", "widthMm": 760, "near": [914, 492], "label": "ensuite" },
+    { "type": "hinged", "widthMm": 510, "near": [722, 473], "label": "hall linen" },
+    { "type": "double", "widthMm": 1620, "near": [624, 415], "label": "hall hwc double" },
+    { "type": "double", "widthMm": 1620, "near": [561, 436], "label": "laundry double" },
+    { "type": "double", "widthMm": 1620, "near": [562, 472], "label": "bed 3 wardrobe" },
+    { "type": "double", "widthMm": 1620, "near": [730, 526], "label": "bed 2 wardrobe" },
+    { "type": "cavity", "widthMm": 860, "near": [674, 335], "label": "lounge cavity slider" }
+  ],
+  "mustNotAppear": [
+    { "widthMm": 1030, "near": [580, 365], "label": "entry door — EXTERNAL, glazing" },
+    { "widthMm": 860, "near": [348, 546], "label": "garage side door — EXTERNAL, glazing" }
+  ]
+}

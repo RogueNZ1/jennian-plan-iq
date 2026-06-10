@@ -632,11 +632,23 @@ export async function runAutomaticTakeoff(args: {
                   // Convergence Slice 3 — the enriched takeoff, computed IN MEMORY only.
                   // schedule is null here (run.ts does not yet pick a schedule page — a
                   // documented follow-on; concept jobs have no separate schedule sheet).
+                  // Deterministic door pass (no AI). Fail-safe: any failure → null →
+                  // the export's door cells fall back through the precedence chain.
+                  const { runDoorEngine } = await import("../doors/run-doors");
+                  const doorEngine = await runDoorEngine(
+                    await fileData.arrayBuffer(),
+                    workingPageNumber ?? 1,
+                    geoResult?.scale?.string ?? scaleText,
+                  );
+                  if (doorEngine) {
+                    console.info("[door-engine]", doorEngine.counts, "flags:", doorEngine.flags.length);
+                  }
                   const composed = composeTakeoff({
                     visionTakeoff: conceptResult.takeoffData,
                     geometry: geoResult,
                     schedule: null,
                     geometryPageIndex,
+                    doorEngine,
                   });
                   console.info("[concept-compose] enriched takeoff:", {
                     floor_area_m2: composed.enriched.floor_area_m2.value,

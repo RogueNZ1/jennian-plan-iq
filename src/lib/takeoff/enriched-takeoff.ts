@@ -90,6 +90,14 @@ export type EnrichedTakeoff = {
    * NOT projected into the bare TakeoffData (no consumer there), so goldens are untouched.
    */
   rooms?: Array<{ label: string; width_m: number; depth_m: number }> | null;
+  /**
+   * Deterministic interior-door engine output (no AI in the detection path).
+   * counts are QS-ready (flags NEVER included — fail safe: an unfilled cell beats a
+   * wrong cell). flags carry page-space hits for the estimator review overlay and the
+   * future crop re-read. Raw passthrough; optional so old payloads round-trip unchanged.
+   */
+  door_counts_auto?: { singles: number; doubles: number; cavitySliders: number; barn: number } | null;
+  door_flags?: Array<Record<string, unknown>> | null;
 };
 
 /** Build a FieldValue with sensible defaults. */
