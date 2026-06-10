@@ -1,8 +1,8 @@
-# Deploy main → Cloudflare Pages (jennian-iq.pages.dev) — the REAL production with the
-# geometry proxy worker. Previously deployed only by manual wrangler runs, so production
-# silently froze at whatever was last hand-pushed. The account id is auto-identified from
-# the token's own /accounts listing (two candidate ids were supplied). Status publishes
-# to ops-results (results/deploy.txt). Secrets are never echoed.
+# Deploy main → Cloudflare Pages project "jennian-iq-prod" under Haydon's business
+# account (the old jennian-iq.pages.dev is an orphan under an inaccessible login).
+# Creates the project on first run with GEOMETRY_API_KEY in the production env, builds
+# with the Supabase VITE vars inlined, deploys honestly (pipefail), publishes the
+# subdomain + outcome to ops-results. Secrets never echoed.
 name: deploy-pages
 on:
   push:
@@ -20,42 +20,42 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Identify account id
-        id: acct
+      - name: Ensure project exists with runtime env
+        id: project
         env:
           CF: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          A: ${{ secrets.CF_ID_CANDIDATE_A }}
-          B: ${{ secrets.CF_ID_CANDIDATE_B }}
+          ACCT: ${{ secrets.CF_ID_CANDIDATE_A }}
+          GEOM: ${{ secrets.CF_EXTRA_64 }}
         run: |
           set +e
           : > /tmp/deploy.txt
-          IDS=$(curl -s -H "Authorization: Bearer $CF" "https://api.cloudflare.com/client/v4/accounts" | jq -r '.result[]?.id')
-          echo "accounts visible to token: $(echo "$IDS" | wc -l)" >> /tmp/deploy.txt
-          ACCT=""
-          for id in $IDS; do
-            [ "$id" = "$A" ] && ACCT="$A"
-            [ "$id" = "$B" ] && ACCT="$B"
-          done
-          [ -z "$ACCT" ] && ACCT=$(echo "$IDS" | head -1)
-          if [ "$ACCT" = "$A" ]; then echo "account id = candidate A" >> /tmp/deploy.txt
-          elif [ "$ACCT" = "$B" ]; then echo "account id = candidate B" >> /tmp/deploy.txt
-          else echo "account id = token's own first account (neither candidate)" >> /tmp/deploy.txt; fi
-          echo "acct=$ACCT" >> "$GITHUB_OUTPUT"
-          curl -s -H "Authorization: Bearer $CF" "https://api.cloudflare.com/client/v4/accounts/$ACCT/pages/projects" | jq -r '.result[]?.name' | sed 's/^/pages project: /' >> /tmp/deploy.txt
-      - name: Build
+          BODY=$(jq -n --arg g "$GEOM" '{name:"jennian-iq-prod", production_branch:"main", deployment_configs:{production:{env_vars:{GEOMETRY_API_KEY:{value:$g}}}, preview:{env_vars:{GEOMETRY_API_KEY:{value:$g}}}}}')
+          curl -s -X POST -H "Authorization: Bearer $CF" -H "Content-Type: application/json" -d "$BODY" "https://api.cloudflare.com/client/v4/accounts/$ACCT/pages/projects" > /tmp/r.json
+          echo "create: success=$(jq -r '.success' /tmp/r.json) errors=$(jq -c '[.errors[]? | .code]' /tmp/r.json)" >> /tmp/deploy.txt
+          if [ "$(jq -r '.success' /tmp/r.json)" != "true" ]; then
+            curl -s -X PATCH -H "Authorization: Bearer $CF" -H "Content-Type: application/json" -d "$BODY" "https://api.cloudflare.com/client/v4/accounts/$ACCT/pages/projects/jennian-iq-prod" > /tmp/r.json
+            echo "patch: success=$(jq -r '.success' /tmp/r.json) errors=$(jq -c '[.errors[]? | .code]' /tmp/r.json)" >> /tmp/deploy.txt
+          fi
+          curl -s -H "Authorization: Bearer $CF" "https://api.cloudflare.com/client/v4/accounts/$ACCT/pages/projects/jennian-iq-prod" > /tmp/r.json
+          jq -r '"subdomain: " + (.result.subdomain // "?")' /tmp/r.json >> /tmp/deploy.txt
+      - name: Build (Supabase vars inlined)
         id: build
         continue-on-error: true
+        env:
+          VITE_SUPABASE_URL: https://ukegudqobnmiesudtjen.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_SUPABASE_PROJECT_ID: ukegudqobnmiesudtjen
         run: npx vite build && node scripts/cf-pages-postbuild.mjs
-      - name: Deploy to Pages
+      - name: Deploy
         id: deploy
         if: steps.build.outcome == 'success'
         continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ steps.acct.outputs.acct }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ID_CANDIDATE_A }}
         run: |
           set -o pipefail
-          npx wrangler pages deploy dist/client --project-name=jennian-iq --branch=main 2>&1 | tee /tmp/wrangler.log | tail -5 >> /tmp/deploy.txt
+          npx wrangler pages deploy dist/client --project-name=jennian-iq-prod --branch=main 2>&1 | tee /tmp/wr.log | tail -4 >> /tmp/deploy.txt
       - name: Publish status (always)
         if: always()
         run: |
@@ -63,7 +63,7 @@ jobs:
           git config user.name "ops[bot]"; git config user.email "noreply@github.com"
           git checkout --orphan ops-results && { git rm -rf -q . || true; }
           mkdir -p results && cp /tmp/deploy.txt results/deploy.txt
-          git add results && git commit -q -m "deploy-pages run ${{ github.run_id }}"
+          git add results && git commit -q -m "deploy-pages ${{ github.run_id }}"
           git push -f origin ops-results
       - name: Propagate
         if: steps.deploy.outcome != 'success'
