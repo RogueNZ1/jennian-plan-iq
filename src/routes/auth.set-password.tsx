@@ -26,14 +26,45 @@ function SetPasswordPage() {
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // If not authenticated at all (e.g. token already expired or link re-used),
-  // redirect to login after auth state settles.
+  // Branded invite emails link straight here with ?token_hash=…&type=invite
+  // (no supabase.co redirect hop). Detect it synchronously so the
+  // "no session → back to login" redirect below waits for verification.
+  const [hasTokenHash] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("token_hash"),
+  );
+  const [verifyState, setVerifyState] = useState<"idle" | "verifying" | "failed">(
+    hasTokenHash ? "verifying" : "idle",
+  );
+
   useEffect(() => {
-    if (!loading && !user) {
+    if (!hasTokenHash || user) return;
+    const sp = new URLSearchParams(window.location.search);
+    const tokenHash = sp.get("token_hash");
+    if (!tokenHash) return;
+    const type = (sp.get("type") ?? "invite") as "invite" | "magiclink" | "recovery" | "signup" | "email";
+    supabase.auth.verifyOtp({ type, token_hash: tokenHash }).then(({ error }) => {
+      if (error) {
+        setVerifyState("failed");
+        toast.error("This invite link has expired or has already been used. Ask for it to be resent.");
+        navigate({ to: "/login" });
+      } else {
+        setVerifyState("idle");
+        // Drop the one-time token from the address bar.
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasTokenHash]);
+
+  // If not authenticated at all (e.g. token already expired or link re-used),
+  // redirect to login after auth state settles. Token-hash links wait for
+  // verification above instead.
+  useEffect(() => {
+    if (!loading && !user && !hasTokenHash) {
       toast.error("This invite link has expired or has already been used. Please contact your administrator.");
       navigate({ to: "/login" });
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, hasTokenHash, navigate]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

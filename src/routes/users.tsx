@@ -93,6 +93,17 @@ function UsersPage() {
   const [showActivity, setShowActivity] = useState(false);
 
   const canManage = roles.canManageUsers;
+  // Invitations are Owner-only (Haydon). Server function enforces this too —
+  // the UI flag is convenience, src/lib/invite-gate.ts is the contract.
+  const canInvite = roles.isOwner;
+
+  /** Caller's access token — required by the server fn to authorise the invite. */
+  async function getAccessToken(): Promise<string> {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) throw new Error("Not signed in — refresh and try again.");
+    return token;
+  }
 
   async function load() {
     setLoading(true);
@@ -228,13 +239,14 @@ function UsersPage() {
   }
 
   async function resendInvite(inviteId: string) {
-    if (!canManage) return;
+    if (!canInvite) return toast.error("Only the Owner can resend invitations.");
     // Find the invitation row so we can pass email + metadata to the server fn
     const inv = invites.find((i) => i.id === inviteId);
     if (!inv) return toast.error("Invitation not found.");
     try {
       const result = await sendInvitationFn({
         data: {
+          accessToken: await getAccessToken(),
           invitationId: inviteId,
           email: inv.email,
           role: inv.role,
@@ -244,7 +256,6 @@ function UsersPage() {
           welcomeMessage: inv.welcome_message,
         },
       });
-      await logAction("invite_resent", "user_invitations", inviteId, { email: inv.email });
       toast.success(result.message);
       load();
     } catch (err: unknown) {
@@ -253,7 +264,7 @@ function UsersPage() {
   }
 
   async function cancelInvite(inviteId: string) {
-    if (!canManage) return;
+    if (!canInvite) return toast.error("Only the Owner can cancel invitations.");
     const { error } = await supabase.from("user_invitations").update({ status: "cancelled" }).eq("id", inviteId);
     if (error) return toast.error(error.message);
     await logAction("invite_cancelled", "user_invitations", inviteId, {});
@@ -277,9 +288,9 @@ function UsersPage() {
               </button>
               <button
                 onClick={() => setShowInvite(true)}
-                disabled={!canManage}
+                disabled={!canInvite}
                 className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 shadow-sm disabled:opacity-60"
-                title={canManage ? "Invite a new user" : "Only Owners and Admins can invite"}
+                title={canInvite ? "Invite a new user" : "Only the Owner can invite new users"}
               >
                 <UserPlus className="h-4 w-4" /> Invite User
               </button>
@@ -378,10 +389,10 @@ function UsersPage() {
                           </>
                         ) : (
                           <>
-                            <IconBtn title="Resend invite" onClick={() => resendInvite(r.id)} disabled={!canManage}>
+                            <IconBtn title={canInvite ? "Resend invite" : "Only the Owner can resend invites"} onClick={() => resendInvite(r.id)} disabled={!canInvite}>
                               <RefreshCw className="h-3 w-3" />
                             </IconBtn>
-                            <IconBtn title="Cancel invite" onClick={() => cancelInvite(r.id)} disabled={!canManage}>
+                            <IconBtn title={canInvite ? "Cancel invite" : "Only the Owner can cancel invites"} onClick={() => cancelInvite(r.id)} disabled={!canInvite}>
                               <X className="h-3 w-3" />
                             </IconBtn>
                           </>
@@ -398,24 +409,17 @@ function UsersPage() {
         {showActivity && <ActivityPanel rows={audit} profileById={profileById} onClose={() => setShowActivity(false)} />}
       </div>
 
-      {showInvite && canManage && (
+      {showInvite && canInvite && (
         <InviteModal
           onClose={() => setShowInvite(false)}
           onCreated={async (payload) => {
             if (!user) return;
-            // 1. Insert the invitation record
-            const { data, error } = await supabase
-              .from("user_invitations")
-              .insert({ ...payload, invited_by: user.id })
-              .select()
-              .single();
-            if (error) { toast.error(error.message); return; }
-            await logAction("invite_created", "user_invitations", data!.id, { email: payload.email, role: payload.role });
-            // 2. Send the Supabase auth invite email via server function
+            // The server fn records the invitation row (service role), authorises
+            // the caller (Owner-only), sends the branded email and audit-logs it.
             try {
               const result = await sendInvitationFn({
                 data: {
-                  invitationId: data!.id,
+                  accessToken: await getAccessToken(),
                   email: payload.email,
                   role: payload.role,
                   branch: payload.branch ?? null,
@@ -426,10 +430,7 @@ function UsersPage() {
               });
               toast.success(result.message);
             } catch (err: unknown) {
-              // Record exists but email failed — notify without rolling back
-              toast.error(
-                `Invitation saved but email failed: ${err instanceof Error ? err.message : "Unknown error"}`,
-              );
+              toast.error(err instanceof Error ? err.message : "Failed to send invitation.");
             }
             setShowInvite(false);
             load();

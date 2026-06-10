@@ -25,6 +25,7 @@ jobs:
           GEOM: ${{ secrets.CF_EXTRA_64 }}
           ANTH: ${{ secrets.ANTHROPIC_API_KEY }}
           VSPK: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          SBSV: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: |
           missing=""
           [ -z "$CF" ]   && missing="$missing CLOUDFLARE_API_TOKEN"
@@ -32,6 +33,7 @@ jobs:
           [ -z "$GEOM" ] && missing="$missing CF_EXTRA_64(GEOMETRY_API_KEY)"
           [ -z "$ANTH" ] && missing="$missing ANTHROPIC_API_KEY"
           [ -z "$VSPK" ] && missing="$missing VITE_SUPABASE_PUBLISHABLE_KEY"
+          [ -z "$SBSV" ] && missing="$missing SUPABASE_SECRET_KEY"
           if [ -n "$missing" ]; then
             echo "::error::Deploy blocked — missing required repo secrets:$missing — add at Settings > Secrets and variables > Actions. Refusing to ship a build with known-broken runtime config."
             exit 1
@@ -50,6 +52,8 @@ jobs:
           ACCT: ${{ secrets.CF_ID_CANDIDATE_A }}
           GEOM: ${{ secrets.CF_EXTRA_64 }}
           ANTH: ${{ secrets.ANTHROPIC_API_KEY }}
+          SB_SERVICE: ${{ secrets.SUPABASE_SECRET_KEY }}
+          RESEND: ${{ secrets.RESEND_API_KEY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ID_CANDIDATE_A }}
         run: |
@@ -70,6 +74,27 @@ jobs:
           echo "secret-put GEOMETRY_API_KEY exit: $?" >> /tmp/deploy.txt
           echo "$ANTH" | npx wrangler pages secret put ANTHROPIC_API_KEY --project-name=jennian-iq-prod >> /tmp/deploy.txt 2>&1
           echo "secret-put ANTHROPIC_API_KEY exit: $?" >> /tmp/deploy.txt
+          # ── Invite path (11 Jun 2026): the sendInvitationFn server fn needs admin
+          # Supabase creds + the public site base at RUNTIME. Same rule as geometry:
+          # Pages SECRETS are the only binding that survives config-managed deploys,
+          # so re-put them every time. SITE_URL is probed live — once www.jennianiq.nz
+          # actually serves the app, invite links flip to it automatically; until
+          # then they use the pages.dev host (route exists on both, nothing breaks).
+          printf '%s' "https://ukegudqobnmiesudtjen.supabase.co" | npx wrangler pages secret put SUPABASE_URL --project-name=jennian-iq-prod >> /tmp/deploy.txt 2>&1
+          echo "secret-put SUPABASE_URL exit: $?" >> /tmp/deploy.txt
+          printf '%s' "$SB_SERVICE" | npx wrangler pages secret put SUPABASE_SERVICE_KEY --project-name=jennian-iq-prod >> /tmp/deploy.txt 2>&1
+          echo "secret-put SUPABASE_SERVICE_KEY exit: $?" >> /tmp/deploy.txt
+          WWW=$(curl -s -o /dev/null -w '%{http_code}' --max-time 12 "https://www.jennianiq.nz/version.json" || echo ERR)
+          if [ "$WWW" = "200" ]; then SITE="https://www.jennianiq.nz"; else SITE="https://jennian-iq-prod.pages.dev"; fi
+          echo "site-url probe: www=$WWW → SITE_URL=$SITE" >> /tmp/deploy.txt
+          printf '%s' "$SITE" | npx wrangler pages secret put SITE_URL --project-name=jennian-iq-prod >> /tmp/deploy.txt 2>&1
+          echo "secret-put SITE_URL exit: $?" >> /tmp/deploy.txt
+          if [ -n "$RESEND" ]; then
+            printf '%s' "$RESEND" | npx wrangler pages secret put RESEND_API_KEY --project-name=jennian-iq-prod >> /tmp/deploy.txt 2>&1
+            echo "secret-put RESEND_API_KEY exit: $? (branded invite email ACTIVE)" >> /tmp/deploy.txt
+          else
+            echo "RESEND_API_KEY repo secret not set — invites fall back to Supabase's default template" >> /tmp/deploy.txt
+          fi
           curl -s -H "Authorization: Bearer $CF" "https://api.cloudflare.com/client/v4/accounts/$ACCT/pages/projects/jennian-iq-prod" > /tmp/r.json
           jq -r '"subdomain: " + (.result.subdomain // "?")' /tmp/r.json >> /tmp/deploy.txt
       - name: Build (Supabase vars inlined)
@@ -108,16 +133,22 @@ jobs:
         env:
           CF: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           ACCT: ${{ secrets.CF_ID_CANDIDATE_A }}
+          RESEND: ${{ secrets.RESEND_API_KEY }}
         run: |
           curl -s -H "Authorization: Bearer $CF" "https://api.cloudflare.com/client/v4/accounts/$ACCT/pages/projects/jennian-iq-prod" > /tmp/p.json
           ok=1
-          for S in GEOMETRY_API_KEY ANTHROPIC_API_KEY; do
+          for S in GEOMETRY_API_KEY ANTHROPIC_API_KEY SUPABASE_URL SUPABASE_SERVICE_KEY SITE_URL; do
             if grep -q "\"$S\"" /tmp/p.json; then
               echo "binding $S: present" >> /tmp/deploy.txt
             else
               echo "binding $S: MISSING from project config" >> /tmp/deploy.txt; ok=0
             fi
           done
+          if [ -n "$RESEND" ]; then
+            if grep -q '"RESEND_API_KEY"' /tmp/p.json; then echo "binding RESEND_API_KEY: present" >> /tmp/deploy.txt; else echo "binding RESEND_API_KEY: MISSING (repo secret exists but not bound)" >> /tmp/deploy.txt; ok=0; fi
+          else
+            echo "binding RESEND_API_KEY: skipped (repo secret not set — default-template fallback)" >> /tmp/deploy.txt
+          fi
           [ "$ok" = "1" ] || { echo "RUNTIME SECRET BINDING MISSING — failing the deploy gate" >> /tmp/deploy.txt; exit 1; }
       - name: Publish status (always)
         if: always()

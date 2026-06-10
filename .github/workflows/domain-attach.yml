@@ -1,0 +1,91 @@
+# Attach www.jennianiq.nz (+ apex) to Cloudflare Pages project "jennian-iq-prod".
+# (11 Jun 2026 — invite emails link to https://www.jennianiq.nz; this makes the
+# domain actually serve the app.) Idempotent: safe to re-run via dispatch.
+#
+# What it does, honestly reported to ops-results/results/domain.txt:
+#   1. POST both hostnames as Pages custom domains (account-scoped — works even
+#      if the token can't touch DNS).
+#   2. If the token CAN see the jennianiq.nz zone: upsert proxied CNAMEs
+#      www → jennian-iq-prod.pages.dev and apex (flattened) → same.
+#   3. Poll domain status, then probe https://www.jennianiq.nz/version.json
+#      end-to-end. The probe is the only truth that matters.
+# Secrets are never echoed.
+name: domain-attach
+on:
+  workflow_dispatch:
+  push:
+    branches: [convergence]
+    paths: [".github/workflows/domain-attach.yml"]
+permissions:
+  contents: write
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Attach domains + DNS + verify
+        env:
+          CF: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCT: ${{ secrets.CF_ID_CANDIDATE_A }}
+        run: |
+          set +e
+          : > /tmp/domain.txt
+          PROJ="jennian-iq-prod"
+          TARGET="jennian-iq-prod.pages.dev"
+          api() { curl -s -H "Authorization: Bearer $CF" -H "Content-Type: application/json" "$@"; }
+
+          # 1 ── Pages custom domains (idempotent: 'already exists' errors are fine)
+          for HOST in www.jennianiq.nz jennianiq.nz; do
+            api -X POST -d "{\"name\":\"$HOST\"}" \
+              "https://api.cloudflare.com/client/v4/accounts/$ACCT/pages/projects/$PROJ/domains" > /tmp/r.json
+            echo "attach $HOST: success=$(jq -r '.success' /tmp/r.json) errors=$(jq -c '[.errors[]? | {code, message: (.message // "" | .[0:90])}]' /tmp/r.json)" >> /tmp/domain.txt
+          done
+
+          # 2 ── DNS upsert if the token can see the zone
+          api "https://api.cloudflare.com/client/v4/zones?name=jennianiq.nz" > /tmp/z.json
+          ZID=$(jq -r '.result[0].id // empty' /tmp/z.json)
+          if [ -z "$ZID" ]; then
+            echo "zone: NOT accessible with this token (success=$(jq -r '.success' /tmp/z.json), $(jq -c '[.errors[]? | .code]' /tmp/z.json)) — if the probe below fails, DNS needs a manual CNAME www→$TARGET (proxied) at the registrar/Cloudflare dashboard, or a token with Zone:DNS:Edit." >> /tmp/domain.txt
+          else
+            echo "zone: $ZID" >> /tmp/domain.txt
+            for HOST in www.jennianiq.nz jennianiq.nz; do
+              api "https://api.cloudflare.com/client/v4/zones/$ZID/dns_records?name=$HOST" > /tmp/d.json
+              RID=$(jq -r '.result[0].id // empty' /tmp/d.json)
+              RTYPE=$(jq -r '.result[0].type // empty' /tmp/d.json)
+              BODY=$(jq -n --arg h "$HOST" --arg t "$TARGET" '{type:"CNAME", name:$h, content:$t, proxied:true, ttl:1}')
+              if [ -z "$RID" ]; then
+                api -X POST -d "$BODY" "https://api.cloudflare.com/client/v4/zones/$ZID/dns_records" > /tmp/d2.json
+                echo "dns create $HOST: success=$(jq -r '.success' /tmp/d2.json) errors=$(jq -c '[.errors[]? | .code]' /tmp/d2.json)" >> /tmp/domain.txt
+              else
+                api -X PUT -d "$BODY" "https://api.cloudflare.com/client/v4/zones/$ZID/dns_records/$RID" > /tmp/d2.json
+                echo "dns update $HOST (was $RTYPE): success=$(jq -r '.success' /tmp/d2.json) errors=$(jq -c '[.errors[]? | .code]' /tmp/d2.json)" >> /tmp/domain.txt
+              fi
+            done
+          fi
+
+          # 3 ── Poll status, then end-to-end probe (the real verdict)
+          for i in 1 2 3 4 5 6; do
+            sleep 20
+            api "https://api.cloudflare.com/client/v4/accounts/$ACCT/pages/projects/$PROJ/domains" > /tmp/s.json
+            STATUSES=$(jq -r '[.result[]? | .name + "=" + (.status // "?")] | join(" ")' /tmp/s.json)
+            echo "poll $i: $STATUSES" >> /tmp/domain.txt
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://www.jennianiq.nz/version.json")
+            echo "probe $i: www.jennianiq.nz/version.json → $CODE" >> /tmp/domain.txt
+            [ "$CODE" = "200" ] && break
+          done
+          APEX=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://jennianiq.nz/" )
+          echo "apex probe: jennianiq.nz → $APEX" >> /tmp/domain.txt
+          if [ "$CODE" = "200" ]; then
+            echo "VERDICT: www.jennianiq.nz is LIVE — next main deploy sets SITE_URL to it and invite links use it." >> /tmp/domain.txt
+          else
+            echo "VERDICT: www.jennianiq.nz NOT serving yet (last=$CODE). Invite links keep working on $TARGET until it is. See zone note above for the manual step if any." >> /tmp/domain.txt
+          fi
+      - name: Publish report (always)
+        if: always()
+        run: |
+          git config user.name "ops[bot]"; git config user.email "noreply@github.com"
+          git checkout --orphan ops-results && { git rm -rf -q . || true; }
+          mkdir -p results && cp /tmp/domain.txt results/domain.txt
+          git add results && git commit -q -m "domain-attach ${{ github.run_id }}"
+          git push -f origin ops-results

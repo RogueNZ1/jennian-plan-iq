@@ -1,0 +1,124 @@
+<!-- Jennian IQ — Supabase "Invite user" email template (fallback path only).
+     Paste into Supabase Dashboard → Authentication → Emails → Invite user.
+     Used ONLY when RESEND_API_KEY is absent; the branded Resend path doesn't touch this.
+     Subject line: You've been invited to Jennian IQ -->
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+  <title>Jennian IQ — Invitation</title>
+  <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
+</head>
+<body style="margin:0;padding:0;background:#F2F3F5;-webkit-text-size-adjust:100%;">
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">Your Jennian IQ account is ready — set your password to activate it. The link expires in 24 hours.&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F2F3F5;">
+    <tr>
+      <td align="center" style="padding:32px 14px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#FFFFFF;border-radius:12px;overflow:hidden;border:1px solid #E3E5E8;">
+
+          <!-- ── Dark brand header ─────────────────────────────────── -->
+          <tr>
+            <td style="background:#16181D;padding:26px 36px 18px 36px;">
+              <table role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td valign="middle" style="width:40px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                      <td align="center" valign="middle" style="width:40px;height:40px;background:#D40C1A;border-radius:8px;font-family:'Helvetica Neue', Helvetica, Arial, 'Segoe UI', sans-serif;font-size:18px;font-weight:700;color:#FFFFFF;">J</td>
+                    </tr></table>
+                  </td>
+                  <td valign="middle" style="padding-left:13px;font-family:'Helvetica Neue', Helvetica, Arial, 'Segoe UI', sans-serif;">
+                    <div style="font-size:17px;font-weight:600;letter-spacing:-0.2px;color:#FFFFFF;line-height:20px;">Jennian IQ</div>
+                    <div style="font-size:10px;letter-spacing:2.2px;text-transform:uppercase;color:#E62C2C;font-weight:600;padding-top:3px;">Jennian Homes Manawat&#363;</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ── HouseFrame drafting art (site imagery) ────────────── -->
+          <tr>
+            <td style="background:#16181D;line-height:0;">
+              <img src="https://www.jennianiq.nz/email/houseframe-dark.png" width="600" alt="" style="display:block;width:100%;max-width:600px;height:auto;border:0;" />
+            </td>
+          </tr>
+
+          <!-- ── Body ──────────────────────────────────────────────── -->
+          <tr>
+            <td style="padding:34px 36px 8px 36px;font-family:'Helvetica Neue', Helvetica, Arial, 'Segoe UI', sans-serif;">
+              <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#D40C1A;font-weight:600;">Account invitation</div>
+              <div style="padding-top:10px;font-size:22px;font-weight:600;letter-spacing:-0.3px;color:#0F1216;line-height:29px;">{{ if .Data.first_name }}{{ .Data.first_name }}, you{{ else }}You{{ end }}&#39;re invited to Jennian&nbsp;IQ.</div>
+              <div style="padding-top:12px;font-size:14px;line-height:22px;color:#3F444B;">
+                Haydon Christian has invited you to join <strong style="color:#0F1216;">Jennian&nbsp;IQ</strong> — the plan takeoff and quantity intelligence platform built by Jennian Homes Manawat&#363;. Your account is ready; set a password to activate it.
+              </div>
+            </td>
+          </tr>
+
+          <!-- ── Details card ──────────────────────────────────────── -->
+          <tr>
+            <td style="padding:22px 36px 24px 36px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FAFAFB;border:1px solid #E3E5E8;border-radius:8px;">
+                <tr><td colspan="2" style="padding:11px 18px 2px 18px;font-family:'Helvetica Neue', Helvetica, Arial, 'Segoe UI', sans-serif;font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:#9AA0A8;">Your access</td></tr>
+                
+            <tr>
+              <td style="padding:9px 18px 9px 18px;border-top:1px solid #E3E5E8;font-family:'Helvetica Neue', Helvetica, Arial, 'Segoe UI', sans-serif;font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:#606369;width:120px;">Role</td>
+              <td style="padding:9px 18px 9px 0;border-top:1px solid #E3E5E8;font-family:'Helvetica Neue', Helvetica, Arial, 'Segoe UI', sans-serif;font-size:13.5px;font-weight:500;color:#0F1216;">{{ .Data.role }}</td>
+            </tr>
+            {{ if .Data.branch }}<tr>
+              <td style="padding:9px 18px 9px 18px;border-top:1px solid #E3E5E8;font-family:'Helvetica Neue', Helvetica, Arial, 'Segoe UI', sans-serif;font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:#606369;width:120px;">Branch</td>
+              <td style="padding:9px 18px 9px 0;border-top:1px solid #E3E5E8;font-family:'Helvetica Neue', Helvetica, Arial, 'Segoe UI', sans-serif;font-size:13.5px;font-weight:500;color:#0F1216;">{{ .Data.branch }}</td>
+            </tr>{{ end }}
+            <tr>
+              <td style="padding:9px 18px 9px 18px;border-top:1px solid #E3E5E8;font-family:'Helvetica Neue', Helvetica, Arial, 'Segoe UI', sans-serif;font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:#606369;width:120px;">Invited by</td>
+              <td style="padding:9px 18px 9px 0;border-top:1px solid #E3E5E8;font-family:'Helvetica Neue', Helvetica, Arial, 'Segoe UI', sans-serif;font-size:13.5px;font-weight:500;color:#0F1216;">Haydon Christian</td>
+            </tr>
+                <tr><td colspan="2" style="padding:4px;"></td></tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ── CTA ───────────────────────────────────────────────── -->
+          <tr>
+            <td align="center" style="padding:2px 36px 10px 36px;">
+              <!--[if mso]>
+              <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ .ConfirmationURL }}" style="height:46px;v-text-anchor:middle;width:280px;" arcsize="17%" fillcolor="#D40C1A" stroke="f">
+                <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:14px;font-weight:bold;">Activate your account</center>
+              </v:roundrect>
+              <![endif]-->
+              <!--[if !mso]><!-->
+              <a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block;background:#D40C1A;color:#FFFFFF;font-family:'Helvetica Neue', Helvetica, Arial, 'Segoe UI', sans-serif;font-size:14.5px;font-weight:600;line-height:20px;padding:13px 38px;border-radius:8px;text-decoration:none;">Activate your account</a>
+              <!--<![endif]-->
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:6px 36px 0 36px;font-family:'Helvetica Neue', Helvetica, Arial, 'Segoe UI', sans-serif;font-size:12.5px;color:#606369;">
+              This link is unique to you and expires in 24&nbsp;hours.
+            </td>
+          </tr>
+
+          <!-- ── Fallback URL ──────────────────────────────────────── -->
+          <tr>
+            <td style="padding:22px 36px 30px 36px;font-family:'Helvetica Neue', Helvetica, Arial, 'Segoe UI', sans-serif;font-size:11.5px;line-height:17px;color:#9AA0A8;">
+              Button not working? Copy this link into your browser:<br/>
+              <a href="{{ .ConfirmationURL }}" target="_blank" style="color:#D40C1A;text-decoration:underline;word-break:break-all;">{{ .ConfirmationURL }}</a>
+            </td>
+          </tr>
+
+          <!-- ── Footer ────────────────────────────────────────────── -->
+          <tr>
+            <td style="background:#FAFAFB;border-top:1px solid #E3E5E8;padding:22px 36px;font-family:'Helvetica Neue', Helvetica, Arial, 'Segoe UI', sans-serif;" align="center">
+              <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#9AA0A8;">Plans &middot; Quantities &middot; Pricing &middot; Procurement</div>
+              <div style="padding-top:10px;font-size:11.5px;color:#9AA0A8;">&copy; 2026 Jennian Homes Manawat&#363; &middot; Palmerston North, New Zealand</div>
+              <div style="padding-top:8px;font-size:11.5px;line-height:17px;color:#9AA0A8;">
+                You&#39;re receiving this because Haydon Christian invited {{ .Email }} to Jennian&nbsp;IQ.<br/>Not expecting it? You can safely ignore this email.
+              </div>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
