@@ -62,6 +62,8 @@ export type TakeoffData = {
   alfresco_area_m2: number | null;
   external_wall_lm: number | null;
   internal_wall_lm: number | null;
+  /** Plan envelope short side (geometry bbox) — gable span candidate. */
+  gable_span_m?: number | null;
   roof_area_m2: number | null;
   window_count: number | null;
   external_door_count: number | null;

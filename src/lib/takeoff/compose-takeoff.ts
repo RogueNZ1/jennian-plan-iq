@@ -288,6 +288,12 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       normConf(m?.internal_wall_confidence),
       roomFlags,
     ),
+    // Gable span candidate = geometry envelope's SHORT side. Measured (not guessed);
+    // the rectangular-envelope assumption is flagged at the consumer (cladding adapter).
+    gable_span_m: fv(
+      m?.bounding_box_m != null ? Math.min(m.bounding_box_m.width, m.bounding_box_m.height) : null,
+      measuredSrc(m?.bounding_box_m != null),
+    ),
     roof_area_m2: fv(t.roof_area_m2, "vision"),
     window_count: fv(
       t.window_count,

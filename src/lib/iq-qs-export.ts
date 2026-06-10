@@ -38,6 +38,8 @@ export type QSExportData = {
   perimeterLm: number | null;
   /** Measured internal wall length (geometry engine) — informational until the QS wires a row. */
   internalWallLm: number | null;
+  /** Gable span candidate: geometry envelope short side, metres. */
+  gableSpanM: number | null;
   firstFloorAreaM2: number | null;
   studHeightMm: number | null;
   alfrescoAreaM2: number | null;
@@ -286,6 +288,7 @@ export function applyEnrichedTakeoff(
     floorAreaM2: enriched.floor_area_m2.value ?? base.floorAreaM2,
     perimeterLm: perimeter ?? base.perimeterLm,
     internalWallLm: enriched.internal_wall_lm?.value ?? base.internalWallLm,
+    gableSpanM: enriched.gable_span_m?.value ?? base.gableSpanM,
     exteriorWallLengthLm: perimeter ?? base.exteriorWallLengthLm,
     alfrescoAreaM2: enriched.alfresco_area_m2.value ?? base.alfrescoAreaM2,
     studHeightMm: studM != null ? Math.round(studM * 1000) : base.studHeightMm,
@@ -770,6 +773,7 @@ export async function buildQSExportData(
     studHeightMm: getNum("stud height"),
     alfrescoAreaM2: getNum("alfresco") ?? getNum("porch") ?? getNum("deck"),
     internalWallLm: getNum("internal wall length"),
+    gableSpanM: null, // no module label carries the envelope — enriched path only
     roofPitch: getVal("roof pitch"),
     ridgeType: getVal("ridge type") ?? getVal("ridge"),
     underlay: getVal("underlay"),
@@ -1256,12 +1260,14 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   const adapterFlags: string[] = [];
   const gables = data.elevationSummary?.gableEndCount ?? null;
   if (gables == null) adapterFlags.push("gable count not extracted — net assumes no gables, VERIFY on elevations");
+  if ((gables ?? 0) > 0 && data.gableSpanM != null)
+    adapterFlags.push(`gable span ${data.gableSpanM}m = plan envelope short side — verify for non-rectangular plans`);
   const clad = computeCladding({
     perimeterLm: data.perimeterLm,
     studHeightM: data.studHeightMm != null ? data.studHeightMm / 1000 : null,
     roofPitchDeg: data.elevationSummary?.roofPitchDegrees ?? null,
     gableEndCount: gables ?? 0,
-    gableSpanM: null, // not yet measured — geometry bbox wiring is V1.1
+    gableSpanM: data.gableSpanM,
     openings: (data.openings ?? []).map((o) => ({ height_m: o.height_m, width_m: o.width_m })),
     claddingTypes: [data.claddingType1, data.claddingType2].filter((t): t is string => !!t),
   });

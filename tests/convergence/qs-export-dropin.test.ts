@@ -305,3 +305,23 @@ describe("dropInSheetToTSV — clipboard paste block", () => {
     expect(tsv).not.toMatch(/\t.*\t.*\t.*\t.*\t.*\t/);           // never >6 columns
   });
 });
+
+describe("CLADDING V1.1 — gable span from geometry on the sheet", () => {
+  it("gabled house WITH measured span: NET computed + envelope verify-note", () => {
+    const ws = buildDropInSheet(base({
+      perimeterLm: 52, studHeightMm: 2400, claddingType1: "Linea", gableSpanM: 10,
+      elevationSummary: { roofType: "Gable", roofPitchDegrees: 25, externalDoorCount: 1,
+        gableEndCount: 2, drivewayConcretM2: null, patioConcreteM2: null, totalConcreteM2: null,
+        windowCountMatch: null, windowCountWarning: null },
+      openings: [],
+    }));
+    let t = "";
+    for (let r = 47; r < 110; r++) {
+      const v = cellVal(ws, `A${r}`);
+      if (typeof v === "string") t += v + "\n";
+    }
+    expect(t).toMatch(/NET CLADDING: 148.12 m²/); // 124.8 + 23.32 − 0
+    expect(t).toMatch(/gable span 10m = plan envelope short side/);
+    expect(t).not.toMatch(/gable span not measured/);
+  });
+});

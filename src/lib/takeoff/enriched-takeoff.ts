@@ -51,6 +51,8 @@ export type EnrichedTakeoff = {
   alfresco_area_m2: FieldValue<number>;
   external_wall_lm: FieldValue<number>;
   internal_wall_lm: FieldValue<number>;
+  /** Plan envelope short side (geometry bounding box) — the gable span candidate. */
+  gable_span_m: FieldValue<number>;
   roof_area_m2: FieldValue<number>;
   window_count: FieldValue<number>;
   external_door_count: FieldValue<number>;
@@ -125,6 +127,7 @@ export function unwrapTakeoff(e: EnrichedTakeoff): TakeoffData {
     alfresco_area_m2: e.alfresco_area_m2.value,
     external_wall_lm: e.external_wall_lm.value,
     internal_wall_lm: e.internal_wall_lm.value,
+    ...(e.gable_span_m != null ? { gable_span_m: e.gable_span_m.value } : {}),
     roof_area_m2: e.roof_area_m2.value,
     window_count: e.window_count.value,
     external_door_count: e.external_door_count.value,
