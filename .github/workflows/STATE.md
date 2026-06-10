@@ -97,4 +97,5 @@ Mapping discovered (Data Input House ← IQ Import):
 - **Haydon's side (3 items):** add `RESEND_API_KEY` repo secret (same key 007 uses) → branded path live; paste the SQL above; Supabase dashboard → disable public signups + Site URL `https://www.jennianiq.nz` + redirect URLs for `/auth/set-password` on both hosts (fallback path only).
 
 ## Security debt Haydon owes himself
-Rotate `SUPABASE_SECRET_KEY` and revoke the old GitHub PAT (both were pasted in chat). Cloudflare token + validator user optional. Repo is public — fixture is Jennian's own catalogue plan (fine); if ever uncomfortable, make repo private (one toggle).
+Rotate `SUPABASE_SECRET_KEY` and revoke the old GitHub PAT (both were pasted in chat).
+**REVOKE the classic PAT pasted 11 Jun 2026 (ghp_…Yf3W)** — it carries ~every scope incl. org/enterprise admin; it was used once to ship the invites feature. github.com → Settings → Developer settings → Tokens (classic) → delete. Cloudflare token + validator user optional. Repo is public — fixture is Jennian's own catalogue plan (fine); if ever uncomfortable, make repo private (one toggle).
