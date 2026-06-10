@@ -1,0 +1,25 @@
+# One-shot: list the jennian-iq Pages project's recent deployments so the deploy claim is
+# verified from Cloudflare's own records, not wrangler's exit code.
+name: cf-verify
+on:
+  push:
+    branches: [convergence]
+    paths: ['.github/workflows/cf-verify.yml']
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          CF: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          A: ${{ secrets.CF_ID_CANDIDATE_A }}
+        run: |
+          curl -s -H "Authorization: Bearer $CF" "https://api.cloudflare.com/client/v4/accounts/$A/pages/projects/jennian-iq/deployments?per_page=5" \
+            | jq -r '.result[]? | [.created_on, .environment, (.deployment_trigger.metadata.branch // "manual"), (.deployment_trigger.type // "?"), .latest_stage.status] | @tsv' > /tmp/v.txt || echo "API call failed" > /tmp/v.txt
+          git config user.name "ops[bot]"; git config user.email "noreply@github.com"
+          git checkout --orphan ops-results && { git rm -rf -q . || true; }
+          mkdir -p results && cp /tmp/v.txt results/cf-deployments.txt
+          git add results && git commit -q -m "cf-verify ${{ github.run_id }}" && git push -f origin ops-results
