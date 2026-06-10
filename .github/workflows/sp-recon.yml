@@ -44,7 +44,9 @@ jobs:
               echo "$FILES" | jq -r --arg d "$(basename "$P" | cut -c1-16)" '.value[]? | select(.Name | test("\\.(xlsm|xlsx)$"; "i")) | "  [\($d)] XLS \(.Name[0:34]) (\((.Length|tonumber)/1024 | floor)KB)"' >> $O
               echo "$FILES" | jq -r --arg d "$(basename "$P" | cut -c1-16)" '.value[]? | select(.Name | test("floor ?plan|2026[._-]"; "i")) | select(.Name | test("\\.pdf$"; "i")) | "  [\($d)] PLAN \(.Name[0:30])"' >> $O
               if [ -z "$QS_HIT" ]; then
-                QS_HIT=$(echo "$FILES" | jq -r '[.value[]? | select(.Name | test("jennian.*qs|qs.*(iq|master|updated)|updated_v"; "i")) | select(.Name | test("\\.xlsm?$"; "i"))][0].ServerRelativeUrl // empty')
+                # exact target first (live IQ master v4_1), then v4-family, never rental/backup
+                QS_HIT=$(echo "$FILES" | jq -r '[.value[]? | select(.Name | test("Jennian_QS_IQ_Updated_v4_1"; "i"))][0].ServerRelativeUrl // empty')
+                [ -z "$QS_HIT" ] && QS_HIT=$(echo "$FILES" | jq -r '[.value[]? | select(.Name | test("Jennian_QS_IQ_Updated"; "i")) | select(.Name | test("\\.xlsm$"; "i"))][0].ServerRelativeUrl // empty')
                 [ -n "$QS_HIT" ] && { QS_ORIGIN="$ORIGIN"; QS_JAR="$JAR"; echo "  ★ QS MASTER CANDIDATE: $(basename "$QS_HIT" | cut -c1-40)" >> $O; }
               fi
               DEPTH=$(echo "$P" | awk -F/ '{print NF}'); BASE=$(echo "$FPATH" | awk -F/ '{print NF}')
