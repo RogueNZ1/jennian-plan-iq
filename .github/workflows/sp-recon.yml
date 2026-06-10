@@ -68,6 +68,12 @@ jobs:
           else
             echo "qs=" >> "$GITHUB_OUTPUT"
           fi
+      - name: Verify QS structure against shipped mapping
+        if: steps.sweep.outputs.qs == '1'
+        run: |
+          pip install openpyxl --quiet
+          echo "════ LIVE QS STRUCTURE DUMP ════" >> /tmp/recon.txt
+          python3 scripts/qs-verify.py /tmp/qs-live.xlsm >> /tmp/recon.txt 2>&1
       - name: Upload QS workbook as artifact
         if: steps.sweep.outputs.qs == '1'
         uses: actions/upload-artifact@v4
