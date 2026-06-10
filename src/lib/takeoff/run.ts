@@ -521,6 +521,14 @@ export async function runAutomaticTakeoff(args: {
     // Concept mode: geometry measurement + fill missing items with Jennian standard allowances
     const { data: jobRow } = await supabase.from("jobs").select("plan_type").eq("id", jobId).single();
     if (jobRow?.plan_type === "concept") {
+      // Canonical-takeoff integrity (11 Jun): a run that never persists takeoff_json must
+      // say so LOUDLY instead of completing silently — the export quietly falls back to the
+      // last good run and nobody knows (JM-0021 21:01 re-run: status=completed, 14s,
+      // takeoff_json NULL, zero indication). Track exactly why the persist was skipped.
+      let canonicalPersisted = false;
+      let canonicalSkipReason: string = workingFileId
+        ? "working plan file could not be downloaded from storage"
+        : "no working floor-plan page was resolved by classification";
       // Geometry API — download working plan and measure it
       if (workingFileId) {
         try {
@@ -612,6 +620,7 @@ export async function runAutomaticTakeoff(args: {
                   { type: "application/pdf" },
                 );
                 const pageBlob = await renderPageForAnalysis(planFile, workingPageNumber ?? 1);
+                if (!pageBlob) canonicalSkipReason = "working page could not be rendered for vision";
                 if (pageBlob) {
                   const b64 = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -665,20 +674,34 @@ export async function runAutomaticTakeoff(args: {
                   // Slice 4 migration is applied the column is absent and this no-ops, so the
                   // job save is never affected. (cast bridges the not-yet-regenerated types.)
                   const { persistEnrichedTakeoff } = await import("./persist-takeoff");
-                  await persistEnrichedTakeoff(
+                  const persistResult = await persistEnrichedTakeoff(
                     supabase as unknown as TakeoffJsonWriter,
                     runId,
                     composed.enriched,
                   );
+                  canonicalPersisted = persistResult.written;
+                  if (!persistResult.written) {
+                    canonicalSkipReason = `takeoff_json write failed: ${persistResult.error ?? "unknown"}`;
+                  }
                 }
               } catch (reconErr) {
+                canonicalSkipReason = `recognise/compose failed: ${reconErr instanceof Error ? reconErr.message : String(reconErr)}`;
                 console.warn("[concept-recon] recognise/compose failed — run continues:", reconErr);
               }
             }
           }
         } catch (geoErr) {
+          canonicalSkipReason = `geometry/download stage failed: ${geoErr instanceof Error ? geoErr.message : String(geoErr)}`;
           console.warn("[concept-geometry] Geometry API failed — run continues:", geoErr);
         }
+      }
+      // Fires on EVERY skipped-persist path — including workingFileId === null, which is
+      // exactly how the JM-0021 14-second silent run happened.
+      if (!canonicalPersisted) {
+        warnings.push(
+          `Canonical takeoff NOT persisted — ${canonicalSkipReason}. The QS export will fall back to the last good run; re-run once the cause is fixed.`,
+        );
+        summary.hasWarnings = true;
       }
 
       try {
@@ -701,7 +724,8 @@ export async function runAutomaticTakeoff(args: {
     }
 
     await supabase.from("takeoff_runs").update({
-      status: hasWarnings2 ? "completed_with_warnings" : "completed",
+      // recomputed live: integrity warnings are pushed after the hasWarnings2 snapshot
+      status: errors.length > 0 || warnings.length > 0 ? "completed_with_warnings" : "completed",
       completed_at: completedAt,
       working_file_id: workingFileId,
       working_page_number: workingPageNumber,

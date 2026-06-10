@@ -130,6 +130,12 @@ export type QSExportData = {
   garageDoor27x21Insulated: number;
   /** True when a HISTORICAL manually-confirmed door count exists (legacy override). */
   doorCountsConfirmed?: boolean;
+  /** Which deterministic source produced the interior door counts. null = NO source —
+   *  the counts are unbacked zeros and the sheet must flag, not assert (fail-safe doctrine:
+   *  a confident 0 with no source is a guess, and the worst kind). */
+  doorsSource?: "confirmed" | "engine" | "labels" | "schedule" | null;
+  /** Vision's door count — a HINT for the flag text only, never a number on the sheet. */
+  intDoorVisionHint?: number | null;
   intDoorStandard: number;
   intDoorUGroove: number;
   intDoorVGroove: number;
@@ -310,8 +316,10 @@ export function applyEnrichedTakeoff(
     // Interior doors — precedence: HISTORICAL confirmed manual counts (legacy jobs) >
     // deterministic door engine > module-item labels > opening-schedule fallback (the
     // latter two are already in base). The engine's counts NEVER include flagged hits.
+    intDoorVisionHint: enriched.internal_door_count?.value ?? null,
     ...(!base.doorCountsConfirmed && enriched.door_counts_auto
       ? {
+          doorsSource: "engine" as const,
           intDoorStandard: enriched.door_counts_auto.singles,
           intDoorDouble: enriched.door_counts_auto.doubles,
           intDoorCavitySlider: enriched.door_counts_auto.cavitySliders,
@@ -684,6 +692,7 @@ export async function buildQSExportData(
   }
 
   // Interior door types
+  let doorsSource: "confirmed" | "engine" | "labels" | "schedule" | null = null;
   let intDoorStandard = 0;
   let intDoorUGroove = 0;
   let intDoorVGroove = 0;
@@ -697,6 +706,7 @@ export async function buildQSExportData(
   });
 
   if (idItems.length > 0) {
+    doorsSource = "labels";
     for (const item of idItems) {
       const label = (item.label ?? "").toLowerCase();
       const qty = parseFloat(item.extracted_value ?? "1") || 1;
@@ -716,6 +726,7 @@ export async function buildQSExportData(
     }
   } else if (interiorDoors.length > 0) {
     // Fall back: put total in standard
+    doorsSource = "schedule";
     intDoorStandard = interiorDoors.reduce((s, d) => s + d.qty, 0);
   }
 
@@ -754,6 +765,7 @@ export async function buildQSExportData(
   const confirmedCounts = doorCountsRes.data;
   const doorCountsConfirmed = !!confirmedCounts?.confirmed_at;
   if (confirmedCounts?.confirmed_at) {
+    doorsSource = "confirmed";
     intDoorStandard = confirmedCounts.standard;
     intDoorDouble = confirmedCounts.double_doors;
     intDoorCavitySlider = confirmedCounts.cavity_sliders;
@@ -823,6 +835,7 @@ export async function buildQSExportData(
     garageDoor27x21Std,
     garageDoor27x21Insulated,
     doorCountsConfirmed,
+    doorsSource,
     intDoorStandard,
     intDoorUGroove,
     intDoorVGroove,
@@ -1140,17 +1153,21 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   put("A12", "External wall length");  put("B12", data.perimeterLm ?? 0);     put("C12", "lm");
   put("A13", "Internal wall length");  put("B13", data.internalWallLm ?? ""); put("C13", "lm"); // measured (geometry) — QS can wire D-row to B13 when ready
   put("A14", "Roof area");             put("B14", "");                        put("C14", "m²"); // never invented
+  // Fail-safe doctrine: door counts with NO deterministic source are unbacked zeros —
+  // blank the cells and flag, never assert. (JM-0021: engine null, no labels, no schedule
+  // → sheet said 0 doors while vision saw ~9. A confident 0 on a quote is a guess.)
+  const doorsUnresolved = (data.doorsSource ?? null) === null;
   put("A17", "Internal doors");
-  put("B17", data.intDoorStandard + data.intDoorDouble + data.intDoorCavitySlider + data.intDoorBarnSlider);
+  put("B17", doorsUnresolved ? "" : data.intDoorStandard + data.intDoorDouble + data.intDoorCavitySlider + data.intDoorBarnSlider);
   put("A22", "Ceiling height");        put("B22", data.studHeightMm != null ? r3(data.studHeightMm / 1000) : ""); put("C22", "m");
   put("A23", "Foundation type");       put("B23", "");
 
   // ── interior doors (rows 26-30) — precedence already resolved upstream ──
   put("A26", "Door Breakdown"); put("B26", "Qty"); put("C26", "Type");
-  put("A27", "— Standard hinged"); put("B27", data.intDoorStandard);
-  put("A28", "— Cavity sliders");  put("B28", data.intDoorCavitySlider);
-  put("A29", "— Double doors");    put("B29", data.intDoorDouble);
-  put("A30", "— Barn sliders");    put("B30", data.intDoorBarnSlider);
+  put("A27", "— Standard hinged"); put("B27", doorsUnresolved ? "" : data.intDoorStandard);
+  put("A28", "— Cavity sliders");  put("B28", doorsUnresolved ? "" : data.intDoorCavitySlider);
+  put("A29", "— Double doors");    put("B29", doorsUnresolved ? "" : data.intDoorDouble);
+  put("A30", "— Barn sliders");    put("B30", doorsUnresolved ? "" : data.intDoorBarnSlider);
 
   // ── window slot accumulation (same grouping semantics as before) ──
   const slotGroups: Record<string, Array<{ qty: number; height_m: number; width_m: number }>> = {};
@@ -1162,6 +1179,10 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   }
   const sectionalDoors: Opening[] = [];
   const manual: string[] = []; // human-visible MANUAL ENTRIES lines
+  if (doorsUnresolved) {
+    const hint = data.intDoorVisionHint ? ` — vision suggests ~${data.intDoorVisionHint}, verify` : "";
+    manual.push(`⚑ Internal doors NOT deterministically counted${hint}; count on the plan and enter at B27–30 before pricing`);
+  }
 
   if (data.openings && data.openings.length > 0) {
     for (const o of data.openings) {

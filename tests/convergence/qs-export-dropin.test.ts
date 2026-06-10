@@ -87,7 +87,7 @@ describe("buildDropInSheet — IQ Import meta block (live QS v4_1 contract)", ()
 
   it("door breakdown lands at B27-B30 (→ H187/H193/H192/H190)", () => {
     const ws = buildDropInSheet(base({
-      intDoorStandard: 12, intDoorCavitySlider: 1, intDoorDouble: 4, intDoorBarnSlider: 0,
+      doorsSource: "engine", intDoorStandard: 12, intDoorCavitySlider: 1, intDoorDouble: 4, intDoorBarnSlider: 0,
     }));
     expect(cellVal(ws, "B27")).toBe(12);
     expect(cellVal(ws, "B28")).toBe(1);
@@ -295,7 +295,7 @@ describe("dropInSheetToTSV — clipboard paste block", () => {
     const { dropInSheetToTSV } = await import("../../src/lib/iq-qs-export");
     const tsv = dropInSheetToTSV(base({
       openings: [op("window", "Bed 1", 1.3, 1.8), op("window", "Bed 1", 1.3, 1.8)],
-      intDoorStandard: 6, intDoorCavitySlider: 1,
+      doorsSource: "engine", intDoorStandard: 6, intDoorCavitySlider: 1,
     }));
     const lines = tsv.split("\n");
     expect(lines[0]).toBe("Job Number\tJM-0015\t\t\t\t");      // A1:F1

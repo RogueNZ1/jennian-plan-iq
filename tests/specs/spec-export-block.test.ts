@@ -68,6 +68,7 @@ function base(over: Partial<QSExportData> = {}): QSExportData {
     garageDoor24x21Insulated: 0,
     garageDoor27x21Std: 0,
     garageDoor27x21Insulated: 0,
+    doorsSource: "schedule",
     intDoorStandard: 0,
     intDoorUGroove: 0,
     intDoorVGroove: 0,
