@@ -10,7 +10,7 @@ Claude cannot hold live access between chats by design — the secrets are the p
 
 ## Secrets present (names only — values are in GitHub, never here)
 `SUPABASE_SECRET_KEY`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `CLOUDFLARE_API_TOKEN`,
-`CF_ID_CANDIDATE_A` (=83ec23a9…, the business CF account), `CF_EXTRA_64` (GEOMETRY_API_KEY, unconfirmed),
+`CF_ID_CANDIDATE_A` (=83ec23a9…, the business CF account), `CF_EXTRA_64` (= GEOMETRY_API_KEY; was MISSING from the Pages project env until 11 Jun — every takeoff fell back to text route with 0 openings; now set via API),
 `VALIDATOR_EMAIL` / `VALIDATOR_PASSWORD` (claude-validator@jennian-iq.test, estimator role),
 `SP_SHARE_LINKS` (Haydon's shared SharePoint folder links).
 Supabase project ref: `ukegudqobnmiesudtjen`.
