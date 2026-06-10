@@ -1,0 +1,107 @@
+# Fetch the Alexandra floorplan from Haydon's SharePoint share link (folder), push it
+# into Supabase storage for permanence, and run the door-engine ground-truth bench.
+# The share link lives ONLY in the SP_SHARE_LINK secret. Published output is PII-minimal:
+# counts + the one matched filename. Cookie-jar dance because SP anon auth is cookie-based.
+name: sp-fetch-bench
+on:
+  push:
+    branches: [convergence]
+    paths: ['.github/workflows/sp-fetch-bench.yml']
+permissions:
+  contents: write
+jobs:
+  fetch-and-bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Resolve share link → find floorplan → download
+        id: sp
+        env:
+          LINK: ${{ secrets.SP_SHARE_LINK }}
+        run: |
+          set +e
+          O=/tmp/out.txt; : > $O
+          JAR=/tmp/jar
+          FINAL=$(curl -sL -c $JAR -o /tmp/landing.html -w '%{url_effective}' "$LINK")
+          case "$FINAL" in
+            *login.microsoftonline*) echo "LINK IS ORG-ONLY (login wall) — reshare as 'Anyone with the link'" >> $O; echo "found=" >> "$GITHUB_OUTPUT"; exit 0;;
+          esac
+          ORIGIN=$(echo "$FINAL" | sed -E 's#(https://[^/]+).*#\1#')
+          echo "landed on: $(echo "$FINAL" | sed -E 's#https://[^/]+##' | cut -c1-40)…" >> $O
+          # Folder server-relative path from the id= param (URL-decoded)
+          FPATH=$(python3 - "$FINAL" << 'PY'
+          import sys, urllib.parse as u
+          q = u.parse_qs(u.urlsplit(sys.argv[1]).query)
+          print(u.unquote(q.get("id", [""])[0]))
+          PY
+          )
+          if [ -z "$FPATH" ]; then
+            # fallback: parse from landing page JSON blob
+            FPATH=$(grep -oE '"serverRelativeUrl":"[^"]+"' /tmp/landing.html | head -1 | cut -d'"' -f4)
+          fi
+          echo "folder path resolved: $([ -n "$FPATH" ] && echo yes || echo NO)" >> $O
+          [ -z "$FPATH" ] && { echo "found=" >> "$GITHUB_OUTPUT"; exit 0; }
+          api() { curl -s -b $JAR -H "Accept: application/json;odata=nometadata" "$1"; }
+          enc() { python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$1"; }
+          # search: top folder + one level of subfolders
+          HIT=""
+          search_folder() {
+            local P="$1"
+            local FILES=$(api "$ORIGIN/sites/Company/_api/web/GetFolderByServerRelativeUrl('$(enc "$P")')/Files?\$select=Name,ServerRelativeUrl")
+            local M=$(echo "$FILES" | jq -r '[.value[]? | select(.Name | test("(2026[._-]?03[._-]?18).*floor|floorplan"; "i"))][0].ServerRelativeUrl // empty')
+            [ -z "$M" ] && M=$(echo "$FILES" | jq -r --arg re "floorplan" '[.value[]? | select(.Name | test($re; "i"))][0].ServerRelativeUrl // empty')
+            echo "$M"
+          }
+          HIT=$(search_folder "$FPATH")
+          if [ -z "$HIT" ]; then
+            SUBS=$(api "$ORIGIN/sites/Company/_api/web/GetFolderByServerRelativeUrl('$(enc "$FPATH")')/Folders?\$select=ServerRelativeUrl" | jq -r '.value[]?.ServerRelativeUrl' | head -40)
+            echo "subfolders scanned: $(echo "$SUBS" | grep -c .)" >> $O
+            while IFS= read -r SUB; do
+              [ -z "$SUB" ] && continue
+              HIT=$(search_folder "$SUB")
+              [ -n "$HIT" ] && break
+            done << SUBEOF
+          $SUBS
+          SUBEOF
+          fi
+          echo "matched file: $(basename "$HIT" 2>/dev/null | cut -c1-30)" >> $O
+          [ -z "$HIT" ] && { echo "no floorplan match in folder tree" >> $O; echo "found=" >> "$GITHUB_OUTPUT"; exit 0; }
+          curl -s -b $JAR -o /tmp/plan.pdf "$ORIGIN$(enc "$HIT" | sed 's/%2F/\//g')"
+          SZ=$(stat -c%s /tmp/plan.pdf 2>/dev/null || echo 0)
+          echo "downloaded: $SZ bytes; type: $(file -b /tmp/plan.pdf | cut -c1-30)" >> $O
+          head -c4 /tmp/plan.pdf | grep -q "%PDF" || { echo "not a PDF — auth likely failed silently" >> $O; echo "found=" >> "$GITHUB_OUTPUT"; exit 0; }
+          echo "found=1" >> "$GITHUB_OUTPUT"
+      - name: Persist to Supabase storage (bench self-fetch forever)
+        if: steps.sp.outputs.found == '1'
+        env:
+          KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          curl -s -X POST -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Content-Type: application/pdf" -H "x-upsert: true" \
+            --data-binary @/tmp/plan.pdf \
+            "https://ukegudqobnmiesudtjen.supabase.co/storage/v1/object/job-files/bench/alexandra.pdf" \
+            -o /tmp/up.json -w "supabase store HTTP %{http_code}\n" | tee -a /tmp/out.txt
+      - run: npm ci
+        if: steps.sp.outputs.found == '1'
+      - name: Run the ground-truth bench
+        id: bench
+        if: steps.sp.outputs.found == '1'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          npx tsx tests/doors/run-bench.ts /tmp/plan.pdf tests/doors/alexandra.bench.json 2>&1 | tee -a /tmp/out.txt
+      - name: Publish (always)
+        if: always()
+        run: |
+          echo "sp: ${{ steps.sp.outcome }} | bench: ${{ steps.bench.outcome }}" >> /tmp/out.txt
+          git config user.name "ops[bot]"; git config user.email "noreply@github.com"
+          git checkout --orphan ops-results && { git rm -rf -q . || true; }
+          mkdir -p results && cp /tmp/out.txt results/sp-bench.txt
+          git add results && git commit -q -m "sp-fetch-bench ${{ github.run_id }}" && git push -f origin ops-results
+      - name: Propagate
+        if: steps.sp.outputs.found == '1' && steps.bench.outcome != 'success'
+        run: exit 1
