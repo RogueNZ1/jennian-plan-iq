@@ -48,33 +48,34 @@ jobs:
           [ -z "$FPATH" ] && { echo "found=" >> "$GITHUB_OUTPUT"; exit 0; }
           api() { curl -s -b $JAR -H "Accept: application/json;odata=nometadata" "$1"; }
           enc() { python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$1"; }
-          # search: top folder + one level of subfolders
+          # Recursive BFS to depth 3, cap 80 folders. Wide name net. Masked inventory published.
+          MATCH_RE='(floor[ _-]?plan|2026[._-]?03[._-]?18|kanzan|alexandra|lot[ _-]?96|working[ _-]?drawing)'
           HIT=""
-          search_folder() {
-            local P="$1"
-            local FILES=$(api "$ORIGIN/sites/Company/_api/web/GetFolderByServerRelativeUrl('$(enc "$P")')/Files?\$select=Name,ServerRelativeUrl")
-            local M=$(echo "$FILES" | jq -r '[.value[]? | select(.Name | test("(2026[._-]?03[._-]?18).*floor|floorplan"; "i"))][0].ServerRelativeUrl // empty')
-            [ -z "$M" ] && M=$(echo "$FILES" | jq -r --arg re "floorplan" '[.value[]? | select(.Name | test($re; "i"))][0].ServerRelativeUrl // empty')
-            echo "$M"
-          }
-          HIT=$(search_folder "$FPATH")
-          if [ -z "$HIT" ]; then
-            SUBS=$(api "$ORIGIN/sites/Company/_api/web/GetFolderByServerRelativeUrl('$(enc "$FPATH")')/Folders?\$select=ServerRelativeUrl" | jq -r '.value[]?.ServerRelativeUrl' | head -40)
-            echo "subfolders scanned: $(echo "$SUBS" | grep -c .)" >> $O
-            while IFS= read -r SUB; do
-              [ -z "$SUB" ] && continue
-              HIT=$(search_folder "$SUB")
-              [ -n "$HIT" ] && break
-            done << SUBEOF
-          $SUBS
-          SUBEOF
-          fi
+          QUEUE="$FPATH"
+          SCANNED=0
+          while [ -n "$QUEUE" ] && [ -z "$HIT" ] && [ "$SCANNED" -lt 80 ]; do
+            P=$(echo "$QUEUE" | head -1)
+            QUEUE=$(echo "$QUEUE" | tail -n +2)
+            SCANNED=$((SCANNED+1))
+            FILES=$(api "$ORIGIN/sites/Company/_api/web/GetFolderByServerRelativeUrl('$(enc "$P")')/Files?\$select=Name,ServerRelativeUrl")
+            # masked inventory: first 12 chars of each PDF name
+            echo "$FILES" | jq -r --arg d "$(basename "$P" | cut -c1-12)" '.value[]? | select(.Name | test("\\.pdf$"; "i")) | "  [\($d)] \(.Name[0:12])….pdf"' >> $O
+            HIT=$(echo "$FILES" | jq -r --arg re "$MATCH_RE" '[.value[]? | select(.Name | test($re; "i"))][0].ServerRelativeUrl // empty')
+            [ -n "$HIT" ] && break
+            DEPTH=$(echo "$P" | awk -F/ '{print NF}')
+            BASE_DEPTH=$(echo "$FPATH" | awk -F/ '{print NF}')
+            if [ $((DEPTH - BASE_DEPTH)) -lt 3 ]; then
+              SUBS=$(api "$ORIGIN/sites/Company/_api/web/GetFolderByServerRelativeUrl('$(enc "$P")')/Folders?\$select=ServerRelativeUrl" | jq -r '.value[]?.ServerRelativeUrl' | grep -v "/Forms$")
+              [ -n "$SUBS" ] && QUEUE=$(printf "%s\n%s" "$QUEUE" "$SUBS" | grep -v '^$')
+            fi
+          done
+          echo "folders scanned: $SCANNED" >> $O
           echo "matched file: $(basename "$HIT" 2>/dev/null | cut -c1-30)" >> $O
-          [ -z "$HIT" ] && { echo "no floorplan match in folder tree" >> $O; echo "found=" >> "$GITHUB_OUTPUT"; exit 0; }
+          [ -z "$HIT" ] && { echo "no match in tree" >> $O; echo "found=" >> "$GITHUB_OUTPUT"; exit 0; }
           curl -s -b $JAR -o /tmp/plan.pdf "$ORIGIN$(enc "$HIT" | sed 's/%2F/\//g')"
           SZ=$(stat -c%s /tmp/plan.pdf 2>/dev/null || echo 0)
           echo "downloaded: $SZ bytes; type: $(file -b /tmp/plan.pdf | cut -c1-30)" >> $O
-          head -c4 /tmp/plan.pdf | grep -q "%PDF" || { echo "not a PDF — auth likely failed silently" >> $O; echo "found=" >> "$GITHUB_OUTPUT"; exit 0; }
+          head -c4 /tmp/plan.pdf | grep -q "%PDF" || { echo "not a PDF — auth failed silently" >> $O; echo "found=" >> "$GITHUB_OUTPUT"; exit 0; }
           echo "found=1" >> "$GITHUB_OUTPUT"
       - name: Persist to Supabase storage (bench self-fetch forever)
         if: steps.sp.outputs.found == '1'
