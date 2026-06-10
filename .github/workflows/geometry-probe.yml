@@ -18,27 +18,15 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Set GEOMETRY_API_KEY on the Pages project + validate the key
-        env:
-          KEY: ${{ secrets.CF_EXTRA_64 }}
-          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_ACC: ${{ secrets.CF_ID_CANDIDATE_A }}
+      - name: Probe proxy post-redeploy
         run: |
           O=/tmp/probe.txt; : > $O
-          # 1) key validity against a REAL authenticated endpoint (health is open)
-          for ARGS in "" "-H X-API-Key:$KEY"; do
-            CODE=$(curl -s -o /tmp/body -w '%{http_code}' --max-time 25 -X POST $ARGS \
-              "https://jennian-iq-geometry-api-production.up.railway.app/measure" \
-              -F "file=@README.md;type=application/pdf" -F "page=0" || echo ERR)
-            TAG=$([ -z "$ARGS" ] && echo nokey || echo withkey)
-            echo "[measure-$TAG] $CODE $(head -c 140 /tmp/body | tr '\n' ' ')" >> $O
+          for I in 1 2 3; do
+            CODE=$(curl -s -o /tmp/body -w '%{http_code}' --max-time 20 "https://jennian-iq-prod.pages.dev/api/geometry/health" || echo ERR)
+            echo "[proxy/health try$I] $CODE $(head -c 120 /tmp/body | tr '\n' ' ')" >> $O
+            [ "$CODE" = "200" ] && break
+            sleep 10
           done
-          # 2) set the env var on the Pages project (production deployment config)
-          CODE=$(curl -s -o /tmp/body -w '%{http_code}' -X PATCH \
-            "https://api.cloudflare.com/client/v4/accounts/$CF_ACC/pages/projects/jennian-iq-prod" \
-            -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
-            --data "{\"deployment_configs\":{\"production\":{\"env_vars\":{\"GEOMETRY_API_KEY\":{\"type\":\"secret_text\",\"value\":\"$KEY\"}}}}}")
-          echo "[pages-env-set] $CODE $(head -c 200 /tmp/body | tr '\n' ' ')" >> $O
           cat $O
       - name: Publish
         if: always()
