@@ -385,7 +385,11 @@ export async function buildQSExportData(
     .filter((o: OpeningRow) => o.opening_type === "garage_door")
     .map((o: OpeningRow) => ({ type: o.room_name ?? "Garage Door", qty: o.quantity ?? 1 }));
   const interiorDoors = openings
-    .filter((o: OpeningRow) => o.opening_type === "interior_door")
+    // AUDIT §5.5 fix: every producer (OpeningScheduleTab, extract-openings, vision
+    // normaliser) writes "internal_door"; this filter matched only "interior_door", so
+    // EVERY schedule-entered internal door was silently dropped from the export. Accept
+    // both — a row carries one type, so no double-count is possible.
+    .filter((o: OpeningRow) => o.opening_type === "internal_door" || o.opening_type === "interior_door")
     .map((o: OpeningRow) => ({ type: o.room_name ?? "Interior Door", qty: o.quantity ?? 1 }));
   const skylights = openings
     .filter((o: OpeningRow) => o.opening_type === "skylight")
