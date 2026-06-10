@@ -3,15 +3,14 @@ import { useEffect, useState } from "react";
 import { AppLayout, PageHeader } from "@/components/jennian/AppLayout";
 import { Breadcrumbs } from "@/components/jennian/Breadcrumbs";
 import {
-  buildQSExportData, writeIQDataSheetFull, buildElectricalSchedule,
+  buildQSExportData, writeIQDataSheetFull, buildElectricalSchedule, dropInSheetToTSV,
   type QSExportData, type ElectricalSchedule,
 } from "@/lib/iq-qs-export";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   FileSpreadsheet, Ruler, Mountain, Square, Zap, Droplets,
-  Hammer, PaintRoller, DoorOpen, ArrowLeft, AlertTriangle,
-} from "lucide-react";
+  Hammer, PaintRoller, DoorOpen, ArrowLeft, AlertTriangle, ClipboardCopy } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
@@ -108,6 +107,16 @@ function QuickExport() {
     }
   }
 
+  async function handleCopyIQImport() {
+    if (!data) return;
+    try {
+      await navigator.clipboard.writeText(dropInSheetToTSV({ ...data, jobId }));
+      toast.success("IQ Import block copied — paste at 'IQ Import'!A1 in the QS master");
+    } catch (err) {
+      toast.error(`Copy failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   function getItemsByModule(moduleId: string): ModuleItemRow[] {
     return items.filter((i) => i.module_id === moduleId);
   }
@@ -146,6 +155,15 @@ function QuickExport() {
               >
                 <FileSpreadsheet className="h-4 w-4" />
                 {exporting ? "Exporting…" : `Export to Excel — ${filename}`}
+              </button>
+              <button
+                onClick={handleCopyIQImport}
+                disabled={!data}
+                title="Copies the paste-ready block — paste at 'IQ Import'!A1 in the QS master"
+                className="inline-flex items-center gap-2 rounded-md border border-primary px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/10 disabled:opacity-50"
+              >
+                <ClipboardCopy className="h-4 w-4" />
+                Copy IQ Import block
               </button>
             </div>
           }

@@ -289,3 +289,19 @@ describe("CLADDING (ENGINE) block on the IQ Import sheet", () => {
     expect(blockText(ws)).toMatch(/gable count not extracted .* VERIFY/);
   });
 });
+
+describe("dropInSheetToTSV — clipboard paste block", () => {
+  it("emits the exact sheet as TSV: meta, slots, doors, cladding block", async () => {
+    const { dropInSheetToTSV } = await import("../../src/lib/iq-qs-export");
+    const tsv = dropInSheetToTSV(base({
+      openings: [op("window", "Bed 1", 1.3, 1.8), op("window", "Bed 1", 1.3, 1.8)],
+      intDoorStandard: 6, intDoorCavitySlider: 1,
+    }));
+    const lines = tsv.split("\n");
+    expect(lines[0]).toBe("Job Number\tJM-0015\t\t\t\t");      // A1:F1
+    expect(lines[32]).toBe("Bed 1\t2\t1.3\t1.8\t\t");           // row 33 slot
+    expect(lines[26]).toMatch(/^— Standard hinged\t6\t/);        // B27
+    expect(tsv).toMatch(/CLADDING \(ENGINE\)/);
+    expect(tsv).not.toMatch(/\t.*\t.*\t.*\t.*\t.*\t/);           // never >6 columns
+  });
+});

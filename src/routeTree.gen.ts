@@ -11,8 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UsersRouteImport } from './routes/users'
 import { Route as UploadRouteImport } from './routes/upload'
-import { Route as TemplatesRouteImport } from './routes/templates'
-import { Route as SpecificationsRouteImport } from './routes/specifications'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as ReportsRouteImport } from './routes/reports'
@@ -37,16 +35,6 @@ const UsersRoute = UsersRouteImport.update({
 const UploadRoute = UploadRouteImport.update({
   id: '/upload',
   path: '/upload',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TemplatesRoute = TemplatesRouteImport.update({
-  id: '/templates',
-  path: '/templates',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SpecificationsRoute = SpecificationsRouteImport.update({
-  id: '/specifications',
-  path: '/specifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -135,8 +123,6 @@ export interface FileRoutesByFullPath {
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
-  '/specifications': typeof SpecificationsRoute
-  '/templates': typeof TemplatesRoute
   '/upload': typeof UploadRoute
   '/users': typeof UsersRoute
   '/auth/set-password': typeof AuthSetPasswordRoute
@@ -154,8 +140,6 @@ export interface FileRoutesByTo {
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
-  '/specifications': typeof SpecificationsRoute
-  '/templates': typeof TemplatesRoute
   '/upload': typeof UploadRoute
   '/users': typeof UsersRoute
   '/auth/set-password': typeof AuthSetPasswordRoute
@@ -176,8 +160,6 @@ export interface FileRoutesById {
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
-  '/specifications': typeof SpecificationsRoute
-  '/templates': typeof TemplatesRoute
   '/upload': typeof UploadRoute
   '/users': typeof UsersRoute
   '/auth/set-password': typeof AuthSetPasswordRoute
@@ -199,8 +181,6 @@ export interface FileRouteTypes {
     | '/reports'
     | '/review'
     | '/settings'
-    | '/specifications'
-    | '/templates'
     | '/upload'
     | '/users'
     | '/auth/set-password'
@@ -218,8 +198,6 @@ export interface FileRouteTypes {
     | '/reports'
     | '/review'
     | '/settings'
-    | '/specifications'
-    | '/templates'
     | '/upload'
     | '/users'
     | '/auth/set-password'
@@ -239,8 +217,6 @@ export interface FileRouteTypes {
     | '/reports'
     | '/review'
     | '/settings'
-    | '/specifications'
-    | '/templates'
     | '/upload'
     | '/users'
     | '/auth/set-password'
@@ -261,8 +237,6 @@ export interface RootRouteChildren {
   ReportsRoute: typeof ReportsRoute
   ReviewRoute: typeof ReviewRoute
   SettingsRoute: typeof SettingsRoute
-  SpecificationsRoute: typeof SpecificationsRoute
-  TemplatesRoute: typeof TemplatesRoute
   UploadRoute: typeof UploadRoute
   UsersRoute: typeof UsersRoute
   AuthSetPasswordRoute: typeof AuthSetPasswordRoute
@@ -282,20 +256,6 @@ declare module '@tanstack/react-router' {
       path: '/upload'
       fullPath: '/upload'
       preLoaderRoute: typeof UploadRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/templates': {
-      id: '/templates'
-      path: '/templates'
-      fullPath: '/templates'
-      preLoaderRoute: typeof TemplatesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/specifications': {
-      id: '/specifications'
-      path: '/specifications'
-      fullPath: '/specifications'
-      preLoaderRoute: typeof SpecificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -443,8 +403,6 @@ const rootRouteChildren: RootRouteChildren = {
   ReportsRoute: ReportsRoute,
   ReviewRoute: ReviewRoute,
   SettingsRoute: SettingsRoute,
-  SpecificationsRoute: SpecificationsRoute,
-  TemplatesRoute: TemplatesRoute,
   UploadRoute: UploadRoute,
   UsersRoute: UsersRoute,
   AuthSetPasswordRoute: AuthSetPasswordRoute,
@@ -452,13 +410,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

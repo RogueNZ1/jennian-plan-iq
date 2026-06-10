@@ -1062,6 +1062,26 @@ const GARAGE_DOOR_WIDTH_TOL_M = 0.05;
  */
 const NON_STANDARD_GARAGE_DOOR_ROWS = [67, 68] as const;
 
+/**
+ * The IQ Import block as clipboard-ready TSV — the estimator clicks Copy in the app
+ * and pastes at 'IQ Import'!A1 in the live QS master. No xlsx download round-trip.
+ * Excel parses tab-separated clipboard text natively, including blank cells.
+ */
+export function dropInSheetToTSV(data: QSExportData): string {
+  const ws = buildDropInSheet(data);
+  const ref = String(ws["!ref"] ?? "A1:F50");
+  const maxRow = Number(ref.split(":")[1]?.replace(/[A-Z]/g, "") ?? 50);
+  const cols = ["A", "B", "C", "D", "E", "F"];
+  const lines: string[] = [];
+  for (let r = 1; r <= maxRow; r++) {
+    lines.push(cols.map((c) => {
+      const v = (ws[`${c}${r}`] as { v?: unknown } | undefined)?.v;
+      return v == null ? "" : String(v).replace(/[\t\n]/g, " ");
+    }).join("\t"));
+  }
+  return lines.join("\n");
+}
+
 export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   // ════ IQ IMPORT SHEET — retargeted to the LIVE QS master (Jennian_QS_IQ_Updated_v4_1) ════
   // The live "5. Data Input House" no longer takes pastes: its cells are IFERROR formulas

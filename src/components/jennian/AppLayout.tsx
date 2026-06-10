@@ -1,7 +1,6 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
-  LayoutDashboard, Briefcase, Upload, ClipboardCheck, FileText,
-  LayoutTemplate, BarChart3, Users, Settings, Search, Bell, LogOut, Layers,
+  LayoutDashboard, Briefcase, Upload, ClipboardCheck, BarChart3, Users, Settings, Search, Bell, LogOut, Layers,
   CheckCircle2, FileSpreadsheet, AlertTriangle, X, Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -18,8 +17,6 @@ const nav: NavItem[] = [
   { to: "/upload",         label: "Upload Plan",     icon: Upload },
   { to: "/review",         label: "Quantity Review", icon: ClipboardCheck },
   { to: "/modules",        label: "Modules",         icon: Layers },
-  { to: "/specifications", label: "Specifications",  icon: FileText },
-  { to: "/templates",      label: "Templates",       icon: LayoutTemplate },
   { to: "/reports",        label: "Reports",         icon: BarChart3 },
   { to: "/intelligence",   label: "007 Intelligence",icon: Zap,      gate: "owner" },
   { to: "/users",          label: "Users",           icon: Users,    gate: "admin" },
