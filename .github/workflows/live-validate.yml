@@ -6,6 +6,12 @@
 name: live-validate
 on:
   workflow_dispatch:
+  push:
+    branches: [convergence]
+    paths:
+      - '.github/workflows/live-validate.yml'
+      - 'tests/live/**'
+      - 'vitest.live.config.ts'
 jobs:
   live:
     runs-on: ubuntu-latest
