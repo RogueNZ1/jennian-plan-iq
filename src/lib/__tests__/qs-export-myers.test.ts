@@ -27,7 +27,7 @@ const myers: QSExportData = {
   // Core measurements → D12/D13/D15/D19/D20
   floorAreaM2: 234,
   alfrescoAreaM2: 26,
-  perimeterLm: 93,
+  perimeterLm: 93, internalWallLm: null,
   exteriorWallLengthLm: 93,
   exteriorWallHeightM: 2.4,  // xlsm D20 = 2.4 (not 2.55 — stud height is separate from wall height)
   firstFloorAreaM2: 0,

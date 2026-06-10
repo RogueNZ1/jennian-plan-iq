@@ -235,3 +235,12 @@ describe("module-item reads — APPROVED value wins over raw extraction", () => 
     expect(pickModuleValue(undefined)).toBeNull();
   });
 });
+
+describe("internal wall length — measured value reaches the IQ Import sheet", () => {
+  it("B13 carries the geometry-measured lm; blank when unmeasured (never invented)", async () => {
+    const ws1 = buildDropInSheet(base({ internalWallLm: 47.3 }));
+    expect(cellVal(ws1, "B13")).toBe(47.3);
+    const ws2 = buildDropInSheet(base());
+    expect(cellVal(ws2, "B13")).toBe(""); // no measurement → blank, not a guess
+  });
+});

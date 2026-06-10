@@ -35,6 +35,8 @@ export type QSExportData = {
   // Geometry
   floorAreaM2: number | null;
   perimeterLm: number | null;
+  /** Measured internal wall length (geometry engine) — informational until the QS wires a row. */
+  internalWallLm: number | null;
   firstFloorAreaM2: number | null;
   studHeightMm: number | null;
   alfrescoAreaM2: number | null;
@@ -282,6 +284,7 @@ export function applyEnrichedTakeoff(
     ...base,
     floorAreaM2: enriched.floor_area_m2.value ?? base.floorAreaM2,
     perimeterLm: perimeter ?? base.perimeterLm,
+    internalWallLm: enriched.internal_wall_lm?.value ?? base.internalWallLm,
     exteriorWallLengthLm: perimeter ?? base.exteriorWallLengthLm,
     alfrescoAreaM2: enriched.alfresco_area_m2.value ?? base.alfrescoAreaM2,
     studHeightMm: studM != null ? Math.round(studM * 1000) : base.studHeightMm,
@@ -765,6 +768,7 @@ export async function buildQSExportData(
     firstFloorAreaM2: getNum("first floor") ?? getNum("upper floor"),
     studHeightMm: getNum("stud height"),
     alfrescoAreaM2: getNum("alfresco") ?? getNum("porch") ?? getNum("deck"),
+    internalWallLm: getNum("internal wall length"),
     roofPitch: getVal("roof pitch"),
     ridgeType: getVal("ridge type") ?? getVal("ridge"),
     underlay: getVal("underlay"),
@@ -1097,7 +1101,7 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   put("A10", "Garage area");           put("B10", "");                        put("C10", "m²");
   put("A11", "Alfresco / deck area");  put("B11", data.alfrescoAreaM2 ?? 0);  put("C11", "m²");
   put("A12", "External wall length");  put("B12", data.perimeterLm ?? 0);     put("C12", "lm");
-  put("A13", "Internal wall length");  put("B13", "");                        put("C13", "lm");
+  put("A13", "Internal wall length");  put("B13", data.internalWallLm ?? ""); put("C13", "lm"); // measured (geometry) — QS can wire D-row to B13 when ready
   put("A14", "Roof area");             put("B14", "");                        put("C14", "m²"); // never invented
   put("A17", "Internal doors");
   put("B17", data.intDoorStandard + data.intDoorDouble + data.intDoorCavitySlider + data.intDoorBarnSlider);
@@ -1515,7 +1519,7 @@ export async function writeIQDataSheetFull(
       coverRows.push([
         item.module_id.replace("iq-", "").toUpperCase(),
         item.label,
-        item.extracted_value ?? "—",
+        pickModuleValue(item) ?? "—", // approved beats the raw assumption
         item.unit ?? "",
       ]);
     }
@@ -1539,9 +1543,9 @@ export async function writeIQDataSheetFull(
     dataRows.push([
       item.module_id.replace("iq-", "").toUpperCase(),
       item.label,
-      item.extracted_value ?? "—",
+      pickModuleValue(item) ?? "—",
       item.unit ?? "",
-      item.value_source ?? "extracted",
+      item.approved_value != null ? "approved" : (item.value_source ?? "extracted"),
     ]);
   }
 

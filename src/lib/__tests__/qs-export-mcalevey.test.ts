@@ -28,7 +28,7 @@ const mcalevey: QSExportData = {
   // Core measurements → D12/D13/D15/D19/D20
   floorAreaM2: 133.4,
   alfrescoAreaM2: 1.3,
-  perimeterLm: 55,
+  perimeterLm: 55, internalWallLm: null,
   exteriorWallLengthLm: 55,
   exteriorWallHeightM: 2.4,
   firstFloorAreaM2: 0,
