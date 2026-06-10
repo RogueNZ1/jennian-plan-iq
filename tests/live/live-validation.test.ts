@@ -69,10 +69,14 @@ describe.skipIf(!LIVE)("LIVE — JM-0020 export faithfulness", () => {
     expect(enrichedNull).toBe(false);
   });
 
-  it("lounge slider renders at row 62 → 1 / 2.1 / 2.4", () => {
+  it("lounge window on row 62, the slider on overflow row 63 — both with real dims", () => {
+    // Master-verified: lounge owns rows 62-64; differing-dims openings each get a row.
     expect(cell(ws, "D62")).toBe(1);
-    expect(cell(ws, "E62")).toBe(2.1);
-    expect(cell(ws, "F62")).toBe(2.4);
+    expect(cell(ws, "E62")).toBe(1.3);
+    expect(cell(ws, "F62")).toBe(1.8);
+    expect(cell(ws, "D63")).toBe(1);
+    expect(cell(ws, "E63")).toBe(2.1);
+    expect(cell(ws, "F63")).toBe(2.4);
   });
 
   it("3.0×2.1 sectional at row 67 with REAL dims; H175–180 all zero", () => {

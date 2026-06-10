@@ -967,16 +967,28 @@ export function buildReviewNotesSheet(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Slot key → row in the master's IQ Input sheet. */
-const DROP_IN_SLOT_ROW: Record<string, number> = {
-  bed1: 41, ensuite: 43, bed2: 45, bed3: 47, bed4: 49,
-  toilet: 51,           // WC maps to Toilet row
-  bathroom: 52, kitchen: 54, familyLiving: 56,
-  dining: 59, lounge: 62, garageWindow: 65,
-  // garageDoor1 / garageDoor2 handled via H175-H180 garage block
+/**
+ * Master row ownership, VERIFIED against "5. Data Input House" (Master .xlsm): each room
+ * owns its named row plus the blank row(s) beneath it — the master's F73 window total
+ * sums F×D across rows 41-72 INCLUDING those blanks (and excluding garage-door rows
+ * 67/68), so they are live overflow rows. A room's openings with DIFFERING dims each get
+ * their own row; same-dims openings aggregate qty on one row. Rows 69 and 71 are inside
+ * the total but their ownership is ambiguous in the master — deliberately unused.
+ */
+const DROP_IN_SLOT_ROWS: Record<string, ReadonlyArray<number>> = {
+  bed1: [41, 42], ensuite: [43, 44], bed2: [45, 46], bed3: [47, 48], bed4: [49, 50],
+  toilet: [51],           // WC maps to Toilet row (no spare)
+  bathroom: [52, 53], kitchen: [54, 55], familyLiving: [56, 57, 58],
+  dining: [59, 60, 61], lounge: [62, 63, 64], garageWindow: [65, 66],
+  entrance: [72], pa_door: [70],
+  // garageDoor1 / garageDoor2 handled via H175-H180 garage block + rows 67/68
   // Laundry window: no slot → dropped
 };
-// All window/PA-door/entrance rows that must be zeroed before writing actuals
-const ALL_OPENING_ROWS = [41, 43, 45, 47, 49, 51, 52, 54, 56, 59, 62, 65, 67, 68, 70, 72];
+// All window/PA-door/entrance rows (named + overflow) zeroed before writing actuals
+const ALL_OPENING_ROWS = [
+  41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58,
+  59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 70, 72,
+];
 
 /**
  * Standard sectional garage-door widths (m) → the drop-in H-row of the STANDARD
@@ -1033,12 +1045,17 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     zero(`D${row}`); zero(`E${row}`); zero(`F${row}`);
   }
 
-  // Accumulate per-slot: { qty, height_m, width_m }
-  const slotData: Record<number, { qty: number; height_m: number; width_m: number }> = {};
+  // Accumulate per-slot DIM GROUPS in arrival order: same-dims openings aggregate qty;
+  // a differing-dims opening becomes the next group and lands on the slot's next overflow
+  // row. More groups than rows: the overflow folds its qty into the last row (count never
+  // silently dropped; that row keeps its own dims).
+  const slotGroups: Record<string, Array<{ qty: number; height_m: number; width_m: number }>> = {};
 
-  function addToSlot(row: number, h: number, w: number) {
-    if (slotData[row]) { slotData[row].qty += 1; }
-    else               { slotData[row] = { qty: 1, height_m: h, width_m: w }; }
+  function addToSlot(slotKey: string, h: number, w: number) {
+    const groups = (slotGroups[slotKey] ??= []);
+    const g = groups.find((x) => x.height_m === h && x.width_m === w);
+    if (g) g.qty += 1;
+    else groups.push({ qty: 1, height_m: h, width_m: w });
   }
 
   // Canonical sectional doors collected from openings[] — routed in the garage block below.
@@ -1049,16 +1066,15 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     // Flat openings[] path (enriched jobs — the primary path)
     for (const o of data.openings) {
       if (o.type === "sectional_door") { sectionalDoors.push(o); continue; } // → garage block
-      if (o.type === "entrance") { addToSlot(72, o.height_m, o.width_m); continue; }
-      if (o.type === "pa_door")  { addToSlot(70, o.height_m, o.width_m); continue; }
+      if (o.type === "entrance") { addToSlot("entrance", o.height_m, o.width_m); continue; }
+      if (o.type === "pa_door")  { addToSlot("pa_door", o.height_m, o.width_m); continue; }
       // window / slider / garage_window
       const room = (o.room ?? "").toLowerCase();
       if (room.includes("laundry")) continue; // no laundry-window slot → drop
       const spec = WINDOW_SLOT_SPECS.find((s) => s.keywords.some((k) => room.includes(k)));
       if (!spec) continue;
-      const row = DROP_IN_SLOT_ROW[spec.key as string];
-      if (!row) continue;
-      addToSlot(row, o.height_m, o.width_m);
+      if (!DROP_IN_SLOT_ROWS[spec.key as string]) continue;
+      addToSlot(spec.key as string, o.height_m, o.width_m);
     }
   } else {
     // Relational windowsByRoom fallback (legacy / null-openings jobs)
@@ -1066,24 +1082,26 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     for (const [slotKey, val] of Object.entries(wbr)) {
       if (!val) continue;
       if (slotKey === "garageDoor1" || slotKey === "garageDoor2") continue; // → garage block
-      if (slotKey === "kitchenExtra") {
-        // fold overflow into kitchen (row 54)
-        if (slotData[54]) slotData[54].qty += val.qty;
-        else slotData[54] = { qty: val.qty, height_m: val.height, width_m: val.width };
-        continue;
-      }
-      const row = slotKey === "entrance" ? 72 : DROP_IN_SLOT_ROW[slotKey];
-      if (!row) continue;
-      addToSlot(row, val.height, val.width);
+      const key = slotKey === "kitchenExtra" ? "kitchen" : slotKey;
+      if (!DROP_IN_SLOT_ROWS[key]) continue;
+      // kitchenExtra arrives as its own dim-group → lands on the kitchen overflow row 55
+      // with its own dims (previously folded into 54, losing them).
+      for (let i = 0; i < val.qty; i++) addToSlot(key, val.height, val.width);
     }
   }
 
-  // Write accumulated slots → D/E/F (qty/height_m/width_m; height already in metres)
-  for (const [rowStr, s] of Object.entries(slotData)) {
-    const row = Number(rowStr);
-    put(`D${row}`, s.qty);
-    if (s.height_m > 0) put(`E${row}`, Math.round(s.height_m * 1000) / 1000);
-    if (s.width_m  > 0) put(`F${row}`, Math.round(s.width_m  * 1000) / 1000);
+  // Write each slot's dim-groups onto its row list (D/E/F = qty/height/width, metres).
+  for (const [slotKey, groups] of Object.entries(slotGroups)) {
+    const rows = DROP_IN_SLOT_ROWS[slotKey];
+    if (!rows || groups.length === 0) continue;
+    const rendered = groups.slice(0, rows.length);
+    for (const g of groups.slice(rows.length)) rendered[rendered.length - 1].qty += g.qty;
+    rendered.forEach((g, i) => {
+      const row = rows[i];
+      put(`D${row}`, g.qty);
+      if (g.height_m > 0) put(`E${row}`, Math.round(g.height_m * 1000) / 1000);
+      if (g.width_m  > 0) put(`F${row}`, Math.round(g.width_m  * 1000) / 1000);
+    });
   }
 
   // ── Garage doors — H175-H180 (zero all, set matched size) ─────────────────
@@ -1313,19 +1331,22 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
 
   // --- ④ DOORS & GARAGE ---
   lbl("A174", "④ DOORS & GARAGE", sectionStyle);
+  // Rows realigned to the master "5. Data Input House": H175/177/179 = Standard,
+  // H176/178/180 = Insulated. H181 is the master's TRAVEL line — writing a door count
+  // there silently bought $50 of travel per door. Never write it.
+  lbl("A175", "Garage Door 4.8×2.1 Standard");
   lbl("A176", "Garage Door 4.8×2.1 Insulated");
-  lbl("A177", "Garage Door 4.8×2.1 Standard");
+  lbl("A177", "Garage Door 2.4×2.1 Standard");
   lbl("A178", "Garage Door 2.4×2.1 Insulated");
-  lbl("A179", "Garage Door 2.4×2.1 Standard");
+  lbl("A179", "Garage Door 2.7×2.1 Standard");
   lbl("A180", "Garage Door 2.7×2.1 Insulated");
-  lbl("A181", "Garage Door 2.7×2.1 Standard");
 
+  val("H175", data.garageDoor48x21Std > 0 ? data.garageDoor48x21Std : undefined);
   val("H176", data.garageDoor48x21Insulated > 0 ? data.garageDoor48x21Insulated : undefined);
-  val("H177", data.garageDoor48x21Std > 0 ? data.garageDoor48x21Std : undefined);
+  val("H177", data.garageDoor24x21Std > 0 ? data.garageDoor24x21Std : undefined);
   val("H178", data.garageDoor24x21Insulated > 0 ? data.garageDoor24x21Insulated : undefined);
-  val("H179", data.garageDoor24x21Std > 0 ? data.garageDoor24x21Std : undefined);
+  val("H179", data.garageDoor27x21Std > 0 ? data.garageDoor27x21Std : undefined);
   val("H180", data.garageDoor27x21Insulated > 0 ? data.garageDoor27x21Insulated : undefined);
-  val("H181", data.garageDoor27x21Std > 0 ? data.garageDoor27x21Std : undefined);
 
   // --- Interior doors ---
   lbl("A185", "Interior Doors");

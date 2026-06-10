@@ -158,3 +158,59 @@ describe("buildDropInSheet — dedupe: relational counters win when populated", 
     expect(cellVal(ws, "D68")).toBe(0);
   });
 });
+
+// ── Overflow rows (verified against the master: blanks under each room are live) ────
+describe("buildDropInSheet — per-room overflow rows for differing dims", () => {
+  it("JM-0020 lounge: window lands on 62, the differing-dims slider on overflow row 63", () => {
+    const ws = buildDropInSheet(base({
+      openings: [
+        op("window", "Lounge", 1.3, 1.8),
+        op("slider", "Lounge", 2.1, 2.4),
+      ],
+    }));
+    expect(cellVal(ws, "D62")).toBe(1);
+    expect(cellVal(ws, "E62")).toBe(1.3);
+    expect(cellVal(ws, "F62")).toBe(1.8);
+    expect(cellVal(ws, "D63")).toBe(1);
+    expect(cellVal(ws, "E63")).toBe(2.1);
+    expect(cellVal(ws, "F63")).toBe(2.4);
+  });
+
+  it("same-dims openings still aggregate qty on ONE row (no spurious overflow)", () => {
+    const ws = buildDropInSheet(base({
+      openings: [op("window", "Lounge", 1.8, 0.8), op("window", "Lounge", 1.8, 0.8)],
+    }));
+    expect(cellVal(ws, "D62")).toBe(2);
+    expect(cellVal(ws, "D63")).toBe(0);
+  });
+
+  it("15a lounge shape: 2× 1.8×0.8 on 62, the 1.3×1.5 on 63 — third size would take 64", () => {
+    const ws = buildDropInSheet(base({
+      openings: [
+        op("window", "Lounge", 1.8, 0.8),
+        op("window", "Lounge", 1.8, 0.8),
+        op("window", "Lounge", 1.3, 1.5),
+      ],
+    }));
+    expect([cellVal(ws, "D62"), cellVal(ws, "E62"), cellVal(ws, "F62")]).toEqual([2, 1.8, 0.8]);
+    expect([cellVal(ws, "D63"), cellVal(ws, "E63"), cellVal(ws, "F63")]).toEqual([1, 1.3, 1.5]);
+    expect(cellVal(ws, "D64")).toBe(0);
+  });
+
+  it("more dim-groups than rows: overflow qty folds into the LAST row, never dropped", () => {
+    const ws = buildDropInSheet(base({
+      openings: [
+        op("window", "Toilet", 1.1, 0.6),
+        op("window", "Toilet", 0.9, 0.6), // toilet has a single row — qty folds
+      ],
+    }));
+    expect(cellVal(ws, "D51")).toBe(2);
+  });
+
+  it("overflow rows are zeroed when unused (paste kills any estimator leftovers)", () => {
+    const ws = buildDropInSheet(base({ openings: [op("window", "Bed 1", 1.3, 1.8)] }));
+    for (const row of [42, 44, 46, 48, 50, 53, 55, 57, 58, 60, 61, 63, 64, 66]) {
+      expect(cellVal(ws, `D${row}`)).toBe(0);
+    }
+  });
+});
