@@ -22,7 +22,7 @@ Supabase project ref: `ukegudqobnmiesudtjen`.
 - `main` = production branch for both. Working branch = `convergence`. Promote convergence→main only on green.
 - CI: `test.yml` runs 496 tests/skips on every push. `live-validate.yml` runs against the real DB (Node 22 required) → publishes to `live-results`.
 
-## PRIORITY NEXT JOB — IQ Import retarget
+## DONE 10 Jun — IQ Import retarget (SHIPPED, live-validated 5/5)
 The LIVE QS master is **`Jennian_QS_IQ_Updated_v4_1.xlsm`** (SharePoint QUANTITY SURVEYING → SS).
 Its `5. Data Input House` rows 41–72 are now **IFERROR formulas pulling from an `IQ Import` tab** — NOT paste targets.
 Mapping discovered (Data Input House ← IQ Import):
@@ -30,7 +30,7 @@ Mapping discovered (Data Input House ← IQ Import):
 - Toilet (51) and Dining-qty (59) and Lounge-qty (62) are hard-typed/blank in the live file (manual).
 - Doors: **H187←IQ `B27`** (singles), **H193←B28** (cavity), **H192←B29** (doubles), **H190←B30** (barn). Garage **H176←** `IF('IQ Import'!B24="4.8x2.1",1,0)` — **defaults to 1 insulated door on IFERROR (~$2,983 silent)**, fix candidate.
 - Garage H-block order confirmed: 175/177/179 Standard, 176/178/180 Insulated, **H181 = Travel line (never write)**.
-**Action:** the shipped drop-in writes Data Input House rows 41–72/H-rows directly. It must instead write the **`IQ Import` tab rows 24–45**. Re-verify the full IQ Import column layout from the live file first (the recon workflow `sp-recon.yml` can re-fetch it as an artifact).
+**SHIPPED 359c860:** the paste sheet now writes the IQ Import tab exactly (fixed positional slots 33-45, B=Qty C=HEIGHT D=WIDTH — fixing the live transposition bug — meta cells, doors B27-30, B24 size string, MANUAL ENTRIES block from A47). Live-validated 5/5 against JM-0020 + Beddis. NEXT: re-run Beddis/Young/JM-0020 takeoffs in-app (stored extractions stale; also first live proof of rooms + door-engine persistence), then Phase 3 gate.
 
 ## Door engine — status
 - Vendored at `src/lib/doors/` (engine + pdf-adapter verbatim; runs via pinned `pdfjs-dist-door`@4.x — app's own pdf.js is 5.x). Fail-safe: any failure → null → export falls back. Flags NEVER count.
