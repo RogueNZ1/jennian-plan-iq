@@ -158,6 +158,15 @@ export default {
 
 writeFileSync(join(clientDir, "_worker.js"), workerWrapper);
 
+// Update-available contract: publish the build id the bundle was compiled with.
+// deploy-pages.yml sets VITE_BUILD_ID to the commit SHA for both the vite build
+// and this script; locally it may be unset → publish null and the watcher stays quiet.
+writeFileSync(
+  join(clientDir, "version.json"),
+  JSON.stringify({ build: process.env.VITE_BUILD_ID ?? null }),
+);
+console.log("✓ version.json written (build:", process.env.VITE_BUILD_ID ?? "null", ")");
+
 cpSync(serverAssets, clientAssets, { recursive: true, force: true });
 
 console.log("✓ Cloudflare Pages: wrote _worker.js (with ASSETS binding, security headers), server.js and server assets into dist/client/");

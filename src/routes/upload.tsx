@@ -9,6 +9,10 @@ import {
 } from "lucide-react";
 import { PlanThumbnail } from "@/components/jennian/PlanThumbnail";
 import { useEffect, useRef, useState } from "react";
+import { SpecificationsPicker } from "@/components/jennian/SpecificationsPanel";
+import type { SpecAnswers } from "@/lib/specs/spec-schema";
+import { answeredCount } from "@/lib/specs/spec-schema";
+import { saveJobSpecifications } from "@/lib/specs/spec-store";
 import { toast } from "sonner";
 import { renderPdfThumbnail } from "@/lib/pdf-thumbnail";
 import { seedAllModulesForJob } from "@/lib/iq-modules";
@@ -87,6 +91,8 @@ function UploadPage() {
 
   // Page selection step
   const [step, setStep] = useState<Step>("form");
+  const [specAnswers, setSpecAnswers] = useState<SpecAnswers>({});
+  const [specsOpen, setSpecsOpen] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeProgress, setAnalyzeProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
   const [pageAnalyses, setPageAnalyses] = useState<PageAnalysis[]>([]);
@@ -229,6 +235,17 @@ function UploadPage() {
         .select()
         .single();
       if (jobErr) throw jobErr;
+
+      // Meeting specs captured in the wizard → persist against the new job.
+      // FAIL-SOFT: spec persistence must never block the job save; the job-page
+      // panel reads/extends the same store.
+      if (Object.keys(specAnswers).length > 0) {
+        try {
+          await saveJobSpecifications(job.id, specAnswers);
+        } catch (specErr) {
+          console.warn("[wizard-specs] save failed — selections can be re-entered on the job page:", specErr);
+        }
+      }
 
       const uploads: Array<{ file: File; type: "plan" | "specification" | "electrical" }> = [];
       if (planFile) uploads.push({ file: planFile, type: "plan" });
@@ -1594,6 +1611,31 @@ function UploadPage() {
                 </select>
               </div>
             </div>
+          </div>
+
+          {/* Client Specifications — meeting picker, captured at upload time.
+              Optional here; the job page panel reads/extends the same answers. */}
+          <div className="rounded-lg border border-border bg-card overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setSpecsOpen((o) => !o)}
+              className="w-full px-5 py-4 flex items-center justify-between text-left"
+            >
+              <div>
+                <div className="text-[14px] font-semibold tracking-tight">Client Specifications</div>
+                <div className="text-[12px] text-muted-foreground mt-0.5">
+                  {answeredCount(specAnswers).answered} of {answeredCount(specAnswers).total} confirmed —
+                  capture meeting selections now, or complete later on the job page. Unanswered specs
+                  export blank, never assumed.
+                </div>
+              </div>
+              <span className="text-[11px] text-muted-foreground">{specsOpen ? "Collapse" : "Expand"}</span>
+            </button>
+            {specsOpen && (
+              <div className="px-5 pb-4 border-t border-border pt-3">
+                <SpecificationsPicker answers={specAnswers} onChange={setSpecAnswers} />
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-2">

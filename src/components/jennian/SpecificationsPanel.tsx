@@ -78,6 +78,77 @@ function SpecRow({
   );
 }
 
+
+/**
+ * SpecificationsPicker — CONTROLLED spec selector (no persistence).
+ * Used by the upload wizard to capture meeting specs BEFORE the job row exists;
+ * SpecificationsPanel wraps it with load/save for the job page. Same doctrine:
+ * nothing defaults silently, "confirm rest as standard" is explicit.
+ */
+export function SpecificationsPicker({
+  answers,
+  onChange,
+}: {
+  answers: SpecAnswers;
+  onChange: (next: SpecAnswers) => void;
+}) {
+  function select(spec: SpecDef, code: number) {
+    const next = { ...answers, [spec.id]: code };
+    for (const id of autoNaTargets(next)) next[id] = 0;
+    onChange(next);
+  }
+  function confirmGroupStandard(groupId: (typeof SPEC_GROUPS)[number]["id"]) {
+    const next = { ...answers };
+    for (const sp of specsInGroup(groupId)) {
+      if (next[sp.id] != null) continue;
+      const std = sp.options.find((o) => o.code === 1);
+      if (std) next[sp.id] = 1;
+    }
+    for (const id of autoNaTargets(next)) next[id] = 0;
+    onChange(next);
+  }
+  return (
+    <div className="space-y-4">
+      {SPEC_GROUPS.map((g) => {
+        const specs = specsInGroup(g.id);
+        if (specs.length === 0) return null;
+        const unanswered = specs.filter((sp) => answers[sp.id] == null).length;
+        const hasStd = specs.some(
+          (sp) => answers[sp.id] == null && sp.options.some((o) => o.code === 1),
+        );
+        return (
+          <div key={g.id}>
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {g.label}
+                {unanswered > 0 && (
+                  <span className="ml-2 normal-case font-normal text-amber-600">
+                    {unanswered} not set
+                  </span>
+                )}
+              </div>
+              {hasStd && (
+                <button
+                  type="button"
+                  onClick={() => confirmGroupStandard(g.id)}
+                  className="text-[11px] text-primary hover:underline"
+                >
+                  Confirm rest as standard
+                </button>
+              )}
+            </div>
+            <div>
+              {specs.map((sp) => (
+                <SpecRow key={sp.id} spec={sp} value={answers[sp.id]} onSelect={(c) => select(sp, c)} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function SpecificationsPanel({ jobId }: { jobId: string }) {
   const [answers, setAnswers] = useState<SpecAnswers>({});
   const [loading, setLoading] = useState(true);

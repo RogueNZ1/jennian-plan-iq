@@ -6,6 +6,7 @@ import {
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/sonner";
+import { UpdateWatcher } from "@/components/jennian/UpdateWatcher";
 
 function NotFoundComponent() {
   return (
@@ -74,6 +75,7 @@ function RootComponent() {
       <AuthProvider>
         <Outlet />
         <Toaster />
+        <UpdateWatcher />
       </AuthProvider>
     </QueryClientProvider>
   );

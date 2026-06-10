@@ -52,6 +52,7 @@ jobs:
           VITE_SUPABASE_URL: https://ukegudqobnmiesudtjen.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_SUPABASE_PROJECT_ID: ukegudqobnmiesudtjen
+          VITE_BUILD_ID: ${{ github.sha }}
         run: npx vite build && node scripts/cf-pages-postbuild.mjs
       - name: Deploy
         id: deploy
