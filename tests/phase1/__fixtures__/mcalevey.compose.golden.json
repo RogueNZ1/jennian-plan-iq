@@ -4,6 +4,7 @@
   "alfresco_area_m2": null,
   "external_wall_lm": 54.8,
   "internal_wall_lm": 7.57,
+  "gable_span_m": 9.08,
   "roof_area_m2": 156.75,
   "window_count": 8,
   "external_door_count": null,
