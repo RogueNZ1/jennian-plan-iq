@@ -66,10 +66,22 @@ jobs:
           # REST PATCH that nulls env_vars deletes it too (secrets live in the same store), so
           # re-put it on every deploy. Idempotent and cheap. Same treatment for ANTHROPIC_API_KEY
           # (concept pipeline: scale extraction AI fallback, site plan, elevations — opus direct).
-          echo "$GEOM" | npx wrangler pages secret put GEOMETRY_API_KEY --project-name=jennian-iq-prod >> /tmp/deploy.txt 2>&1
-          echo "secret-put GEOMETRY_API_KEY exit: $?" >> /tmp/deploy.txt
-          echo "$ANTH" | npx wrangler pages secret put ANTHROPIC_API_KEY --project-name=jennian-iq-prod >> /tmp/deploy.txt 2>&1
-          echo "secret-put ANTHROPIC_API_KEY exit: $?" >> /tmp/deploy.txt
+          # Transient CF API auth blips (10001) have failed single puts before
+          # (run 27313223578: GEOM put ok, ANTH put 10001, deploy ok — same token).
+          # Retry each put up to 3x; the post-deploy gate is the final enforcer.
+          put_secret() {
+            local NAME="$1" VAL="$2" rc=1 a
+            for a in 1 2 3; do
+              echo "$VAL" | npx wrangler pages secret put "$NAME" --project-name=jennian-iq-prod >> /tmp/deploy.txt 2>&1
+              rc=$?
+              echo "secret-put $NAME attempt $a exit: $rc" >> /tmp/deploy.txt
+              [ "$rc" = "0" ] && break
+              sleep 6
+            done
+            return $rc
+          }
+          put_secret GEOMETRY_API_KEY "$GEOM"
+          put_secret ANTHROPIC_API_KEY "$ANTH"
           curl -s -H "Authorization: Bearer $CF" "https://api.cloudflare.com/client/v4/accounts/$ACCT/pages/projects/jennian-iq-prod" > /tmp/r.json
           jq -r '"subdomain: " + (.result.subdomain // "?")' /tmp/r.json >> /tmp/deploy.txt
       - name: Build (Supabase vars inlined)
