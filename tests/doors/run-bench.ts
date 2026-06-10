@@ -11,8 +11,8 @@
  */
 import * as fs from "fs";
 import * as path from "path";
-import { extractPageGeometry } from "../src/pdf-adapter";
-import { detectInteriorDoors, DEFAULT_CONFIG, DoorHit } from "../src/door-engine";
+import { extractPageGeometry } from "../../src/lib/doors/pdf-adapter";
+import { detectInteriorDoors, DEFAULT_CONFIG, DoorHit } from "../../src/lib/doors/door-engine";
 
 async function main() {
   const [pdfPath, benchPath] = process.argv.slice(2);
@@ -22,7 +22,7 @@ async function main() {
   }
   const bench = JSON.parse(fs.readFileSync(benchPath, "utf8"));
 
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const pdfjs = await import("pdfjs-dist-door/legacy/build/pdf.mjs");
   const data = new Uint8Array(fs.readFileSync(pdfPath));
   const doc = await pdfjs.getDocument({ data, useSystemFonts: true }).promise;
   const page = await doc.getPage(1);

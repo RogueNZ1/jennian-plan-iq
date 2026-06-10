@@ -1,0 +1,63 @@
+# Door-engine bench, SELF-FETCHING: finds the Alexandra plan in Supabase storage
+# (uploaded_files → job-files bucket), downloads it, runs the hand-counted ground-truth
+# gate (12 hinged / 4 double / 1 cavity, entry+garage excluded, zero extras). Publishes
+# to ops-results (results/doors-bench.txt). PII-safe: prints file IDs + masked names.
+name: doors-bench
+on:
+  push:
+    branches: [convergence]
+    paths:
+      - '.github/workflows/doors-bench.yml'
+      - 'src/lib/doors/**'
+      - 'tests/doors/**'
+permissions:
+  contents: write
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Find + download the Alexandra plan from storage
+        id: fetch
+        env:
+          KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          set +e
+          URL="https://ukegudqobnmiesudtjen.supabase.co"
+          : > /tmp/bench.txt
+          # Candidate file rows: floorplan-ish names on alexandra/kanzan-ish jobs first, any floorplan second.
+          ROWS=$(curl -s -H "apikey: $KEY" -H "Authorization: Bearer $KEY" "$URL/rest/v1/uploaded_files?select=id,file_name,storage_url,job_id&file_name=ilike.%25floorplan%25&limit=20")
+          echo "floorplan-named files: $(echo "$ROWS" | jq 'length')" >> /tmp/bench.txt
+          PICK=$(echo "$ROWS" | jq -r '[.[] | select(.file_name | test("2026_03_18"; "i"))][0].storage_url // empty')
+          [ -z "$PICK" ] && PICK=$(echo "$ROWS" | jq -r '.[0].storage_url // empty')
+          echo "picked: $(echo "$ROWS" | jq -r --arg p "$PICK" '[.[] | select(.storage_url==$p)][0].file_name // "none" | .[0:18]')…" >> /tmp/bench.txt
+          if [ -z "$PICK" ]; then echo "NO candidate plan found in storage" >> /tmp/bench.txt; echo "found=" >> "$GITHUB_OUTPUT"; exit 0; fi
+          curl -s -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -o /tmp/plan.pdf "$URL/storage/v1/object/job-files/$PICK"
+          SZ=$(stat -c%s /tmp/plan.pdf 2>/dev/null || echo 0)
+          echo "downloaded bytes: $SZ" >> /tmp/bench.txt
+          if [ "$SZ" -lt 10000 ]; then echo "download too small — likely an error body" >> /tmp/bench.txt; echo "found=" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "found=1" >> "$GITHUB_OUTPUT"
+      - name: Run the ground-truth bench
+        id: bench
+        if: steps.fetch.outputs.found == '1'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          npx tsx tests/doors/run-bench.ts /tmp/plan.pdf tests/doors/alexandra.bench.json 2>&1 | tee -a /tmp/bench.txt
+      - name: Publish (always)
+        if: always()
+        run: |
+          echo "fetch: ${{ steps.fetch.outcome }} | bench: ${{ steps.bench.outcome }}" >> /tmp/bench.txt
+          git config user.name "ops[bot]"; git config user.email "noreply@github.com"
+          git checkout --orphan ops-results && { git rm -rf -q . || true; }
+          mkdir -p results && cp /tmp/bench.txt results/doors-bench.txt
+          git add results && git commit -q -m "doors-bench ${{ github.run_id }}" && git push -f origin ops-results
+      - name: Propagate
+        if: steps.fetch.outputs.found == '1' && steps.bench.outcome != 'success'
+        run: exit 1
