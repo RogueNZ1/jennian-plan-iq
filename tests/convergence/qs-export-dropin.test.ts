@@ -244,3 +244,48 @@ describe("internal wall length — measured value reaches the IQ Import sheet", 
     expect(cellVal(ws2, "B13")).toBe(""); // no measurement → blank, not a guess
   });
 });
+
+describe("CLADDING (ENGINE) block on the IQ Import sheet", () => {
+  function blockText(ws: ReturnType<typeof buildDropInSheet>): string {
+    let out = "";
+    for (let r = 47; r < 110; r++) {
+      const v = cellVal(ws, `A${r}`);
+      if (typeof v === "string") out += v + "\n";
+    }
+    return out;
+  }
+
+  it("flag-free single-type house renders all four provable terms + per-type net", () => {
+    const ws = buildDropInSheet(base({
+      perimeterLm: 52, studHeightMm: 2400, claddingType1: "Brick Veneer",
+      elevationSummary: { roofType: "Gable", roofPitchDegrees: 25, externalDoorCount: 1,
+        gableEndCount: 0, drivewayConcretM2: null, patioConcreteM2: null, totalConcreteM2: null,
+        windowCountMatch: null, windowCountWarning: null },
+      openings: [op("window", "Lounge", 1.3, 1.8)],
+    }));
+    const t = blockText(ws);
+    expect(t).toMatch(/Wall \(perimeter × stud\): 124.8 m²/);
+    expect(t).toMatch(/Gables: 0 m²/);
+    expect(t).toMatch(/Less openings: 2.34 m²/);
+    expect(t).toMatch(/NET CLADDING: 122.46 m²/);
+    expect(t).toMatch(/– Brick Veneer: 122.46 m²/);
+  });
+
+  it("gabled house without measured span: NET NOT COMPUTED + flag — never a guess", () => {
+    const ws = buildDropInSheet(base({
+      perimeterLm: 52, studHeightMm: 2400, claddingType1: "Linea",
+      elevationSummary: { roofType: "Gable", roofPitchDegrees: 25, externalDoorCount: 1,
+        gableEndCount: 2, drivewayConcretM2: null, patioConcreteM2: null, totalConcreteM2: null,
+        windowCountMatch: null, windowCountWarning: null },
+      openings: [],
+    }));
+    const t = blockText(ws);
+    expect(t).toMatch(/NET CLADDING: NOT COMPUTED/);
+    expect(t).toMatch(/gable span not measured/);
+  });
+
+  it("no elevation extraction at all → gable-count VERIFY flag", () => {
+    const ws = buildDropInSheet(base({ perimeterLm: 52, studHeightMm: 2400 }));
+    expect(blockText(ws)).toMatch(/gable count not extracted .* VERIFY/);
+  });
+});

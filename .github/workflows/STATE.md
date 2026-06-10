@@ -32,6 +32,18 @@ Mapping discovered (Data Input House ← IQ Import):
 - Garage H-block order confirmed: 175/177/179 Standard, 176/178/180 Insulated, **H181 = Travel line (never write)**.
 **SHIPPED 359c860:** the paste sheet now writes the IQ Import tab exactly (fixed positional slots 33-45, B=Qty C=HEIGHT D=WIDTH — fixing the live transposition bug — meta cells, doors B27-30, B24 size string, MANUAL ENTRIES block from A47). Live-validated 5/5 against JM-0020 + Beddis. NEXT: re-run Beddis/Young/JM-0020 takeoffs in-app (stored extractions stale; also first live proof of rooms + door-engine persistence), then Phase 3 gate.
 
+## Cladding engine — V1 SHIPPED (deterministic core + sheet surface)
+- `src/lib/cladding/cladding-engine.ts`: pure computeCladding() — wall rect (measured
+  perimeter × extracted stud) + gable triangles (count × ½·span·rise from pitch) −
+  every opening area. Fail-safe doctrine: missing input ⇒ FLAG + excluded term, never
+  a guess. Multiple cladding types ⇒ total provable, per-type split flagged manual
+  (needs per-elevation banding = V2). Benched against HAND-CALCULATED synthetic truth.
+- Surfaced as a CLADDING (ENGINE) block on the IQ Import paste sheet below MANUAL
+  ENTRIES: four terms + per-type + ⚑ flags, visible exactly where the estimator works.
+- V1.1 NEXT: gable SPAN from the geometry room-polygon bounding box (currently null ⇒
+  gabled houses carry a span flag). V2: per-elevation facades ⇒ per-type areas. THEN
+  bench against a real plan with QS-known cladding m² (Haydon to nominate the plan).
+
 ## Door engine — status
 - Vendored at `src/lib/doors/` (engine + pdf-adapter verbatim; runs via pinned `pdfjs-dist-door`@4.x — app's own pdf.js is 5.x). Fail-safe: any failure → null → export falls back. Flags NEVER count.
 - **Benched GREEN**: Alexandra 17/17 (12 singles, 4 doubles, 1 cavity; entry+garage excluded as glazing). Fixture committed at `tests/doors/plans/alexandra.pdf`; gate runs in the main suite.

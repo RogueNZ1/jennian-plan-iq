@@ -14,6 +14,7 @@ import type { MarkupDoorType } from "@/lib/takeoff/types";
 import { normaliseRoomName } from "@/lib/takeoff/classify";
 import { round2 } from "@/lib/takeoff/utils";
 import { fieldFlags, type EnrichedTakeoff } from "@/lib/takeoff/enriched-takeoff";
+import { computeCladding } from "./cladding/cladding-engine";
 import type { Opening } from "@/lib/takeoff/takeoff-types";
 
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
@@ -1228,7 +1229,34 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     : "MANUAL ENTRIES: none — all extracted values feed automatically.");
   manual.forEach((m, i) => put(`A${48 + i}`, "• " + m));
 
-  ws["!ref"] = `A1:F${Math.max(48 + manual.length, 50)}`;
+  // ── CLADDING (ENGINE) — deterministic, fail-safe; every term sourced, flags visible ──
+  // Inputs available today: measured perimeter, extracted stud height + pitch + gable
+  // count + cladding types, canonical openings. Gable SPAN is not yet measured →
+  // gabled houses carry a flag instead of a guess (V1.1 wires the geometry bbox).
+  const adapterFlags: string[] = [];
+  const gables = data.elevationSummary?.gableEndCount ?? null;
+  if (gables == null) adapterFlags.push("gable count not extracted — net assumes no gables, VERIFY on elevations");
+  const clad = computeCladding({
+    perimeterLm: data.perimeterLm,
+    studHeightM: data.studHeightMm != null ? data.studHeightMm / 1000 : null,
+    roofPitchDeg: data.elevationSummary?.roofPitchDegrees ?? null,
+    gableEndCount: gables ?? 0,
+    gableSpanM: null, // not yet measured — geometry bbox wiring is V1.1
+    openings: (data.openings ?? []).map((o) => ({ height_m: o.height_m, width_m: o.width_m })),
+    claddingTypes: [data.claddingType1, data.claddingType2].filter((t): t is string => !!t),
+  });
+  const cladStart = 49 + manual.length;
+  put(`A${cladStart}`, "CLADDING (ENGINE) — provable terms; flags need a human:");
+  const fmt = (n: number | null) => (n == null ? "NOT COMPUTED" : `${n} m²`);
+  put(`A${cladStart + 1}`, `• Wall (perimeter × stud): ${fmt(clad.wallRectAreaM2)}`);
+  put(`A${cladStart + 2}`, `• Gables: ${fmt(clad.gableAreaM2)}`);
+  put(`A${cladStart + 3}`, `• Less openings: ${clad.glazingDeductionM2} m²`);
+  put(`A${cladStart + 4}`, `• NET CLADDING: ${fmt(clad.netCladdingAreaM2)}`);
+  let cr = cladStart + 5;
+  for (const pc of clad.perCladding) { put(`A${cr}`, `   – ${pc.type}: ${fmt(pc.areaM2)}`); cr++; }
+  for (const f of [...adapterFlags, ...clad.flags]) { put(`A${cr}`, `⚑ ${f}`); cr++; }
+
+  ws["!ref"] = `A1:F${Math.max(cr, 50)}`;
   return ws;
 }
 
