@@ -71,9 +71,10 @@ junction) · front entry (porch) · garage PA door 1030 · garage vehicle door 4
 Interior doors ~11: 810 ×9 · 760 ×1 (bath) · 860 ×1 (rear kitchen — likely
 cavity, TBC). Vision said ~8.
 
-Open questions for HC: (1) spec rows B101–116 were populated (Rural, $30K
-kitchen, freestanding bath, V-groove…) — did he submit the spec meeting input
-during the run? If NOT, selections were invented → becomes finding #1.
+Open questions for HC: ~~(1) spec provenance~~ **RESOLVED 12 Jun: HC filled the
+spec page during both test runs — B101–116 selections are real user input,
+correctly coded on JM-0027 and JM-0029. Spec contract v2 pipeline confirmed
+working end-to-end on new jobs. NOT a finding.**
 (2) bed3 window size. (3) laundry window yes/no.
 
 ## 4. Rebuild plan (priority order)
