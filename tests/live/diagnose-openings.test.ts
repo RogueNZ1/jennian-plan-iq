@@ -37,8 +37,14 @@ describe.skipIf(!LIVE)("LIVE DIAG openings (report-only)", () => {
       for (const r of runs.data ?? []) {
         const rec = r as Record<string, unknown>;
         console.log(`[diag] ${jn} run cols:`, Object.keys(rec).join(","));
-        for (const k of Object.keys(rec)) {
-          if (/status|error|fail|stage|pass|warn|meta|model|note/i.test(k)) console.log(`[diag] ${jn} run.${k}=`, trunc(rec[k], 400));
+        for (const k of ["status", "error_message", "working_page_type", "working_page_number", "classification_confidence", "classification_reason", "scale_text", "summary"]) {
+          console.log(`[diag] ${jn} run.${k}=`, trunc(rec[k], 300));
+        }
+        const rtj = rec["takeoff_json"] as Record<string, unknown> | null;
+        if (!rtj) { console.log(`[diag] ${jn} run.takeoff_json: NULL`); continue; }
+        console.log(`[diag] ${jn} RUN tj keys:`, Object.keys(rtj).join(","));
+        for (const k of ["window_count", "windows_source", "source", "windows_by_room", "windows_schedule", "schedule", "openings", "door_counts_auto", "door_flags", "extraction_errors", "errors", "vision_meta", "notes", "external_wall_lm", "floor_area_m2"]) {
+          if (k in rtj) console.log(`[diag] ${jn} RUNtj.${k}=`, trunc(rtj[k], 700));
         }
       }
     }
