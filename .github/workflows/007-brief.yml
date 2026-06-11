@@ -36,7 +36,8 @@ jobs:
         working-directory: jennian-007-scraper
         run: |
           pip install -r requirements.txt
-          playwright install --with-deps chromium
+          playwright install chromium
+          sudo playwright install-deps chromium
 
       - name: Run 007
         working-directory: jennian-007-scraper
@@ -70,8 +71,8 @@ jobs:
       - name: Failure alert email
         if: failure()
         run: |
-          curl -s -X POST https://api.resend.com/emails \\
-            -H "Authorization: Bearer $RESEND_API_KEY" \\
-            -H "Content-Type: application/json" \\
-            -d "{\"from\":\"007 Intel <intel@jennian.co.nz>\",\"to\":\"haydon.christian@jennian.co.nz\",\"subject\":\"007 run FAILED\",\"text\":\"The scheduled 007 run failed — no brief this cycle.\\n\\nLogs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \\
+          curl -s -X POST https://api.resend.com/emails \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"from\":\"007 Intel <intel@jennian.co.nz>\",\"to\":\"haydon.christian@jennian.co.nz\",\"subject\":\"007 run FAILED\",\"text\":\"The scheduled 007 run failed — no brief this cycle.\\n\\nLogs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
             || echo "Failure alert could not be sent"
