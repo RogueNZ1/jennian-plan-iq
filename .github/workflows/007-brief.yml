@@ -32,13 +32,17 @@ jobs:
           cache: pip
           cache-dependency-path: jennian-007-scraper/requirements.txt
 
+      - name: Install system deps (Ubuntu 24 libasound2 workaround)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libasound2t64
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libasound.so.2 /usr/lib/x86_64-linux-gnu/libasound.so.2.0.0 2>/dev/null || true
+
       - name: Install dependencies
         working-directory: jennian-007-scraper
         run: |
           pip install -r requirements.txt
-          playwright install chromium
-          sudo apt-get install -y libasound2t64 || true
-          sudo $(which playwright) install-deps chromium
+          playwright install --with-deps chromium
 
       - name: Run 007
         working-directory: jennian-007-scraper
