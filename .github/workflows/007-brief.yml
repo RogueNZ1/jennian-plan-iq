@@ -37,6 +37,7 @@ jobs:
         run: |
           pip install -r requirements.txt
           playwright install chromium
+          sudo apt-get install -y libasound2t64 || true
           sudo $(which playwright) install-deps chromium
 
       - name: Run 007
