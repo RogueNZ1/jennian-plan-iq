@@ -86,7 +86,7 @@ async function sendViaResend(to: string, subject: string, html: string, text: st
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      from: env("INVITE_FROM") ?? "Jennian IQ <iq@jennian.co.nz>",
+      from: env("INVITE_FROM") ?? "Jennian IQ <invites@jennianiq.nz>",
       to: [to],
       reply_to: env("INVITE_REPLY_TO") ?? "haydon.christian@jennian.co.nz",
       subject,
