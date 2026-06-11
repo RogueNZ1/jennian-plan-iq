@@ -32,18 +32,18 @@ describe.skipIf(!LIVE)("LIVE DIAG openings (report-only)", () => {
           if (k in tj) console.log(`[diag] ${jn} tj.${k}=`, trunc(tj[k], 500));
         }
       } else console.log(`[diag] ${jn} takeoff_json: NULL`);
-      const runs = await supabase.from("takeoff_runs").select("*").eq("job_id", job.id).order("started_at", { ascending: false }).limit(2);
+      const runs = await supabase.from("takeoff_runs").select("*").eq("job_id", job.id).order("started_at", { ascending: false }).limit(3);
       if (runs.error) { console.log(`[diag] ${jn} runs err:`, trunc(runs.error)); continue; }
       for (const r of runs.data ?? []) {
         const rec = r as Record<string, unknown>;
         console.log(`[diag] ${jn} run cols:`, Object.keys(rec).join(","));
-        for (const k of ["status", "error_message", "working_page_type", "working_page_number", "classification_confidence", "classification_reason", "scale_text", "summary"]) {
+        for (const k of ["started_at", "completed_at", "started_by", "status", "error_message"]) {
           console.log(`[diag] ${jn} run.${k}=`, trunc(rec[k], 300));
         }
         const rtj = rec["takeoff_json"] as Record<string, unknown> | null;
         if (!rtj) { console.log(`[diag] ${jn} run.takeoff_json: NULL`); continue; }
         console.log(`[diag] ${jn} RUN tj keys:`, Object.keys(rtj).join(","));
-        for (const k of ["window_count", "windows_source", "source", "windows_by_room", "windows_schedule", "schedule", "openings", "door_counts_auto", "door_flags", "extraction_errors", "errors", "vision_meta", "notes", "external_wall_lm", "floor_area_m2"]) {
+        for (const k of ["window_count", "garage_door_size", "floor_area_m2", "external_wall_lm", "internal_door_count", "door_counts_auto"]) {
           if (k in rtj) console.log(`[diag] ${jn} RUNtj.${k}=`, trunc(rtj[k], 700));
         }
       }
