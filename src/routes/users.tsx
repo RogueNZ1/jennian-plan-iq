@@ -13,6 +13,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sendInvitationFn } from "@/lib/invite.functions";
+import { deleteUserFn } from "@/lib/delete-user.functions";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/users")({ component: UsersPage });
 
@@ -91,6 +96,8 @@ function UsersPage() {
   const [showInvite, setShowInvite] = useState(false);
   const [editing, setEditing] = useState<UserListRow | null>(null);
   const [showActivity, setShowActivity] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const canManage = roles.canManageUsers;
   // Invitations are Owner-only (Haydon). Server function enforces this too —
@@ -225,17 +232,24 @@ function UsersPage() {
     load();
   }
 
-  async function removeProfile(targetUserId: string) {
-    if (!canManage) return;
-    if (targetUserId === user?.id) return toast.error("You cannot remove yourself.");
-    if (!confirm("Remove this user's access to Jennian IQ?")) return;
-    const { error: rErr } = await supabase.from("user_roles").delete().eq("user_id", targetUserId);
-    if (rErr) return toast.error(rErr.message);
-    const { error: pErr } = await supabase.from("profiles").update({ status: "suspended" }).eq("id", targetUserId);
-    if (pErr) return toast.error(pErr.message);
-    await logAction("user_removed", "profiles", targetUserId, {});
-    toast.success("User access removed.");
-    load();
+  async function performDelete() {
+    if (!deleteTarget) return;
+    if (!canManage) return toast.error("You don't have permission to delete users.");
+    setDeleting(true);
+    try {
+      const result = await deleteUserFn({
+        data: { accessToken: await getAccessToken(), targetUserId: deleteTarget.id },
+      });
+      toast.success(result.message);
+      setDeleteTarget(null);
+      load();
+    } catch (err: unknown) {
+      // Server-side errors (RLS, self-delete guard, sole-owner guard) surface here
+      // with a real message — no more silent "removed" that changes nothing.
+      toast.error(err instanceof Error ? err.message : "Could not delete the user.");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   async function resendInvite(inviteId: string) {
@@ -383,7 +397,7 @@ function UsersPage() {
                                 <Power className="h-3 w-3" />
                               </IconBtn>
                             )}
-                            <IconBtn title="Remove user" onClick={() => removeProfile(r.id)} disabled={!canManage || r.id === user?.id}>
+                            <IconBtn title="Delete user" onClick={() => setDeleteTarget({ id: r.id, label: r.email || r.name || "this user" })} disabled={!canManage || r.id === user?.id}>
                               <Trash2 className="h-3 w-3" />
                             </IconBtn>
                           </>
@@ -448,6 +462,28 @@ function UsersPage() {
           }}
         />
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => { if (!v && !deleting) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this user?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes <span className="font-medium">{deleteTarget?.label}</span> — their
+              account, role and profile are removed and they can no longer sign in. This can't be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); performDelete(); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting…" : "Delete user"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
@@ -729,6 +765,7 @@ function prettyAction(a: string) {
     user_disabled:     "disabled a user",
     user_enabled:      "enabled a user",
     user_removed:      "removed a user",
+    user_deleted:      "deleted a user",
     invite_created:    "sent an invitation",
     invite_resent:     "re-sent an invitation",
     invite_cancelled:  "cancelled an invitation",
