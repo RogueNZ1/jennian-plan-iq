@@ -10,42 +10,160 @@
     "perimeter_lm": 80,
     "garage_area_m2": 36,
     "roof_pitch_deg": 25,
-    "cladding": ["brick", "vertical-oblique"],
+    "cladding": [
+      "brick",
+      "vertical-oblique"
+    ],
     "gables_present": true
   },
   "windows": [
-    {"room": "master", "h_mm": 600, "w_mm": 1500, "confidence": "high"},
-    {"room": "ensuite", "h_mm": 1200, "w_mm": 900, "confidence": "high"},
-    {"room": "kitchen", "h_mm": 1100, "w_mm": 1500, "confidence": "high"},
-    {"room": "bed4", "h_mm": 1350, "w_mm": 1800, "confidence": "high"},
-    {"room": "media", "h_mm": 1800, "w_mm": 900, "confidence": "high"},
-    {"room": "media", "h_mm": 1800, "w_mm": 900, "confidence": "high"},
-    {"room": "bath", "h_mm": 1100, "w_mm": 1500, "confidence": "high"},
-    {"room": "bath", "h_mm": 1100, "w_mm": 600, "confidence": "high"},
-    {"room": "bed2", "h_mm": 1350, "w_mm": 1800, "confidence": "high"},
-    {"room": "bed3", "h_mm": null, "w_mm": null, "confidence": "size-unresolved-ASK-HC"},
-    {"room": "garage", "h_mm": 600, "w_mm": 2500, "confidence": "high"},
-    {"room": "laundry", "h_mm": null, "w_mm": 1100, "confidence": "uncertain-ASK-HC"}
+    {
+      "room": "master",
+      "h_mm": 600,
+      "w_mm": 1500,
+      "confidence": "high"
+    },
+    {
+      "room": "ensuite",
+      "h_mm": 1200,
+      "w_mm": 900,
+      "confidence": "high"
+    },
+    {
+      "room": "kitchen",
+      "h_mm": 1100,
+      "w_mm": 1500,
+      "confidence": "high"
+    },
+    {
+      "room": "bed4",
+      "h_mm": 1350,
+      "w_mm": 1800,
+      "confidence": "high"
+    },
+    {
+      "room": "media",
+      "h_mm": 1800,
+      "w_mm": 900,
+      "confidence": "high"
+    },
+    {
+      "room": "media",
+      "h_mm": 1800,
+      "w_mm": 900,
+      "confidence": "high"
+    },
+    {
+      "room": "bath",
+      "h_mm": 1100,
+      "w_mm": 1500,
+      "confidence": "high"
+    },
+    {
+      "room": "bath",
+      "h_mm": 1100,
+      "w_mm": 600,
+      "confidence": "high"
+    },
+    {
+      "room": "bed2",
+      "h_mm": 1350,
+      "w_mm": 1800,
+      "confidence": "high"
+    },
+    {
+      "room": "bed3",
+      "h_mm": null,
+      "w_mm": null,
+      "confidence": "size-unresolved-ASK-HC"
+    },
+    {
+      "room": "garage",
+      "h_mm": 600,
+      "w_mm": 2500,
+      "confidence": "high"
+    },
+    {
+      "room": "laundry",
+      "h_mm": null,
+      "w_mm": 1100,
+      "confidence": "vision-supported (1.1w x 0.6h) \u2014 confirm"
+    }
   ],
   "windows_confirmed_min": 11,
   "external_doors": [
-    {"type": "stacker", "w_mm": 3600, "room": "dining"},
-    {"type": "slider", "w_mm": 2000, "room": "master"},
-    {"type": "slider", "w_mm": 2000, "room": "living-right-junction"},
-    {"type": "entry", "w_mm": null, "room": "entry"},
-    {"type": "pa-door", "w_mm": 1030, "room": "garage"},
-    {"type": "vehicle", "w_mm": 4800, "room": "garage", "note": "on 45deg wall"}
+    {
+      "type": "stacker",
+      "w_mm": 3600,
+      "room": "dining"
+    },
+    {
+      "type": "slider",
+      "w_mm": 2000,
+      "room": "master"
+    },
+    {
+      "type": "slider",
+      "w_mm": 2000,
+      "room": "living-right-junction"
+    },
+    {
+      "type": "entry",
+      "w_mm": null,
+      "room": "entry"
+    },
+    {
+      "type": "pa-door",
+      "w_mm": 1030,
+      "room": "garage"
+    },
+    {
+      "type": "vehicle",
+      "w_mm": 4800,
+      "room": "garage",
+      "note": "on 45deg wall"
+    }
   ],
   "interior_doors": {
-    "total_expected": 11,
-    "leaves": {"810": 9, "760": 1, "860": 1},
-    "note": "860 likely cavity TBC; vision fallback reported ~8; deterministic engine returned 0"
+    "total_expected": 13,
+    "leaves": {
+      "810": 9,
+      "760": 1,
+      "860": 1
+    },
+    "note": "9x810 + 760 + 860 + barn x2 (owner-verified); 860 likely cavity TBC; media 1800x900 pair CONFIRMED as windows (south wall)"
   },
-  "rooms_outside_template": ["media", "scullery", "wiw", "laundry"],
+  "rooms_outside_template": [
+    "media",
+    "scullery",
+    "wiw",
+    "laundry"
+  ],
   "known_iq_failures_2026_06_12": {
     "windows_reported": 6,
-    "ensuite_fabricated": {"reported": [{"qty": 2, "h_m": 1.52, "w_m": 2.01}], "actual_source": "WIW room dims 1500x2010"},
+    "ensuite_fabricated": {
+      "reported": [
+        {
+          "qty": 2,
+          "h_m": 1.52,
+          "w_m": 2.01
+        }
+      ],
+      "actual_source": "WIW room dims 1500x2010"
+    },
     "garage_door": "missed",
     "right_wing": "all zeros"
+  },
+  "barn_sliders": {
+    "qty": 2,
+    "location": "media room north, flanking the standalone '1 500' opening label @ (721,487)pt",
+    "verified_by": "owner, 12 Jun"
+  },
+  "walls_measured": {
+    "internal_lm_net": 57,
+    "internal_lm_gross_incl_openings": 66,
+    "external_trace_lm": 78.8,
+    "external_stated_lm": 80.0,
+    "method": "poc/p2-wall-trace.py, validated 12 Jun, tolerance \u00b13%"
   }
 }

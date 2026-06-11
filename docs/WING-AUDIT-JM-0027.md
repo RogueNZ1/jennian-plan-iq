@@ -114,3 +114,21 @@ existing test names for client surnames (public repo).
 None of this blocks or touches the head-office demo: prod frozen at `3f6a15f`
 (tag `v5.5-headoffice-baseline`), JM-0020 live-validated 10/10 at 07:30 NZT.
 This branch is inert: no CI triggers, no deploy surface.
+
+## 6. P6 LOCKED AS THE PRODUCT (HC directive, 12 Jun afternoon)
+
+The verification overlay page IS the trust product. **Acceptance criterion:
+no takeoff completes without its verification page — it prints/attaches to
+every single job and to the QS export.** Pipeline gate, not optional view.
+
+De-risked same day — working proofs in `poc/`:
+- `p1-label-positions.py`: all opening/door label coordinates from the text
+  layer, rotated wing text included. Port to pdf.js getTextContent transforms.
+- `p2-wall-trace.py`: internal walls 57 lm net / 66 gross measured from wall
+  ribbon fills; external trace 78.8 vs stated 80.0 (Δ1.5%) — self-validating.
+  Port to the geometry worker.
+
+Owner-verification loop demonstrated live (3 rounds on JM-0027: media
+windows → barn reclass → barn relocated to the 1500 openings). P6 must
+persist these corrections per job (barn sliders fill B30 on every re-export).
+P5 adds symbol-level barn/cavity recognition later; never label-guess.
