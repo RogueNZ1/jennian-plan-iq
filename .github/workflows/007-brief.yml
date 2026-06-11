@@ -19,7 +19,7 @@ jobs:
 
     env:
       SUPABASE_URL: https://ukegudqobnmiesudtjen.supabase.co
-      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
 
