@@ -181,7 +181,7 @@ describe("collision guard — floating blocks never reach the spec rows", () => 
 
   it("normal jobs are unaffected by the cap", () => {
     const ws = buildDropInSheet(base({ openings: [paDoor(), paDoor()] }));
-    const a48 = String(cellVal(ws, "A48") ?? "");
-    expect(a48).toContain("Laundry/PA door");
+    const block = [48, 49, 50, 51, 52].map((r) => String(cellVal(ws, `A${r}`) ?? "")).join("\n");
+    expect(block).toContain("Laundry/PA door");
   });
 });

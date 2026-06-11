@@ -1179,6 +1179,16 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   }
   const sectionalDoors: Opening[] = [];
   const manual: string[] = []; // human-visible MANUAL ENTRIES lines
+  // Fix (12 Jun, JM-0027/JM-0029 audit): NO WINDOW IS EVER SILENTLY DROPPED.
+  // Anything without an IQ slot collects here, counts toward the B15 total, and
+  // surfaces as a flagged manual line with full dims. A flagged manual entry
+  // beats a silently missing window — always.
+  const unplaced: Array<{ room: string; qty: number; h: number; w: number; hint?: string }> = [];
+  function addUnplaced(room: string, qty: number, h: number, w: number, hint?: string) {
+    const g = unplaced.find((x) => x.room === room && x.h === h && x.w === w && x.hint === hint);
+    if (g) g.qty += qty;
+    else unplaced.push({ room, qty, h, w, hint });
+  }
   if (doorsUnresolved) {
     const hint = data.intDoorVisionHint ? ` — vision suggests ~${data.intDoorVisionHint}, verify` : "";
     manual.push(`⚑ Internal doors NOT deterministically counted${hint}; count on the plan and enter at B27–30 before pricing`);
@@ -1193,13 +1203,19 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
         continue; // row 70 has no IQ feed in the live QS
       }
       const room = (o.room ?? "").toLowerCase();
-      if (room.includes("laundry")) continue; // no laundry-window slot anywhere
+      if (room.includes("laundry")) {
+        addUnplaced("Laundry", 1, o.height_m, o.width_m, "no laundry IQ slot — enter on Data Input House");
+        continue;
+      }
       if (room.includes("toilet") || /\bwc\b/.test(room)) {
-        manual.push(`Toilet window ${dim(o.height_m)}H × ${dim(o.width_m)}W → Data Input House row 51`);
+        addUnplaced("Toilet", 1, o.height_m, o.width_m, "Data Input House row 51");
         continue; // toilet has no IQ slot
       }
       const spec = WINDOW_SLOT_SPECS.find((s) => s.keywords.some((k) => room.includes(k)));
-      if (!spec || !(spec.key as string in IQ_SLOT_ROW)) continue;
+      if (!spec || !(spec.key as string in IQ_SLOT_ROW)) {
+        addUnplaced(o.room?.trim() || "Unknown room", 1, o.height_m, o.width_m);
+        continue;
+      }
       addToSlot(spec.key as string, o.height_m, o.width_m);
     }
   } else {
@@ -1209,10 +1225,13 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
       if (slotKey === "garageDoor1" || slotKey === "garageDoor2") continue;
       const key = slotKey === "kitchenExtra" ? "kitchen" : slotKey;
       if (key === "toilet") {
-        manual.push(`Toilet window ${dim(val.height)}H × ${dim(val.width)}W ×${val.qty} → Data Input House row 51`);
+        addUnplaced("Toilet", val.qty, val.height, val.width, "Data Input House row 51");
         continue;
       }
-      if (!(key in IQ_SLOT_ROW)) continue;
+      if (!(key in IQ_SLOT_ROW)) {
+        addUnplaced(key, val.qty, val.height, val.width);
+        continue;
+      }
       for (let i = 0; i < val.qty; i++) addToSlot(key, val.height, val.width);
     }
   }
@@ -1278,7 +1297,28 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   const slotWindowTotal = Object.entries(slotGroups)
     .filter(([k]) => !["entrance", "garageDoor1"].includes(k))
     .reduce((s, [, gs]) => s + gs.reduce((a, g) => a + g.qty, 0), 0);
-  put("A15", "Windows"); put("B15", slotWindowTotal);
+  const unplacedWindowTotal = unplaced.reduce((s, u) => s + u.qty, 0);
+  const trueWindowTotal = slotWindowTotal + unplacedWindowTotal;
+  put("A15", "Windows"); put("B15", trueWindowTotal);
+  if (unplacedWindowTotal > 0) {
+    put("C15", `${slotWindowTotal} in rows 33-45 + ${unplacedWindowTotal} flagged below`);
+    manual.unshift(
+      `⚑ ${unplacedWindowTotal} of ${trueWindowTotal} windows have NO IQ slot — listed below with dims; enter on Data Input House before pricing`
+    );
+  }
+  for (const u of unplaced) {
+    manual.push(
+      `⚑ UNPLACED — ${u.room}: ${u.qty} window(s) @ ${dim(u.h)}H × ${dim(u.w)}W${u.hint ? ` → ${u.hint}` : " — no IQ slot, enter manually"}`
+    );
+  }
+  // Hard sanity flag: a dwelling with zero windows is physically impossible. Fires only
+  // when extraction actually ran (openings array present, or callouts populated).
+  const extractionRan = data.openings !== null || Object.keys(data.windowsByRoom).length > 0;
+  if (trueWindowTotal === 0 && extractionRan) {
+    manual.unshift(
+      `⚑⚑ ZERO WINDOWS EXTRACTED — physically impossible for a dwelling. Extraction failed on this plan; DO NOT price windows or cladding from this export.`
+    );
+  }
 
   // ── MANUAL ENTRIES block (row 47+) — the visible flag set ──
   // Capped so the floating blocks can never reach the fixed SPECIFICATIONS

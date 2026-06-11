@@ -123,7 +123,7 @@ describe("buildDropInSheet — window slots (rows 33-45, B=Qty C=HEIGHT D=WIDTH)
 
   it("Toilet/WC has NO IQ slot — routed to the manual block with target row 51", () => {
     const ws = buildDropInSheet(base({ openings: [op("window", "Wc", 1.1, 0.7)] }));
-    expect(manualBlock(ws)).toMatch(/Toilet window 1\.1H × 0\.7W.*row 51/);
+    expect(manualBlock(ws)).toMatch(/UNPLACED — Toilet: 1 window\(s\) @ 1\.1H × 0\.7W.*row 51/);
     // and nothing leaked into a slot
     for (let r = 33; r <= 45; r++) expect(cellVal(ws, `B${r}`)).toBe(0);
   });
