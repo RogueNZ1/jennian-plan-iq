@@ -145,9 +145,43 @@ describe.skipIf(!LIVE)("DIAG — tonight's run, full provenance", () => {
     const visionDoors = e.internal_door_count?.value as number | null;
     if (engineTotal != null && visionDoors != null && Math.abs(engineTotal - visionDoors) > 2)
       console.log(`  ⚠ engine doors (${engineTotal}) vs vision (${visionDoors}) differ by >2`);
-    const slotQty = Object.values(q.windowsByRoom ?? {}).reduce((s, v) => s + (v?.qty ?? 0), 0);
+    const slotQty = Object.entries(q.windowsByRoom ?? {})
+      .filter(([k]) => !k.startsWith("garageDoor"))
+      .reduce((s, [, v]) => s + (v?.qty ?? 0), 0);
     if (wc != null && slotQty !== wc)
       console.log(`  ⚠ by-room slot qty total (${slotQty}) ≠ window_count (${wc}) — routing loss`);
+    console.log("--- ACTUAL DROP-IN SHEET CELLS (the paste truth) ---");
+    const { buildDropInSheet } = await import("../../src/lib/iq-qs-export");
+    const ws = buildDropInSheet(q);
+    const cell = (addr: string) => {
+      const c = ws[addr] as { v?: unknown } | undefined;
+      return c?.v ?? "·";
+    };
+    // window block rows 33-46ish (B qty / C height / D width / A label) + garage + doors
+    for (let row = 31; row <= 50; row++) {
+      const a = cell(`A${row}`);
+      const b = cell(`B${row}`);
+      const c = cell(`C${row}`);
+      const d = cell(`D${row}`);
+      if (a !== "·" || b !== "·" || c !== "·" || d !== "·")
+        console.log(
+          `  row ${row}: A=${JSON.stringify(a)} B=${JSON.stringify(b)} C=${JSON.stringify(c)} D=${JSON.stringify(d)}`,
+        );
+    }
+    console.log("  B24 (sectional size):", JSON.stringify(cell("B24")));
+    console.log(
+      "  doors B27-30:",
+      [cell("B27"), cell("B28"), cell("B29"), cell("B30")].map(String).join(", "),
+    );
+    // manual block (dim-groups overflow) — scan a generous window
+    for (let row = 51; row <= 75; row++) {
+      const a = cell(`A${row}`);
+      const b = cell(`B${row}`);
+      if (a !== "·" || b !== "·")
+        console.log(
+          `  manual row ${row}: A=${JSON.stringify(a)} B=${JSON.stringify(b)} C=${JSON.stringify(cell(`C${row}`))} D=${JSON.stringify(cell(`D${row}`))}`,
+        );
+    }
     console.log("[diag] done");
   }, 60_000);
 });
