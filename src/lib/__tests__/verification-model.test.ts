@@ -301,3 +301,34 @@ describe("buildVerificationModel", () => {
     expect(tags).toEqual(["GEO", "VEC", "VIS", "SCH", "DRV", "AST", "FLG", "MAN"]);
   });
 });
+
+describe("planOverlay in the model", () => {
+  it("builds numbered markers and summary from persisted door hits", () => {
+    const m = buildVerificationModel(
+      makeData(),
+      makeEnriched({
+        door_hits: [
+          { type: "hinged", widthMm: 810, x: 607, y: 387, confidence: "confirmed" },
+          { type: "double", widthMm: 1620, x: 100, y: 100, confidence: "confirmed" },
+          { type: "cavity", widthMm: 760, x: 300, y: 500, confidence: "flag", note: "ambiguous" },
+        ],
+        door_page: { pageNumber: 1, view: [0, 0, 1191, 842], width: 1191, height: 842, scaleText: "1:100" },
+      }),
+      RUN,
+    );
+    expect(m.planOverlay.markers.map((x) => x.label)).toEqual(["D1", "D2", "D3"]);
+    expect(m.planOverlay.markers[0]).toMatchObject({ type: "double", x: 100, y: 100 });
+    expect(m.planOverlay.summary).toEqual({
+      confirmed: 2, flagged: 1, byType: { hinged: 1, double: 1, cavity: 1 },
+    });
+    expect(m.planOverlay.page?.pageNumber).toBe(1);
+  });
+
+  it("is empty-safe for pre-overlay payloads and relational fallback", () => {
+    const withOld = buildVerificationModel(makeData(), makeEnriched(), RUN);
+    expect(withOld.planOverlay.markers).toEqual([]);
+    expect(withOld.planOverlay.page).toBeNull();
+    const noEnriched = buildVerificationModel(makeData(), null, null);
+    expect(noEnriched.planOverlay.markers).toEqual([]);
+  });
+});

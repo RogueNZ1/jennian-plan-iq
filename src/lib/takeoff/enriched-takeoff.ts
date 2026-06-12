@@ -101,6 +101,29 @@ export type EnrichedTakeoff = {
   door_counts_auto?: { singles: number; doubles: number; cavitySliders: number; barn: number } | null;
   door_flags?: Array<Record<string, unknown>> | null;
   /**
+   * Plan-overlay slice (13 Jun): EVERY door-engine hit (confirmed + flagged) with its
+   * page-space position, plus the page identity the engine ran on — so the verification
+   * printout can draw the hits straight onto the rendered floor plan. Raw passthrough,
+   * optional, NOT projected into the bare TakeoffData: goldens and pre-overlay payloads
+   * round-trip unchanged.
+   */
+  door_hits?: Array<{
+    type: "hinged" | "double" | "cavity";
+    widthMm: number;
+    x: number;
+    y: number;
+    arcMm?: number;
+    confidence: "confirmed" | "flag";
+    note?: string;
+  }> | null;
+  door_page?: {
+    pageNumber: number;
+    view: number[];
+    width: number;
+    height: number;
+    scaleText: string | null;
+  } | null;
+  /**
    * Pipeline safety (12 Jun): present ONLY when the geometry layer failed for this run —
    * the silent catch→null fallback hid a dead geometry service for two days. Absence of
    * this field means geometry participated (or the run predates the flag). Optional so

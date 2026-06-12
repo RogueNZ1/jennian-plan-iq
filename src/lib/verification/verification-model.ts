@@ -20,6 +20,13 @@ import {
   optionLabel,
   parseSpecifications,
 } from "@/lib/specs/spec-schema";
+import {
+  buildDoorMarkers,
+  summariseMarkers,
+  type DoorMarker,
+  type DoorPagePersisted,
+  type OverlaySummary,
+} from "./plan-overlay";
 
 /* ------------------------------------------------------------------ NZT stamps */
 // Same Pacific/Auckland discipline as the export composer (12 Jun fix): CI and Pages run
@@ -125,6 +132,12 @@ export type VerificationModel = {
   };
   specs: SpecGroupRows[];
   exceptions: ExceptionGroup[];
+  /** Plan-overlay slice (13 Jun): door-engine hits + page identity for the rendered overlay. */
+  planOverlay: {
+    markers: DoorMarker[];
+    page: DoorPagePersisted | null;
+    summary: OverlaySummary;
+  };
   /** Cross-check guard: export value vs enriched value diverged (should never happen). */
   integrityAlerts: string[];
 };
@@ -415,6 +428,14 @@ export function buildVerificationModel(
     }),
   })).filter((g) => g.rows.length > 0);
 
+  /* plan overlay ----------------------------------------------------- */
+  const overlayMarkers = buildDoorMarkers(e?.door_hits ?? null);
+  const planOverlay: VerificationModel["planOverlay"] = {
+    markers: overlayMarkers,
+    page: e?.door_page ?? null,
+    summary: summariseMarkers(overlayMarkers),
+  };
+
   /* exceptions ------------------------------------------------------ */
   const exceptions: ExceptionGroup[] = (data.reviewFlags ?? [])
     .filter((f) => f.flags.length > 0)
@@ -468,6 +489,7 @@ export function buildVerificationModel(
     services,
     specs,
     exceptions,
+    planOverlay,
     integrityAlerts,
   };
 }

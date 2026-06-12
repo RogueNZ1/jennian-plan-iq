@@ -11,6 +11,20 @@
 import { detectInteriorDoors, DEFAULT_CONFIG, type DoorEngineResult } from "./door-engine";
 import { extractPageGeometry } from "./pdf-adapter";
 
+/**
+ * Which page the engine ran on, in the adapter's coordinate contract — persisted with the
+ * takeoff so the verification overlay can map page-space hits (pdf points, y-down, origin
+ * top-left of the UNROTATED page view) back onto a rendered page via the inverse transform
+ * + the renderer's viewport (which handles /Rotate). `view` is the raw pdf.js page.view box.
+ */
+export type DoorPageMeta = {
+  pageNumber: number;
+  view: number[]; // [x0, y0, x1, y1]
+  width: number;
+  height: number;
+  scaleText: string | null;
+};
+
 /** Parse "1:100" → 100. Returns null when the scale text is unusable. */
 export function scaleDenominator(scaleText: string | null | undefined): number | null {
   const m = /1\s*[:/]\s*(\d{2,4})/.exec(scaleText ?? "");
@@ -21,7 +35,7 @@ export async function runDoorEngine(
   pdfData: ArrayBuffer | Uint8Array,
   pageNumber: number, // 1-based floor-plan page
   scaleText: string | null | undefined,
-): Promise<DoorEngineResult | null> {
+): Promise<(DoorEngineResult & { pageMeta?: DoorPageMeta }) | null> {
   try {
     const scale = scaleDenominator(scaleText);
     if (!scale) return null; // no usable scale → no door pass (fail-safe)
@@ -51,7 +65,19 @@ export async function runDoorEngine(
     try {
       const page = await doc.getPage(pageNumber);
       const geom = await extractPageGeometry(page as Parameters<typeof extractPageGeometry>[0]);
-      return detectInteriorDoors(geom, { ...DEFAULT_CONFIG, scale });
+      const result = detectInteriorDoors(geom, { ...DEFAULT_CONFIG, scale });
+      // Overlay meta — additive: callers that only read counts/flags are untouched.
+      const view = (page as { view?: number[] }).view ?? [0, 0, geom.width, geom.height];
+      return {
+        ...result,
+        pageMeta: {
+          pageNumber,
+          view: [...view],
+          width: geom.width,
+          height: geom.height,
+          scaleText: scaleText ?? null,
+        },
+      };
     } finally {
       await doc.destroy().catch(() => {});
     }

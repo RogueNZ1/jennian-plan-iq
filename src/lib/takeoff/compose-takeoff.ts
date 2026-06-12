@@ -61,7 +61,11 @@ export type ComposeTakeoffInput = {
    */
   geometryPageIndex: number | undefined;
   /** Deterministic door-engine result for the working page; null/absent → no door pass. */
-  doorEngine?: import("../doors/door-engine").DoorEngineResult | null;
+  doorEngine?:
+    | (import("../doors/door-engine").DoorEngineResult & {
+        pageMeta?: import("../doors/run-doors").DoorPageMeta;
+      })
+    | null;
 };
 
 export type ComposeTakeoffResult = {
@@ -352,6 +356,24 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       ? {
           door_counts_auto: doorEngine.counts,
           door_flags: doorEngine.flags as unknown as Array<Record<string, unknown>>,
+          // Plan-overlay slice (13 Jun): every hit (confirmed + flagged) with its page-space
+          // position, for the verification printout's plan overlay. Additive: pre-overlay
+          // payloads and goldens (which run without a doorEngine) are byte-identical.
+          door_hits: [
+            ...doorEngine.hinged,
+            ...doorEngine.doubles,
+            ...doorEngine.cavity,
+            ...doorEngine.flags,
+          ].map((h) => ({
+            type: h.type,
+            widthMm: h.widthMm,
+            x: h.x,
+            y: h.y,
+            ...(h.arcMm != null ? { arcMm: h.arcMm } : {}),
+            confidence: h.confidence,
+            ...(h.note ? { note: h.note } : {}),
+          })),
+          ...(doorEngine.pageMeta ? { door_page: doorEngine.pageMeta } : {}),
         }
       : {}),
     // Pipeline safety (12 Jun): a geometry-less run must be LOUD, never silent — the

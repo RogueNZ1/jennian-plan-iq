@@ -21,6 +21,7 @@ import {
   type MeasureRow,
   type CountRow,
 } from "@/lib/verification/verification-model";
+import { VerificationPlanOverlay } from "@/components/jennian/VerificationPlanOverlay";
 
 export const Route = createFileRoute("/jobs/$jobId_/verification")({
   component: VerificationPrintout,
@@ -424,8 +425,44 @@ function VerificationPrintout() {
           </div>
         </Section>
 
-        {/* 4 · roof / cladding / elevations */}
-        <Section title="4 · Roof, cladding & elevations">
+        {/* 4 · plan overlay */}
+        <Section title="4 · Plan overlay — door hits & window codes">
+          <VerificationPlanOverlay
+            jobId={jobId}
+            markers={m.planOverlay.markers}
+            page={m.planOverlay.page}
+          />
+          {m.planOverlay.markers.length > 0 && (
+            <>
+              <div className="vsrcline" style={{ marginTop: 8 }}>
+                {m.planOverlay.summary.confirmed} confirmed · {m.planOverlay.summary.flagged} flagged
+                &nbsp;(hinged {m.planOverlay.summary.byType.hinged} · double {m.planOverlay.summary.byType.double}
+                &nbsp;· cavity {m.planOverlay.summary.byType.cavity}) — solid red = confirmed by the
+                deterministic engine; dashed amber = flagged for review (never counted).
+                Green boxes are the plan's own printed window codes.
+              </div>
+              <table className="vtable">
+                <thead>
+                  <tr><th>#</th><th>Type</th><th>Width (mm)</th><th>Status</th><th>Note</th></tr>
+                </thead>
+                <tbody>
+                  {m.planOverlay.markers.map((d) => (
+                    <tr key={d.label}>
+                      <td className="vlabel">{d.label}</td>
+                      <td>{d.type}</td>
+                      <td className="vvalue">{d.widthMm}</td>
+                      <td>{d.confidence === "flag" ? "⚑ flag — review" : "confirmed"}</td>
+                      <td>{d.note ?? ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </Section>
+
+        {/* 5 · roof / cladding / elevations */}
+        <Section title="5 · Roof, cladding & elevations">
           {m.elevationWarning && (
             <div className="vbanner vbanner-compact">
               <strong>⚑ {m.elevationWarning}</strong>
@@ -443,8 +480,8 @@ function VerificationPrintout() {
           </div>
         </Section>
 
-        {/* 5 · services & extras */}
-        <Section title="5 · Services & extras">
+        {/* 6 · services & extras */}
+        <Section title="6 · Services & extras">
           <div className="vcols">
             <div>
               <h3>Downpipes</h3>
@@ -475,8 +512,8 @@ function VerificationPrintout() {
           </div>
         </Section>
 
-        {/* 6 · specifications */}
-        <Section title="6 · Specifications (meeting answers)">
+        {/* 7 · specifications */}
+        <Section title="7 · Specifications (meeting answers)">
           <div className="vspec-grid">
             {m.specs.map((g) => (
               <div key={g.group} className="vspec-group">
@@ -498,8 +535,8 @@ function VerificationPrintout() {
           </div>
         </Section>
 
-        {/* 7 · exceptions */}
-        <Section title="7 · Exceptions & review flags" checkbox={false}>
+        {/* 8 · exceptions */}
+        <Section title="8 · Exceptions & review flags" checkbox={false}>
           {m.exceptions.length === 0 ? (
             <p className="vempty">No exceptions raised on this takeoff.</p>
           ) : (
@@ -611,6 +648,14 @@ const PRINT_CSS = `
 .vex-field { font-weight:800; }
 .vex-flag { color:#374151; }
 
+.voverlay-wrap { position:relative; border:1px solid #d1d5db; }
+.voverlay-wrap img { display:block; width:100%; height:auto; }
+.voverlay-wrap svg { position:absolute; inset:0; width:100%; height:100%; }
+.vov-door { fill:none; stroke:#dc2626; stroke-width:3; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-flag { fill:none; stroke:#b45309; stroke-width:3; stroke-dasharray:6 4; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-label { fill:#dc2626; font:700 15px ui-sans-serif, system-ui, sans-serif; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-wcode { fill:none; stroke:#16a34a; stroke-width:2.5; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+
 .vfoot { margin-top:20px; border-top:2px solid #111827; padding-top:8px; }
 .vlegend { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:9px; color:#6b7280; }
 .vsign { display:grid; grid-template-columns:1fr 1fr 1fr; gap:24px; margin-top:14px; }
@@ -625,6 +670,7 @@ const PRINT_CSS = `
   .vbrand-bar { margin:0 0 10px; }
   @page { size:A4; margin:12mm; }
   .vsec, .vspec-group, .vex-group, table { break-inside:avoid; }
+  .voverlay-wrap { break-inside:avoid; }
   .vsec-head { break-after:avoid; }
 }
 `;
