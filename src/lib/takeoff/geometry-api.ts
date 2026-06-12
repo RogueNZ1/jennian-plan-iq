@@ -208,10 +208,29 @@ export async function measurePlanGeometry(
           ? `${GEOMETRY_API_BASE}/measure?page=${p}`
           : `${GEOMETRY_API_BASE}/measure`;
       const res = await fetch(url, { method: "POST", body: form });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        // The demo-week lesson (12 Jun): a 401 here ran SILENT for two days because the
+        // status was swallowed — geometry just "wasn't there". Behaviour is unchanged
+        // (still null → downstream geometry_status flag fires), but the REASON now lands
+        // in the console: auth-class failures name the fix.
+        console.warn(
+          res.status === 401 || res.status === 403
+            ? `[geometry] HTTP ${res.status} — auth rejected. Check GEOMETRY_API_KEY binding (Pages secret / Railway env).`
+            : `[geometry] HTTP ${res.status} — measure failed for this attempt.`,
+        );
+        return null;
+      }
       const data = (await res.json()) as GeometryApiResult;
-      return data.success ? data : null;
-    } catch {
+      if (!data.success) {
+        console.warn("[geometry] engine responded success:false — measurement rejected.");
+        return null;
+      }
+      return data;
+    } catch (e) {
+      console.warn(
+        "[geometry] request failed (network/parse):",
+        e instanceof Error ? e.message : e,
+      );
       return null;
     }
   };
