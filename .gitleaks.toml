@@ -1,0 +1,15 @@
+# Gitleaks config — extends the default ruleset; allowlists are TRIAGED findings only.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = """
+Commit e701d338c7ab792e85d1f007552c2b05d93849f8 (09 May 2026, initial scaffold) committed a .env containing
+the Supabase PUBLISHABLE (anon) key — public by design, it ships in every browser
+bundle — and for the ORIGINAL project (vcufpzokvdsvuqrcficq), not production
+(different ref). Triaged 13 Jun 2026: zero severity, no rotation required, history
+purge not warranted. Allowlist is COMMIT-SCOPED: any future .env or key commit
+still fails the gate.
+"""
+commits = ["e701d338c7ab792e85d1f007552c2b05d93849f8"]
