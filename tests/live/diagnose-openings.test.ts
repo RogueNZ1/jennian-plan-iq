@@ -17,6 +17,27 @@ const trunc = (v: unknown, n = 300) => {
   return s && s.length > n ? s.slice(0, n) + `…(+${s.length - n})` : s;
 };
 
+describe.skipIf(!LIVE)("LATEST RUN AUDIT (global)", () => {
+  it("newest takeoff run anywhere — geometry participation + key values", async () => {
+    const runs = await supabase.from("takeoff_runs")
+      .select("id, job_id, started_at, completed_at, status, error_message, takeoff_json")
+      .order("started_at", { ascending: false }).limit(2);
+    for (const r of runs.data ?? []) {
+      const job = await supabase.from("jobs").select("job_number").eq("id", r.job_id).limit(1);
+      console.log(`[audit] ===== ${job.data?.[0]?.job_number} run ${String(r.id).slice(0,8)} =====`);
+      console.log("[audit] started:", r.started_at, "| status:", r.status, "| err:", r.error_message);
+      const tj: any = r.takeoff_json ?? {};
+      for (const k of ["floor_area_m2","external_wall_lm","internal_wall_lm","window_count","garage_door_size","roof_area_m2","internal_door_count"]) {
+        const v = tj[k];
+        console.log(`[audit] ${k} =`, JSON.stringify(v));
+      }
+      const flags = JSON.stringify(tj).match(/discrepancy_flags":\[[^\]]+\]/g)?.length ?? 0;
+      console.log("[audit] fields carrying discrepancy flags:", flags);
+    }
+    expect(true).toBe(true);
+  }, 30000);
+});
+
 describe.skipIf(!LIVE)("LIVE DIAG openings (report-only)", () => {
   it("JM-0027 / JM-0029 vs control JM-0020 — window pipeline state", async () => {
     for (const jn of ["JM-0027", "JM-0029", "JM-0020"]) {
