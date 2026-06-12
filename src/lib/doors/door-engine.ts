@@ -369,6 +369,39 @@ export function hasWallGap(
 //          label on at least one side (the jamb the opening hangs off)
 //   leaf — parallel segment(s) of leaf-like length in the opening zone
 //          (slider leaf, pocket lines, or drawn-closed double leaves)
+// Annotation-context rejection for double-width labels (West Street, 13 Jun 2026 —
+// thresholds set from probed label data, guarded by both plan benches):
+//   1. DIMENSION-CHAIN MEMBER — flanked on BOTH sides by small wall-thickness
+//      numbers ("90" at dx ±13-16pt on the same chain line). Real opening labels
+//      are never chained between 90s.
+//   2. FIXTURE CAPTION — an alphabetic label one text line directly above
+//      ("Pacific bath" at dy -6.4 over "1655"). True LINEN/robe room labels sit
+//      ≥13pt above their openings, outside the window. X is stripped before the
+//      letter test so room-dim labels like "1931X700" never count as alphabetic.
+export function isAnnotationContext(
+  labels: TextLabel[],
+  wl: { mm: number; x: number; y: number },
+  widthPt: number,
+): boolean {
+  let smallLeft = false,
+    smallRight = false;
+  for (const l of labels) {
+    const dx = l.x - wl.x,
+      dy = l.y - wl.y;
+    const t = l.text.trim();
+    if (/^\d[\d ]{0,4}$/.test(t)) {
+      const mm = parseInt(t.replace(/ /g, ""), 10);
+      if (mm > 0 && mm <= 200 && Math.abs(dy) <= 8 && Math.abs(dx) <= 0.65 * widthPt) {
+        if (dx < 0) smallLeft = true;
+        else smallRight = true;
+      }
+    }
+    if (/[a-z]/i.test(t.replace(/x/gi, "")) && Math.abs(dx) <= 10 && dy >= -9.5 && dy <= -2)
+      return true; // fixture caption directly above
+  }
+  return smallLeft && smallRight; // chained between wall-thickness dims
+}
+
 export function openingEvidence(
   segments: Segment[],
   x: number,
@@ -508,6 +541,9 @@ export function detectInteriorDoors(
       // Stub evidence required; leaves may be drawn closed so leaf is optional.
       const ev = openingEvidence(geom.segments, wl.x, wl.y, wl.vertical, mmToPt(wl.mm, cfg.scale));
       if (!ev.stub) continue;
+      // West Street lesson: bath captions and dimension-chain numbers can carry
+      // stub-like geometry. Their LABEL context betrays them — see isAnnotationContext.
+      if (isAnnotationContext(geom.labels, wl, mmToPt(wl.mm, cfg.scale))) continue;
       const hit: DoorHit = {
         type: "double",
         widthMm: wl.mm,
