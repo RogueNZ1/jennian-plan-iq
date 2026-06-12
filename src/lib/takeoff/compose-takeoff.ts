@@ -323,7 +323,16 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       composedGarageDoorSize,
       composedGarageDoorSize !== t.garage_door_size ? "vector" : garageChanged ? "vector" : "vision",
       reconConf(reconStatusOf("garage_door_width")),
-      flagsFor(reconFlag("garage_door_width")),
+      flagsFor(
+        reconFlag("garage_door_width"),
+        // Coherence (12 Jun, JM-0031 live audit): the generic reconciliation sentence reads
+        // as if the raw vector WIDTH won, but when the sectional callout resolves the value
+        // the stored size comes from the callout label. Additive — never rewrites the base
+        // sentence (golden fixtures pin it byte-for-byte).
+        composedGarageDoorSize !== t.garage_door_size && reconFlag("garage_door_width")
+          ? `Resolved value "${composedGarageDoorSize}" taken from the plan's sectional door callout (not the raw vector width).`
+          : null,
+      ),
     ),
     external_wall_area_m2: fv(composedExtWallAreaM2, "derived", null, extWallFlags),
     total_area_m2: fv(t.total_area_m2, "derived"),
@@ -345,6 +354,22 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
           door_flags: doorEngine.flags as unknown as Array<Record<string, unknown>>,
         }
       : {}),
+    // Pipeline safety (12 Jun): a geometry-less run must be LOUD, never silent — the
+    // catch→null fallback hid a dead geometry service for two days while takeoffs ran
+    // vision-only with no warning. Conditional spread: geometry-present runs stay
+    // byte-identical; absence on older stored payloads simply reads as pre-flag era.
+    ...(geoResult
+      ? {}
+      : {
+          geometry_status: fv(
+            "unavailable",
+            "flagged-unknown",
+            "low",
+            flagsFor(
+              "GEOMETRY LAYER UNAVAILABLE — deterministic measurement and cross-checks did not run; every value on this takeoff is vision-only. Investigate /api/geometry (health AND auth) before relying on or pricing from this takeoff.",
+            ),
+          ),
+        }),
   };
 
   return { enriched, reconciliation, pageReconcile, scheduleSafeguard };

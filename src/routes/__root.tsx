@@ -3,6 +3,7 @@ import {
   Outlet, Link, createRootRouteWithContext, useRouter,
   HeadContent, Scripts,
 } from "@tanstack/react-router";
+import React from "react";
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/sonner";
@@ -70,6 +71,26 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  // Pipeline safety (12 Jun): after a deploy, a stale tab's lazy route chunks 404 and
+  // buttons silently die (the morning's dead View-all — which led a re-run onto the demo
+  // job from a half-stale client). Vite fires `vite:preloadError` on a failed dynamic
+  // import; one guarded reload swaps in the fresh bundle. The sessionStorage one-shot
+  // prevents reload loops; it clears 10s after a healthy load.
+  React.useEffect(() => {
+    const KEY = "iq-chunk-reloaded";
+    const onPreloadError = (e: Event) => {
+      e.preventDefault();
+      if (sessionStorage.getItem(KEY) === "1") return; // already tried once this session
+      sessionStorage.setItem(KEY, "1");
+      window.location.reload();
+    };
+    window.addEventListener("vite:preloadError", onPreloadError);
+    const settle = window.setTimeout(() => sessionStorage.removeItem(KEY), 10_000);
+    return () => {
+      window.removeEventListener("vite:preloadError", onPreloadError);
+      window.clearTimeout(settle);
+    };
+  }, []);
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>

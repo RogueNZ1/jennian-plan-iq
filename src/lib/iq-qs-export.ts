@@ -24,6 +24,13 @@ import {
 } from "./specs/spec-schema";
 import type { Opening } from "@/lib/takeoff/takeoff-types";
 
+// All export date stamps are NZT regardless of runtime TZ (12 Jun): CI runs UTC, and the
+// previous ISO slice stamped *yesterday* on every export generated after 1pm NZ time.
+const NZ_DATE = () =>
+  new Intl.DateTimeFormat("en-NZ", { timeZone: "Pacific/Auckland", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date());
+const NZ_DATE_ISO = () =>
+  new Intl.DateTimeFormat("sv-SE", { timeZone: "Pacific/Auckland", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
 type OpeningRow = Database["public"]["Tables"]["opening_schedule"]["Row"];
 
@@ -47,6 +54,8 @@ export type QSExportData = {
   perimeterLm: number | null;
   /** Measured internal wall length (geometry engine) — informational until the QS wires a row. */
   internalWallLm: number | null;
+  /** Pipeline safety (12 Jun): "unavailable" when the geometry layer failed for this run. */
+  geometryStatus?: string | null;
   /** Gable span candidate: geometry envelope short side, metres. */
   gableSpanM: number | null;
   firstFloorAreaM2: number | null;
@@ -303,6 +312,7 @@ export function applyEnrichedTakeoff(
     floorAreaM2: enriched.floor_area_m2.value ?? base.floorAreaM2,
     perimeterLm: perimeter ?? base.perimeterLm,
     internalWallLm: enriched.internal_wall_lm?.value ?? base.internalWallLm,
+    geometryStatus: enriched.geometry_status?.value ?? null,
     gableSpanM: enriched.gable_span_m?.value ?? base.gableSpanM,
     exteriorWallLengthLm: perimeter ?? base.exteriorWallLengthLm,
     alfrescoAreaM2: enriched.alfresco_area_m2.value ?? base.alfrescoAreaM2,
@@ -946,7 +956,7 @@ export function electricalScheduleToCSV(schedule: ElectricalSchedule): string {
   rows.push(`Client,${schedule.clientName}`);
   rows.push(`Address,"${schedule.address}"`);
   rows.push(`Floor Area,${schedule.floorAreaM2} m²`);
-  rows.push(`Generated,${new Date().toLocaleDateString("en-NZ")}`);
+  rows.push(`Generated,${NZ_DATE()}`);
   rows.push(``);
 
   const sectionHeader = (name: string) =>
@@ -1145,13 +1155,19 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   put("A2", "Client Name");         put("B2", data.clientName ?? "");
   put("A3", "Address");             put("B3", [data.streetAddress, data.city].filter(Boolean).join(", "));
   put("A4", "Plan Type");           put("B4", "Jennian IQ");
-  put("A5", "Date Generated");      put("B5", new Date().toISOString().slice(0, 10));
+  put("A5", "Date Generated");      put("B5", NZ_DATE_ISO());
   put("A8", "Item"); put("B8", "Quantity"); put("C8", "Unit"); put("D8", "Notes");
   put("A9",  "Floor area");            put("B9",  data.floorAreaM2 ?? 0);    put("C9",  "m²");
   put("A10", "Garage area");           put("B10", "");                        put("C10", "m²");
   put("A11", "Alfresco / deck area");  put("B11", data.alfrescoAreaM2 ?? 0);  put("C11", "m²");
   put("A12", "External wall length");  put("B12", data.perimeterLm ?? 0);     put("C12", "lm");
-  put("A13", "Internal wall length");  put("B13", data.internalWallLm ?? ""); put("C13", "lm"); // measured (geometry) — QS can wire D-row to B13 when ready
+  put("A13", "Internal wall length");
+  // P2 pending (12 Jun): the engine's room-based internal-wall estimate is known wrong-low
+  // (live audit: 7 lm vs ~50+ real). Never surface a priceable number until the ribbon-trace
+  // method ships — blank value + explicit flag instead.
+  put("B13", "");
+  put("C13", "lm");
+  put("D13", "⚑ UNVERIFIED — engine estimate unreliable (P2 ribbon-trace pending); measure manually");
   put("A14", "Roof area");             put("B14", "");                        put("C14", "m²"); // never invented
   // Fail-safe doctrine: door counts with NO deterministic source are unbacked zeros —
   // blank the cells and flag, never assert. (JM-0021: engine null, no labels, no schedule
@@ -1319,6 +1335,12 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
       `⚑⚑ ZERO WINDOWS EXTRACTED — physically impossible for a dwelling. Extraction failed on this plan; DO NOT price windows or cladding from this export.`
     );
   }
+  // Pipeline safety (12 Jun): geometry-offline takeoffs are vision-only — say so at the top.
+  if (data.geometryStatus === "unavailable") {
+    manual.unshift(
+      `⚑⚑ GEOMETRY LAYER OFFLINE — vision-only takeoff; deterministic measurement and cross-checks did not run. Verify all measurements against the plan before pricing.`
+    );
+  }
 
   // ── MANUAL ENTRIES block (row 47+) — the visible flag set ──
   // Capped so the floating blocks can never reach the fixed SPECIFICATIONS
@@ -1439,7 +1461,7 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
   // City always has a value — default to Palmerston North per QS convention
   ws["I5"] = { v: data.city || "Palmerston North", t: "s", s: yellowStyle };
   val("I8", data.jmwNumber || undefined);
-  ws["B9"] = { v: new Date().toLocaleDateString("en-NZ"), t: "s", s: yellowStyle };
+  ws["B9"] = { v: NZ_DATE(), t: "s", s: yellowStyle };
 
   // --- ② CORE MEASUREMENTS ---
   lbl("A11", "② CORE MEASUREMENTS", sectionStyle);
@@ -1663,7 +1685,7 @@ export async function writeIQDataSheetFull(
     ["Job Number", data.jobNumber],
     ["Client", data.clientName],
     ["Address", data.address],
-    ["Date", new Date().toLocaleDateString("en-NZ")],
+    ["Date", NZ_DATE()],
     ...(confidenceScore != null ? [["Confidence Score", `${confidenceScore}%`]] : []),
     [],
   ];

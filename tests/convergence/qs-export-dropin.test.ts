@@ -236,10 +236,11 @@ describe("module-item reads — APPROVED value wins over raw extraction", () => 
   });
 });
 
-describe("internal wall length — measured value reaches the IQ Import sheet", () => {
-  it("B13 carries the geometry-measured lm; blank when unmeasured (never invented)", async () => {
+describe("internal wall length — suppressed until P2 (policy reversed 12 Jun)", () => {
+  it("B13 is ALWAYS blank + D13 flag — the engine's room-based estimate was proven wrong-low in the live audit (7 lm vs ~50+ real); never print a priceable number until the ribbon-trace ships", async () => {
     const ws1 = buildDropInSheet(base({ internalWallLm: 47.3 }));
-    expect(cellVal(ws1, "B13")).toBe(47.3);
+    expect(cellVal(ws1, "B13")).toBe(""); // even when a value exists, it is not trustworthy
+    expect(String(cellVal(ws1, "D13") ?? "")).toContain("UNVERIFIED");
     const ws2 = buildDropInSheet(base());
     expect(cellVal(ws2, "B13")).toBe(""); // no measurement → blank, not a guess
   });

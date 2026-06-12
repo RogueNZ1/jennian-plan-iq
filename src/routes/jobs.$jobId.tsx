@@ -777,9 +777,11 @@ function JobDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>Re-run Automatic Takeoff?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will create a new draft takeoff from the uploaded files. Confirmed,
-              approved, and user-overridden values will not be overwritten. Differences
-              will be marked Review Required.
+              This REPLACES the stored extraction for this job — the new run becomes the
+              takeoff that feeds the QS export. Previous numbers, including validated
+              ones, stop feeding exports and cannot be restored from this screen.
+              If this job’s takeoff has been checked or priced, do NOT re-run it
+              without a reason you can name.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -787,7 +789,7 @@ function JobDetail() {
             <AlertDialogAction
               onClick={() => { setRerunConfirmOpen(false); setTakeoffOpen(true); }}
             >
-              Re-run Takeoff
+              Replace takeoff data
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
