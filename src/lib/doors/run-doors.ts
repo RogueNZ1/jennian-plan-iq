@@ -10,6 +10,7 @@
  */
 import { detectInteriorDoors, DEFAULT_CONFIG, type DoorEngineResult } from "./door-engine";
 import { extractPageGeometry } from "./pdf-adapter";
+import { parsePlanText, type PlanText } from "../takeoff/plan-text";
 
 /**
  * Which page the engine ran on, in the adapter's coordinate contract — persisted with the
@@ -35,7 +36,7 @@ export async function runDoorEngine(
   pdfData: ArrayBuffer | Uint8Array,
   pageNumber: number, // 1-based floor-plan page
   scaleText: string | null | undefined,
-): Promise<(DoorEngineResult & { pageMeta?: DoorPageMeta }) | null> {
+): Promise<(DoorEngineResult & { pageMeta?: DoorPageMeta; planText?: PlanText }) | null> {
   try {
     const scale = scaleDenominator(scaleText);
     if (!scale) return null; // no usable scale → no door pass (fail-safe)
@@ -67,10 +68,14 @@ export async function runDoorEngine(
       const page = await doc.getPage(pageNumber);
       const geom = await extractPageGeometry(page as Parameters<typeof extractPageGeometry>[0]);
       const result = detectInteriorDoors(geom, { ...DEFAULT_CONFIG, scale });
+      // Plan-text pass (13 Jun 2026) — same labels, zero extra extraction cost.
+      // Deterministic room footprints, printed window codes, title-block areas.
+      const planText = parsePlanText(geom.labels);
       // Overlay meta — additive: callers that only read counts/flags are untouched.
       const view = (page as { view?: number[] }).view ?? [0, 0, geom.width, geom.height];
       return {
         ...result,
+        planText,
         pageMeta: {
           pageNumber,
           view: [...view],

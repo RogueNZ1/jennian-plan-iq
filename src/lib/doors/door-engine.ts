@@ -497,6 +497,13 @@ export function detectInteriorDoors(
           bestD = d;
         }
       }
+      // West Street note (13 Jun 2026, attempted + REVERTED): widening the confirm
+      // distance with a tight-radius bonus (d<26 when |r-nominal|<1.5) recovers the
+      // two missed singles here BUT lets a 760 label steal an 810's arc (radii differ
+      // by only ~1.5pt at 1:100 — ambiguous), orphaning the 810 into the cavity
+      // branch as a PHANTOM SLIDER. A silent miss is honest; a phantom count lies.
+      // The misses stay documented in west-street.bench.json knownGap until arc
+      // recovery itself improves. Do not re-widen this gate on distance alone.
       if (
         best &&
         (bestD < 18 || hasWallGap(geom.segments, wl.x, wl.y, wl.vertical, mmToPt(wl.mm, cfg.scale)))

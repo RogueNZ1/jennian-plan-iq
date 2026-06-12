@@ -70,6 +70,7 @@ export type ComposeTakeoffInput = {
   doorEngine?:
     | (import("../doors/door-engine").DoorEngineResult & {
         pageMeta?: import("../doors/run-doors").DoorPageMeta;
+        planText?: import("./plan-text").PlanText;
       })
     | null;
 };
@@ -123,6 +124,85 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   const geoRoomCount = m?.room_count ?? 0;
   const vectorAnnotations = geoResult?.vector_annotations;
   const aiRoomLabels = (visionTakeoff as { roomLabels?: string[] }).roomLabels;
+
+  // ── Plan-text cross-checks (13 Jun 2026 — JM-0032 lessons, all three) ──────────
+  const planText = doorEngine?.planText;
+  const planGarage = planText?.rooms.find((r) => /^GARAGE\b/i.test(r.name)) ?? null;
+  const titleVals = planText
+    ? Object.values(planText.titleAreas).filter((v): v is number => v != null)
+    : [];
+  const visionGarage = (visionTakeoff as { garage_area_m2?: number | null }).garage_area_m2 ?? null;
+  // Title-block grab: vision's garage area equals a title-block stat (the 46.7
+  // CLADDING AREA grab). Deterministic room footprint wins when present.
+  const garageTitleGrab =
+    visionGarage != null && titleVals.some((v) => Math.abs(v - visionGarage) <= 0.3);
+  const garageDisagrees =
+    planGarage != null &&
+    visionGarage != null &&
+    Math.abs(visionGarage - planGarage.areaM2) / planGarage.areaM2 > 0.25;
+  const garageOverride =
+    planGarage != null && (garageTitleGrab || garageDisagrees || visionGarage == null);
+  const garageFlags: string[] = [];
+  if (garageOverride && planGarage) {
+    garageFlags.push(
+      `reconciliation: garage area taken from the plan's printed room dims (${planGarage.widthMm}×${planGarage.depthMm} = ${planGarage.areaM2} m²)` +
+        (visionGarage != null ? ` — vision read ${visionGarage} m²` : "") +
+        (garageTitleGrab ? " which equals a TITLE-BLOCK stat (cladding/total area grab)" : "") +
+        ".",
+    );
+  } else if (garageTitleGrab) {
+    garageFlags.push(
+      "⚑ vision's garage area equals a title-block stat — likely a title-block grab; confirm against the plan.",
+    );
+  }
+  // Window-code cross-check: a routed window whose printed-size twin doesn't exist
+  // on the plan is a vision dim error (Ensuite 1.8 vs the printed 1 100x600).
+  const codes = planText?.windowCodes ?? [];
+  const codeMismatch: string[] = [];
+  if (
+    codes.length > 0 &&
+    (visionTakeoff as { windows_by_room?: Record<string, { height_m?: number; width_m?: number }> })
+      .windows_by_room
+  ) {
+    const wbr = (
+      visionTakeoff as { windows_by_room: Record<string, { height_m?: number; width_m?: number }> }
+    ).windows_by_room;
+    for (const [room, w] of Object.entries(wbr)) {
+      if (w?.height_m == null || w?.width_m == null) continue;
+      const h = Math.round(w.height_m * 1000),
+        wd = Math.round(w.width_m * 1000);
+      if (!codes.some((c) => c.heightMm === h && c.widthMm === wd))
+        codeMismatch.push(
+          `⚑ ${room} window ${w.height_m}×${w.width_m} matches NO printed joinery code on the plan — verify dims.`,
+        );
+    }
+  }
+  // Bedroom-without-window: a BED room printed on the plan with no routed window
+  // (the missing Bed 3). Garage/store/wir excluded — only habitable bedrooms.
+  const bedNoWindow: string[] = [];
+  if (planText) {
+    // Canonicalise bedroom identity: MASTER (any spelling) ≡ BED1; "BED 3"/"BEDROOM3" ≡ BED3.
+    const bedCanon = (raw: string): string | null => {
+      const n = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (n.includes("MASTER")) return "BED1";
+      const m = n.match(/BED(?:ROOM)?(\d)/);
+      return m ? `BED${m[1]}` : null;
+    };
+    const wbrBeds = Object.keys(
+      (visionTakeoff as { windows_by_room?: Record<string, unknown> }).windows_by_room ?? {},
+    )
+      .map(bedCanon)
+      .filter((k): k is string => k != null);
+    for (const r of planText.rooms) {
+      const canon = bedCanon(r.name);
+      if (!canon) continue;
+      const matched = wbrBeds.includes(canon);
+      if (!matched)
+        bedNoWindow.push(
+          `⚑ ${r.name} is printed on the plan (${r.widthMm}×${r.depthMm}) but has NO routed window — bedrooms require natural light; check the takeoff.`,
+        );
+    }
+  }
 
   // ── flags, tracked per-field as they are generated ──────────────────────────────
   // Phase 3 — page divergence: geometry measured a different page than we pinned.
@@ -291,7 +371,12 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       normConf(geoResult?.confidence?.floor_area),
       flagsFor(pageFlag),
     ),
-    garage_area_m2: fv(t.garage_area_m2, measuredSrc(m?.garage_area_m2 != null)),
+    garage_area_m2: fv(
+      garageOverride && planGarage ? planGarage.areaM2 : t.garage_area_m2,
+      garageOverride ? "vector" : measuredSrc(m?.garage_area_m2 != null),
+      null,
+      garageFlags.length ? garageFlags : undefined,
+    ),
     alfresco_area_m2: fv(t.alfresco_area_m2, measuredSrc(m?.alfresco_area_m2 != null)),
     external_wall_lm: fv(
       t.external_wall_lm,
@@ -329,7 +414,13 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       t.windows_by_room,
       windowsBySrc,
       null,
-      flagsFor(entranceNote, safeguardNote, reconFlag("entrance_door_width")),
+      flagsFor(
+        entranceNote,
+        safeguardNote,
+        reconFlag("entrance_door_width"),
+        ...codeMismatch,
+        ...bedNoWindow,
+      ),
     ),
     windows_schedule: fv(t.windows_schedule ?? null, schedule ? "schedule" : "vision"),
     door_breakdown: fv(t.door_breakdown, "vision"),
@@ -390,6 +481,26 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
             ...(h.note ? { note: h.note } : {}),
           })),
           ...(doorEngine.pageMeta ? { door_page: doorEngine.pageMeta } : {}),
+          // Plan-text pass — additive; absent pre-pass payloads round-trip untouched.
+          ...(doorEngine.planText
+            ? {
+                plan_text: {
+                  rooms: doorEngine.planText.rooms.map(({ name, widthMm, depthMm, areaM2 }) => ({
+                    name,
+                    widthMm,
+                    depthMm,
+                    areaM2,
+                  })),
+                  windowCodes: doorEngine.planText.windowCodes.map(({ heightMm, widthMm }) => ({
+                    heightMm,
+                    widthMm,
+                  })),
+                  titleAreas: Object.fromEntries(
+                    Object.entries(doorEngine.planText.titleAreas).filter(([, v]) => v != null),
+                  ) as Record<string, number>,
+                },
+              }
+            : {}),
         }
       : {}),
     // Pipeline safety (12 Jun): a geometry-less run must be LOUD, never silent — the

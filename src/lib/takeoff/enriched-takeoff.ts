@@ -121,6 +121,14 @@ export type EnrichedTakeoff = {
     confidence: "confirmed" | "flag";
     note?: string;
   }> | null;
+  /** Plan-text pass (additive, 13 Jun 2026): deterministic room footprints,
+   * printed window codes and title-block areas parsed from the floor-plan's own
+   * vector text. Absent on runs before the pass existed. */
+  plan_text?: {
+    rooms: Array<{ name: string; widthMm: number; depthMm: number; areaM2: number }>;
+    windowCodes: Array<{ heightMm: number; widthMm: number }>;
+    titleAreas: Record<string, number>;
+  };
   door_page?: {
     pageNumber: number;
     view: number[];
