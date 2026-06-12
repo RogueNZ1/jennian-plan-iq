@@ -18,4 +18,9 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # Gate order: cheapest signal first. tsc and eslint were invisible to CI
+      # until 13 Jun 2026 (66 latent type errors sailed through) — now they gate.
+      # eslint exits 0 on warnings (7 grandfathered), 1 on any error.
+      - run: npx tsc --noEmit
+      - run: npx eslint .
       - run: npx vitest run
