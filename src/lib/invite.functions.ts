@@ -58,7 +58,10 @@ function siteUrl(): string {
 }
 
 /** Verify the caller's token and enforce the owner-only invite policy. */
-async function requireInviter(admin: SupabaseClient, accessToken: string | undefined): Promise<User> {
+async function requireInviter(
+  admin: SupabaseClient,
+  accessToken: string | undefined,
+): Promise<User> {
   if (!accessToken) throw new Error("Not signed in — refresh and try again.");
   const { data, error } = await admin.auth.getUser(accessToken);
   const caller = data?.user;
@@ -79,7 +82,12 @@ async function requireInviter(admin: SupabaseClient, accessToken: string | undef
   return caller;
 }
 
-async function sendViaResend(to: string, subject: string, html: string, text: string): Promise<void> {
+async function sendViaResend(
+  to: string,
+  subject: string,
+  html: string,
+  text: string,
+): Promise<void> {
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error("RESEND_API_KEY missing");
   const res = await fetch("https://api.resend.com/emails", {
@@ -228,7 +236,10 @@ export const sendInvitationFn = createServerFn({ method: "POST" })
             options: { data: metadata },
           });
         } else if (found) {
-          await admin.from("user_invitations").update({ status: "invited", updated_at: new Date().toISOString() }).eq("id", row.id);
+          await admin
+            .from("user_invitations")
+            .update({ status: "invited", updated_at: new Date().toISOString() })
+            .eq("id", row.id);
           return {
             ok: true,
             userId: found.id,
@@ -238,7 +249,9 @@ export const sendInvitationFn = createServerFn({ method: "POST" })
         }
       }
       if (link.error || !link.data?.properties?.hashed_token) {
-        throw new Error(`Could not create invite link: ${link.error?.message ?? "no token returned"}`);
+        throw new Error(
+          `Could not create invite link: ${link.error?.message ?? "no token returned"}`,
+        );
       }
 
       userId = link.data.user?.id ?? null;
@@ -262,10 +275,13 @@ export const sendInvitationFn = createServerFn({ method: "POST" })
         : `Invitation emailed to ${row.email}.`;
     } else {
       // Fallback path: Supabase's own mailer (default template).
-      const { data: authData, error: authError } = await admin.auth.admin.inviteUserByEmail(row.email, {
-        data: metadata,
-        redirectTo: `${siteUrl()}/auth/set-password`,
-      });
+      const { data: authData, error: authError } = await admin.auth.admin.inviteUserByEmail(
+        row.email,
+        {
+          data: metadata,
+          redirectTo: `${siteUrl()}/auth/set-password`,
+        },
+      );
       userId = authData?.user?.id ?? null;
       if (authError && !alreadyActiveMsg(authError.message ?? "")) {
         throw new Error(`Supabase invite failed: ${authError.message}`);
@@ -280,14 +296,19 @@ export const sendInvitationFn = createServerFn({ method: "POST" })
       .from("user_invitations")
       .update({ status: "invited", updated_at: new Date().toISOString() })
       .eq("id", row.id);
-    if (updateError) console.warn(`[invite] Could not update invitation status: ${updateError.message}`);
+    if (updateError)
+      console.warn(`[invite] Could not update invitation status: ${updateError.message}`);
 
     await admin.from("audit_logs").insert({
       action: isResend ? "invite_resent" : "invite_sent",
       table_name: "user_invitations",
       record_id: row.id,
       actor_user_id: caller.id,
-      metadata: { email: row.email, role: row.role, via: branded ? "resend_branded" : "supabase_default" },
+      metadata: {
+        email: row.email,
+        role: row.role,
+        via: branded ? "resend_branded" : "supabase_default",
+      },
     });
 
     return { ok: true, userId, invitationId: row.id, message };

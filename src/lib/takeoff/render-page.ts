@@ -38,7 +38,7 @@ const FLOORPLAN_MAX_PX = 7000;
 const CACHE_MIN_FLOORPLAN_PX = 4000;
 
 const ELEVATION_SCALE = 2.5;
-const UNKNOWN_SCALE = 4.5;    // flattened / unclassified could be a detailed plan
+const UNKNOWN_SCALE = 4.5; // flattened / unclassified could be a detailed plan
 const DEFAULT_SCALE = 3.0;
 /** Reuse a cached non-floorplan render only if it is this wide or better. */
 const CACHE_MIN_DEFAULT_PX = 2000;
@@ -253,10 +253,17 @@ export async function renderAndUploadPlanPage(args: {
 
   const { data: ins, error: insErr } = await supabase
     .from("vision_takeoff_pages")
-    .insert({ ...registryFields, job_id: args.jobId, file_id: args.fileId, page_number: args.pageNumber, created_by: userId })
+    .insert({
+      ...registryFields,
+      job_id: args.jobId,
+      file_id: args.fileId,
+      page_number: args.pageNumber,
+      created_by: userId,
+    })
     .select("id")
     .single();
-  if (insErr || !ins) throw new Error(`Could not record vision page: ${insErr?.message ?? "no row"}`);
+  if (insErr || !ins)
+    throw new Error(`Could not record vision page: ${insErr?.message ?? "no row"}`);
 
   return {
     pageId: ins.id as string,

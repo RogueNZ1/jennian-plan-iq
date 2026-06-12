@@ -21,46 +21,95 @@ function cellVal(ws: ReturnType<typeof buildDropInSheet>, addr: string): unknown
 /** Minimal QSExportData base used across tests. */
 function base(over: Partial<QSExportData> = {}): QSExportData {
   return {
-    jobNumber: "JM-0015", clientName: "Test Client", address: "23 Main St, Feilding",
-    templateId: null, createdAt: "", floorAreaM2: 100.3, perimeterLm: 44.6,
-    firstFloorAreaM2: null, studHeightMm: 2400, alfrescoAreaM2: 0.9,
-    roofPitch: null, ridgeType: null, underlay: null, claddingType1: null, claddingType2: null,
-    windows: [], garageDoors: [], interiorDoors: [], downpipes: [], heatPumps: [],
-    extras: [], skylights: [], clientFirstName: "Test", clientSurname: "Client",
-    streetAddress: "23 Main St", addressLine2: null, city: "Feilding",
-    email: null, phone: null, jmwNumber: "JM-0015", planVersion: "1",
-    exteriorWallLengthLm: 44.6, exteriorWallHeightM: 2.4,
-    pathsPatioM2: null, drivewayM2: null, windowsByRoom: {},
-    downpipesWhite: 0, downpipesColourSteel: 0, downpipesPvcColoured: 0,
-    garageDoor48x21Std: 0, garageDoor48x21Insulated: 0,
-    garageDoor24x21Std: 0, garageDoor24x21Insulated: 0,
-    garageDoor27x21Std: 0, garageDoor27x21Insulated: 0,
-    intDoorStandard: 0, intDoorUGroove: 0, intDoorVGroove: 0,
-    intDoorBarnSlider: 0, intDoorDouble: 0, intDoorCavitySlider: 0,
-    ceilingHatch: 0, atticStair: 0, letterboxUrban: 0, washingLine: 0,
-    heatPumpWallUnit: 0, heatPumpDucted: 0, specItems: {},
+    jobNumber: "JM-0015",
+    clientName: "Test Client",
+    address: "23 Main St, Feilding",
+    templateId: null,
+    createdAt: "",
+    floorAreaM2: 100.3,
+    perimeterLm: 44.6,
+    firstFloorAreaM2: null,
+    studHeightMm: 2400,
+    alfrescoAreaM2: 0.9,
+    roofPitch: null,
+    ridgeType: null,
+    underlay: null,
+    claddingType1: null,
+    claddingType2: null,
+    windows: [],
+    garageDoors: [],
+    interiorDoors: [],
+    downpipes: [],
+    heatPumps: [],
+    extras: [],
+    skylights: [],
+    clientFirstName: "Test",
+    clientSurname: "Client",
+    streetAddress: "23 Main St",
+    addressLine2: null,
+    city: "Feilding",
+    email: null,
+    phone: null,
+    jmwNumber: "JM-0015",
+    planVersion: "1",
+    exteriorWallLengthLm: 44.6,
+    exteriorWallHeightM: 2.4,
+    pathsPatioM2: null,
+    drivewayM2: null,
+    windowsByRoom: {},
+    downpipesWhite: 0,
+    downpipesColourSteel: 0,
+    downpipesPvcColoured: 0,
+    garageDoor48x21Std: 0,
+    garageDoor48x21Insulated: 0,
+    garageDoor24x21Std: 0,
+    garageDoor24x21Insulated: 0,
+    garageDoor27x21Std: 0,
+    garageDoor27x21Insulated: 0,
+    intDoorStandard: 0,
+    intDoorUGroove: 0,
+    intDoorVGroove: 0,
+    intDoorBarnSlider: 0,
+    intDoorDouble: 0,
+    intDoorCavitySlider: 0,
+    ceilingHatch: 0,
+    atticStair: 0,
+    letterboxUrban: 0,
+    washingLine: 0,
+    heatPumpWallUnit: 0,
+    heatPumpDucted: 0,
+    specItems: {},
     openings: null,
     ...over,
   };
 }
 
 function op(type: Opening["type"], room: string | null, h: number, w: number): Opening {
-  return { type, room, height_m: h, width_m: w, glazed: type !== "sectional_door",
-           cladding: null, area_m2: h * w, source: "vision", confidence: "medium" };
+  return {
+    type,
+    room,
+    height_m: h,
+    width_m: w,
+    glazed: type !== "sectional_door",
+    cladding: null,
+    area_m2: h * w,
+    source: "vision",
+    confidence: "medium",
+  };
 }
 
 // ── Young-shaped openings (10 rows, Dining slider included) ──────────────────
 const YOUNG_OPENINGS: Opening[] = [
-  op("window",  "Bed 1 (Master)", 1.3, 1.8),
-  op("window",  "Bed 1 (Master)", 1.3, 1.8),
-  op("window",  "Bed 2",          1.3, 1.5),
-  op("window",  "Kitchen",        1.8, 0.6),
-  op("window",  "Lounge",         1.4, 1.3),
-  op("window",  "Wc",             1.1, 0.7),
-  op("window",  "Bathroom",       1.1, 0.7),
-  op("window",  "Laundry",        1.8, 0.6), // ← must be dropped (no laundry window slot)
-  op("slider",  "Dining",         2.1, 2.4), // ← must land at row 59
-  op("entrance","Entry",          2.1, 0),   // ← w=0 unresolved, must appear at row 72
+  op("window", "Bed 1 (Master)", 1.3, 1.8),
+  op("window", "Bed 1 (Master)", 1.3, 1.8),
+  op("window", "Bed 2", 1.3, 1.5),
+  op("window", "Kitchen", 1.8, 0.6),
+  op("window", "Lounge", 1.4, 1.3),
+  op("window", "Wc", 1.1, 0.7),
+  op("window", "Bathroom", 1.1, 0.7),
+  op("window", "Laundry", 1.8, 0.6), // ← must be dropped (no laundry window slot)
+  op("slider", "Dining", 2.1, 2.4), // ← must land at row 59
+  op("entrance", "Entry", 2.1, 0), // ← w=0 unresolved, must appear at row 72
 ];
 
 /** All manual-block lines (A48+) joined for matching. */
@@ -79,16 +128,22 @@ describe("buildDropInSheet — IQ Import meta block (live QS v4_1 contract)", ()
     expect(cellVal(ws, "B1")).toBe("JM-0015");
     expect(cellVal(ws, "B2")).toBe("Test Client");
     expect(cellVal(ws, "B3")).toBe("23 Main St, Feilding"); // street + city, no hardcoded fallback
-    expect(cellVal(ws, "B9")).toBe(100.3);   // floor m² → QS D4
-    expect(cellVal(ws, "B11")).toBe(0.9);    // alfresco → QS D13
-    expect(cellVal(ws, "B12")).toBe(44.6);   // ext wall lm → QS E4
-    expect(cellVal(ws, "B22")).toBe(2.4);    // ceiling in METRES (QS D20 expects m)
+    expect(cellVal(ws, "B9")).toBe(100.3); // floor m² → QS D4
+    expect(cellVal(ws, "B11")).toBe(0.9); // alfresco → QS D13
+    expect(cellVal(ws, "B12")).toBe(44.6); // ext wall lm → QS E4
+    expect(cellVal(ws, "B22")).toBe(2.4); // ceiling in METRES (QS D20 expects m)
   });
 
   it("door breakdown lands at B27-B30 (→ H187/H193/H192/H190)", () => {
-    const ws = buildDropInSheet(base({
-      doorsSource: "engine", intDoorStandard: 12, intDoorCavitySlider: 1, intDoorDouble: 4, intDoorBarnSlider: 0,
-    }));
+    const ws = buildDropInSheet(
+      base({
+        doorsSource: "engine",
+        intDoorStandard: 12,
+        intDoorCavitySlider: 1,
+        intDoorDouble: 4,
+        intDoorBarnSlider: 0,
+      }),
+    );
     expect(cellVal(ws, "B27")).toBe(12);
     expect(cellVal(ws, "B28")).toBe(1);
     expect(cellVal(ws, "B29")).toBe(4);
@@ -148,14 +203,16 @@ describe("buildDropInSheet — window slots (rows 33-45, B=Qty C=HEIGHT D=WIDTH)
   });
 
   it("relational windowsByRoom fallback fills the same slots; kitchenExtra folds into kitchen", () => {
-    const ws = buildDropInSheet(base({
-      openings: null,
-      windowsByRoom: {
-        bed1: { qty: 2, height: 1.3, width: 1.8 },
-        kitchen: { qty: 1, height: 1.8, width: 0.6 },
-        kitchenExtra: { qty: 1, height: 0.6, width: 2.4 },
-      } as QSExportData["windowsByRoom"],
-    }));
+    const ws = buildDropInSheet(
+      base({
+        openings: null,
+        windowsByRoom: {
+          bed1: { qty: 2, height: 1.3, width: 1.8 },
+          kitchen: { qty: 1, height: 1.8, width: 0.6 },
+          kitchenExtra: { qty: 1, height: 0.6, width: 2.4 },
+        } as QSExportData["windowsByRoom"],
+      }),
+    );
     expect([cellVal(ws, "B33"), cellVal(ws, "C33"), cellVal(ws, "D33")]).toEqual([2, 1.3, 1.8]);
     expect([cellVal(ws, "B39"), cellVal(ws, "C39"), cellVal(ws, "D39")]).toEqual([1, 1.8, 0.6]);
     expect(manualBlock(ws)).toMatch(/Kitchen: 1 more @ 0\.6H × 2\.4W/); // second dim-group → manual
@@ -164,13 +221,15 @@ describe("buildDropInSheet — window slots (rows 33-45, B=Qty C=HEIGHT D=WIDTH)
 
 describe("buildDropInSheet — multi-dims per room: slot takes group 1, manual block takes the rest", () => {
   it("JM-0020 lounge: 2× window in the slot, slider in the manual block with overflow row 63", () => {
-    const ws = buildDropInSheet(base({
-      openings: [
-        op("window", "Lounge", 1.3, 1.8),
-        op("window", "Lounge", 1.3, 1.8),
-        op("slider", "Lounge", 2.1, 2.4),
-      ],
-    }));
+    const ws = buildDropInSheet(
+      base({
+        openings: [
+          op("window", "Lounge", 1.3, 1.8),
+          op("window", "Lounge", 1.3, 1.8),
+          op("slider", "Lounge", 2.1, 2.4),
+        ],
+      }),
+    );
     expect([cellVal(ws, "B42"), cellVal(ws, "C42"), cellVal(ws, "D42")]).toEqual([2, 1.3, 1.8]);
     const m = manualBlock(ws);
     expect(m).toMatch(/Lounge: 1 more @ 2\.1H × 2\.4W.*row 63/);
@@ -178,9 +237,11 @@ describe("buildDropInSheet — multi-dims per room: slot takes group 1, manual b
   });
 
   it("same-dims openings aggregate without any manual lines", () => {
-    const ws = buildDropInSheet(base({
-      openings: [op("window", "Lounge", 1.8, 0.8), op("window", "Lounge", 1.8, 0.8)],
-    }));
+    const ws = buildDropInSheet(
+      base({
+        openings: [op("window", "Lounge", 1.8, 0.8), op("window", "Lounge", 1.8, 0.8)],
+      }),
+    );
     expect(cellVal(ws, "B42")).toBe(2);
     expect(manualBlock(ws)).not.toMatch(/Lounge: \d+ more/);
   });
@@ -207,18 +268,25 @@ describe("buildDropInSheet — garage door 1 (row 44) + size string B24", () => 
   });
 
   it("two distinct canonical sizes → first on row 44, second in the manual block", () => {
-    const ws = buildDropInSheet(base({
-      openings: [op("sectional_door", "Garage", 2.1, 4.8), op("sectional_door", "Garage", 2.1, 3.0)],
-    }));
+    const ws = buildDropInSheet(
+      base({
+        openings: [
+          op("sectional_door", "Garage", 2.1, 4.8),
+          op("sectional_door", "Garage", 2.1, 3.0),
+        ],
+      }),
+    );
     expect(cellVal(ws, "B24")).toBe("4.8x2.1");
     expect(manualBlock(ws)).toMatch(/Garage door 3×2\.1 ×1/);
   });
 
   it("relational counters win over canonical sectionals (insulation knowledge)", () => {
-    const ws = buildDropInSheet(base({
-      garageDoor24x21Std: 1,
-      openings: [op("sectional_door", "Garage", 2.1, 4.8)],
-    }));
+    const ws = buildDropInSheet(
+      base({
+        garageDoor24x21Std: 1,
+        openings: [op("sectional_door", "Garage", 2.1, 4.8)],
+      }),
+    );
     expect(cellVal(ws, "B24")).toBe("2.4x2.1");
     expect([cellVal(ws, "C44"), cellVal(ws, "D44")]).toEqual([2.1, 2.4]);
   });
@@ -229,7 +297,9 @@ describe("module-item reads — APPROVED value wins over raw extraction", () => 
   // over a human approval was silent margin erosion on every module-sourced field.
   it("approved > extracted > null", async () => {
     const { pickModuleValue } = await import("../../src/lib/iq-qs-export");
-    expect(pickModuleValue({ approved_value: "Brick Veneer", extracted_value: "Linea" })).toBe("Brick Veneer");
+    expect(pickModuleValue({ approved_value: "Brick Veneer", extracted_value: "Linea" })).toBe(
+      "Brick Veneer",
+    );
     expect(pickModuleValue({ approved_value: null, extracted_value: "Linea" })).toBe("Linea");
     expect(pickModuleValue({ approved_value: null, extracted_value: null })).toBeNull();
     expect(pickModuleValue(undefined)).toBeNull();
@@ -257,13 +327,25 @@ describe("CLADDING (ENGINE) block on the IQ Import sheet", () => {
   }
 
   it("flag-free single-type house renders all four provable terms + per-type net", () => {
-    const ws = buildDropInSheet(base({
-      perimeterLm: 52, studHeightMm: 2400, claddingType1: "Brick Veneer",
-      elevationSummary: { roofType: "Gable", roofPitchDegrees: 25, externalDoorCount: 1,
-        gableEndCount: 0, drivewayConcretM2: null, patioConcreteM2: null, totalConcreteM2: null,
-        windowCountMatch: null, windowCountWarning: null },
-      openings: [op("window", "Lounge", 1.3, 1.8)],
-    }));
+    const ws = buildDropInSheet(
+      base({
+        perimeterLm: 52,
+        studHeightMm: 2400,
+        claddingType1: "Brick Veneer",
+        elevationSummary: {
+          roofType: "Gable",
+          roofPitchDegrees: 25,
+          externalDoorCount: 1,
+          gableEndCount: 0,
+          drivewayConcretM2: null,
+          patioConcreteM2: null,
+          totalConcreteM2: null,
+          windowCountMatch: null,
+          windowCountWarning: null,
+        },
+        openings: [op("window", "Lounge", 1.3, 1.8)],
+      }),
+    );
     const t = blockText(ws);
     expect(t).toMatch(/Wall \(perimeter × stud\): 124.8 m²/);
     expect(t).toMatch(/Gables: 0 m²/);
@@ -273,13 +355,25 @@ describe("CLADDING (ENGINE) block on the IQ Import sheet", () => {
   });
 
   it("gabled house without measured span: NET NOT COMPUTED + flag — never a guess", () => {
-    const ws = buildDropInSheet(base({
-      perimeterLm: 52, studHeightMm: 2400, claddingType1: "Linea",
-      elevationSummary: { roofType: "Gable", roofPitchDegrees: 25, externalDoorCount: 1,
-        gableEndCount: 2, drivewayConcretM2: null, patioConcreteM2: null, totalConcreteM2: null,
-        windowCountMatch: null, windowCountWarning: null },
-      openings: [],
-    }));
+    const ws = buildDropInSheet(
+      base({
+        perimeterLm: 52,
+        studHeightMm: 2400,
+        claddingType1: "Linea",
+        elevationSummary: {
+          roofType: "Gable",
+          roofPitchDegrees: 25,
+          externalDoorCount: 1,
+          gableEndCount: 2,
+          drivewayConcretM2: null,
+          patioConcreteM2: null,
+          totalConcreteM2: null,
+          windowCountMatch: null,
+          windowCountWarning: null,
+        },
+        openings: [],
+      }),
+    );
     const t = blockText(ws);
     expect(t).toMatch(/NET CLADDING: NOT COMPUTED/);
     expect(t).toMatch(/gable span not measured/);
@@ -294,28 +388,45 @@ describe("CLADDING (ENGINE) block on the IQ Import sheet", () => {
 describe("dropInSheetToTSV — clipboard paste block", () => {
   it("emits the exact sheet as TSV: meta, slots, doors, cladding block", async () => {
     const { dropInSheetToTSV } = await import("../../src/lib/iq-qs-export");
-    const tsv = dropInSheetToTSV(base({
-      openings: [op("window", "Bed 1", 1.3, 1.8), op("window", "Bed 1", 1.3, 1.8)],
-      doorsSource: "engine", intDoorStandard: 6, intDoorCavitySlider: 1,
-    }));
+    const tsv = dropInSheetToTSV(
+      base({
+        openings: [op("window", "Bed 1", 1.3, 1.8), op("window", "Bed 1", 1.3, 1.8)],
+        doorsSource: "engine",
+        intDoorStandard: 6,
+        intDoorCavitySlider: 1,
+      }),
+    );
     const lines = tsv.split("\n");
-    expect(lines[0]).toBe("Job Number\tJM-0015\t\t\t\t");      // A1:F1
-    expect(lines[32]).toBe("Bed 1\t2\t1.3\t1.8\t\t");           // row 33 slot
-    expect(lines[26]).toMatch(/^— Standard hinged\t6\t/);        // B27
+    expect(lines[0]).toBe("Job Number\tJM-0015\t\t\t\t"); // A1:F1
+    expect(lines[32]).toBe("Bed 1\t2\t1.3\t1.8\t\t"); // row 33 slot
+    expect(lines[26]).toMatch(/^— Standard hinged\t6\t/); // B27
     expect(tsv).toMatch(/CLADDING \(ENGINE\)/);
-    expect(tsv).not.toMatch(/\t.*\t.*\t.*\t.*\t.*\t/);           // never >6 columns
+    expect(tsv).not.toMatch(/\t.*\t.*\t.*\t.*\t.*\t/); // never >6 columns
   });
 });
 
 describe("CLADDING V1.1 — gable span from geometry on the sheet", () => {
   it("gabled house WITH measured span: NET computed + envelope verify-note", () => {
-    const ws = buildDropInSheet(base({
-      perimeterLm: 52, studHeightMm: 2400, claddingType1: "Linea", gableSpanM: 10,
-      elevationSummary: { roofType: "Gable", roofPitchDegrees: 25, externalDoorCount: 1,
-        gableEndCount: 2, drivewayConcretM2: null, patioConcreteM2: null, totalConcreteM2: null,
-        windowCountMatch: null, windowCountWarning: null },
-      openings: [],
-    }));
+    const ws = buildDropInSheet(
+      base({
+        perimeterLm: 52,
+        studHeightMm: 2400,
+        claddingType1: "Linea",
+        gableSpanM: 10,
+        elevationSummary: {
+          roofType: "Gable",
+          roofPitchDegrees: 25,
+          externalDoorCount: 1,
+          gableEndCount: 2,
+          drivewayConcretM2: null,
+          patioConcreteM2: null,
+          totalConcreteM2: null,
+          windowCountMatch: null,
+          windowCountWarning: null,
+        },
+        openings: [],
+      }),
+    );
     let t = "";
     for (let r = 47; r < 110; r++) {
       const v = cellVal(ws, `A${r}`);

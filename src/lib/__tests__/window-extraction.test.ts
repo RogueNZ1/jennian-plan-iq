@@ -82,13 +82,15 @@ describe("window-extraction — HEIGHT_x_WIDTH dimension parsing", () => {
     // so an opening flagged nearOpening:true at this size is trusted and counted.
     const result = classifyAnnotations(
       raw({
-        openingAnnotations: [
-          { text: "2400x3600", nearestRoomLabel: "KITCHEN", nearOpening: true },
-        ],
+        openingAnnotations: [{ text: "2400x3600", nearestRoomLabel: "KITCHEN", nearOpening: true }],
       }),
       ctx("HEIGHT_x_WIDTH"),
     );
-    expect(result.windows_by_room?.["Kitchen"]).toMatchObject({ qty: 1, height_m: 2.4, width_m: 3.6 });
+    expect(result.windows_by_room?.["Kitchen"]).toMatchObject({
+      qty: 1,
+      height_m: 2.4,
+      width_m: 3.6,
+    });
   });
 
   it("4131x3250 room dim (Master Bed ground truth) with nearOpening=true is rejected", () => {
@@ -140,9 +142,7 @@ describe("window-extraction — WIDTH_x_HEIGHT format", () => {
     // In WIDTH_x_HEIGHT: first number is width, second is height
     const result = classifyAnnotations(
       raw({
-        openingAnnotations: [
-          { text: "1500x1300", nearestRoomLabel: "LOUNGE", nearOpening: true },
-        ],
+        openingAnnotations: [{ text: "1500x1300", nearestRoomLabel: "LOUNGE", nearOpening: true }],
       }),
       ctx("WIDTH_x_HEIGHT"),
     );
@@ -176,9 +176,7 @@ describe("window-extraction — room-footprint backstop (Phase 2e: ≥3000mm bot
   it("2000x1200 is a window (well under room scale)", () => {
     const result = classifyAnnotations(
       raw({
-        openingAnnotations: [
-          { text: "2000x1200", nearestRoomLabel: "KITCHEN", nearOpening: true },
-        ],
+        openingAnnotations: [{ text: "2000x1200", nearestRoomLabel: "KITCHEN", nearOpening: true }],
       }),
       ctx("HEIGHT_x_WIDTH"),
     );
@@ -190,9 +188,7 @@ describe("window-extraction — room-footprint backstop (Phase 2e: ≥3000mm bot
     // nearOpening below room-footprint scale (both dims must reach 3000mm to be a box).
     const result = classifyAnnotations(
       raw({
-        openingAnnotations: [
-          { text: "2001x2001", nearestRoomLabel: "KITCHEN", nearOpening: true },
-        ],
+        openingAnnotations: [{ text: "2001x2001", nearestRoomLabel: "KITCHEN", nearOpening: true }],
       }),
       ctx("HEIGHT_x_WIDTH"),
     );
@@ -201,13 +197,17 @@ describe("window-extraction — room-footprint backstop (Phase 2e: ≥3000mm bot
 
   it("2999x2999 is kept; 3000x3000 (room footprint) is dropped — the ≥3000 boundary", () => {
     const kept = classifyAnnotations(
-      raw({ openingAnnotations: [{ text: "2999x2999", nearestRoomLabel: "KITCHEN", nearOpening: true }] }),
+      raw({
+        openingAnnotations: [{ text: "2999x2999", nearestRoomLabel: "KITCHEN", nearOpening: true }],
+      }),
       ctx("HEIGHT_x_WIDTH"),
     );
     expect(kept.windows_by_room?.["Kitchen"]?.qty).toBe(1);
 
     const dropped = classifyAnnotations(
-      raw({ openingAnnotations: [{ text: "3000x3000", nearestRoomLabel: "KITCHEN", nearOpening: true }] }),
+      raw({
+        openingAnnotations: [{ text: "3000x3000", nearestRoomLabel: "KITCHEN", nearOpening: true }],
+      }),
       ctx("HEIGHT_x_WIDTH"),
     );
     expect(dropped.windows_by_room?.["Kitchen"]).toBeUndefined();

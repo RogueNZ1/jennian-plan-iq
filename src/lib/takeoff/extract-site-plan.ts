@@ -62,14 +62,17 @@ function extractJson(text: string): string {
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
   if (start !== -1 && end > start) cleaned = cleaned.slice(start, end + 1);
-  cleaned = cleaned
-    .replace(/,(\s*[}\]])/g, "$1")
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+  // eslint-disable-next-line no-control-regex -- deliberate control-character sanitizer for AI JSON output
+  cleaned = cleaned.replace(/,(\s*[}\]])/g, "$1").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
   return cleaned;
 }
 
 function safeParseJson<T>(raw: string): T | null {
-  try { return JSON.parse(extractJson(raw)) as T; } catch { return null; }
+  try {
+    return JSON.parse(extractJson(raw)) as T;
+  } catch {
+    return null;
+  }
 }
 
 export const extractSitePlanFn = createServerFn({ method: "POST" })
@@ -113,15 +116,23 @@ export const extractSitePlanFn = createServerFn({ method: "POST" })
       throw new Error(`Anthropic API error ${res.status}: ${text.slice(0, 200)}`);
     }
 
-    const json = await res.json() as { content?: Array<{ type: string; text?: string }> };
-    const raw = json.content?.filter((b) => b.type === "text").map((b) => b.text ?? "").join("") ?? "";
+    const json = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+    const raw =
+      json.content
+        ?.filter((b) => b.type === "text")
+        .map((b) => b.text ?? "")
+        .join("") ?? "";
 
     const parsed = safeParseJson<SitePlanData>(raw);
     if (!parsed) {
       console.error("[extractSitePlan] JSON parse failed:", raw.slice(0, 500));
       return {
-        concreteAreas: [], totalConcreteM2: 0, drivewayConcretM2: null,
-        patioConcreteM2: null, totalCoverageM2: null, perimeterM: null,
+        concreteAreas: [],
+        totalConcreteM2: 0,
+        drivewayConcretM2: null,
+        patioConcreteM2: null,
+        totalCoverageM2: null,
+        perimeterM: null,
       };
     }
 
@@ -132,14 +143,16 @@ export const extractSitePlanFn = createServerFn({ method: "POST" })
         areaM2: typeof a.areaM2 === "number" ? a.areaM2 : 0,
       }));
 
-    const totalConcreteM2 = typeof parsed.totalConcreteM2 === "number"
-      ? parsed.totalConcreteM2
-      : areas.reduce((s, a) => s + a.areaM2, 0);
+    const totalConcreteM2 =
+      typeof parsed.totalConcreteM2 === "number"
+        ? parsed.totalConcreteM2
+        : areas.reduce((s, a) => s + a.areaM2, 0);
 
     return {
       concreteAreas: areas,
       totalConcreteM2,
-      drivewayConcretM2: typeof parsed.drivewayConcretM2 === "number" ? parsed.drivewayConcretM2 : null,
+      drivewayConcretM2:
+        typeof parsed.drivewayConcretM2 === "number" ? parsed.drivewayConcretM2 : null,
       patioConcreteM2: typeof parsed.patioConcreteM2 === "number" ? parsed.patioConcreteM2 : null,
       totalCoverageM2: typeof parsed.totalCoverageM2 === "number" ? parsed.totalCoverageM2 : null,
       perimeterM: typeof parsed.perimeterM === "number" ? parsed.perimeterM : null,

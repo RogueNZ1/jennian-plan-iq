@@ -22,7 +22,15 @@ export function HouseFrame({ className }: { className?: string }) {
       </g>
 
       {/* ground line */}
-      <line x1="14" y1="118" x2="266" y2="118" stroke="currentColor" strokeWidth="0.9" opacity="0.85" />
+      <line
+        x1="14"
+        y1="118"
+        x2="266"
+        y2="118"
+        stroke="currentColor"
+        strokeWidth="0.9"
+        opacity="0.85"
+      />
 
       {/* main residential elevation — single storey with gable + lean-to */}
       <g stroke="currentColor" strokeWidth="0.9" opacity="0.85">

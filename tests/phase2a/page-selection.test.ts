@@ -69,12 +69,23 @@ describe("FLOORPLAN_SCORE / scoreFor — floor_plan outranks dimension_floor_pla
   });
 
   it("a high-confidence floor plan scores above a high-confidence dimension plan", () => {
-    expect(scoreFor("floor_plan", "high")).toBeGreaterThan(scoreFor("dimension_floor_plan", "high"));
+    expect(scoreFor("floor_plan", "high")).toBeGreaterThan(
+      scoreFor("dimension_floor_plan", "high"),
+    );
   });
 
   it("floor-plan family outscores every disqualifier type", () => {
     const floor = scoreFor("floor_plan", "high");
-    for (const t of ["site_plan", "elevations", "sections", "legends", "electrical", "plumbing", "roofing", "details"] as const) {
+    for (const t of [
+      "site_plan",
+      "elevations",
+      "sections",
+      "legends",
+      "electrical",
+      "plumbing",
+      "roofing",
+      "details",
+    ] as const) {
       expect(floor).toBeGreaterThan(scoreFor(t, "high"));
     }
   });

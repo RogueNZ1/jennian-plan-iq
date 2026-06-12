@@ -30,7 +30,11 @@ import type { TakeoffData } from "./takeoff-types";
 import type { VectorAnnotations } from "./geometry-api";
 import type { WindowScheduleData, ScheduleWindow } from "./extract-window-schedule";
 import { classifyGarageDoorAnnotation, parseDimsMm } from "./classify";
-import { computeOpeningAreaM2, computeExternalWallAreaM2, ASSUMED_WIDTH_FLAG } from "./derive-fields";
+import {
+  computeOpeningAreaM2,
+  computeExternalWallAreaM2,
+  ASSUMED_WIDTH_FLAG,
+} from "./derive-fields";
 
 /**
  * How close (mm) a schedule window's read height must sit to the engine's head datum
@@ -255,7 +259,11 @@ export function resolveOpeningWidths(
       return { widths_mm, source: "vector", preferred_vector: true };
     }
   }
-  return { widths_mm: [...visionWidthsMm].sort((a, b) => a - b), source: "vision", preferred_vector: false };
+  return {
+    widths_mm: [...visionWidthsMm].sort((a, b) => a - b),
+    source: "vision",
+    preferred_vector: false,
+  };
 }
 
 /**
@@ -316,9 +324,7 @@ export interface EntranceResolution {
  * usable text layer and an entry-type label was found; otherwise a null resolution (the
  * takeoff keeps whatever it had).
  */
-export function resolveEntrance(
-  vector: VectorAnnotations | undefined | null,
-): EntranceResolution {
+export function resolveEntrance(vector: VectorAnnotations | undefined | null): EntranceResolution {
   if (vector?.vector_usable && vector.entrance) {
     const e = vector.entrance;
     return {
@@ -370,9 +376,7 @@ export function preferVectorEntrance(
  * recomputed. Returns an empty string when there is no usable vector entrance so callers can
  * `.filter(Boolean)`.
  */
-export function entranceAssumptionNote(
-  vector: VectorAnnotations | undefined | null,
-): string {
+export function entranceAssumptionNote(vector: VectorAnnotations | undefined | null): string {
   const res = resolveEntrance(vector);
   if (!res.applied || res.entrance == null) return "";
   const h = res.entrance.height_m;

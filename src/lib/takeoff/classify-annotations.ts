@@ -1,9 +1,15 @@
-import type { RawAnnotations } from './extract-annotations';
-import type { PlanContext } from './plan-context';
-import type { TakeoffData, WindowsByRoom } from './takeoff-types';
-import { normaliseRoomName, classifyGarageDoorAnnotation, parseDimsMm } from './classify';
-import { computeOpeningAreaM2, computeExternalWallAreaM2, computeTotalAreaM2, deriveOpenings, deriveOpeningTotals } from './derive-fields';
-import { round2 } from './utils';
+import type { RawAnnotations } from "./extract-annotations";
+import type { PlanContext } from "./plan-context";
+import type { TakeoffData, WindowsByRoom } from "./takeoff-types";
+import { normaliseRoomName, classifyGarageDoorAnnotation, parseDimsMm } from "./classify";
+import {
+  computeOpeningAreaM2,
+  computeExternalWallAreaM2,
+  computeTotalAreaM2,
+  deriveOpenings,
+  deriveOpeningTotals,
+} from "./derive-fields";
+import { round2 } from "./utils";
 
 interface ParsedDimension {
   heightMm: number;
@@ -19,13 +25,14 @@ interface ParsedDimension {
  * Anything that isn't a clean two-number callout (a lone leaf size like "810", or
  * a noisy string) returns null and is skipped, exactly as before.
  */
-function parseDimension(text: string, format: PlanContext['dimensionFormat']): ParsedDimension | null {
+function parseDimension(
+  text: string,
+  format: PlanContext["dimensionFormat"],
+): ParsedDimension | null {
   const dims = parseDimsMm(text);
   if (dims.length !== 2) return null;
   const [a, b] = dims;
-  return format === 'HEIGHT_x_WIDTH'
-    ? { heightMm: a, widthMm: b }
-    : { heightMm: b, widthMm: a };
+  return format === "HEIGHT_x_WIDTH" ? { heightMm: a, widthMm: b } : { heightMm: b, widthMm: a };
 }
 
 /**
@@ -52,7 +59,7 @@ export function classifyAnnotations(raw: RawAnnotations, context: PlanContext): 
     // Backstop: drop only genuine room footprints (both dims ≥ room scale), never
     // a tall slider. nearOpening (gated above) is the primary discriminator.
     if (dim.heightMm >= ROOM_BOX_MIN_MM && dim.widthMm >= ROOM_BOX_MIN_MM) continue;
-    const room = normaliseRoomName(ann.nearestRoomLabel ?? 'Unknown');
+    const room = normaliseRoomName(ann.nearestRoomLabel ?? "Unknown");
     if (windowsMap[room]) {
       windowsMap[room].qty += 1;
     } else {
@@ -96,10 +103,10 @@ export function classifyAnnotations(raw: RawAnnotations, context: PlanContext): 
   const countMatchingAny = (...needles: string[]) =>
     roomLabelsLower.filter((r) => needles.some((n) => r.includes(n))).length;
 
-  const bathroom_count = countMatchingAny('bath') || null;
-  const ensuite_count = countMatchingAny('ensuite', ' ens') || null;
-  const laundry_count = countMatchingAny('laundry', 'utility') || null;
-  const kitchen_count = countMatchingAny('kitchen', 'kitch') || null;
+  const bathroom_count = countMatchingAny("bath") || null;
+  const ensuite_count = countMatchingAny("ensuite", " ens") || null;
+  const laundry_count = countMatchingAny("laundry", "utility") || null;
+  const kitchen_count = countMatchingAny("kitchen", "kitch") || null;
 
   // ── Derived metrics ──────────────────────────────────────────────────────────
   const floor_area = round2(living);
@@ -119,7 +126,11 @@ export function classifyAnnotations(raw: RawAnnotations, context: PlanContext): 
     windowsByRoom: Object.keys(windows_by_room).length > 0 ? windows_by_room : null,
     garageDoorSize: garage_door_size,
   });
-  const external_wall_area_m2 = computeExternalWallAreaM2(perimeterM, ceiling_height_m, opening_area_m2);
+  const external_wall_area_m2 = computeExternalWallAreaM2(
+    perimeterM,
+    ceiling_height_m,
+    opening_area_m2,
+  );
   const total_area_m2 = computeTotalAreaM2(floor_area, alfresco_area);
 
   // ── Stage 1: flat per-opening list (additive, alongside windows_by_room) ───────
@@ -134,9 +145,10 @@ export function classifyAnnotations(raw: RawAnnotations, context: PlanContext): 
 
   // Alfresco is a known-fuzzy read (QS-side number doesn't always equal the plan's
   // printed porch). Flag it low-confidence for human confirm when present.
-  const notes = alfresco_area !== null
-    ? 'alfresco_area_m2 read from the porch/alfresco label — low confidence; confirm against QS.'
-    : '';
+  const notes =
+    alfresco_area !== null
+      ? "alfresco_area_m2 read from the porch/alfresco label — low confidence; confirm against QS."
+      : "";
 
   // ── Roof area (1.15× floor area as default — no pitch data at this stage) ──
   const roof_area_m2 = floor_area !== null ? round2(floor_area * 1.15) : null;

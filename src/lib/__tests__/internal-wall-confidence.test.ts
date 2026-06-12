@@ -21,12 +21,7 @@ function room(label: string, width_m = 4.0, depth_m = 3.5): RoomEntry {
 
 describe("scoreInternalWallConfidence — high confidence", () => {
   it("4 main rooms on 135m² house → high (expected=4, found=4)", () => {
-    const rooms = [
-      room("MASTER BED"),
-      room("LOUNGE"),
-      room("KITCHEN"),
-      room("DINING"),
-    ];
+    const rooms = [room("MASTER BED"), room("LOUNGE"), room("KITCHEN"), room("DINING")];
     const { confidence, mainRoomCount } = scoreInternalWallConfidence(rooms, 135);
     expect(confidence).toBe("high");
     expect(mainRoomCount).toBe(4);
@@ -117,10 +112,10 @@ describe("scoreInternalWallConfidence — unlabelled rooms", () => {
     // OCR misses the label but reads the dimension box — unlabelled large room
     // is almost certainly a habitable main room
     const rooms = [
-      room(""),        // unlabelled → main
-      room(""),        // unlabelled → main
-      room(""),        // unlabelled → main
-      room(""),        // unlabelled → main
+      room(""), // unlabelled → main
+      room(""), // unlabelled → main
+      room(""), // unlabelled → main
+      room(""), // unlabelled → main
     ];
     const { confidence, mainRoomCount } = scoreInternalWallConfidence(rooms, 135);
     expect(mainRoomCount).toBe(4);
@@ -129,9 +124,9 @@ describe("scoreInternalWallConfidence — unlabelled rooms", () => {
 
   it("mix of labelled main + unlabelled → all count", () => {
     const rooms = [
-      room("LOUNGE"),   // main
-      room(""),         // unlabelled → main
-      room("WC"),       // service → not counted
+      room("LOUNGE"), // main
+      room(""), // unlabelled → main
+      room("WC"), // service → not counted
     ];
     const { confidence, mainRoomCount } = scoreInternalWallConfidence(rooms, 110);
     // 110m² → expected=3; found=2 → medium

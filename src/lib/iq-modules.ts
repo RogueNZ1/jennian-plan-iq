@@ -105,46 +105,145 @@ export type ModuleAuditLog = {
 
 export const IQ_MODULES: IQModule[] = [
   {
-    id: "iq-core", name: "IQ Core",
+    id: "iq-core",
+    name: "IQ Core",
     shortDescription: "Architectural quantity review.",
-    longDescription: "Core architectural geometry — areas, perimeters, schedules and pitches that drive every downstream trade package.",
-    exportSheet: "Core", required: true,
+    longDescription:
+      "Core architectural geometry — areas, perimeters, schedules and pitches that drive every downstream trade package.",
+    exportSheet: "Core",
+    required: true,
     items: [
       { key: "house_area", description: "House Area", unit: "m²", range: [110, 240], decimals: 2 },
-      { key: "foundation_area", description: "Foundation Area", unit: "m²", range: [115, 250], decimals: 2 },
+      {
+        key: "foundation_area",
+        description: "Foundation Area",
+        unit: "m²",
+        range: [115, 250],
+        decimals: 2,
+      },
       { key: "roof_area", description: "Roof Area", unit: "m²", range: [130, 280], decimals: 2 },
       { key: "roof_pitch", description: "Roof Pitch", unit: "°", range: [15, 35] },
-      { key: "external_perimeter", description: "External Perimeter", unit: "lm", range: [40, 95], decimals: 2 },
-      { key: "internal_wall_length", description: "Internal Wall Length", unit: "lm", range: [45, 120], decimals: 2 },
+      {
+        key: "external_perimeter",
+        description: "External Perimeter",
+        unit: "lm",
+        range: [40, 95],
+        decimals: 2,
+      },
+      {
+        key: "internal_wall_length",
+        description: "Internal Wall Length",
+        unit: "lm",
+        range: [45, 120],
+        decimals: 2,
+      },
       { key: "garage_area", description: "Garage Area", unit: "m²", range: [18, 42], decimals: 2 },
       { key: "living_area", description: "Living Area", unit: "m²", range: [85, 200], decimals: 2 },
     ],
   },
   {
-    id: "iq-electrical", name: "IQ Electrical",
+    id: "iq-electrical",
+    name: "IQ Electrical",
     shortDescription: "Electrical points, lighting and appliance schedule.",
-    longDescription: "Electrical takeoff for power, lighting, low-voltage and appliance points. Early-stage allowances until a marked-up electrical plan is available.",
-    exportSheet: "Electrical", required: false,
+    longDescription:
+      "Electrical takeoff for power, lighting, low-voltage and appliance points. Early-stage allowances until a marked-up electrical plan is available.",
+    exportSheet: "Electrical",
+    required: false,
     items: [
-      { key: "single_power", description: "Single Power Points", unit: "qty", range: [4, 14], basis: "Appliance-specific allowance" },
-      { key: "double_power", description: "Double Power Points", unit: "qty", range: [18, 48], basis: "Room-based allowance" },
-      { key: "switches", description: "Switches", unit: "qty", range: [12, 32], basis: "Room-based allowance" },
-      { key: "downlights", description: "Downlights", unit: "qty", range: [22, 60], basis: "Room-based allowance" },
-      { key: "exterior_lights", description: "Exterior Lights", unit: "qty", range: [4, 12], basis: "Specification allowance" },
-      { key: "smoke_detectors", description: "Smoke Detectors", unit: "qty", range: [2, 6], basis: "1 per bedroom + hallway + living" },
-      { key: "extractor_fans", description: "Extractor Fans", unit: "qty", range: [1, 4], basis: "1 per bathroom, ensuite, laundry" },
-      { key: "cat6_points", description: "Data Points (CAT6)", unit: "qty", range: [2, 8], basis: "Specification allowance" },
-      { key: "tv_points", description: "TV Points", unit: "qty", range: [1, 5], basis: "Specification allowance" },
-      { key: "exterior_pp", description: "Exterior Power Points", unit: "qty", range: [2, 5], basis: "Specification allowance" },
-      { key: "appliance_outlets", description: "Kitchen Appliance Outlets", unit: "qty", range: [4, 10], basis: "Selected kitchen appliances" },
-      { key: "garage_motor", description: "Garage Door Outlet", unit: "qty", range: [1, 2], basis: "1 per motorised garage door" },
+      {
+        key: "single_power",
+        description: "Single Power Points",
+        unit: "qty",
+        range: [4, 14],
+        basis: "Appliance-specific allowance",
+      },
+      {
+        key: "double_power",
+        description: "Double Power Points",
+        unit: "qty",
+        range: [18, 48],
+        basis: "Room-based allowance",
+      },
+      {
+        key: "switches",
+        description: "Switches",
+        unit: "qty",
+        range: [12, 32],
+        basis: "Room-based allowance",
+      },
+      {
+        key: "downlights",
+        description: "Downlights",
+        unit: "qty",
+        range: [22, 60],
+        basis: "Room-based allowance",
+      },
+      {
+        key: "exterior_lights",
+        description: "Exterior Lights",
+        unit: "qty",
+        range: [4, 12],
+        basis: "Specification allowance",
+      },
+      {
+        key: "smoke_detectors",
+        description: "Smoke Detectors",
+        unit: "qty",
+        range: [2, 6],
+        basis: "1 per bedroom + hallway + living",
+      },
+      {
+        key: "extractor_fans",
+        description: "Extractor Fans",
+        unit: "qty",
+        range: [1, 4],
+        basis: "1 per bathroom, ensuite, laundry",
+      },
+      {
+        key: "cat6_points",
+        description: "Data Points (CAT6)",
+        unit: "qty",
+        range: [2, 8],
+        basis: "Specification allowance",
+      },
+      {
+        key: "tv_points",
+        description: "TV Points",
+        unit: "qty",
+        range: [1, 5],
+        basis: "Specification allowance",
+      },
+      {
+        key: "exterior_pp",
+        description: "Exterior Power Points",
+        unit: "qty",
+        range: [2, 5],
+        basis: "Specification allowance",
+      },
+      {
+        key: "appliance_outlets",
+        description: "Kitchen Appliance Outlets",
+        unit: "qty",
+        range: [4, 10],
+        basis: "Selected kitchen appliances",
+      },
+      {
+        key: "garage_motor",
+        description: "Garage Door Outlet",
+        unit: "qty",
+        range: [1, 2],
+        basis: "1 per motorised garage door",
+      },
     ],
   },
   {
-    id: "iq-plumbing", name: "IQ Plumbing",
+    id: "iq-plumbing",
+    name: "IQ Plumbing",
     shortDescription: "Fixture and plumbing schedule.",
-    longDescription: "Fixture schedule across kitchen, bathroom, laundry and exterior — feeds the plumbing supplier RFQ.",
-    exportSheet: "Plumbing", required: false,
+    longDescription:
+      "Fixture schedule across kitchen, bathroom, laundry and exterior — feeds the plumbing supplier RFQ.",
+    exportSheet: "Plumbing",
+    required: false,
     items: [
       { key: "toilets", description: "Toilets", unit: "qty", range: [1, 4] },
       { key: "vanities", description: "Vanities", unit: "qty", range: [1, 4] },
@@ -159,15 +258,42 @@ export const IQ_MODULES: IQModule[] = [
     ],
   },
   {
-    id: "iq-linings", name: "IQ Linings",
+    id: "iq-linings",
+    name: "IQ Linings",
     shortDescription: "Interior linings and trim.",
-    longDescription: "GIB, Aqualine, Hardiegroove, ply and finishing trim across all interior surfaces.",
-    exportSheet: "Linings", required: true,
+    longDescription:
+      "GIB, Aqualine, Hardiegroove, ply and finishing trim across all interior surfaces.",
+    exportSheet: "Linings",
+    required: true,
     items: [
-      { key: "std_gib_walls", description: "Standard Gib — Walls", unit: "m²", range: [180, 360], decimals: 2 },
-      { key: "aqualine_walls", description: "Aqualine — Walls", unit: "m²", range: [25, 70], decimals: 2 },
-      { key: "std_ceilings", description: "Standard Ceilings", unit: "m²", range: [110, 220], decimals: 2 },
-      { key: "aqualine_ceilings", description: "Aqualine — Ceilings", unit: "m²", range: [8, 30], decimals: 2 },
+      {
+        key: "std_gib_walls",
+        description: "Standard Gib — Walls",
+        unit: "m²",
+        range: [180, 360],
+        decimals: 2,
+      },
+      {
+        key: "aqualine_walls",
+        description: "Aqualine — Walls",
+        unit: "m²",
+        range: [25, 70],
+        decimals: 2,
+      },
+      {
+        key: "std_ceilings",
+        description: "Standard Ceilings",
+        unit: "m²",
+        range: [110, 220],
+        decimals: 2,
+      },
+      {
+        key: "aqualine_ceilings",
+        description: "Aqualine — Ceilings",
+        unit: "m²",
+        range: [8, 30],
+        decimals: 2,
+      },
       { key: "garage_ply", description: "Garage Ply", unit: "m²", range: [40, 90], decimals: 2 },
       { key: "scotia", description: "Scotia", unit: "lm", range: [55, 120], decimals: 2 },
       { key: "skirting", description: "Skirting", unit: "lm", range: [65, 145], decimals: 2 },
@@ -175,13 +301,22 @@ export const IQ_MODULES: IQModule[] = [
     ],
   },
   {
-    id: "iq-framing", name: "IQ Framing",
+    id: "iq-framing",
+    name: "IQ Framing",
     shortDescription: "Framing quantity schedule.",
-    longDescription: "Wall framing, openings, lintels, studs and noggings ready for the timber supplier RFQ.",
-    exportSheet: "Framing", required: true,
+    longDescription:
+      "Wall framing, openings, lintels, studs and noggings ready for the timber supplier RFQ.",
+    exportSheet: "Framing",
+    required: true,
     items: [
       { key: "ext_walls", description: "External Walls", unit: "lm", range: [40, 95], decimals: 2 },
-      { key: "int_walls", description: "Internal Walls", unit: "lm", range: [45, 120], decimals: 2 },
+      {
+        key: "int_walls",
+        description: "Internal Walls",
+        unit: "lm",
+        range: [45, 120],
+        decimals: 2,
+      },
       { key: "openings", description: "Openings", unit: "qty", range: [16, 38] },
       { key: "lintels", description: "Lintels", unit: "qty", range: [10, 26] },
       { key: "stud_count", description: "Stud Count", unit: "qty", range: [180, 420] },
@@ -190,25 +325,49 @@ export const IQ_MODULES: IQModule[] = [
     ],
   },
   {
-    id: "iq-cladding", name: "IQ Cladding",
+    id: "iq-cladding",
+    name: "IQ Cladding",
     shortDescription: "Cladding and brick quantity schedule.",
-    longDescription: "Brick, weatherboard and feature cladding — areas, lineal metres, flashings, sills and corners.",
-    exportSheet: "Cladding", required: true,
+    longDescription:
+      "Brick, weatherboard and feature cladding — areas, lineal metres, flashings, sills and corners.",
+    exportSheet: "Cladding",
+    required: true,
     items: [
       { key: "brick_area", description: "Brick Area", unit: "m²", range: [60, 160], decimals: 2 },
-      { key: "brick_lineal", description: "Brick Lineal Metres", unit: "lm", range: [22, 60], decimals: 2 },
-      { key: "cladding_area", description: "Cladding Area", unit: "m²", range: [40, 120], decimals: 2 },
-      { key: "feature_cladding", description: "Feature Cladding", unit: "m²", range: [4, 28], decimals: 2 },
+      {
+        key: "brick_lineal",
+        description: "Brick Lineal Metres",
+        unit: "lm",
+        range: [22, 60],
+        decimals: 2,
+      },
+      {
+        key: "cladding_area",
+        description: "Cladding Area",
+        unit: "m²",
+        range: [40, 120],
+        decimals: 2,
+      },
+      {
+        key: "feature_cladding",
+        description: "Feature Cladding",
+        unit: "m²",
+        range: [4, 28],
+        decimals: 2,
+      },
       { key: "flashings", description: "Flashings", unit: "lm", range: [25, 70], decimals: 2 },
       { key: "sills", description: "Sills", unit: "lm", range: [10, 28], decimals: 2 },
       { key: "corners", description: "Corners", unit: "qty", range: [4, 12] },
     ],
   },
   {
-    id: "iq-roofing", name: "IQ Roofing",
+    id: "iq-roofing",
+    name: "IQ Roofing",
     shortDescription: "Roofing quantity schedule.",
-    longDescription: "Roof areas, ridges, hips, valleys, fascia, spouting and downpipes for the roofing RFQ.",
-    exportSheet: "Roofing", required: true,
+    longDescription:
+      "Roof areas, ridges, hips, valleys, fascia, spouting and downpipes for the roofing RFQ.",
+    exportSheet: "Roofing",
+    required: true,
     items: [
       { key: "roof_area", description: "Roof Area", unit: "m²", range: [130, 280], decimals: 2 },
       { key: "pitch", description: "Pitch", unit: "°", range: [15, 35] },
@@ -222,29 +381,50 @@ export const IQ_MODULES: IQModule[] = [
     ],
   },
   {
-    id: "iq-margin", name: "IQ Margin",
+    id: "iq-margin",
+    name: "IQ Margin",
     shortDescription: "Pre-unconditional risk review.",
-    longDescription: "Surfaces missing scope, hidden assumptions and spec gaps before the contract goes unconditional.",
-    exportSheet: "Margin", required: false,
+    longDescription:
+      "Surfaces missing scope, hidden assumptions and spec gaps before the contract goes unconditional.",
+    exportSheet: "Margin",
+    required: false,
     items: [
       { key: "missing_retaining", description: "Missing Retaining", unit: "flag", range: [0, 1] },
       { key: "earthworks_risk", description: "Earthworks Risk", unit: "flag", range: [0, 1] },
-      { key: "landscaping_assump", description: "Landscaping Assumptions", unit: "flag", range: [0, 1] },
+      {
+        key: "landscaping_assump",
+        description: "Landscaping Assumptions",
+        unit: "flag",
+        range: [0, 1],
+      },
       { key: "long_driveway", description: "Long Driveway", unit: "flag", range: [0, 1] },
       { key: "missing_drainage", description: "Missing Drainage", unit: "flag", range: [0, 1] },
-      { key: "joinery_mismatch", description: "Joinery Allowance Mismatch", unit: "flag", range: [0, 1] },
+      {
+        key: "joinery_mismatch",
+        description: "Joinery Allowance Mismatch",
+        unit: "flag",
+        range: [0, 1],
+      },
       { key: "spec_creep", description: "Specification Gap", unit: "flag", range: [0, 1] },
       { key: "scope_gaps", description: "Scope Gaps", unit: "flag", range: [0, 1] },
     ],
   },
   {
-    id: "iq-procurement", name: "IQ Procurement",
+    id: "iq-procurement",
+    name: "IQ Procurement",
     shortDescription: "Supplier-ready RFQ packages.",
-    longDescription: "Packages approved quantities into RFQs and purchase orders against the preferred supplier list.",
-    exportSheet: "Procurement", required: false,
+    longDescription:
+      "Packages approved quantities into RFQs and purchase orders against the preferred supplier list.",
+    exportSheet: "Procurement",
+    required: false,
     items: [
       { key: "rfq_summaries", description: "RFQ Summaries", unit: "qty", range: [4, 9] },
-      { key: "po_quantities", description: "Purchase Order Quantities", unit: "qty", range: [60, 220] },
+      {
+        key: "po_quantities",
+        description: "Purchase Order Quantities",
+        unit: "qty",
+        range: [60, 220],
+      },
       { key: "supplier_codes", description: "Supplier Codes", unit: "qty", range: [80, 280] },
     ],
   },
@@ -309,7 +489,9 @@ async function logAudit(entry: {
  */
 export async function seedAllModulesForJob(jobId: string): Promise<void> {
   const { data: existing, error } = await supabase
-    .from("module_runs").select("module_id").eq("job_id", jobId);
+    .from("module_runs")
+    .select("module_id")
+    .eq("job_id", jobId);
   if (error) throw error;
   const have = new Set((existing ?? []).map((r) => r.module_id));
   const now = new Date().toISOString();
@@ -341,8 +523,7 @@ export async function seedAllModulesForJob(jobId: string): Promise<void> {
 /** ---------- Reads ---------- */
 
 export async function loadModuleRuns(jobId: string): Promise<ModuleRun[]> {
-  const { data, error } = await supabase
-    .from("module_runs").select("*").eq("job_id", jobId);
+  const { data, error } = await supabase.from("module_runs").select("*").eq("job_id", jobId);
   if (error) throw error;
   return narrowRow<ModuleRun[]>(data ?? []);
 }
@@ -352,12 +533,16 @@ export async function loadModuleRun(
   moduleId: IQModuleId,
 ): Promise<{ run: ModuleRun | null; items: ModuleItem[] }> {
   const { data: run, error: rErr } = await supabase
-    .from("module_runs").select("*")
-    .eq("job_id", jobId).eq("module_id", moduleId).maybeSingle();
+    .from("module_runs")
+    .select("*")
+    .eq("job_id", jobId)
+    .eq("module_id", moduleId)
+    .maybeSingle();
   if (rErr) throw rErr;
   if (!run) return { run: null, items: [] };
   const { data: items, error: iErr } = await supabase
-    .from("module_items").select("*")
+    .from("module_items")
+    .select("*")
     .eq("run_id", (run as { id: string }).id)
     .order("sort_order", { ascending: true });
   if (iErr) throw iErr;
@@ -367,7 +552,11 @@ export async function loadModuleRun(
   };
 }
 
-export async function loadModuleAudit(jobId: string, runId?: string, limit = 20): Promise<ModuleAuditLog[]> {
+export async function loadModuleAudit(
+  jobId: string,
+  runId?: string,
+  limit = 20,
+): Promise<ModuleAuditLog[]> {
   let q = supabase.from("module_audit_logs").select("*").eq("job_id", jobId);
   if (runId) q = q.eq("run_id", runId);
   const { data, error } = await q.order("created_at", { ascending: false }).limit(limit);
@@ -378,14 +567,20 @@ export async function loadModuleAudit(jobId: string, runId?: string, limit = 20)
 /** ---------- Aggregation ---------- */
 
 export async function recomputeRunAggregates(runId: string): Promise<void> {
-  const { data: items } = await supabase.from("module_items").select("confidence").eq("run_id", runId);
+  const { data: items } = await supabase
+    .from("module_items")
+    .select("confidence")
+    .eq("run_id", runId);
   const list = items ?? [];
   const highs = list.filter((i) => i.confidence === "high").length;
   const conf = list.length ? Math.round((highs / list.length) * 100) : 0;
-  await supabase.from("module_runs").update({
-    confidence_avg: conf,
-    item_count: list.length,
-  }).eq("id", runId);
+  await supabase
+    .from("module_runs")
+    .update({
+      confidence_avg: conf,
+      item_count: list.length,
+    })
+    .eq("id", runId);
 }
 
 export function confidencePercent(items: Array<{ confidence: Confidence | null }>): number {
@@ -415,7 +610,10 @@ export async function updateModuleItem(
   // Log meaningful changes
   if (patch.approved_value !== undefined && patch.approved_value !== item.approved_value) {
     await logAudit({
-      job_id: jobId, run_id: item.run_id, item_id: item.id, module_id: item.module_id,
+      job_id: jobId,
+      run_id: item.run_id,
+      item_id: item.id,
+      module_id: item.module_id,
       action: "edit_quantity",
       previous_value: item.approved_value,
       new_value: patch.approved_value,
@@ -424,7 +622,10 @@ export async function updateModuleItem(
   }
   if (patch.review_status && patch.review_status !== item.review_status) {
     await logAudit({
-      job_id: jobId, run_id: item.run_id, item_id: item.id, module_id: item.module_id,
+      job_id: jobId,
+      run_id: item.run_id,
+      item_id: item.id,
+      module_id: item.module_id,
       action: "set_review_status",
       previous_value: item.review_status,
       new_value: patch.review_status,
@@ -432,7 +633,10 @@ export async function updateModuleItem(
   }
   if (patch.notes !== undefined && patch.notes !== item.notes) {
     await logAudit({
-      job_id: jobId, run_id: item.run_id, item_id: item.id, module_id: item.module_id,
+      job_id: jobId,
+      run_id: item.run_id,
+      item_id: item.id,
+      module_id: item.module_id,
       action: "edit_notes",
       previous_value: item.notes,
       new_value: patch.notes,
@@ -483,11 +687,21 @@ export async function manualOverrideApprovedValue(
 /** ---------- Module-level actions ---------- */
 
 export async function markModuleReviewed(jobId: string, moduleId: IQModuleId): Promise<void> {
-  const { data: run } = await supabase.from("module_runs").select("id,status").eq("job_id", jobId).eq("module_id", moduleId).maybeSingle();
+  const { data: run } = await supabase
+    .from("module_runs")
+    .select("id,status")
+    .eq("job_id", jobId)
+    .eq("module_id", moduleId)
+    .maybeSingle();
   if (!run) return;
-  await supabase.from("module_runs").update({ status: "reviewed", review_status: "reviewed" }).eq("id", run.id);
+  await supabase
+    .from("module_runs")
+    .update({ status: "reviewed", review_status: "reviewed" })
+    .eq("id", run.id);
   await logAudit({
-    job_id: jobId, run_id: run.id, module_id: moduleId,
+    job_id: jobId,
+    run_id: run.id,
+    module_id: moduleId,
     action: "mark_reviewed",
     previous_value: run.status,
     new_value: "reviewed",
@@ -497,16 +711,26 @@ export async function markModuleReviewed(jobId: string, moduleId: IQModuleId): P
 export async function approveModule(jobId: string, moduleId: IQModuleId): Promise<void> {
   const { data: u } = await supabase.auth.getUser();
   if (!u.user) throw new Error("Not signed in.");
-  const { data: run } = await supabase.from("module_runs").select("id,status").eq("job_id", jobId).eq("module_id", moduleId).maybeSingle();
+  const { data: run } = await supabase
+    .from("module_runs")
+    .select("id,status")
+    .eq("job_id", jobId)
+    .eq("module_id", moduleId)
+    .maybeSingle();
   if (!run) return;
-  await supabase.from("module_runs").update({
-    status: "approved",
-    review_status: "approved",
-    approved_by: u.user.id,
-    approved_at: new Date().toISOString(),
-  }).eq("id", run.id);
+  await supabase
+    .from("module_runs")
+    .update({
+      status: "approved",
+      review_status: "approved",
+      approved_by: u.user.id,
+      approved_at: new Date().toISOString(),
+    })
+    .eq("id", run.id);
   await logAudit({
-    job_id: jobId, run_id: run.id, module_id: moduleId,
+    job_id: jobId,
+    run_id: run.id,
+    module_id: moduleId,
     action: "approve_module",
     previous_value: run.status,
     new_value: "approved",
@@ -522,33 +746,45 @@ export async function approveModule(jobId: string, moduleId: IQModuleId): Promis
  * Items that are not source-linked (overrides, allowances, printed values)
  * are left untouched. Approved values are NEVER silently overwritten.
  */
-export async function recalculateModule(jobId: string, moduleId: IQModuleId): Promise<{
-  checked: number; missing: number; drift: number; matched: number;
+export async function recalculateModule(
+  jobId: string,
+  moduleId: IQModuleId,
+): Promise<{
+  checked: number;
+  missing: number;
+  drift: number;
+  matched: number;
 }> {
   const mod = findIQModule(moduleId);
   if (!mod || mod.id === "iq-core") {
     return { checked: 0, missing: 0, drift: 0, matched: 0 };
   }
   const { data: run } = await supabase
-    .from("module_runs").select("id").eq("job_id", jobId).eq("module_id", moduleId).maybeSingle();
+    .from("module_runs")
+    .select("id")
+    .eq("job_id", jobId)
+    .eq("module_id", moduleId)
+    .maybeSingle();
   if (!run) return { checked: 0, missing: 0, drift: 0, matched: 0 };
 
-  const { data: itemsRaw } = await supabase
-    .from("module_items").select("*").eq("run_id", run.id);
+  const { data: itemsRaw } = await supabase.from("module_items").select("*").eq("run_id", run.id);
   const items = narrowRow<ModuleItem[]>(itemsRaw ?? []);
 
-  const measurementIds = Array.from(new Set(
-    items.map((i) => i.measurement_id).filter((v): v is string => !!v),
-  ));
-  const openingIds = Array.from(new Set(
-    items.map((i) => i.opening_id).filter((v): v is string => !!v),
-  ));
+  const measurementIds = Array.from(
+    new Set(items.map((i) => i.measurement_id).filter((v): v is string => !!v)),
+  );
+  const openingIds = Array.from(
+    new Set(items.map((i) => i.opening_id).filter((v): v is string => !!v)),
+  );
 
-  const measurementMap = new Map<string, {
-    calculated_length_m: number | null;
-    calculated_area_m2: number | null;
-    measurement_type: string;
-  }>();
+  const measurementMap = new Map<
+    string,
+    {
+      calculated_length_m: number | null;
+      calculated_area_m2: number | null;
+      measurement_type: string;
+    }
+  >();
   if (measurementIds.length) {
     const { data: ms } = await supabase
       .from("plan_measurements")
@@ -577,7 +813,10 @@ export async function recalculateModule(jobId: string, moduleId: IQModuleId): Pr
     }
   }
 
-  let checked = 0, missing = 0, drift = 0, matched = 0;
+  let checked = 0,
+    missing = 0,
+    drift = 0,
+    matched = 0;
 
   for (const it of items) {
     if (!it.measurement_id && !it.opening_id) continue; // not source-linked
@@ -589,9 +828,10 @@ export async function recalculateModule(jobId: string, moduleId: IQModuleId): Pr
       if (!src) {
         currentSourceValue = null;
       } else {
-        currentSourceValue = src.measurement_type === "area"
-          ? (src.calculated_area_m2 ?? null)
-          : (src.calculated_length_m ?? null);
+        currentSourceValue =
+          src.measurement_type === "area"
+            ? (src.calculated_area_m2 ?? null)
+            : (src.calculated_length_m ?? null);
       }
     } else if (it.opening_id) {
       const src = openingMap.get(it.opening_id);
@@ -600,12 +840,18 @@ export async function recalculateModule(jobId: string, moduleId: IQModuleId): Pr
 
     if (currentSourceValue == null) {
       missing += 1;
-      await supabase.from("module_items").update({
-        review_status: "review_required",
-        notes: "Source measurement/opening no longer exists.",
-      }).eq("id", it.id);
+      await supabase
+        .from("module_items")
+        .update({
+          review_status: "review_required",
+          notes: "Source measurement/opening no longer exists.",
+        })
+        .eq("id", it.id);
       await logAudit({
-        job_id: jobId, run_id: it.run_id, item_id: it.id, module_id: it.module_id,
+        job_id: jobId,
+        run_id: it.run_id,
+        item_id: it.id,
+        module_id: it.module_id,
         action: "source_missing",
         previous_value: it.extracted_value,
         notes: it.measurement_id ? `measurement ${it.measurement_id}` : `opening ${it.opening_id}`,
@@ -614,26 +860,35 @@ export async function recalculateModule(jobId: string, moduleId: IQModuleId): Pr
     }
 
     const newValueStr = String(currentSourceValue);
-    const approvedNum = it.approved_value == null || it.approved_value === ""
-      ? null
-      : Number(it.approved_value);
-    const compareTo = approvedNum != null && Number.isFinite(approvedNum)
-      ? approvedNum
-      : (it.extracted_value != null ? Number(it.extracted_value) : null);
-    const diffPct = compareTo == null || compareTo === 0
-      ? null
-      : Math.abs(currentSourceValue - compareTo) / Math.abs(compareTo);
+    const approvedNum =
+      it.approved_value == null || it.approved_value === "" ? null : Number(it.approved_value);
+    const compareTo =
+      approvedNum != null && Number.isFinite(approvedNum)
+        ? approvedNum
+        : it.extracted_value != null
+          ? Number(it.extracted_value)
+          : null;
+    const diffPct =
+      compareTo == null || compareTo === 0
+        ? null
+        : Math.abs(currentSourceValue - compareTo) / Math.abs(compareTo);
 
     if (diffPct != null && diffPct > 0.02) {
       drift += 1;
       // Never overwrite approved_value. Refresh extracted_value and flag stale.
-      await supabase.from("module_items").update({
-        extracted_value: newValueStr,
-        review_status: "review_required",
-        notes: `Source value ${currentSourceValue} differs from previous ${compareTo} (Δ${(diffPct * 100).toFixed(1)}%). Review before approval.`,
-      }).eq("id", it.id);
+      await supabase
+        .from("module_items")
+        .update({
+          extracted_value: newValueStr,
+          review_status: "review_required",
+          notes: `Source value ${currentSourceValue} differs from previous ${compareTo} (Δ${(diffPct * 100).toFixed(1)}%). Review before approval.`,
+        })
+        .eq("id", it.id);
       await logAudit({
-        job_id: jobId, run_id: it.run_id, item_id: it.id, module_id: it.module_id,
+        job_id: jobId,
+        run_id: it.run_id,
+        item_id: it.id,
+        module_id: it.module_id,
         action: "recalculate_drift",
         previous_value: String(compareTo),
         new_value: newValueStr,
@@ -643,11 +898,17 @@ export async function recalculateModule(jobId: string, moduleId: IQModuleId): Pr
       matched += 1;
       const changed = it.extracted_value !== newValueStr;
       if (changed) {
-        await supabase.from("module_items").update({
-          extracted_value: newValueStr,
-        }).eq("id", it.id);
+        await supabase
+          .from("module_items")
+          .update({
+            extracted_value: newValueStr,
+          })
+          .eq("id", it.id);
         await logAudit({
-          job_id: jobId, run_id: it.run_id, item_id: it.id, module_id: it.module_id,
+          job_id: jobId,
+          run_id: it.run_id,
+          item_id: it.id,
+          module_id: it.module_id,
           action: "recalculate_matched",
           previous_value: it.extracted_value,
           new_value: newValueStr,
@@ -657,16 +918,26 @@ export async function recalculateModule(jobId: string, moduleId: IQModuleId): Pr
   }
 
   const now = new Date().toISOString();
-  await supabase.from("module_runs").update({
-    last_run_at: now,
-    // Only nudge status if there's something to review.
-    ...(missing > 0 || drift > 0
-      ? { status: "in_progress", review_status: "review_required", approved_by: null, approved_at: null }
-      : {}),
-  }).eq("id", run.id);
+  await supabase
+    .from("module_runs")
+    .update({
+      last_run_at: now,
+      // Only nudge status if there's something to review.
+      ...(missing > 0 || drift > 0
+        ? {
+            status: "in_progress",
+            review_status: "review_required",
+            approved_by: null,
+            approved_at: null,
+          }
+        : {}),
+    })
+    .eq("id", run.id);
   await recomputeRunAggregates(run.id);
   await logAudit({
-    job_id: jobId, run_id: run.id, module_id: moduleId,
+    job_id: jobId,
+    run_id: run.id,
+    module_id: moduleId,
     action: "recalculate_module",
     new_value: now,
     notes: `checked ${checked} · matched ${matched} · drift ${drift} · missing ${missing}`,
@@ -697,11 +968,17 @@ export async function flagDependentModuleItems(args: {
   const { data } = await q;
   const items = narrowRow<ModuleItem[]>(data ?? []);
   for (const it of items) {
-    await supabase.from("module_items").update({
-      review_status: "review_required",
-    }).eq("id", it.id);
+    await supabase
+      .from("module_items")
+      .update({
+        review_status: "review_required",
+      })
+      .eq("id", it.id);
     await logAudit({
-      job_id: args.jobId, run_id: it.run_id, item_id: it.id, module_id: it.module_id,
+      job_id: args.jobId,
+      run_id: it.run_id,
+      item_id: it.id,
+      module_id: it.module_id,
       action: args.reason === "source_deleted" ? "source_deleted" : "source_edited",
       previous_value: it.extracted_value,
       notes: args.notes ?? null,
@@ -730,20 +1007,37 @@ export type JobTimelineEntry = {
 
 export async function loadJobTimeline(jobId: string, limit = 200): Promise<JobTimelineEntry[]> {
   const [mod, meas, exp] = await Promise.all([
-    supabase.from("module_audit_logs").select("*").eq("job_id", jobId).order("created_at", { ascending: false }).limit(limit),
-    supabase.from("plan_measurement_audit_logs").select("*").eq("job_id", jobId).order("created_at", { ascending: false }).limit(limit),
-    supabase.from("export_logs").select("*").eq("job_id", jobId).order("timestamp", { ascending: false }).limit(limit),
+    supabase
+      .from("module_audit_logs")
+      .select("*")
+      .eq("job_id", jobId)
+      .order("created_at", { ascending: false })
+      .limit(limit),
+    supabase
+      .from("plan_measurement_audit_logs")
+      .select("*")
+      .eq("job_id", jobId)
+      .order("created_at", { ascending: false })
+      .limit(limit),
+    supabase
+      .from("export_logs")
+      .select("*")
+      .eq("job_id", jobId)
+      .order("timestamp", { ascending: false })
+      .limit(limit),
   ]);
   const out: JobTimelineEntry[] = [];
   for (const r of (mod.data ?? []) as Array<Record<string, unknown>>) {
     out.push({
-      id: String(r.id), kind: "module",
+      id: String(r.id),
+      kind: "module",
       created_at: String(r.created_at),
       user_id: (r.user_id as string | null) ?? null,
       action: String(r.action),
       module_id: (r.module_id as string | null) ?? null,
       item_id: (r.item_id as string | null) ?? null,
-      measurement_id: null, opening_id: null,
+      measurement_id: null,
+      opening_id: null,
       previous_value: (r.previous_value as string | null) ?? null,
       new_value: (r.new_value as string | null) ?? null,
       notes: (r.notes as string | null) ?? null,
@@ -751,11 +1045,13 @@ export async function loadJobTimeline(jobId: string, limit = 200): Promise<JobTi
   }
   for (const r of (meas.data ?? []) as Array<Record<string, unknown>>) {
     out.push({
-      id: String(r.id), kind: "measurement",
+      id: String(r.id),
+      kind: "measurement",
       created_at: String(r.created_at),
       user_id: (r.user_id as string | null) ?? null,
       action: String(r.action),
-      module_id: null, item_id: null,
+      module_id: null,
+      item_id: null,
       measurement_id: (r.measurement_id as string | null) ?? null,
       opening_id: (r.opening_id as string | null) ?? null,
       previous_value: (r.previous_value as string | null) ?? null,
@@ -765,13 +1061,17 @@ export async function loadJobTimeline(jobId: string, limit = 200): Promise<JobTi
   }
   for (const r of (exp.data ?? []) as Array<Record<string, unknown>>) {
     out.push({
-      id: String(r.id), kind: "export",
+      id: String(r.id),
+      kind: "export",
       created_at: String(r.timestamp),
       user_id: (r.exported_by as string | null) ?? null,
       action: `export_${r.export_type ?? "csv"}`,
       module_id: (r.module_id as string | null) ?? null,
-      item_id: null, measurement_id: null, opening_id: null,
-      previous_value: null, new_value: null,
+      item_id: null,
+      measurement_id: null,
+      opening_id: null,
+      previous_value: null,
+      new_value: null,
       notes: (r.module_name as string | null) ?? null,
     });
   }
@@ -827,13 +1127,30 @@ export async function exportModuleCsv(job: JobMeta, moduleId: IQModuleId): Promi
 
   const { items } = await loadModuleRun(job.id, moduleId);
   const headers = [
-    "Job Number","Client","Address","Module","Item","Description","Unit",
-    "Extracted Quantity","Confirmed Quantity","Confidence","Review Status","Notes",
+    "Job Number",
+    "Client",
+    "Address",
+    "Module",
+    "Item",
+    "Description",
+    "Unit",
+    "Extracted Quantity",
+    "Confirmed Quantity",
+    "Confidence",
+    "Review Status",
+    "Notes",
   ];
   const rows = items.map((i) => [
-    job.job_number, job.client_name, job.address, mod.name,
-    i.label, i.description, i.unit,
-    i.extracted_value, i.approved_value, i.confidence,
+    job.job_number,
+    job.client_name,
+    job.address,
+    mod.name,
+    i.label,
+    i.description,
+    i.unit,
+    i.extracted_value,
+    i.approved_value,
+    i.confidence,
     REVIEW_STATUS_LABEL[i.review_status],
     i.notes ?? "",
   ]);
@@ -841,7 +1158,9 @@ export async function exportModuleCsv(job: JobMeta, moduleId: IQModuleId): Promi
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = `${job.job_number}-${moduleId}.csv`; a.click();
+  a.href = url;
+  a.download = `${job.job_number}-${moduleId}.csv`;
+  a.click();
   URL.revokeObjectURL(url);
 
   if (u.user) {
@@ -859,32 +1178,52 @@ export async function exportModuleCsv(job: JobMeta, moduleId: IQModuleId): Promi
 export async function exportApprovedQuantitiesCsv(job: JobMeta): Promise<void> {
   const { data: u } = await supabase.auth.getUser();
   // All approved items across modules
-  const { data: items } = await supabase
-    .from("module_items").select("*").eq("job_id", job.id);
+  const { data: items } = await supabase.from("module_items").select("*").eq("job_id", job.id);
   // IQ Core from extracted_quantities
   const { data: core } = await supabase
-    .from("extracted_quantities").select("*").eq("job_id", job.id);
+    .from("extracted_quantities")
+    .select("*")
+    .eq("job_id", job.id);
 
   const headers = [
-    "Job Number","Client","Address","Module","Item","Unit",
-    "Confirmed Quantity","Confidence","Review Status","Notes",
+    "Job Number",
+    "Client",
+    "Address",
+    "Module",
+    "Item",
+    "Unit",
+    "Confirmed Quantity",
+    "Confidence",
+    "Review Status",
+    "Notes",
   ];
   const rows: (string | number | null)[][] = [];
-  for (const c of (core ?? [])) {
+  for (const c of core ?? []) {
     rows.push([
-      job.job_number, job.client_name, job.address, "IQ Core",
-      c.quantity_type, c.unit,
-      c.approved_value ?? c.extracted_value, c.confidence,
-      "Approved", c.notes ?? "",
+      job.job_number,
+      job.client_name,
+      job.address,
+      "IQ Core",
+      c.quantity_type,
+      c.unit,
+      c.approved_value ?? c.extracted_value,
+      c.confidence,
+      "Approved",
+      c.notes ?? "",
     ]);
   }
-  for (const it of (items ?? [])) {
+  for (const it of items ?? []) {
     if (it.review_status === "excluded") continue;
     const mod = findIQModule(it.module_id as IQModuleId);
     rows.push([
-      job.job_number, job.client_name, job.address, mod?.name ?? it.module_id,
-      it.label, it.unit,
-      it.approved_value, it.confidence,
+      job.job_number,
+      job.client_name,
+      job.address,
+      mod?.name ?? it.module_id,
+      it.label,
+      it.unit,
+      it.approved_value,
+      it.confidence,
       REVIEW_STATUS_LABEL[it.review_status as ItemReviewStatus] ?? it.review_status,
       it.notes ?? "",
     ]);
@@ -893,13 +1232,18 @@ export async function exportApprovedQuantitiesCsv(job: JobMeta): Promise<void> {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = `${job.job_number}-approved-quantities.csv`; a.click();
+  a.href = url;
+  a.download = `${job.job_number}-approved-quantities.csv`;
+  a.click();
   URL.revokeObjectURL(url);
 
   if (u.user) {
     await supabase.from("export_logs").insert({
-      job_id: job.id, exported_by: u.user.id, export_type: "csv",
-      module_id: "all", module_name: "Approved Quantities",
+      job_id: job.id,
+      exported_by: u.user.id,
+      export_type: "csv",
+      module_id: "all",
+      module_name: "Approved Quantities",
     });
     await logAudit({ job_id: job.id, action: "export_approved_quantities" });
   }

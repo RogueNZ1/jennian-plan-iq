@@ -75,7 +75,9 @@ const openingsVector = (over: Partial<VectorOpenings> = {}): VectorAnnotations =
   usableVector({ openings: openings(over) });
 
 const scheduleVector = (count: number): VectorAnnotations =>
-  usableVector({ schedule: { head_datum_mm: 2210, datum_repeat: 12, window_count: count, page: 6 } });
+  usableVector({
+    schedule: { head_datum_mm: 2210, datum_repeat: 12, window_count: count, page: 6 },
+  });
 
 // ── 1. window count ─────────────────────────────────────────────────────────────
 
@@ -127,7 +129,10 @@ describe("resolveWindowCount", () => {
 
 describe("resolveOpeningWidths", () => {
   it("prefers the vector widths, parsed (comma-tolerant) and sorted ascending", () => {
-    const r = resolveOpeningWidths([1800, 1800], openingsVector({ widths_raw: ["4,800", "1,030", "2,400"] }));
+    const r = resolveOpeningWidths(
+      [1800, 1800],
+      openingsVector({ widths_raw: ["4,800", "1,030", "2,400"] }),
+    );
     expect(r.source).toBe("vector");
     expect(r.preferred_vector).toBe(true);
     expect(r.widths_mm).toEqual([1030, 2400, 4800]);
@@ -213,7 +218,11 @@ describe("preferVectorOpenings", () => {
 // ── 4. ext-wall heights-incomplete flag rides on the field ──────────────────────
 
 describe("applyWindowAggregate — heights-incomplete flag", () => {
-  const base = takeoff({ external_wall_lm: 63.8, ceiling_height_m: 2.4, garage_door_size: "4.8×2.1" });
+  const base = takeoff({
+    external_wall_lm: 63.8,
+    ceiling_height_m: 2.4,
+    garage_door_size: "4.8×2.1",
+  });
 
   it("flags ext-wall incomplete when a schedule height is unresolved (null)", () => {
     const agg = aggregateWindows(
@@ -231,10 +240,7 @@ describe("applyWindowAggregate — heights-incomplete flag", () => {
   });
 
   it("does NOT add the heights flag when every schedule height is resolved", () => {
-    const agg = aggregateWindows(
-      { windows: [{ id: "W01", heightMm: 900, widthMm: 1030 }] },
-      null,
-    );
+    const agg = aggregateWindows({ windows: [{ id: "W01", heightMm: 900, widthMm: 1030 }] }, null);
     const out = applyWindowAggregate(base, agg);
     expect(out.notes).not.toContain("heights are unresolved");
     expect(out.notes).not.toContain("external_wall_area_m2 is incomplete");

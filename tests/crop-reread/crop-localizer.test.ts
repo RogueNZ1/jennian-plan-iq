@@ -28,14 +28,20 @@ const PAGE_H = 842;
 function floorPlanPage(): string {
   const words = [
     // floor-plan labels (centre-ish cluster)
-    word("BED", 300, 300), word("3", 335, 300),          // multi-token target
-    word("BED", 300, 180), word("2", 335, 180),
+    word("BED", 300, 300),
+    word("3", 335, 300), // multi-token target
+    word("BED", 300, 180),
+    word("2", 335, 180),
     word("LOUNGE", 500, 320, 60),
     word("ENSUITE", 250, 420, 55),
     word("DINING", 520, 200, 50),
     // window-schedule duplicate (right column, W-codes around it, inside the edge band)
-    word("W07", 1100, 200), word("BED 3", 1100, 215, 45), word("1500x1300", 1100, 230, 60),
-    word("W08", 1100, 260), word("BATH", 1100, 275, 40), word("1200x1100", 1100, 290, 60),
+    word("W07", 1100, 200),
+    word("BED 3", 1100, 215, 45),
+    word("1500x1300", 1100, 230, 60),
+    word("W08", 1100, 260),
+    word("BATH", 1100, 275, 40),
+    word("1200x1100", 1100, 290, 60),
     // title block (bottom-right corner)
     word("BED 3 RESIDENCE", 1050, 800, 90),
   ].join("\n");

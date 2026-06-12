@@ -37,7 +37,12 @@ const elevationsMatch: ElevationData = {
   wallHeightMm: 2400,
   studHeightMm: null,
   facesPresent: ["North Western", "South Western", "North Eastern", "South Eastern"],
-  windowCountPerFace: { "North Western": 3, "South Western": 2, "North Eastern": 2, "South Eastern": 1 },
+  windowCountPerFace: {
+    "North Western": 3,
+    "South Western": 2,
+    "North Eastern": 2,
+    "South Eastern": 1,
+  },
   externalDoorCount: 2,
   gableEndCount: 2,
   garageDoorsPresent: false,
@@ -45,11 +50,19 @@ const elevationsMatch: ElevationData = {
 
 const elevationsMismatch: ElevationData = {
   ...elevationsMatch,
-  windowCountPerFace: { "North Western": 4, "South Western": 4, "North Eastern": 2, "South Eastern": 1 },
+  windowCountPerFace: {
+    "North Western": 4,
+    "South Western": 4,
+    "North Eastern": 2,
+    "South Eastern": 1,
+  },
 };
 
 const sitePlan: SitePlanData = {
-  concreteAreas: [{ label: "Driveway", areaM2: 80 }, { label: "Path", areaM2: 163 }],
+  concreteAreas: [
+    { label: "Driveway", areaM2: 80 },
+    { label: "Path", areaM2: 163 },
+  ],
   totalConcreteM2: 243,
   drivewayConcretM2: 80,
   patioConcreteM2: 163,

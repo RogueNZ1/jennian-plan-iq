@@ -16,7 +16,12 @@
  */
 import type { TakeoffData, WindowsByRoom, ScheduleWindowEntry } from "./takeoff-types";
 import type { ScheduleWindow, WindowScheduleData } from "./extract-window-schedule";
-import { computeOpeningAreaM2, computeExternalWallAreaM2, deriveOpenings, deriveOpeningTotals } from "./derive-fields";
+import {
+  computeOpeningAreaM2,
+  computeExternalWallAreaM2,
+  deriveOpenings,
+  deriveOpeningTotals,
+} from "./derive-fields";
 import { round2 } from "./utils";
 
 export interface WindowAggregate {

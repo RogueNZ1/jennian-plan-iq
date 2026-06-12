@@ -85,7 +85,8 @@ function IntelligencePage() {
                 textAlign: "center",
               }}
             >
-              J<br />007
+              J<br />
+              007
             </div>
             <div>
               <div style={{ fontSize: 15, fontWeight: 600, color: "#e8eaed" }}>
@@ -164,18 +165,24 @@ function IntelligencePage() {
               No brief available yet.
               <br />
               <span style={{ color: "#555b66", fontSize: 11, marginTop: 6, display: "block" }}>
-                Run <code>python run_daily.py</code> in the jennian-007-scraper folder to generate the
-                first brief.
+                Run <code>python run_daily.py</code> in the jennian-007-scraper folder to generate
+                the first brief.
               </span>
             </div>
           )}
 
           {brief && (
-            <pre style={{
-              whiteSpace: "pre-wrap", wordBreak: "break-word",
-              color: "#e8eaed", fontFamily: "inherit", fontSize: 14, lineHeight: 1.7,
-              margin: 0,
-            }}>
+            <pre
+              style={{
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                color: "#e8eaed",
+                fontFamily: "inherit",
+                fontSize: 14,
+                lineHeight: 1.7,
+                margin: 0,
+              }}
+            >
               {brief.text_content}
             </pre>
           )}

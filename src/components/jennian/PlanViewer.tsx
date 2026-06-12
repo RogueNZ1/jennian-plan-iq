@@ -78,9 +78,12 @@ export function PlanViewer({
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <div>
-            <div className="text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground">Plan preview</div>
+            <div className="text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground">
+              Plan preview
+            </div>
             <div className="text-[14px] font-semibold tracking-tight">
-              {jobNumber ? `${jobNumber} · ` : ""}{fileName ?? "Plan PDF"}
+              {jobNumber ? `${jobNumber} · ` : ""}
+              {fileName ?? "Plan PDF"}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -124,17 +127,14 @@ export function PlanViewer({
               <div>
                 <FileWarning className="h-7 w-7 text-muted-foreground mx-auto" />
                 <div className="mt-3 text-sm font-medium">No plan PDF available</div>
-                <p className="mt-1 text-xs text-muted-foreground">No plan has been uploaded for this job yet.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  No plan has been uploaded for this job yet.
+                </p>
               </div>
             </div>
           )}
           {state === "ready" && url && (
-            <iframe
-              key={url}
-              src={url}
-              title="Plan PDF"
-              className="h-full w-full bg-white"
-            />
+            <iframe key={url} src={url} title="Plan PDF" className="h-full w-full bg-white" />
           )}
         </div>
       </div>

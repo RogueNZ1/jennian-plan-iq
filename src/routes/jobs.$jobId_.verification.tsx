@@ -435,15 +435,22 @@ function VerificationPrintout() {
           {m.planOverlay.markers.length > 0 && (
             <>
               <div className="vsrcline" style={{ marginTop: 8 }}>
-                {m.planOverlay.summary.confirmed} confirmed · {m.planOverlay.summary.flagged} flagged
-                &nbsp;(hinged {m.planOverlay.summary.byType.hinged} · double {m.planOverlay.summary.byType.double}
+                {m.planOverlay.summary.confirmed} confirmed · {m.planOverlay.summary.flagged}{" "}
+                flagged &nbsp;(hinged {m.planOverlay.summary.byType.hinged} · double{" "}
+                {m.planOverlay.summary.byType.double}
                 &nbsp;· cavity {m.planOverlay.summary.byType.cavity}) — solid red = confirmed by the
-                deterministic engine; dashed amber = flagged for review (never counted).
-                Green boxes are the plan's own printed window codes.
+                deterministic engine; dashed amber = flagged for review (never counted). Green boxes
+                are the plan's own printed window codes.
               </div>
               <table className="vtable">
                 <thead>
-                  <tr><th>#</th><th>Type</th><th>Width (mm)</th><th>Status</th><th>Note</th></tr>
+                  <tr>
+                    <th>#</th>
+                    <th>Type</th>
+                    <th>Width (mm)</th>
+                    <th>Status</th>
+                    <th>Note</th>
+                  </tr>
                 </thead>
                 <tbody>
                   {m.planOverlay.markers.map((d) => (

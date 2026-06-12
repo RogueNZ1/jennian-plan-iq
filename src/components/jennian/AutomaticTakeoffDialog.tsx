@@ -1,25 +1,31 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Check, Loader2, AlertTriangle } from "lucide-react";
-import {
-  runAutomaticTakeoff, type TakeoffStep, type TakeoffSummary,
-} from "@/lib/takeoff/run";
+import { runAutomaticTakeoff, type TakeoffStep, type TakeoffSummary } from "@/lib/takeoff/run";
 
 const STEPS: { key: TakeoffStep; label: string }[] = [
-  { key: "reviewing_files",       label: "Reviewing uploaded files" },
+  { key: "reviewing_files", label: "Reviewing uploaded files" },
   { key: "identifying_floorplan", label: "Identifying floorplan" },
-  { key: "reading_scale",         label: "Reading scale and dimensions" },
-  { key: "preparing_quantities",  label: "Preparing draft quantities" },
-  { key: "preparing_modules",     label: "Preparing module review items" },
-  { key: "ready",                 label: "Ready for review" },
+  { key: "reading_scale", label: "Reading scale and dimensions" },
+  { key: "preparing_quantities", label: "Preparing draft quantities" },
+  { key: "preparing_modules", label: "Preparing module review items" },
+  { key: "ready", label: "Ready for review" },
 ];
 
 export function AutomaticTakeoffDialog({
-  open, onOpenChange, jobId, onCompleted,
+  open,
+  onOpenChange,
+  jobId,
+  onCompleted,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -34,12 +40,18 @@ export function AutomaticTakeoffDialog({
   const [summary, setSummary] = useState<TakeoffSummary | null>(null);
 
   const onCompletedRef = useRef(onCompleted);
-  useEffect(() => { onCompletedRef.current = onCompleted; }, [onCompleted]);
+  useEffect(() => {
+    onCompletedRef.current = onCompleted;
+  }, [onCompleted]);
 
   useEffect(() => {
     if (!open) {
-      setRunning(false); setDone(false); setStep("reviewing_files");
-      setMessage(""); setError(null); setSummary(null);
+      setRunning(false);
+      setDone(false);
+      setStep("reviewing_files");
+      setMessage("");
+      setError(null);
+      setSummary(null);
       return;
     }
     let cancelled = false;
@@ -65,7 +77,9 @@ export function AutomaticTakeoffDialog({
         setError(e instanceof Error ? e.message : "Automatic takeoff failed.");
         setRunning(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [open, jobId]);
 
   const stepIndex = STEPS.findIndex((s) => s.key === step);
@@ -78,8 +92,8 @@ export function AutomaticTakeoffDialog({
           <DialogTitle>Automatic Takeoff</DialogTitle>
           <DialogDescription>
             Reviewing uploaded plans and specifications to prepare draft quantities for review.
-            Nothing is approved automatically — every draft is marked Review Required and
-            includes its source evidence.
+            Nothing is approved automatically — every draft is marked Review Required and includes
+            its source evidence.
           </DialogDescription>
         </DialogHeader>
 
@@ -100,7 +114,15 @@ export function AutomaticTakeoffDialog({
                       <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />
                     )}
                   </span>
-                  <span className={reached ? "text-foreground" : active ? "text-foreground font-medium" : "text-muted-foreground"}>
+                  <span
+                    className={
+                      reached
+                        ? "text-foreground"
+                        : active
+                          ? "text-foreground font-medium"
+                          : "text-muted-foreground"
+                    }
+                  >
                     {s.label}
                   </span>
                 </li>
@@ -124,21 +146,52 @@ export function AutomaticTakeoffDialog({
 
           {done && summary && (
             <div className="rounded-md border border-border bg-muted/30 p-3 text-[12px] space-y-1">
-              <div><span className="text-muted-foreground">Files scanned: </span><span className="font-medium">{summary.filesScanned}</span></div>
-              <div><span className="text-muted-foreground">Working plan: </span><span className="font-medium">
-                {summary.workingFileName ? `${summary.workingFileName} · page ${summary.workingPageNumber}` : "Not identified"}
-              </span></div>
-              <div><span className="text-muted-foreground">Scale: </span><span className="font-medium">{summary.scaleText ?? summary.scaleStatus}</span></div>
-              <div><span className="text-muted-foreground">Draft quantities: </span><span className="font-medium">{summary.quantitiesInserted + summary.quantitiesUpdated}</span></div>
-              <div><span className="text-muted-foreground">Openings: </span><span className="font-medium">{summary.openingsInserted}</span></div>
-              <div><span className="text-muted-foreground">Module review items: </span><span className="font-medium">{summary.moduleItemsInserted + summary.moduleItemsUpdated}</span></div>
-              <div><span className="text-muted-foreground">Review Required: </span><span className="font-medium">{summary.reviewRequiredCount}</span></div>
+              <div>
+                <span className="text-muted-foreground">Files scanned: </span>
+                <span className="font-medium">{summary.filesScanned}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Working plan: </span>
+                <span className="font-medium">
+                  {summary.workingFileName
+                    ? `${summary.workingFileName} · page ${summary.workingPageNumber}`
+                    : "Not identified"}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Scale: </span>
+                <span className="font-medium">{summary.scaleText ?? summary.scaleStatus}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Draft quantities: </span>
+                <span className="font-medium">
+                  {summary.quantitiesInserted + summary.quantitiesUpdated}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Openings: </span>
+                <span className="font-medium">{summary.openingsInserted}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Module review items: </span>
+                <span className="font-medium">
+                  {summary.moduleItemsInserted + summary.moduleItemsUpdated}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Review Required: </span>
+                <span className="font-medium">{summary.reviewRequiredCount}</span>
+              </div>
             </div>
           )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={running && !done && !error}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={running && !done && !error}
+          >
             {done || error ? "Close" : "Running…"}
           </Button>
         </DialogFooter>

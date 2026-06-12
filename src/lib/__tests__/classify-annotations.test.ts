@@ -54,9 +54,7 @@ describe("classifyAnnotations — ceiling height", () => {
 describe("classifyAnnotations — window parsing HEIGHT_x_WIDTH", () => {
   it("assigns first number as height, second as width", () => {
     const raw = makeRaw({
-      openingAnnotations: [
-        { text: "1300x1800", nearestRoomLabel: "KITCHEN", nearOpening: true },
-      ],
+      openingAnnotations: [{ text: "1300x1800", nearestRoomLabel: "KITCHEN", nearOpening: true }],
     });
     const result = classifyAnnotations(raw, makeContext({ dimensionFormat: "HEIGHT_x_WIDTH" }));
     expect(result.windows_by_room?.["Kitchen"]).toMatchObject({
@@ -68,9 +66,7 @@ describe("classifyAnnotations — window parsing HEIGHT_x_WIDTH", () => {
 
   it("handles WIDTH_x_HEIGHT format", () => {
     const raw = makeRaw({
-      openingAnnotations: [
-        { text: "1800x1300", nearestRoomLabel: "KITCHEN", nearOpening: true },
-      ],
+      openingAnnotations: [{ text: "1800x1300", nearestRoomLabel: "KITCHEN", nearOpening: true }],
     });
     const result = classifyAnnotations(raw, makeContext({ dimensionFormat: "WIDTH_x_HEIGHT" }));
     expect(result.windows_by_room?.["Kitchen"]).toMatchObject({
@@ -82,9 +78,7 @@ describe("classifyAnnotations — window parsing HEIGHT_x_WIDTH", () => {
 
   it("skips annotations with nearOpening=false", () => {
     const raw = makeRaw({
-      openingAnnotations: [
-        { text: "1300x1800", nearestRoomLabel: "KITCHEN", nearOpening: false },
-      ],
+      openingAnnotations: [{ text: "1300x1800", nearestRoomLabel: "KITCHEN", nearOpening: false }],
     });
     const result = classifyAnnotations(raw, makeContext());
     expect(result.window_count).toBeNull();
@@ -92,9 +86,7 @@ describe("classifyAnnotations — window parsing HEIGHT_x_WIDTH", () => {
 
   it("skips annotations with unparseable text", () => {
     const raw = makeRaw({
-      openingAnnotations: [
-        { text: "N/A", nearestRoomLabel: "KITCHEN", nearOpening: true },
-      ],
+      openingAnnotations: [{ text: "N/A", nearestRoomLabel: "KITCHEN", nearOpening: true }],
     });
     const result = classifyAnnotations(raw, makeContext());
     expect(result.window_count).toBeNull();
@@ -125,17 +117,23 @@ describe("classifyAnnotations — Phase 2e: format-tolerant window parsing", () 
       ],
     });
     const result = classifyAnnotations(raw, makeContext({ dimensionFormat: "HEIGHT_x_WIDTH" }));
-    expect(result.windows_by_room?.["Lounge"]).toMatchObject({ qty: 1, height_m: 2.15, width_m: 2.1 });
+    expect(result.windows_by_room?.["Lounge"]).toMatchObject({
+      qty: 1,
+      height_m: 2.15,
+      width_m: 2.1,
+    });
   });
 
   it("parses the no-comma form '1300x1800' identically (no Beddis/McAlevey regression)", () => {
     const raw = makeRaw({
-      openingAnnotations: [
-        { text: "1300x1800", nearestRoomLabel: "DINING", nearOpening: true },
-      ],
+      openingAnnotations: [{ text: "1300x1800", nearestRoomLabel: "DINING", nearOpening: true }],
     });
     const result = classifyAnnotations(raw, makeContext({ dimensionFormat: "HEIGHT_x_WIDTH" }));
-    expect(result.windows_by_room?.["Dining"]).toMatchObject({ qty: 1, height_m: 1.3, width_m: 1.8 });
+    expect(result.windows_by_room?.["Dining"]).toMatchObject({
+      qty: 1,
+      height_m: 1.3,
+      width_m: 1.8,
+    });
   });
 
   it("keeps a tall slider '2,150 x 2,400' (both >2000) — the old room-box guard wrongly dropped it", () => {
@@ -145,7 +143,11 @@ describe("classifyAnnotations — Phase 2e: format-tolerant window parsing", () 
       ],
     });
     const result = classifyAnnotations(raw, makeContext({ dimensionFormat: "HEIGHT_x_WIDTH" }));
-    expect(result.windows_by_room?.["Family/Living"]).toMatchObject({ qty: 1, height_m: 2.15, width_m: 2.4 });
+    expect(result.windows_by_room?.["Family/Living"]).toMatchObject({
+      qty: 1,
+      height_m: 2.15,
+      width_m: 2.4,
+    });
     expect(result.window_count).toBe(1);
   });
 
@@ -189,7 +191,15 @@ describe("classifyAnnotations — Phase 2e: format-tolerant window parsing", () 
 
 describe("classifyAnnotations — areas from areaSummary", () => {
   it("reads living area from areaSummary", () => {
-    const raw = makeRaw({ areaSummary: { livingAreaM2: 167.9, garageAreaM2: null, alfrescoAreaM2: null, coverageAreaM2: null, perimeterM: null } });
+    const raw = makeRaw({
+      areaSummary: {
+        livingAreaM2: 167.9,
+        garageAreaM2: null,
+        alfrescoAreaM2: null,
+        coverageAreaM2: null,
+        perimeterM: null,
+      },
+    });
     const result = classifyAnnotations(raw, makeContext());
     expect(result.floor_area_m2).toBe(167.9);
   });
@@ -200,7 +210,15 @@ describe("classifyAnnotations — areas from areaSummary", () => {
   });
 
   it("derives roof area as floor * 1.15", () => {
-    const raw = makeRaw({ areaSummary: { livingAreaM2: 100, garageAreaM2: null, alfrescoAreaM2: null, coverageAreaM2: null, perimeterM: null } });
+    const raw = makeRaw({
+      areaSummary: {
+        livingAreaM2: 100,
+        garageAreaM2: null,
+        alfrescoAreaM2: null,
+        coverageAreaM2: null,
+        perimeterM: null,
+      },
+    });
     const result = classifyAnnotations(raw, makeContext());
     expect(result.roof_area_m2).toBe(115);
   });
@@ -254,7 +272,13 @@ describe("classifyAnnotations — derived fields (Phase 2d)", () => {
         { text: "2000x2000", nearestRoomLabel: "KITCHEN", nearOpening: true }, // 2.0×2.0 = 4.0
       ],
       garageDoorAnnotations: ["2100x4800"], // → 4.8×2.1 = 10.08
-      areaSummary: { livingAreaM2: null, garageAreaM2: null, alfrescoAreaM2: null, coverageAreaM2: null, perimeterM: 50 },
+      areaSummary: {
+        livingAreaM2: null,
+        garageAreaM2: null,
+        alfrescoAreaM2: null,
+        coverageAreaM2: null,
+        perimeterM: 50,
+      },
     });
     // opening area = 4.0 + 10.08 = 14.08; ext wall = 50 × 2.4 − 14.08 = 105.92
     const result = classifyAnnotations(raw, makeContext({ studHeightMm: 2400 }));
@@ -263,7 +287,13 @@ describe("classifyAnnotations — derived fields (Phase 2d)", () => {
 
   it("derives total area = floor + alfresco", () => {
     const raw = makeRaw({
-      areaSummary: { livingAreaM2: 165.4, garageAreaM2: null, alfrescoAreaM2: 1.7, coverageAreaM2: null, perimeterM: null },
+      areaSummary: {
+        livingAreaM2: 165.4,
+        garageAreaM2: null,
+        alfrescoAreaM2: 1.7,
+        coverageAreaM2: null,
+        perimeterM: null,
+      },
     });
     const result = classifyAnnotations(raw, makeContext());
     expect(result.total_area_m2).toBe(167.1);
@@ -271,7 +301,13 @@ describe("classifyAnnotations — derived fields (Phase 2d)", () => {
 
   it("falls back to floor area for total when alfresco is not read", () => {
     const raw = makeRaw({
-      areaSummary: { livingAreaM2: 170.79, garageAreaM2: null, alfrescoAreaM2: null, coverageAreaM2: null, perimeterM: null },
+      areaSummary: {
+        livingAreaM2: 170.79,
+        garageAreaM2: null,
+        alfrescoAreaM2: null,
+        coverageAreaM2: null,
+        perimeterM: null,
+      },
     });
     const result = classifyAnnotations(raw, makeContext());
     expect(result.total_area_m2).toBe(170.79);
@@ -279,7 +315,13 @@ describe("classifyAnnotations — derived fields (Phase 2d)", () => {
 
   it("flags alfresco low-confidence in notes when read", () => {
     const raw = makeRaw({
-      areaSummary: { livingAreaM2: 165.4, garageAreaM2: null, alfrescoAreaM2: 1.7, coverageAreaM2: null, perimeterM: null },
+      areaSummary: {
+        livingAreaM2: 165.4,
+        garageAreaM2: null,
+        alfrescoAreaM2: 1.7,
+        coverageAreaM2: null,
+        perimeterM: null,
+      },
     });
     const result = classifyAnnotations(raw, makeContext());
     expect(result.notes).toContain("low confidence");

@@ -35,27 +35,81 @@ import { deriveOpenings } from "../../src/lib/takeoff/derive-fields";
 
 const FIX = resolve(process.cwd(), "tests/phase1/__fixtures__");
 const visionTakeoff = (
-  JSON.parse(readFileSync(resolve(FIX, "mcalevey.golden.json"), "utf8")) as { pipeline: { takeoff: TakeoffData } }
+  JSON.parse(readFileSync(resolve(FIX, "mcalevey.golden.json"), "utf8")) as {
+    pipeline: { takeoff: TakeoffData };
+  }
 ).pipeline.takeoff;
-const geometry = JSON.parse(readFileSync(resolve(FIX, "mcalevey.geometry.json"), "utf8")) as GeometryApiResult;
-const enriched: EnrichedTakeoff = composeTakeoff({ visionTakeoff, geometry, schedule: null, geometryPageIndex: 0 }).enriched;
+const geometry = JSON.parse(
+  readFileSync(resolve(FIX, "mcalevey.geometry.json"), "utf8"),
+) as GeometryApiResult;
+const enriched: EnrichedTakeoff = composeTakeoff({
+  visionTakeoff,
+  geometry,
+  schedule: null,
+  geometryPageIndex: 0,
+}).enriched;
 
 function baseData(over: Partial<QSExportData> = {}): QSExportData {
   return {
-    jobNumber: "JM-0001", clientName: "Jane Client", address: "1 Test St, Palmerston North",
-    templateId: null, createdAt: "2026-01-01T00:00:00.000Z", floorAreaM2: 100, perimeterLm: 40,
-    firstFloorAreaM2: null, studHeightMm: 2400, alfrescoAreaM2: null, roofPitch: null,
-    ridgeType: null, underlay: null, claddingType1: null, claddingType2: null, windows: [],
-    garageDoors: [], interiorDoors: [], downpipes: [], heatPumps: [], extras: [], skylights: [],
-    clientFirstName: "Jane", clientSurname: "Client", streetAddress: "1 Test St", addressLine2: null,
-    city: "Palmerston North", email: null, phone: null, jmwNumber: "JM-0001", planVersion: "1",
-    exteriorWallLengthLm: 40, exteriorWallHeightM: 2.4, pathsPatioM2: null, drivewayM2: null,
-    windowsByRoom: {}, downpipesWhite: 0, downpipesColourSteel: 0, downpipesPvcColoured: 0,
-    garageDoor48x21Std: 0, garageDoor48x21Insulated: 0, garageDoor24x21Std: 0,
-    garageDoor24x21Insulated: 0, garageDoor27x21Std: 0, garageDoor27x21Insulated: 0,
-    intDoorStandard: 0, intDoorUGroove: 0, intDoorVGroove: 0, intDoorBarnSlider: 0,
-    intDoorDouble: 0, intDoorCavitySlider: 0, ceilingHatch: 0, atticStair: 0, letterboxUrban: 0,
-    washingLine: 0, heatPumpWallUnit: 0, heatPumpDucted: 0, specItems: {}, ...over,
+    jobNumber: "JM-0001",
+    clientName: "Jane Client",
+    address: "1 Test St, Palmerston North",
+    templateId: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    floorAreaM2: 100,
+    perimeterLm: 40,
+    firstFloorAreaM2: null,
+    studHeightMm: 2400,
+    alfrescoAreaM2: null,
+    roofPitch: null,
+    ridgeType: null,
+    underlay: null,
+    claddingType1: null,
+    claddingType2: null,
+    windows: [],
+    garageDoors: [],
+    interiorDoors: [],
+    downpipes: [],
+    heatPumps: [],
+    extras: [],
+    skylights: [],
+    clientFirstName: "Jane",
+    clientSurname: "Client",
+    streetAddress: "1 Test St",
+    addressLine2: null,
+    city: "Palmerston North",
+    email: null,
+    phone: null,
+    jmwNumber: "JM-0001",
+    planVersion: "1",
+    exteriorWallLengthLm: 40,
+    exteriorWallHeightM: 2.4,
+    pathsPatioM2: null,
+    drivewayM2: null,
+    windowsByRoom: {},
+    downpipesWhite: 0,
+    downpipesColourSteel: 0,
+    downpipesPvcColoured: 0,
+    garageDoor48x21Std: 0,
+    garageDoor48x21Insulated: 0,
+    garageDoor24x21Std: 0,
+    garageDoor24x21Insulated: 0,
+    garageDoor27x21Std: 0,
+    garageDoor27x21Insulated: 0,
+    intDoorStandard: 0,
+    intDoorUGroove: 0,
+    intDoorVGroove: 0,
+    intDoorBarnSlider: 0,
+    intDoorDouble: 0,
+    intDoorCavitySlider: 0,
+    ceilingHatch: 0,
+    atticStair: 0,
+    letterboxUrban: 0,
+    washingLine: 0,
+    heatPumpWallUnit: 0,
+    heatPumpDucted: 0,
+    specItems: {},
+    ...over,
   };
 }
 
@@ -99,9 +153,14 @@ describe("Stage 2b — window cells migrate to openings[] (equivalent on McAleve
   });
 
   it("RELATIONAL fallback intact — null enriched keeps the base windowsByRoom, openings undefined", () => {
-    const relational = applyEnrichedTakeoff(baseData({ windowsByRoom: { bed1: { cladding: "", qty: 9, height: 1, width: 1 } } }), null);
+    const relational = applyEnrichedTakeoff(
+      baseData({ windowsByRoom: { bed1: { cladding: "", qty: 9, height: 1, width: 1 } } }),
+      null,
+    );
     expect(relational.openings).toBeUndefined();
-    expect(relational.windowsByRoom).toEqual({ bed1: { cladding: "", qty: 9, height: 1, width: 1 } });
+    expect(relational.windowsByRoom).toEqual({
+      bed1: { cladding: "", qty: 9, height: 1, width: 1 },
+    });
   });
 
   it("the sheet BUILDER now reads data.openings — injecting non-empty openings triggers the flat block (different from relational)", () => {

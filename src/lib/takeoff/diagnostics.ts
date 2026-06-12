@@ -86,7 +86,15 @@ export type OpeningDiagnostics = {
 };
 
 export type SpecCheck = {
-  moduleId: IQModuleId | "iq-core" | "iq-framing" | "iq-roofing" | "iq-cladding" | "iq-linings" | "iq-electrical" | "iq-plumbing";
+  moduleId:
+    | IQModuleId
+    | "iq-core"
+    | "iq-framing"
+    | "iq-roofing"
+    | "iq-cladding"
+    | "iq-linings"
+    | "iq-electrical"
+    | "iq-plumbing";
   label: string;
   found: boolean;
   matchedText: string | null;
@@ -124,12 +132,15 @@ export type TakeoffDiagnostics = {
 
 /* ---------------------------- signal extractors -------------------------- */
 
-const ROOM_RE = /\b(bed(?:room)?\s*\d?|lounge|kitchen|bathroom|ensuite|wc|laundry|dining|living|family|hall|entry|garage|study|office|pantry|master)\b/gi;
+const ROOM_RE =
+  /\b(bed(?:room)?\s*\d?|lounge|kitchen|bathroom|ensuite|wc|laundry|dining|living|family|hall|entry|garage|study|office|pantry|master)\b/gi;
 const DIM_RE = /\b\d{3,5}\b/g;
 const SCALE_RE = /(?:scale[:\s]*)?1\s*[:/]\s*(\d{2,4})(?:\s*@\s*(a\d))?/i;
 const AREA_RE = /\b(area|perimeter|coverage|floor\s+area|total\s+area)\b/gi;
-const TITLE_RE = /\b(floor\s*plan|site\s*plan|elevation|section|cover\s*sheet|title\s*sheet|drawing\s*index|roof\s*plan|electrical|plumbing|schedule|legend)\b/gi;
-const SPEC_RE = /\b(specification|specifications|m3\s+schedule|master\s+spec|standard\s+inclusions)\b/gi;
+const TITLE_RE =
+  /\b(floor\s*plan|site\s*plan|elevation|section|cover\s*sheet|title\s*sheet|drawing\s*index|roof\s*plan|electrical|plumbing|schedule|legend)\b/gi;
+const SPEC_RE =
+  /\b(specification|specifications|m3\s+schedule|master\s+spec|standard\s+inclusions)\b/gi;
 
 function uniqueLower(matches: RegExpMatchArray | null): string[] {
   if (!matches) return [];
@@ -167,8 +178,11 @@ export function buildPageDiagnostic(
   textError: string | null,
 ): PageDiagnostic {
   const charCount = raw.text?.length ?? 0;
-  const status: PageDiagnostic["textStatus"] =
-    textError ? "extraction_error" : charCount === 0 ? "empty" : "ok";
+  const status: PageDiagnostic["textStatus"] = textError
+    ? "extraction_error"
+    : charCount === 0
+      ? "empty"
+      : "ok";
   return {
     pageNumber: raw.pageNumber,
     charCount,
@@ -206,18 +220,90 @@ type QtyDef = {
 };
 
 const QTY_DEFS: QtyDef[] = [
-  { kind: "area_over_frame",      label: "Area Over Frame",      unit: "m²", category: "area",   patterns: [/area\s+over\s+frame/i] },
-  { kind: "total_floor_area",     label: "Total Floor Area",     unit: "m²", category: "area",   patterns: [/total\s+floor\s+area/i, /total\s+area/i, /floor\s+area\b/i] },
-  { kind: "coverage_area",        label: "Coverage Area",        unit: "m²", category: "area",   patterns: [/coverage\s+area/i, /\bcoverage\b/i] },
-  { kind: "porch_area",           label: "Porch Area",           unit: "m²", category: "area",   patterns: [/porch\s+area/i, /entry\s+porch/i] },
-  { kind: "garage_area",          label: "Garage Area",          unit: "m²", category: "area",   patterns: [/garage\s+area/i] },
-  { kind: "living_area",          label: "Living Area",          unit: "m²", category: "area",   patterns: [/living\s+area/i, /\bhabitable\s+area/i] },
-  { kind: "cladding_area",        label: "Cladding Area",        unit: "m²", category: "area",   patterns: [/cladding\s+area/i] },
-  { kind: "external_perimeter",   label: "External Perimeter",   unit: "lm", category: "length", patterns: [/external\s+perimeter/i, /perimeter/i] },
-  { kind: "internal_wall_length", label: "Internal Wall Length", unit: "lm", category: "length", patterns: [/internal\s+wall\s+length/i, /internal\s+walls?\b/i] },
-  { kind: "roof_pitch",           label: "Roof Pitch",           unit: "°",  category: "pitch",  patterns: [/(?:roof\s+)?pitch/i] },
-  { kind: "stud_height",          label: "Stud Height",          unit: "m",  category: "stud",   patterns: [/stud\s+height/i] },
-  { kind: "garage_door_size",     label: "Garage Door Size",     unit: "mm", category: "garage_door", patterns: [/garage\s+door/i] },
+  {
+    kind: "area_over_frame",
+    label: "Area Over Frame",
+    unit: "m²",
+    category: "area",
+    patterns: [/area\s+over\s+frame/i],
+  },
+  {
+    kind: "total_floor_area",
+    label: "Total Floor Area",
+    unit: "m²",
+    category: "area",
+    patterns: [/total\s+floor\s+area/i, /total\s+area/i, /floor\s+area\b/i],
+  },
+  {
+    kind: "coverage_area",
+    label: "Coverage Area",
+    unit: "m²",
+    category: "area",
+    patterns: [/coverage\s+area/i, /\bcoverage\b/i],
+  },
+  {
+    kind: "porch_area",
+    label: "Porch Area",
+    unit: "m²",
+    category: "area",
+    patterns: [/porch\s+area/i, /entry\s+porch/i],
+  },
+  {
+    kind: "garage_area",
+    label: "Garage Area",
+    unit: "m²",
+    category: "area",
+    patterns: [/garage\s+area/i],
+  },
+  {
+    kind: "living_area",
+    label: "Living Area",
+    unit: "m²",
+    category: "area",
+    patterns: [/living\s+area/i, /\bhabitable\s+area/i],
+  },
+  {
+    kind: "cladding_area",
+    label: "Cladding Area",
+    unit: "m²",
+    category: "area",
+    patterns: [/cladding\s+area/i],
+  },
+  {
+    kind: "external_perimeter",
+    label: "External Perimeter",
+    unit: "lm",
+    category: "length",
+    patterns: [/external\s+perimeter/i, /perimeter/i],
+  },
+  {
+    kind: "internal_wall_length",
+    label: "Internal Wall Length",
+    unit: "lm",
+    category: "length",
+    patterns: [/internal\s+wall\s+length/i, /internal\s+walls?\b/i],
+  },
+  {
+    kind: "roof_pitch",
+    label: "Roof Pitch",
+    unit: "°",
+    category: "pitch",
+    patterns: [/(?:roof\s+)?pitch/i],
+  },
+  {
+    kind: "stud_height",
+    label: "Stud Height",
+    unit: "m",
+    category: "stud",
+    patterns: [/stud\s+height/i],
+  },
+  {
+    kind: "garage_door_size",
+    label: "Garage Door Size",
+    unit: "mm",
+    category: "garage_door",
+    patterns: [/garage\s+door/i],
+  },
 ];
 
 function runQtyOnPage(
@@ -236,7 +322,11 @@ function runQtyOnPage(
       if (!vm) continue;
       const v = parseNum(vm[1]);
       if (v == null || v <= 0 || v > 10000) continue;
-      return { matched: snippet(text, labelM.index, labelM[0].length + (vm.index ?? 0) + vm[0].length), value: v, secondary: null };
+      return {
+        matched: snippet(text, labelM.index, labelM[0].length + (vm.index ?? 0) + vm[0].length),
+        value: v,
+        secondary: null,
+      };
     }
     if (def.category === "length") {
       const re = new RegExp(`${NUM}\\s*(m|lm|metres?|lin\\.?\\s*m|mm)\\b`, "i");
@@ -246,7 +336,11 @@ function runQtyOnPage(
       if (v == null || v <= 0) continue;
       if (vm[2].toLowerCase() === "mm") v = v / 1000;
       if (v > 5000) continue;
-      return { matched: snippet(text, labelM.index, labelM[0].length + (vm.index ?? 0) + vm[0].length), value: v, secondary: null };
+      return {
+        matched: snippet(text, labelM.index, labelM[0].length + (vm.index ?? 0) + vm[0].length),
+        value: v,
+        secondary: null,
+      };
     }
     if (def.category === "pitch") {
       const re = /(?:roof\s+)?pitch[:\s]*?(\d{1,2}(?:\.\d)?)\s*(?:°|deg|degrees|degree)/i;
@@ -316,7 +410,8 @@ export function runQuantityChecks(files: ExtractedFile[]): QuantityCheck[] {
 
 /* ---------------------------- opening checks ----------------------------- */
 
-const WIN_CTX = /(window|awning|casement|fixed|joinery|sliding\s+door|stacker|ranchslider|french\s+door|bifold)/i;
+const WIN_CTX =
+  /(window|awning|casement|fixed|joinery|sliding\s+door|stacker|ranchslider|french\s+door|bifold)/i;
 const DOOR_CTX = /(door|entry|hinged|cavity\s+slider|internal\s+door)/i;
 const GARAGE_CTX = /(garage\s+door|sectional\s+door|tilt\s+door|roller\s+door)/i;
 const PAIR_RE_G = /(\d{3,5})\s*[x×]\s*(\d{3,5})/g;
@@ -328,10 +423,7 @@ function nearby(text: string, idx: number, len: number, pad = 60): string {
   return text.slice(a, b);
 }
 
-export function runOpeningChecks(
-  files: ExtractedFile[],
-  rowsCreated: number,
-): OpeningDiagnostics {
+export function runOpeningChecks(files: ExtractedFile[], rowsCreated: number): OpeningDiagnostics {
   const candidates: OpeningCandidate[] = [];
   const seen = new Set<string>();
   let pairsFound = 0;
@@ -367,13 +459,21 @@ export function runOpeningChecks(
           ignored++;
         } else {
           if (GARAGE_CTX.test(ctx) || (w >= 2000 && h >= 1800 && h <= 2400)) {
-            kindGuess = "garage_door"; confidence = "high";
-          } else if (/sliding|stacker|ranchslider|bifold|french/i.test(ctx) && w >= 1600 && h >= 1900) {
-            kindGuess = "sliding_door"; confidence = "mid";
+            kindGuess = "garage_door";
+            confidence = "high";
+          } else if (
+            /sliding|stacker|ranchslider|bifold|french/i.test(ctx) &&
+            w >= 1600 &&
+            h >= 1900
+          ) {
+            kindGuess = "sliding_door";
+            confidence = "mid";
           } else if (WIN_CTX.test(ctx)) {
-            kindGuess = "window"; confidence = "low";
+            kindGuess = "window";
+            confidence = "low";
           } else if (DOOR_CTX.test(ctx) && h >= 1900) {
-            kindGuess = "external_door"; confidence = "low";
+            kindGuess = "external_door";
+            confidence = "low";
           }
           const key = `${kindGuess}:${w}:${h}:${page.pageNumber}`;
           if (seen.has(key)) {
@@ -477,7 +577,8 @@ export function deriveOutcome(args: {
   if (args.errorsCount > 0 && args.moduleRowsInserted === 0) {
     return {
       outcome: "errors",
-      outcomeMessage: "Errors occurred while processing files. See the diagnostics panel for details.",
+      outcomeMessage:
+        "Errors occurred while processing files. See the diagnostics panel for details.",
     };
   }
   const partial = args.pagesWithoutText > 0;

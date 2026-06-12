@@ -161,12 +161,18 @@ describe("safeguardScheduleHeights", () => {
   });
 
   it("tolerates a near-datum read within the band (2200 ≈ 2210)", () => {
-    const r = safeguardScheduleHeights(sched([{ id: "W01", heightMm: 2200, widthMm: 1030 }]), scheduleVector(2210));
+    const r = safeguardScheduleHeights(
+      sched([{ id: "W01", heightMm: 2200, widthMm: 1030 }]),
+      scheduleVector(2210),
+    );
     expect(r.flaggedIds).toEqual(["W01"]);
   });
 
   it("does NOT flag a tall slider that is clearly below the datum band (2150 vs 2210)", () => {
-    const r = safeguardScheduleHeights(sched([{ id: "W01", heightMm: 2150, widthMm: 2400 }]), scheduleVector(2210));
+    const r = safeguardScheduleHeights(
+      sched([{ id: "W01", heightMm: 2150, widthMm: 2400 }]),
+      scheduleVector(2210),
+    );
     expect(r.flaggedIds).toEqual([]);
     expect(r.schedule!.windows[0].heightMm).toBe(2150);
   });
@@ -196,12 +202,18 @@ describe("safeguardScheduleHeights", () => {
 
 describe("headDatumSafeguardNote", () => {
   it("is empty when nothing was flagged", () => {
-    const r = safeguardScheduleHeights(sched([{ id: "W01", heightMm: 900, widthMm: 600 }]), scheduleVector(2210));
+    const r = safeguardScheduleHeights(
+      sched([{ id: "W01", heightMm: 900, widthMm: 600 }]),
+      scheduleVector(2210),
+    );
     expect(headDatumSafeguardNote(r)).toBe("");
   });
 
   it("names the flagged windows and the datum when it fired", () => {
-    const r = safeguardScheduleHeights(sched([{ id: "W01", heightMm: 2210, widthMm: 1030 }]), scheduleVector(2210));
+    const r = safeguardScheduleHeights(
+      sched([{ id: "W01", heightMm: 2210, widthMm: 1030 }]),
+      scheduleVector(2210),
+    );
     const note = headDatumSafeguardNote(r);
     expect(note).toContain("W01");
     expect(note).toContain("2210");

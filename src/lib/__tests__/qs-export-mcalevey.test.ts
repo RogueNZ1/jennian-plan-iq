@@ -28,7 +28,9 @@ const mcalevey: QSExportData = {
   // Core measurements → D12/D13/D15/D19/D20
   floorAreaM2: 133.4,
   alfrescoAreaM2: 1.3,
-  perimeterLm: 55, internalWallLm: null, gableSpanM: null,
+  perimeterLm: 55,
+  internalWallLm: null,
+  gableSpanM: null,
   exteriorWallLengthLm: 55,
   exteriorWallHeightM: 2.4,
   firstFloorAreaM2: 0,
@@ -38,37 +40,37 @@ const mcalevey: QSExportData = {
 
   // Windows by room → D/E/F at specific rows
   windowsByRoom: {
-    bed1:         { cladding: "", qty: 1, height: 1.3,  width: 2.1 },
-    ensuite:      { cladding: "", qty: 1, height: 1.1,  width: 0.8 },
-    bed2:         { cladding: "", qty: 1, height: 1.3,  width: 1.5 },
-    bed3:         { cladding: "", qty: 1, height: 1.3,  width: 1.5 },
-    bathroom:     { cladding: "", qty: 1, height: 1.1,  width: 1.2 },
-    kitchen:      { cladding: "", qty: 1, height: 1.8,  width: 2.1 },
-    dining:       { cladding: "", qty: 1, height: 1.8,  width: 1.8 },
-    lounge:       { cladding: "", qty: 1, height: 2.15, width: 2.6 },
+    bed1: { cladding: "", qty: 1, height: 1.3, width: 2.1 },
+    ensuite: { cladding: "", qty: 1, height: 1.1, width: 0.8 },
+    bed2: { cladding: "", qty: 1, height: 1.3, width: 1.5 },
+    bed3: { cladding: "", qty: 1, height: 1.3, width: 1.5 },
+    bathroom: { cladding: "", qty: 1, height: 1.1, width: 1.2 },
+    kitchen: { cladding: "", qty: 1, height: 1.8, width: 2.1 },
+    dining: { cladding: "", qty: 1, height: 1.8, width: 1.8 },
+    lounge: { cladding: "", qty: 1, height: 2.15, width: 2.6 },
     garageWindow: { cladding: "", qty: 1, height: 2.15, width: 2.0 },
-    garageDoor1:  { cladding: "", qty: 1, height: 2.1,  width: 2.7 },
-    entrance:     { cladding: "", qty: 1, height: 2.15, width: 1.6 },
+    garageDoor1: { cladding: "", qty: 1, height: 2.1, width: 2.7 },
+    entrance: { cladding: "", qty: 1, height: 2.15, width: 1.6 },
   },
 
   // Garage doors → H180 (2.7×2.1 insulated)
   garageDoor48x21Insulated: 0,
-  garageDoor48x21Std:       0,
+  garageDoor48x21Std: 0,
   garageDoor24x21Insulated: 0,
-  garageDoor24x21Std:       0,
+  garageDoor24x21Std: 0,
   garageDoor27x21Insulated: 1,
-  garageDoor27x21Std:       0,
+  garageDoor27x21Std: 0,
 
   // Interior doors → H187/H192/H193
-  intDoorStandard:     7,
-  intDoorUGroove:      0,
-  intDoorVGroove:      0,
-  intDoorBarnSlider:   0,
-  intDoorDouble:       4,
+  intDoorStandard: 7,
+  intDoorUGroove: 0,
+  intDoorVGroove: 0,
+  intDoorBarnSlider: 0,
+  intDoorDouble: 4,
   intDoorCavitySlider: 2,
 
   // Downpipes → E145/E147
-  downpipesWhite:       5,
+  downpipesWhite: 5,
   downpipesColourSteel: 0,
   downpipesPvcColoured: 5,
 
@@ -232,10 +234,30 @@ describe("QS Export — McAlevey reference (Stage 5 validation)", () => {
 
   // ── Yellow fill on all value cells ───────────────────────────────────────────
   it("all value cells have yellow fill style", () => {
-    const valueCells = ["I3","I4","I5","I8","D12","D13","D15","D19","D20",
-      "D41","E41","F41","E145","E147","H180","H187","H192","H193"];
+    const valueCells = [
+      "I3",
+      "I4",
+      "I5",
+      "I8",
+      "D12",
+      "D13",
+      "D15",
+      "D19",
+      "D20",
+      "D41",
+      "E41",
+      "F41",
+      "E145",
+      "E147",
+      "H180",
+      "H187",
+      "H192",
+      "H193",
+    ];
     for (const addr of valueCells) {
-      const styled = ws[addr] as (import("xlsx").CellObject & { s?: { fill?: { fgColor?: { rgb?: string } } } }) | undefined;
+      const styled = ws[addr] as
+        | (import("xlsx").CellObject & { s?: { fill?: { fgColor?: { rgb?: string } } } })
+        | undefined;
       expect(styled?.s?.fill?.fgColor?.rgb, `${addr} fill`).toBe("FFFF00");
     }
   });

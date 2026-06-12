@@ -26,7 +26,11 @@ export function PlanThumbnail({
 
   useEffect(() => {
     let active = true;
-    if (!storagePath) { setStatus("idle"); setUrl(null); return; }
+    if (!storagePath) {
+      setStatus("idle");
+      setUrl(null);
+      return;
+    }
 
     setStatus("loading");
 
@@ -53,7 +57,9 @@ export function PlanThumbnail({
         }
       });
 
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [storagePath]);
 
   return (
@@ -64,9 +70,7 @@ export function PlanThumbnail({
         className,
       )}
     >
-      {status === "loading" && (
-        <div className="absolute inset-0 bg-muted/60 animate-pulse" />
-      )}
+      {status === "loading" && <div className="absolute inset-0 bg-muted/60 animate-pulse" />}
       {status === "ready" && url && (
         <img
           src={url}
@@ -79,9 +83,7 @@ export function PlanThumbnail({
       {(status === "idle" || status === "error") && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-muted-foreground/70 p-1 text-center">
           <ImageOff className="h-3.5 w-3.5 opacity-70" aria-hidden />
-          <span className="text-[8.5px] uppercase tracking-[0.12em] leading-tight">
-            No preview
-          </span>
+          <span className="text-[8.5px] uppercase tracking-[0.12em] leading-tight">No preview</span>
         </div>
       )}
     </div>

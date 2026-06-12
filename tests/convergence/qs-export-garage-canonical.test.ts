@@ -24,38 +24,87 @@ function cellVal(ws: ReturnType<typeof buildDropInSheet>, addr: string): unknown
 /** Minimal QSExportData base (mirrors qs-export-dropin.test.ts). */
 function base(over: Partial<QSExportData> = {}): QSExportData {
   return {
-    jobNumber: "JM-0020", clientName: "Test Client", address: "1 Test St, Feilding",
-    templateId: null, createdAt: "", floorAreaM2: 100, perimeterLm: 40,
-    firstFloorAreaM2: null, studHeightMm: 2400, alfrescoAreaM2: 0,
-    roofPitch: null, ridgeType: null, underlay: null, claddingType1: null, claddingType2: null,
-    windows: [], garageDoors: [], interiorDoors: [], downpipes: [], heatPumps: [],
-    extras: [], skylights: [], clientFirstName: "Test", clientSurname: "Client",
-    streetAddress: "1 Test St", addressLine2: null, city: "Feilding",
-    email: null, phone: null, jmwNumber: "JM-0020", planVersion: "1",
-    exteriorWallLengthLm: 40, exteriorWallHeightM: 2.4,
-    pathsPatioM2: null, drivewayM2: null, windowsByRoom: {},
-    downpipesWhite: 0, downpipesColourSteel: 0, downpipesPvcColoured: 0,
-    garageDoor48x21Std: 0, garageDoor48x21Insulated: 0,
-    garageDoor24x21Std: 0, garageDoor24x21Insulated: 0,
-    garageDoor27x21Std: 0, garageDoor27x21Insulated: 0,
-    intDoorStandard: 0, intDoorUGroove: 0, intDoorVGroove: 0,
-    intDoorBarnSlider: 0, intDoorDouble: 0, intDoorCavitySlider: 0,
-    ceilingHatch: 0, atticStair: 0, letterboxUrban: 0, washingLine: 0,
-    heatPumpWallUnit: 0, heatPumpDucted: 0, specItems: {},
+    jobNumber: "JM-0020",
+    clientName: "Test Client",
+    address: "1 Test St, Feilding",
+    templateId: null,
+    createdAt: "",
+    floorAreaM2: 100,
+    perimeterLm: 40,
+    firstFloorAreaM2: null,
+    studHeightMm: 2400,
+    alfrescoAreaM2: 0,
+    roofPitch: null,
+    ridgeType: null,
+    underlay: null,
+    claddingType1: null,
+    claddingType2: null,
+    windows: [],
+    garageDoors: [],
+    interiorDoors: [],
+    downpipes: [],
+    heatPumps: [],
+    extras: [],
+    skylights: [],
+    clientFirstName: "Test",
+    clientSurname: "Client",
+    streetAddress: "1 Test St",
+    addressLine2: null,
+    city: "Feilding",
+    email: null,
+    phone: null,
+    jmwNumber: "JM-0020",
+    planVersion: "1",
+    exteriorWallLengthLm: 40,
+    exteriorWallHeightM: 2.4,
+    pathsPatioM2: null,
+    drivewayM2: null,
+    windowsByRoom: {},
+    downpipesWhite: 0,
+    downpipesColourSteel: 0,
+    downpipesPvcColoured: 0,
+    garageDoor48x21Std: 0,
+    garageDoor48x21Insulated: 0,
+    garageDoor24x21Std: 0,
+    garageDoor24x21Insulated: 0,
+    garageDoor27x21Std: 0,
+    garageDoor27x21Insulated: 0,
+    intDoorStandard: 0,
+    intDoorUGroove: 0,
+    intDoorVGroove: 0,
+    intDoorBarnSlider: 0,
+    intDoorDouble: 0,
+    intDoorCavitySlider: 0,
+    ceilingHatch: 0,
+    atticStair: 0,
+    letterboxUrban: 0,
+    washingLine: 0,
+    heatPumpWallUnit: 0,
+    heatPumpDucted: 0,
+    specItems: {},
     openings: null,
     ...over,
   };
 }
 
 function op(type: Opening["type"], room: string | null, h: number, w: number): Opening {
-  return { type, room, height_m: h, width_m: w, glazed: type !== "sectional_door",
-           cladding: null, area_m2: h * w, source: "vision", confidence: "medium" };
+  return {
+    type,
+    room,
+    height_m: h,
+    width_m: w,
+    glazed: type !== "sectional_door",
+    cladding: null,
+    area_m2: h * w,
+    source: "vision",
+    confidence: "medium",
+  };
 }
 
 // ── JM-0020-shaped fixture: lounge slider + non-standard 3.0×2.1 sectional ───
 const JM0020_OPENINGS: Opening[] = [
-  op("window",         "Bed 1",  1.3, 1.8),
-  op("slider",         "Lounge", 2.1, 2.4), // ← must land at row 62 with real dims
+  op("window", "Bed 1", 1.3, 1.8),
+  op("slider", "Lounge", 2.1, 2.4), // ← must land at row 62 with real dims
   op("sectional_door", "Garage", 2.1, 3.0), // ← non-standard width: rows 67/68, not H-bins
 ];
 
@@ -63,13 +112,15 @@ const JM0020_OPENINGS: Opening[] = [
 
 describe("buildDropInSheet — IQ Import: JM-0020-shaped canonical rendering", () => {
   it("non-standard 3.0×2.1 sectional → B24 exact size, row 44 real dims, never re-binned", () => {
-    const ws = buildDropInSheet(base({
-      openings: [
-        op("window", "Lounge", 1.3, 1.8),
-        op("slider", "Lounge", 2.1, 2.4),
-        op("sectional_door", "Garage", 2.1, 3.0),
-      ],
-    }));
+    const ws = buildDropInSheet(
+      base({
+        openings: [
+          op("window", "Lounge", 1.3, 1.8),
+          op("slider", "Lounge", 2.1, 2.4),
+          op("sectional_door", "Garage", 2.1, 3.0),
+        ],
+      }),
+    );
     expect(cellVal(ws, "B24")).toBe("3x2.1");
     expect([cellVal(ws, "B44"), cellVal(ws, "C44"), cellVal(ws, "D44")]).toEqual([1, 2.1, 3]);
     // lounge: window (arrival group 1) on the slot, slider in the manual block
@@ -82,10 +133,12 @@ describe("buildDropInSheet — IQ Import: JM-0020-shaped canonical rendering", (
   });
 
   it("relational counters win over canonical sectionals — single source, never both", () => {
-    const ws = buildDropInSheet(base({
-      garageDoor48x21Insulated: 1,
-      openings: [op("sectional_door", "Garage", 2.1, 2.4)],
-    }));
+    const ws = buildDropInSheet(
+      base({
+        garageDoor48x21Insulated: 1,
+        openings: [op("sectional_door", "Garage", 2.1, 2.4)],
+      }),
+    );
     expect(cellVal(ws, "B24")).toBe("4.8x2.1"); // relational, not the canonical 2.4
     expect(cellVal(ws, "D44")).toBe(4.8);
   });

@@ -23,13 +23,15 @@ export type ScaleResult = {
 // Matches NZ architectural scale strings, including:
 //   "1:100", "1/100", "Scale 1:100", "SCALE: 1:100", "SCALE - 1:100",
 //   "1:100 @ A3", "1:100 (A3)"
+// eslint-disable-next-line no-useless-escape -- kept verbatim — regex is pinned by reference fixtures
 const SCALE_RE = /(?:scale\s*[:–\-]?\s*)?1\s*[:/]\s*(\d{2,4})(?:\s*[@(]\s*(a[0-4])\s*\)?)?/i;
 
 export function detectScaleFromText(p: ExtractedPage): ScaleResult {
   const m = p.text.match(SCALE_RE);
   if (!m) {
     return {
-      scaleText: null, scaleDen: null,
+      scaleText: null,
+      scaleDen: null,
       pageSize: p.pageSize,
       pixelsPerMm: null,
       status: "Manual Calibration Required",
@@ -41,8 +43,10 @@ export function detectScaleFromText(p: ExtractedPage): ScaleResult {
   const scaleText = m[2] ? `1:${den} @${m[2].toUpperCase()}` : `1:${den}`;
   if (!Number.isFinite(den) || den <= 0) {
     return {
-      scaleText, scaleDen: null,
-      pageSize: p.pageSize, pixelsPerMm: null,
+      scaleText,
+      scaleDen: null,
+      pageSize: p.pageSize,
+      pixelsPerMm: null,
       status: "Manual Calibration Required",
       confidence: "low",
       evidence: `Scale string "${scaleText}" parsed but denominator invalid.`,
@@ -51,8 +55,10 @@ export function detectScaleFromText(p: ExtractedPage): ScaleResult {
 
   if (p.pageSize === "unknown") {
     return {
-      scaleText, scaleDen: den,
-      pageSize: "unknown", pixelsPerMm: null,
+      scaleText,
+      scaleDen: den,
+      pageSize: "unknown",
+      pixelsPerMm: null,
       status: "Auto-Calibrated — Needs Review",
       confidence: "low",
       evidence: `Scale "${scaleText}" detected on page ${p.pageNumber} but page size could not be inferred.`,
@@ -66,7 +72,8 @@ export function detectScaleFromText(p: ExtractedPage): ScaleResult {
   const realMmToPts = 2.83465 / den;
   const pixelsPerMm = realMmToPts;
   return {
-    scaleText, scaleDen: den,
+    scaleText,
+    scaleDen: den,
     pageSize: p.pageSize,
     pixelsPerMm,
     status: "Auto-Calibrated — Needs Review",

@@ -46,10 +46,7 @@ function getAdminClient(): SupabaseClient {
 }
 
 /** Verify the caller's token and enforce the owner-only policy (shared with invites). */
-async function requireOwner(
-  admin: SupabaseClient,
-  accessToken: string | undefined,
-): Promise<User> {
+async function requireOwner(admin: SupabaseClient, accessToken: string | undefined): Promise<User> {
   if (!accessToken) throw new Error("Not signed in — refresh and try again.");
   const { data, error } = await admin.auth.getUser(accessToken);
   const caller = data?.user;
@@ -66,7 +63,8 @@ async function requireOwner(
     callerRoles: (roleRows ?? []).map((r) => (r as { role: string }).role),
     allowlistEnv: process.env.INVITE_ALLOWLIST,
   });
-  if (!verdict.allowed) throw new Error(verdict.reason.replace(/invitations?/gi, "user management"));
+  if (!verdict.allowed)
+    throw new Error(verdict.reason.replace(/invitations?/gi, "user management"));
   return caller;
 }
 

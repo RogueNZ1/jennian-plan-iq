@@ -22,8 +22,7 @@ const BASE = {
   branch: "Manawatū",
   welcomeMessage: null,
   inviterName: "Haydon Christian",
-  actionUrl:
-    "https://www.jennianiq.nz/auth/set-password?token_hash=abc123&type=invite",
+  actionUrl: "https://www.jennianiq.nz/auth/set-password?token_hash=abc123&type=invite",
   assetBaseUrl: "https://www.jennianiq.nz",
   year: 2026,
 };
@@ -121,9 +120,9 @@ describe("invite authorization gate (owner-only)", () => {
   const HAYDON = "haydon.christian@jennian.co.nz";
 
   it("allows Haydon when he holds the owner role", () => {
-    expect(
-      evaluateInviteAuthorization({ callerEmail: HAYDON, callerRoles: ["owner"] }),
-    ).toEqual({ allowed: true });
+    expect(evaluateInviteAuthorization({ callerEmail: HAYDON, callerRoles: ["owner"] })).toEqual({
+      allowed: true,
+    });
   });
 
   it("blocks an admin — role alone is not enough", () => {
@@ -173,8 +172,8 @@ describe("invite authorization gate (owner-only)", () => {
   });
 
   it("rejects a session with no email", () => {
-    expect(
-      evaluateInviteAuthorization({ callerEmail: null, callerRoles: ["owner"] }).allowed,
-    ).toBe(false);
+    expect(evaluateInviteAuthorization({ callerEmail: null, callerRoles: ["owner"] }).allowed).toBe(
+      false,
+    );
   });
 });

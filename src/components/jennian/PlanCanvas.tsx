@@ -3,15 +3,37 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
 import {
-  Loader2, Ruler, Square, Spline, Plus, Minus, Move, Trash2, Check, Send,
-  AlertTriangle, RotateCcw, X,
+  Loader2,
+  Ruler,
+  Square,
+  Spline,
+  Plus,
+  Minus,
+  Move,
+  Trash2,
+  Check,
+  Send,
+  AlertTriangle,
+  RotateCcw,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  loadCalibration, saveCalibration, loadMeasurements, saveMeasurement,
-  setMeasurementReviewStatus, deleteMeasurement, pushMeasurementToModule,
-  polylinePixelLength, polygonPixelArea, pxToMm, pxAreaToM2,
-  type Calibration, type PlanMeasurement, type Pt, type MeasurementType,
+  loadCalibration,
+  saveCalibration,
+  loadMeasurements,
+  saveMeasurement,
+  setMeasurementReviewStatus,
+  deleteMeasurement,
+  pushMeasurementToModule,
+  polylinePixelLength,
+  polygonPixelArea,
+  pxToMm,
+  pxAreaToM2,
+  type Calibration,
+  type PlanMeasurement,
+  type Pt,
+  type MeasurementType,
 } from "@/lib/iq-measurements";
 import { PushToModuleDialog } from "@/components/jennian/PushToModuleDialog";
 import type { IQModuleId } from "@/lib/iq-modules";
@@ -28,11 +50,11 @@ async function getPdfJs(): Promise<PdfJs> {
 }
 
 const INTERNAL_WALL_CATEGORIES: { value: string; label: string }[] = [
-  { value: "standard",        label: "Standard internal wall" },
-  { value: "wet_area",        label: "Wet area wall" },
-  { value: "robe",            label: "Robe wall" },
+  { value: "standard", label: "Standard internal wall" },
+  { value: "wet_area", label: "Wet area wall" },
+  { value: "robe", label: "Robe wall" },
   { value: "garage_internal", label: "Garage internal wall" },
-  { value: "excluded",        label: "Excluded" },
+  { value: "excluded", label: "Excluded" },
 ];
 
 type Tool =
@@ -84,7 +106,9 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
   const [bgSize, setBgSize] = useState<{ w: number; h: number } | null>(null);
   const [planFileId, setPlanFileId] = useState<string | null>(null);
   const [planFileName, setPlanFileName] = useState<string | null>(null);
-  const [planFiles, setPlanFiles] = useState<Array<{ id: string; file_name: string; storage_url: string }>>([]);
+  const [planFiles, setPlanFiles] = useState<
+    Array<{ id: string; file_name: string; storage_url: string }>
+  >([]);
   const [workingFileId, setWorkingFileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -101,7 +125,9 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState<Pt>({ x: 0, y: 0 });
   const panRef = useRef<{ active: boolean; lastX: number; lastY: number }>({
-    active: false, lastX: 0, lastY: 0,
+    active: false,
+    lastX: 0,
+    lastY: 0,
   });
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
@@ -128,18 +154,20 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
       ]);
       if (cancelled) return;
       const list = (files ?? []).map((f) => ({
-        id: f.id as string, file_name: f.file_name as string, storage_url: f.storage_url as string,
+        id: f.id as string,
+        file_name: f.file_name as string,
+        storage_url: f.storage_url as string,
       }));
       setPlanFiles(list);
       const persisted = (job?.working_plan_file_id as string | null) ?? null;
       const initial =
-        persisted && list.some((f) => f.id === persisted)
-          ? persisted
-          : list[0]?.id ?? null;
+        persisted && list.some((f) => f.id === persisted) ? persisted : (list[0]?.id ?? null);
       setWorkingFileId(initial);
       if (job?.working_plan_page_number) setPlanPage(Number(job.working_plan_page_number));
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [jobId]);
 
   async function persistWorkingPlan(fileId: string | null, page: number) {
@@ -156,17 +184,28 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
   /* ---------- Load plan page as backdrop image ---------- */
   useEffect(() => {
     let cancelled = false;
-    if (!workingFileId) { setLoading(false); setBgUrl(null); setBgSize(null); return; }
+    if (!workingFileId) {
+      setLoading(false);
+      setBgUrl(null);
+      setBgSize(null);
+      return;
+    }
     setLoading(true);
     (async () => {
       const f = planFiles.find((p) => p.id === workingFileId) ?? planFiles[0];
-      if (!f) { if (!cancelled) setLoading(false); return; }
+      if (!f) {
+        if (!cancelled) setLoading(false);
+        return;
+      }
       setPlanFileId(f.id);
       setPlanFileName(f.file_name);
       const { data: signed } = await supabase.storage
         .from("job-files")
         .createSignedUrl(f.storage_url, 60 * 30);
-      if (!signed?.signedUrl) { if (!cancelled) setLoading(false); return; }
+      if (!signed?.signedUrl) {
+        if (!cancelled) setLoading(false);
+        return;
+      }
 
       const isPdf = /\.pdf($|\?)/i.test(f.file_name) || /\.pdf($|\?)/i.test(f.storage_url);
       if (isPdf) {
@@ -209,13 +248,19 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
       }
       if (!cancelled) setLoading(false);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [jobId, planPage, workingFileId, planFiles]);
 
   /* ---------- Load calibration + measurements ---------- */
   useEffect(() => {
-    loadCalibration(jobId, planPage).then(setCalibration).catch(() => {});
-    loadMeasurements(jobId).then(setMeasurements).catch(() => {});
+    loadCalibration(jobId, planPage)
+      .then(setCalibration)
+      .catch(() => {});
+    loadMeasurements(jobId)
+      .then(setMeasurements)
+      .catch(() => {});
   }, [jobId, planPage]);
 
   /** True when the loaded calibration belongs to a different plan file. */
@@ -236,9 +281,16 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
     return { x, y };
   }
 
-  function startDraft(pt: Pt) { setDraftPoints([pt]); }
-  function appendDraft(pt: Pt) { setDraftPoints((d) => [...d, pt]); }
-  function clearDraft() { setDraftPoints([]); setHoverPoint(null); }
+  function startDraft(pt: Pt) {
+    setDraftPoints([pt]);
+  }
+  function appendDraft(pt: Pt) {
+    setDraftPoints((d) => [...d, pt]);
+  }
+  function clearDraft() {
+    setDraftPoints([]);
+    setHoverPoint(null);
+  }
 
   function onCanvasClick(e: React.MouseEvent) {
     if (tool === "pan") return;
@@ -256,7 +308,10 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
     }
     if (tool === "line") {
       if (draftPoints.length === 0) startDraft(pt);
-      else { commitDraft([draftPoints[0], pt]); setDraftPoints([]); }
+      else {
+        commitDraft([draftPoints[0], pt]);
+        setDraftPoints([]);
+      }
       return;
     }
     // poly tools
@@ -286,18 +341,34 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
     const pixelsPerMm = calibration.pixels_per_mm;
     let mt: MeasurementType;
     let label = "";
-    if (tool === "line") { mt = "line"; label = "Measured line"; }
-    else if (tool === "polyline") { mt = "polyline"; label = "Polyline"; }
-    else if (tool === "area") { mt = "area"; label = "Area"; }
-    else if (tool === "internal_wall") { mt = "internal_wall"; label = "Internal wall"; }
-    else if (tool === "external_perimeter") { mt = "external_perimeter"; label = "External perimeter"; }
-    else return;
+    if (tool === "line") {
+      mt = "line";
+      label = "Measured line";
+    } else if (tool === "polyline") {
+      mt = "polyline";
+      label = "Polyline";
+    } else if (tool === "area") {
+      mt = "area";
+      label = "Area";
+    } else if (tool === "internal_wall") {
+      mt = "internal_wall";
+      label = "Internal wall";
+    } else if (tool === "external_perimeter") {
+      mt = "external_perimeter";
+      label = "External perimeter";
+    } else return;
 
     try {
       const m = await saveMeasurement({
-        jobId, fileId: planFileId, page: planPage, type: mt, label,
+        jobId,
+        fileId: planFileId,
+        page: planPage,
+        type: mt,
+        label,
         category: tool === "internal_wall" ? wallCategory : null,
-        points, pixelsPerMm, createdBy: user.id,
+        points,
+        pixelsPerMm,
+        createdBy: user.id,
       });
       setMeasurements((prev) => [m, ...prev]);
       toast.success(`${TOOL_LABEL[tool]} saved.`);
@@ -310,15 +381,26 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
   async function confirmCalibration() {
     if (!calibPrompt || !user) return;
     const realMm = Number(calibInputMm);
-    if (!realMm || realMm <= 0) { toast.error("Enter a valid mm value."); return; }
+    if (!realMm || realMm <= 0) {
+      toast.error("Enter a valid mm value.");
+      return;
+    }
     const [a, b] = calibPrompt.pts;
-    const dx = b.x - a.x, dy = b.y - a.y;
+    const dx = b.x - a.x,
+      dy = b.y - a.y;
     const px = Math.hypot(dx, dy);
-    if (px <= 0) { toast.error("Points are too close."); return; }
+    if (px <= 0) {
+      toast.error("Points are too close.");
+      return;
+    }
     try {
       const c = await saveCalibration({
-        jobId, fileId: planFileId, page: planPage,
-        pixels: px, realMm, calibratedBy: user.id,
+        jobId,
+        fileId: planFileId,
+        page: planPage,
+        pixels: px,
+        realMm,
+        calibratedBy: user.id,
       });
       setCalibration(c);
       setCalibPrompt(null);
@@ -343,7 +425,14 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
 
   async function onPushMeasurement(
     m: PlanMeasurement,
-    payload: { moduleIds: IQModuleId[]; label: string; unit: string; value: number; basis: string | null; notes: string | null },
+    payload: {
+      moduleIds: IQModuleId[];
+      label: string;
+      unit: string;
+      value: number;
+      basis: string | null;
+      notes: string | null;
+    },
   ) {
     if (!user) return;
     const evidence =
@@ -375,7 +464,8 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
       }
     }
     if (inserted) toast.success(`Pushed to ${inserted} module${inserted === 1 ? "" : "s"}.`);
-    if (conflicts) toast.warning(`${conflicts} conflict${conflicts === 1 ? "" : "s"} flagged Review Required.`);
+    if (conflicts)
+      toast.warning(`${conflicts} conflict${conflicts === 1 ? "" : "s"} flagged Review Required.`);
   }
 
   async function onDeleteMeasurement(m: PlanMeasurement) {
@@ -403,11 +493,20 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
       setPan((p) => ({ x: p.x + dx, y: p.y + dy }));
     }
   }
-  function onMouseUp() { panRef.current.active = false; }
+  function onMouseUp() {
+    panRef.current.active = false;
+  }
 
-  function zoomIn() { setZoom((z) => Math.min(8, z * 1.25)); }
-  function zoomOut() { setZoom((z) => Math.max(0.2, z / 1.25)); }
-  function resetView() { setZoom(1); setPan({ x: 0, y: 0 }); }
+  function zoomIn() {
+    setZoom((z) => Math.min(8, z * 1.25));
+  }
+  function zoomOut() {
+    setZoom((z) => Math.max(0.2, z / 1.25));
+  }
+  function resetView() {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }
 
   /* ---------- Live preview readout ---------- */
   const liveReadout = useMemo(() => {
@@ -464,11 +563,16 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
               <span className="text-muted-foreground">Page</span>
               <select
                 value={planPage}
-                onChange={(e) => { setPlanPage(Number(e.target.value)); clearDraft(); }}
+                onChange={(e) => {
+                  setPlanPage(Number(e.target.value));
+                  clearDraft();
+                }}
                 className="rounded-md border border-input bg-background px-1.5 py-0.5 text-[11px]"
               >
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                  <option key={p} value={p}>{p}</option>
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
                 ))}
               </select>
               <span className="text-muted-foreground">/ {totalPages}</span>
@@ -477,27 +581,111 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
           <CalibrationBadge calibration={calibration} />
         </div>
         <div className="flex items-center gap-1.5">
-          <ToolBtn active={tool === "pan"} onClick={() => { setTool("pan"); clearDraft(); }} icon={Move} label="Pan" />
+          <ToolBtn
+            active={tool === "pan"}
+            onClick={() => {
+              setTool("pan");
+              clearDraft();
+            }}
+            icon={Move}
+            label="Pan"
+          />
           <Divider />
-          <ToolBtn disabled={!canEdit} active={tool === "calibrate"} onClick={() => { setTool("calibrate"); clearDraft(); }} icon={Ruler} label="Calibrate" />
-          <ToolBtn disabled={!canEdit || !canMeasure} active={tool === "line"} onClick={() => { setTool("line"); clearDraft(); }} icon={Ruler} label="Line" />
-          <ToolBtn disabled={!canEdit || !canMeasure} active={tool === "polyline"} onClick={() => { setTool("polyline"); clearDraft(); }} icon={Spline} label="Polyline" />
-          <ToolBtn disabled={!canEdit || !canMeasure} active={tool === "area"} onClick={() => { setTool("area"); clearDraft(); }} icon={Square} label="Area" />
+          <ToolBtn
+            disabled={!canEdit}
+            active={tool === "calibrate"}
+            onClick={() => {
+              setTool("calibrate");
+              clearDraft();
+            }}
+            icon={Ruler}
+            label="Calibrate"
+          />
+          <ToolBtn
+            disabled={!canEdit || !canMeasure}
+            active={tool === "line"}
+            onClick={() => {
+              setTool("line");
+              clearDraft();
+            }}
+            icon={Ruler}
+            label="Line"
+          />
+          <ToolBtn
+            disabled={!canEdit || !canMeasure}
+            active={tool === "polyline"}
+            onClick={() => {
+              setTool("polyline");
+              clearDraft();
+            }}
+            icon={Spline}
+            label="Polyline"
+          />
+          <ToolBtn
+            disabled={!canEdit || !canMeasure}
+            active={tool === "area"}
+            onClick={() => {
+              setTool("area");
+              clearDraft();
+            }}
+            icon={Square}
+            label="Area"
+          />
           <Divider />
-          <ToolBtn disabled={!canEdit || !canMeasure} active={tool === "internal_wall"} onClick={() => { setTool("internal_wall"); clearDraft(); }} icon={Spline} label="Internal Wall" />
-          <ToolBtn disabled={!canEdit || !canMeasure} active={tool === "external_perimeter"} onClick={() => { setTool("external_perimeter"); clearDraft(); }} icon={Spline} label="Perimeter" />
+          <ToolBtn
+            disabled={!canEdit || !canMeasure}
+            active={tool === "internal_wall"}
+            onClick={() => {
+              setTool("internal_wall");
+              clearDraft();
+            }}
+            icon={Spline}
+            label="Internal Wall"
+          />
+          <ToolBtn
+            disabled={!canEdit || !canMeasure}
+            active={tool === "external_perimeter"}
+            onClick={() => {
+              setTool("external_perimeter");
+              clearDraft();
+            }}
+            icon={Spline}
+            label="Perimeter"
+          />
           <Divider />
-          <button onClick={zoomOut} className="h-7 w-7 grid place-items-center rounded-md border border-border bg-card hover:bg-accent" title="Zoom out"><Minus className="h-3.5 w-3.5" /></button>
-          <span className="text-[11px] tabular-nums text-muted-foreground w-10 text-center">{Math.round(zoom * 100)}%</span>
-          <button onClick={zoomIn} className="h-7 w-7 grid place-items-center rounded-md border border-border bg-card hover:bg-accent" title="Zoom in"><Plus className="h-3.5 w-3.5" /></button>
-          <button onClick={resetView} className="h-7 w-7 grid place-items-center rounded-md border border-border bg-card hover:bg-accent" title="Reset view"><RotateCcw className="h-3.5 w-3.5" /></button>
+          <button
+            onClick={zoomOut}
+            className="h-7 w-7 grid place-items-center rounded-md border border-border bg-card hover:bg-accent"
+            title="Zoom out"
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
+          <span className="text-[11px] tabular-nums text-muted-foreground w-10 text-center">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            onClick={zoomIn}
+            className="h-7 w-7 grid place-items-center rounded-md border border-border bg-card hover:bg-accent"
+            title="Zoom in"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={resetView}
+            className="h-7 w-7 grid place-items-center rounded-md border border-border bg-card hover:bg-accent"
+            title="Reset view"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
 
       {/* Working plan picker */}
       {planFiles.length > 0 && (
         <div className="px-4 py-1.5 border-b border-border bg-muted/10 flex items-center gap-2 flex-wrap text-[11px]">
-          <span className="text-muted-foreground uppercase tracking-[0.14em] text-[10px]">Working plan file</span>
+          <span className="text-muted-foreground uppercase tracking-[0.14em] text-[10px]">
+            Working plan file
+          </span>
           <select
             disabled={!canEdit}
             value={workingFileId ?? ""}
@@ -510,7 +698,9 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
             className="rounded-md border border-input bg-background px-2 py-1 text-[11px] max-w-[320px]"
           >
             {planFiles.map((f) => (
-              <option key={f.id} value={f.id}>{f.file_name}</option>
+              <option key={f.id} value={f.id}>
+                {f.file_name}
+              </option>
             ))}
           </select>
           <span className="text-muted-foreground">Page</span>
@@ -539,14 +729,18 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
 
       {tool === "internal_wall" && (
         <div className="px-4 py-1.5 border-b border-border bg-muted/20 flex items-center gap-2 text-[11px]">
-          <span className="text-muted-foreground uppercase tracking-[0.14em] text-[10px]">Wall category</span>
+          <span className="text-muted-foreground uppercase tracking-[0.14em] text-[10px]">
+            Wall category
+          </span>
           <select
             value={wallCategory}
             onChange={(e) => setWallCategory(e.target.value)}
             className="rounded-md border border-input bg-background px-2 py-1 text-[11px]"
           >
             {INTERNAL_WALL_CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
             ))}
           </select>
         </div>
@@ -556,7 +750,8 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
       <div className="px-4 py-1.5 border-b border-border text-[11px] text-muted-foreground bg-muted/30 flex items-center justify-between">
         <span>
           {tool === "pan" && "Drag to pan. Use ＋ / − to zoom."}
-          {tool === "calibrate" && "Click two points along a known dimension, then enter the real-world mm length."}
+          {tool === "calibrate" &&
+            "Click two points along a known dimension, then enter the real-world mm length."}
           {tool === "line" && "Click start point, then click end point."}
           {(tool === "polyline" || tool === "internal_wall" || tool === "external_perimeter") &&
             "Click each vertex along the path. Double-click to finish."}
@@ -618,7 +813,10 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
         </div>
         {measurements.length === 0 ? (
           <div className="px-4 pb-4 text-xs text-muted-foreground">
-            No measurements yet. {calibration ? "Pick a tool above and click on the plan." : "Calibrate the plan scale first."}
+            No measurements yet.{" "}
+            {calibration
+              ? "Pick a tool above and click on the plan."
+              : "Calibrate the plan scale first."}
           </div>
         ) : (
           <div className="divide-y divide-border">
@@ -640,11 +838,15 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
       {calibPrompt && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
           <div className="w-full max-w-sm rounded-xl bg-card border border-border shadow-2xl p-5">
-            <div className="text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground">Calibrate scale</div>
-            <div className="mt-1 text-[14px] font-semibold tracking-tight">Enter the real-world length</div>
+            <div className="text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground">
+              Calibrate scale
+            </div>
+            <div className="mt-1 text-[14px] font-semibold tracking-tight">
+              Enter the real-world length
+            </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              You picked two points on the plan. Enter the actual distance between
-              them in millimetres (e.g. <span className="font-mono">18249</span>).
+              You picked two points on the plan. Enter the actual distance between them in
+              millimetres (e.g. <span className="font-mono">18249</span>).
             </p>
             <div className="mt-3">
               <input
@@ -658,38 +860,51 @@ export function PlanCanvas({ jobId }: { jobId: string }) {
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button
-                onClick={() => { setCalibPrompt(null); setCalibInputMm(""); }}
+                onClick={() => {
+                  setCalibPrompt(null);
+                  setCalibInputMm("");
+                }}
                 className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-accent"
-              ><X className="h-3.5 w-3.5" /> Cancel</button>
+              >
+                <X className="h-3.5 w-3.5" /> Cancel
+              </button>
               <button
                 onClick={confirmCalibration}
                 className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
-              ><Check className="h-3.5 w-3.5" /> Save calibration</button>
+              >
+                <Check className="h-3.5 w-3.5" /> Save calibration
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {pushFor && (() => {
-        const d = pushDefaults(pushFor);
-        const sourceSummary =
-          pushFor.measurement_type === "area"
-            ? `Area · ${(pushFor.calculated_area_m2 ?? 0).toFixed(2)} m² · page ${pushFor.plan_page_number}`
-            : `${pushFor.measurement_type.replace("_", " ")} · ${(pushFor.calculated_length_m ?? 0).toFixed(3)} m · page ${pushFor.plan_page_number}`;
-        return (
-          <PushToModuleDialog
-            open={true}
-            onOpenChange={(v) => { if (!v) setPushFor(null); }}
-            defaultLabel={pushFor.label ?? pushFor.measurement_type.replace("_", " ")}
-            defaultUnit={d.unit}
-            defaultValue={d.value}
-            defaultBasis="Measured From Plan"
-            suggestedModules={MEASUREMENT_TARGETS[pushFor.measurement_type] ?? ["iq-core"]}
-            sourceSummary={sourceSummary}
-            onSubmit={async (s) => { await onPushMeasurement(pushFor, s); setPushFor(null); }}
-          />
-        );
-      })()}
+      {pushFor &&
+        (() => {
+          const d = pushDefaults(pushFor);
+          const sourceSummary =
+            pushFor.measurement_type === "area"
+              ? `Area · ${(pushFor.calculated_area_m2 ?? 0).toFixed(2)} m² · page ${pushFor.plan_page_number}`
+              : `${pushFor.measurement_type.replace("_", " ")} · ${(pushFor.calculated_length_m ?? 0).toFixed(3)} m · page ${pushFor.plan_page_number}`;
+          return (
+            <PushToModuleDialog
+              open={true}
+              onOpenChange={(v) => {
+                if (!v) setPushFor(null);
+              }}
+              defaultLabel={pushFor.label ?? pushFor.measurement_type.replace("_", " ")}
+              defaultUnit={d.unit}
+              defaultValue={d.value}
+              defaultBasis="Measured From Plan"
+              suggestedModules={MEASUREMENT_TARGETS[pushFor.measurement_type] ?? ["iq-core"]}
+              sourceSummary={sourceSummary}
+              onSubmit={async (s) => {
+                await onPushMeasurement(pushFor, s);
+                setPushFor(null);
+              }}
+            />
+          );
+        })()}
     </div>
   );
 }
@@ -711,7 +926,11 @@ function CalibrationBadge({ calibration }: { calibration: Calibration | null }) 
 }
 
 function ToolBtn({
-  active, onClick, icon: Icon, label, disabled,
+  active,
+  onClick,
+  icon: Icon,
+  label,
+  disabled,
 }: {
   active: boolean;
   onClick: () => void;
@@ -742,10 +961,7 @@ function Divider() {
 function MeasurementShape({ m, zoom }: { m: PlanMeasurement; zoom: number }) {
   const pts = m.points_json;
   if (!pts || pts.length === 0) return null;
-  const stroke =
-    m.review_status === "confirmed"
-      ? "oklch(0.65 0.18 145)"
-      : "oklch(0.62 0.2 250)";
+  const stroke = m.review_status === "confirmed" ? "oklch(0.65 0.18 145)" : "oklch(0.62 0.2 250)";
   const sw = 2 / Math.max(zoom, 0.5);
   const dotR = 3 / Math.max(zoom, 0.5);
   if (m.measurement_type === "area") {
@@ -753,7 +969,9 @@ function MeasurementShape({ m, zoom }: { m: PlanMeasurement; zoom: number }) {
     return (
       <g>
         <path d={d} fill={stroke} fillOpacity={0.12} stroke={stroke} strokeWidth={sw} />
-        {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={dotR} fill={stroke} />)}
+        {pts.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={dotR} fill={stroke} />
+        ))}
       </g>
     );
   }
@@ -761,15 +979,23 @@ function MeasurementShape({ m, zoom }: { m: PlanMeasurement; zoom: number }) {
   return (
     <g>
       <path d={d} fill="none" stroke={stroke} strokeWidth={sw} />
-      {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={dotR} fill={stroke} />)}
+      {pts.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r={dotR} fill={stroke} />
+      ))}
     </g>
   );
 }
 
 function DraftShape({
-  tool, pts, hover, zoom,
+  tool,
+  pts,
+  hover,
+  zoom,
 }: {
-  tool: Tool; pts: Pt[]; hover: Pt | null; zoom: number;
+  tool: Tool;
+  pts: Pt[];
+  hover: Pt | null;
+  zoom: number;
 }) {
   if (pts.length === 0) return null;
   const sw = 2 / Math.max(zoom, 0.5);
@@ -781,8 +1007,17 @@ function DraftShape({
     const d = `${live.map((p, i) => `${i === 0 ? "M" : "L"}${p.x} ${p.y}`).join(" ")} Z`;
     return (
       <g>
-        <path d={d} fill={stroke} fillOpacity={0.08} stroke={stroke} strokeDasharray={dash} strokeWidth={sw} />
-        {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={dotR} fill={stroke} />)}
+        <path
+          d={d}
+          fill={stroke}
+          fillOpacity={0.08}
+          stroke={stroke}
+          strokeDasharray={dash}
+          strokeWidth={sw}
+        />
+        {pts.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={dotR} fill={stroke} />
+        ))}
       </g>
     );
   }
@@ -790,13 +1025,19 @@ function DraftShape({
   return (
     <g>
       <path d={d} fill="none" stroke={stroke} strokeDasharray={dash} strokeWidth={sw} />
-      {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={dotR} fill={stroke} />)}
+      {pts.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r={dotR} fill={stroke} />
+      ))}
     </g>
   );
 }
 
 function MeasurementRow({
-  m, onConfirm, onDelete, onPush, canEdit,
+  m,
+  onConfirm,
+  onDelete,
+  onPush,
+  canEdit,
 }: {
   m: PlanMeasurement;
   onConfirm: () => void;
@@ -818,11 +1059,13 @@ function MeasurementRow({
         <span className="text-muted-foreground truncate">{m.label ?? ""}</span>
       </div>
       <div className="flex items-center gap-2">
-        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${
-          m.review_status === "confirmed"
-            ? "border-confidence-high/40 bg-confidence-high/10 text-confidence-high"
-            : "border-confidence-mid/40 bg-confidence-mid/10 text-confidence-mid"
-        }`}>
+        <span
+          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+            m.review_status === "confirmed"
+              ? "border-confidence-high/40 bg-confidence-high/10 text-confidence-high"
+              : "border-confidence-mid/40 bg-confidence-mid/10 text-confidence-mid"
+          }`}
+        >
           {m.review_status === "confirmed" ? "Confirmed" : "Review"}
         </span>
         {canEdit && m.review_status !== "confirmed" && (
@@ -830,22 +1073,32 @@ function MeasurementRow({
             onClick={onConfirm}
             title="Confirm measurement"
             className="h-6 w-6 grid place-items-center rounded-md border border-border bg-card hover:bg-accent"
-          ><Check className="h-3 w-3" /></button>
+          >
+            <Check className="h-3 w-3" />
+          </button>
         )}
         {canEdit && (
           <button
             onClick={onPush}
             disabled={m.review_status !== "confirmed"}
-            title={m.review_status === "confirmed" ? "Push to module…" : "Confirm measurement before pushing to modules."}
+            title={
+              m.review_status === "confirmed"
+                ? "Push to module…"
+                : "Confirm measurement before pushing to modules."
+            }
             className="h-6 w-6 grid place-items-center rounded-md border border-border bg-card hover:bg-accent text-primary disabled:opacity-40 disabled:cursor-not-allowed"
-          ><Send className="h-3 w-3" /></button>
+          >
+            <Send className="h-3 w-3" />
+          </button>
         )}
         {canEdit && (
           <button
             onClick={onDelete}
             title="Delete measurement"
             className="h-6 w-6 grid place-items-center rounded-md border border-border bg-card hover:bg-accent text-confidence-low"
-          ><Trash2 className="h-3 w-3" /></button>
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
         )}
       </div>
     </div>

@@ -5,13 +5,19 @@ vi.mock("xlsx", () => ({
   default: {},
   read: vi.fn(),
   write: vi.fn(() => new Uint8Array()),
-  utils: { book_new: vi.fn(() => ({})), aoa_to_sheet: vi.fn(() => ({})), book_append_sheet: vi.fn() },
+  utils: {
+    book_new: vi.fn(() => ({})),
+    aoa_to_sheet: vi.fn(() => ({})),
+    book_append_sheet: vi.fn(),
+  },
 }));
 
 // Stub Supabase client — tests only exercise pure calculation functions
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    from: vi.fn(() => ({ select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn(), data: [] })) })) })),
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn(), data: [] })) })),
+    })),
   },
 }));
 
@@ -58,13 +64,22 @@ describe("buildElectricalSchedule", () => {
   it("scales up quantities for larger house", () => {
     const small = buildElectricalSchedule(makeData({ floorAreaM2: 165 }));
     const large = buildElectricalSchedule(makeData({ floorAreaM2: 330 }));
-    const total = (s: typeof small) => [...s.lighting, ...s.power, ...s.communications, ...s.mechanical].reduce((acc, i) => acc + i.qty, 0);
+    const total = (s: typeof small) =>
+      [...s.lighting, ...s.power, ...s.communications, ...s.mechanical].reduce(
+        (acc, i) => acc + i.qty,
+        0,
+      );
     expect(total(large)).toBeGreaterThan(total(small));
   });
 
   it("totalEstimate equals sum of all item qty * rate", () => {
     const schedule = buildElectricalSchedule(makeData());
-    const allItems = [...schedule.lighting, ...schedule.power, ...schedule.communications, ...schedule.mechanical];
+    const allItems = [
+      ...schedule.lighting,
+      ...schedule.power,
+      ...schedule.communications,
+      ...schedule.mechanical,
+    ];
     const expected = allItems.reduce((s, i) => s + i.qty * i.rate, 0);
     expect(schedule.totalEstimate).toBe(expected);
   });
@@ -80,7 +95,12 @@ describe("buildElectricalSchedule", () => {
 
   it("uses heatPumps.length for heat pump circuit count when provided", () => {
     const schedule = buildElectricalSchedule(
-      makeData({ heatPumps: [{ model: "Mitsubishi", qty: 1 }, { model: "Fujitsu", qty: 1 }] }),
+      makeData({
+        heatPumps: [
+          { model: "Mitsubishi", qty: 1 },
+          { model: "Fujitsu", qty: 1 },
+        ],
+      }),
     );
     const hpItem = schedule.power.find((i) => i.description.includes("Heat pump"));
     expect(hpItem?.qty).toBe(2);
@@ -88,7 +108,12 @@ describe("buildElectricalSchedule", () => {
 
   it("uses garageDoors.length for garage door operator count when provided", () => {
     const schedule = buildElectricalSchedule(
-      makeData({ garageDoors: [{ type: "Panel", qty: 1 }, { type: "Roller", qty: 1 }] }),
+      makeData({
+        garageDoors: [
+          { type: "Panel", qty: 1 },
+          { type: "Roller", qty: 1 },
+        ],
+      }),
     );
     const gdItem = schedule.power.find((i) => i.description.includes("Garage door"));
     expect(gdItem?.qty).toBe(2);
@@ -103,7 +128,12 @@ describe("buildElectricalSchedule", () => {
 
   it("all quantities are integers", () => {
     const schedule = buildElectricalSchedule(makeData({ floorAreaM2: 237 }));
-    const allItems = [...schedule.lighting, ...schedule.power, ...schedule.communications, ...schedule.mechanical];
+    const allItems = [
+      ...schedule.lighting,
+      ...schedule.power,
+      ...schedule.communications,
+      ...schedule.mechanical,
+    ];
     allItems.forEach((item) => {
       expect(Number.isInteger(item.qty)).toBe(true);
     });

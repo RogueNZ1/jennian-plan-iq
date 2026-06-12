@@ -8,12 +8,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 // Pure page-classification + ranking logic lives in pdf-page-classify.ts so it can
 // be unit-tested without pdfjs. Re-exported here so existing importers are unchanged.
-import {
-  type PageType,
-  type PageConfidence,
-  classifyText,
-  scoreFor,
-} from "./pdf-page-classify";
+import { type PageType, type PageConfidence, classifyText, scoreFor } from "./pdf-page-classify";
 
 export {
   type PageType,
@@ -56,9 +51,7 @@ async function renderPageThumbnail(
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-  return await new Promise((resolve) =>
-    canvas.toBlob((b) => resolve(b), "image/jpeg", quality),
-  );
+  return await new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/jpeg", quality));
 }
 
 export type AnalyzeOptions = {

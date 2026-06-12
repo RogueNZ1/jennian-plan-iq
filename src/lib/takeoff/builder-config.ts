@@ -1,4 +1,4 @@
-export type DimensionFormat = 'HEIGHT_x_WIDTH' | 'WIDTH_x_HEIGHT';
+export type DimensionFormat = "HEIGHT_x_WIDTH" | "WIDTH_x_HEIGHT";
 
 export interface BuilderConfig {
   name: string;
@@ -10,32 +10,32 @@ export interface BuilderConfig {
 
 export const BUILDER_CONFIGS: BuilderConfig[] = [
   {
-    name: 'Jennian Homes',
-    aliases: ['jennian', 'jmw', 'jennian homes manawatu'],
-    defaultDimensionFormat: 'HEIGHT_x_WIDTH',
+    name: "Jennian Homes",
+    aliases: ["jennian", "jmw", "jennian homes manawatu"],
+    defaultDimensionFormat: "HEIGHT_x_WIDTH",
     defaultStudHeightMm: 2400,
     usesJmwNumbers: true,
   },
   {
-    name: 'G.J. Gardner',
-    aliases: ['gj gardner', 'g.j. gardner', 'gjg', 'gardner homes'],
-    defaultDimensionFormat: 'HEIGHT_x_WIDTH',
+    name: "G.J. Gardner",
+    aliases: ["gj gardner", "g.j. gardner", "gjg", "gardner homes"],
+    defaultDimensionFormat: "HEIGHT_x_WIDTH",
     defaultStudHeightMm: 2410,
     usesJmwNumbers: false,
   },
   {
-    name: 'Sentinel Homes',
-    aliases: ['sentinel', 'sentinel homes'],
-    defaultDimensionFormat: 'HEIGHT_x_WIDTH',
+    name: "Sentinel Homes",
+    aliases: ["sentinel", "sentinel homes"],
+    defaultDimensionFormat: "HEIGHT_x_WIDTH",
     defaultStudHeightMm: 2400,
     usesJmwNumbers: false,
   },
 ];
 
 export const UNKNOWN_BUILDER: BuilderConfig = {
-  name: 'Unknown',
+  name: "Unknown",
   aliases: [],
-  defaultDimensionFormat: 'HEIGHT_x_WIDTH',
+  defaultDimensionFormat: "HEIGHT_x_WIDTH",
   defaultStudHeightMm: 2400,
   usesJmwNumbers: false,
 };

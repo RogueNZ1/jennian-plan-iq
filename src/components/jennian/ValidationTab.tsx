@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import {
-  loadMeasurements, validateAgainstPrinted, loadPrintedQuantities, upsertPrintedQuantity,
+  loadMeasurements,
+  validateAgainstPrinted,
+  loadPrintedQuantities,
+  upsertPrintedQuantity,
   type PlanMeasurement,
 } from "@/lib/iq-measurements";
 import { toast } from "sonner";
@@ -12,11 +15,16 @@ import { toast } from "sonner";
  * the comparison surface honest and visible — Match / Minor / Review.
  */
 
-const REFERENCES: Array<{ key: string; label: string; unit: "m" | "m²"; matchType: PlanMeasurement["measurement_type"] | "area"; }> = [
-  { key: "perimeter",     label: "External Perimeter", unit: "m",  matchType: "external_perimeter" },
-  { key: "total_area",    label: "Total Area",         unit: "m²", matchType: "area" },
-  { key: "coverage_area", label: "Coverage Area",      unit: "m²", matchType: "area" },
-  { key: "garage_area",   label: "Garage Area",        unit: "m²", matchType: "area" },
+const REFERENCES: Array<{
+  key: string;
+  label: string;
+  unit: "m" | "m²";
+  matchType: PlanMeasurement["measurement_type"] | "area";
+}> = [
+  { key: "perimeter", label: "External Perimeter", unit: "m", matchType: "external_perimeter" },
+  { key: "total_area", label: "Total Area", unit: "m²", matchType: "area" },
+  { key: "coverage_area", label: "Coverage Area", unit: "m²", matchType: "area" },
+  { key: "garage_area", label: "Garage Area", unit: "m²", matchType: "area" },
 ];
 
 type RowState = {
@@ -24,8 +32,8 @@ type RowState = {
   source: "Uploaded Plan Text" | "Uploaded Specification Text";
   evidence: string;
   confidence: "high" | "mid" | "low";
-  saved: boolean;        // matches what's in DB
-  loadedValue: string;   // last persisted value
+  saved: boolean; // matches what's in DB
+  loadedValue: string; // last persisted value
   loadedSource: "Uploaded Plan Text" | "Uploaded Specification Text";
   loadedEvidence: string;
   loadedConfidence: "high" | "mid" | "low";
@@ -52,7 +60,9 @@ export function ValidationTab({ jobId }: { jobId: string }) {
   );
 
   useEffect(() => {
-    loadMeasurements(jobId).then(setMeasurements).catch(() => {});
+    loadMeasurements(jobId)
+      .then(setMeasurements)
+      .catch(() => {});
   }, [jobId]);
 
   useEffect(() => {
@@ -69,13 +79,17 @@ export function ValidationTab({ jobId }: { jobId: string }) {
                   ? "Uploaded Specification Text"
                   : "Uploaded Plan Text";
               const evidence = match.source_evidence ?? "";
-              const conf = (match as unknown as { confidence?: string }).confidence === "high"
-                ? "high"
-                : (match as unknown as { confidence?: string }).confidence === "low"
-                ? "low"
-                : "mid";
+              const conf =
+                (match as unknown as { confidence?: string }).confidence === "high"
+                  ? "high"
+                  : (match as unknown as { confidence?: string }).confidence === "low"
+                    ? "low"
+                    : "mid";
               next[ref.key] = {
-                value, source, evidence, confidence: conf,
+                value,
+                source,
+                evidence,
+                confidence: conf,
                 saved: true,
                 loadedValue: value,
                 loadedSource: source,
@@ -123,7 +137,8 @@ export function ValidationTab({ jobId }: { jobId: string }) {
         source: row.source,
         evidence: row.evidence.trim() || null,
         confidence: row.confidence,
-        confidenceLabel: row.confidence === "high" ? "High" : row.confidence === "low" ? "Low" : "Medium",
+        confidenceLabel:
+          row.confidence === "high" ? "High" : row.confidence === "low" ? "Low" : "Medium",
       });
       setRows((prev) => ({
         ...prev,
@@ -142,8 +157,8 @@ export function ValidationTab({ jobId }: { jobId: string }) {
   }
 
   function bestMeasured(matchType: PlanMeasurement["measurement_type"] | "area"): number | null {
-    const candidates = measurements.filter((m) =>
-      m.review_status === "confirmed" && m.measurement_type === matchType,
+    const candidates = measurements.filter(
+      (m) => m.review_status === "confirmed" && m.measurement_type === matchType,
     );
     if (candidates.length === 0) return null;
     if (matchType === "area") {
@@ -157,9 +172,8 @@ export function ValidationTab({ jobId }: { jobId: string }) {
       <div className="px-5 py-3 border-b border-border">
         <div className="text-[13px] font-semibold tracking-tight">Validation</div>
         <div className="text-[11px] text-muted-foreground mt-0.5">
-          Compare printed plan / specification values against measured values.
-          Each is kept as a separate quantity — Total Area, Coverage Area, and
-          Area Over Frame are not merged.
+          Compare printed plan / specification values against measured values. Each is kept as a
+          separate quantity — Total Area, Coverage Area, and Area Over Frame are not merged.
         </div>
       </div>
       <table className="w-full text-sm">
@@ -194,7 +208,9 @@ export function ValidationTab({ jobId }: { jobId: string }) {
                       className="w-24 rounded-md border border-input bg-background px-2 py-1 text-sm tabular-nums"
                     />
                     <span className="text-[11px] text-muted-foreground">{ref.unit}</span>
-                    <span className={`ml-1 text-[10px] ${row.saved ? "text-confidence-high" : "text-confidence-mid"}`}>
+                    <span
+                      className={`ml-1 text-[10px] ${row.saved ? "text-confidence-high" : "text-confidence-mid"}`}
+                    >
                       {row.value.trim() === "" ? "" : row.saved ? "Saved" : "Unsaved"}
                     </span>
                   </div>
@@ -236,9 +252,14 @@ export function ValidationTab({ jobId }: { jobId: string }) {
                   </select>
                 </td>
                 <td className="px-5 py-2.5 tabular-nums">
-                  {measured == null
-                    ? <span className="text-muted-foreground">—</span>
-                    : <span>{measured.toFixed(ref.unit === "m" ? 3 : 2)} <span className="text-muted-foreground text-[11px]">{ref.unit}</span></span>}
+                  {measured == null ? (
+                    <span className="text-muted-foreground">—</span>
+                  ) : (
+                    <span>
+                      {measured.toFixed(ref.unit === "m" ? 3 : 2)}{" "}
+                      <span className="text-muted-foreground text-[11px]">{ref.unit}</span>
+                    </span>
+                  )}
                 </td>
                 <td className="px-5 py-2.5">
                   <ValidationBadge status={status} />
@@ -255,22 +276,31 @@ export function ValidationTab({ jobId }: { jobId: string }) {
   );
 }
 
-function ValidationBadge({ status }: { status: "match" | "minor" | "review_required" | "missing" }) {
+function ValidationBadge({
+  status,
+}: {
+  status: "match" | "minor" | "review_required" | "missing";
+}) {
   const cls =
     status === "match"
       ? "border-confidence-high/40 bg-confidence-high/10 text-confidence-high"
       : status === "minor"
-      ? "border-confidence-mid/40 bg-confidence-mid/10 text-confidence-mid"
-      : status === "review_required"
-      ? "border-confidence-low/40 bg-confidence-low/10 text-confidence-low"
-      : "border-border bg-muted/30 text-muted-foreground";
+        ? "border-confidence-mid/40 bg-confidence-mid/10 text-confidence-mid"
+        : status === "review_required"
+          ? "border-confidence-low/40 bg-confidence-low/10 text-confidence-low"
+          : "border-border bg-muted/30 text-muted-foreground";
   const label =
-    status === "match"            ? "Match" :
-    status === "minor"            ? "Minor difference" :
-    status === "review_required"  ? "Review required" :
-                                    "—";
+    status === "match"
+      ? "Match"
+      : status === "minor"
+        ? "Minor difference"
+        : status === "review_required"
+          ? "Review required"
+          : "—";
   return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${cls}`}>
+    <span
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${cls}`}
+    >
       {label}
     </span>
   );

@@ -85,11 +85,7 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
-import {
-  buildElectricalSchedule,
-  buildQSExportData,
-  type QSExportData,
-} from "../iq-qs-export";
+import { buildElectricalSchedule, buildQSExportData, type QSExportData } from "../iq-qs-export";
 
 // ── Fix 1 guard: route file must use underscore form ────────────────────────
 
@@ -112,11 +108,10 @@ describe("Quick Export route file", () => {
 // This logic must be stable — a wrong name means the QS team can't find files.
 
 describe("export filename logic", () => {
-  function buildFilename(data: Pick<QSExportData, "jmwNumber" | "jobNumber" | "clientSurname" | "clientName">): string {
-    const surname =
-      data.clientSurname ||
-      data.clientName.split(" ").pop() ||
-      "Client";
+  function buildFilename(
+    data: Pick<QSExportData, "jmwNumber" | "jobNumber" | "clientSurname" | "clientName">,
+  ): string {
+    const surname = data.clientSurname || data.clientName.split(" ").pop() || "Client";
     return `${data.jmwNumber || data.jobNumber}-IQ-Data-${surname}.xlsx`;
   }
 

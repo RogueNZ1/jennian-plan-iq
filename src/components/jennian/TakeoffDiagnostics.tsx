@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, FileText, FileWarning, CheckCircle2, XCircle } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  FileWarning,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
 import type { TakeoffDiagnostics } from "@/lib/takeoff/diagnostics";
 
 /**
@@ -94,7 +101,9 @@ function FilesSection({ d }: { d: TakeoffDiagnostics }) {
           <tbody>
             {d.files.map((f) => (
               <tr key={f.fileId} className="border-t border-border align-top">
-                <td className="px-2.5 py-1.5 max-w-[200px] truncate" title={f.fileName}>{f.fileName}</td>
+                <td className="px-2.5 py-1.5 max-w-[200px] truncate" title={f.fileName}>
+                  {f.fileName}
+                </td>
                 <td className="px-2.5 py-1.5">{f.fileType}</td>
                 <td className="px-2.5 py-1.5">
                   {f.storageStatus === "ok" ? (
@@ -102,7 +111,10 @@ function FilesSection({ d }: { d: TakeoffDiagnostics }) {
                       <CheckCircle2 className="h-3 w-3" /> ok
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 text-amber-600" title={f.storageError ?? ""}>
+                    <span
+                      className="inline-flex items-center gap-1 text-amber-600"
+                      title={f.storageError ?? ""}
+                    >
                       <FileWarning className="h-3 w-3" /> error
                     </span>
                   )}
@@ -167,8 +179,8 @@ function QuantitiesSection({ d }: { d: TakeoffDiagnostics }) {
                 {q.parsedValue == null
                   ? "—"
                   : q.parsedSecondary != null
-                  ? `${q.parsedValue} × ${q.parsedSecondary} ${q.unit}`
-                  : `${q.parsedValue} ${q.unit}`}
+                    ? `${q.parsedValue} × ${q.parsedSecondary} ${q.unit}`
+                    : `${q.parsedValue} ${q.unit}`}
               </td>
               <td className="px-2.5 py-1.5 text-muted-foreground">
                 {q.fileName ? `${q.fileName} p${q.pageNumber}` : "—"}
@@ -303,8 +315,13 @@ function OpeningsSection({ d }: { d: TakeoffDiagnostics }) {
           </thead>
           <tbody>
             {o.candidates.map((c, i) => (
-              <tr key={`${c.fileName}-${c.pageNumber}-${i}`} className="border-t border-border align-top">
-                <td className="px-2.5 py-1.5 max-w-[260px] truncate" title={c.rawText}>{c.rawText}</td>
+              <tr
+                key={`${c.fileName}-${c.pageNumber}-${i}`}
+                className="border-t border-border align-top"
+              >
+                <td className="px-2.5 py-1.5 max-w-[260px] truncate" title={c.rawText}>
+                  {c.rawText}
+                </td>
                 <td className="px-2.5 py-1.5 tabular-nums">{c.parsedWidth ?? "—"}</td>
                 <td className="px-2.5 py-1.5 tabular-nums">{c.parsedHeight ?? "—"}</td>
                 <td className="px-2.5 py-1.5">{c.kindGuess}</td>
@@ -312,7 +329,9 @@ function OpeningsSection({ d }: { d: TakeoffDiagnostics }) {
                 <td className="px-2.5 py-1.5 text-muted-foreground">
                   {c.included ? "included" : "excluded"} — {c.reason}
                 </td>
-                <td className="px-2.5 py-1.5 text-muted-foreground">{c.fileName} p{c.pageNumber}</td>
+                <td className="px-2.5 py-1.5 text-muted-foreground">
+                  {c.fileName} p{c.pageNumber}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -373,7 +392,9 @@ function PageRow({
         </span>
         <span>
           <span className="text-muted-foreground">chars:</span>{" "}
-          <span className={noText ? "text-amber-600 font-medium" : "tabular-nums"}>{p.charCount}</span>
+          <span className={noText ? "text-amber-600 font-medium" : "tabular-nums"}>
+            {p.charCount}
+          </span>
         </span>
         <button
           type="button"

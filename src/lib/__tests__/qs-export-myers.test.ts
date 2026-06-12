@@ -27,9 +27,11 @@ const myers: QSExportData = {
   // Core measurements → D12/D13/D15/D19/D20
   floorAreaM2: 234,
   alfrescoAreaM2: 26,
-  perimeterLm: 93, internalWallLm: null, gableSpanM: null,
+  perimeterLm: 93,
+  internalWallLm: null,
+  gableSpanM: null,
   exteriorWallLengthLm: 93,
-  exteriorWallHeightM: 2.4,  // xlsm D20 = 2.4 (not 2.55 — stud height is separate from wall height)
+  exteriorWallHeightM: 2.4, // xlsm D20 = 2.4 (not 2.55 — stud height is separate from wall height)
   firstFloorAreaM2: 0,
   studHeightMm: null,
   pathsPatioM2: null,
@@ -39,22 +41,22 @@ const myers: QSExportData = {
 
   // Garage doors → H176 (4.8×2.1 insulated)
   garageDoor48x21Insulated: 1,
-  garageDoor48x21Std:       0,
+  garageDoor48x21Std: 0,
   garageDoor24x21Insulated: 0,
-  garageDoor24x21Std:       0,
+  garageDoor24x21Std: 0,
   garageDoor27x21Insulated: 0,
-  garageDoor27x21Std:       0,
+  garageDoor27x21Std: 0,
 
   // Interior doors → H187/H192/H193
-  intDoorStandard:     11,
-  intDoorUGroove:      0,
-  intDoorVGroove:      0,
-  intDoorBarnSlider:   0,
-  intDoorDouble:       4,
+  intDoorStandard: 11,
+  intDoorUGroove: 0,
+  intDoorVGroove: 0,
+  intDoorBarnSlider: 0,
+  intDoorDouble: 4,
   intDoorCavitySlider: 5,
 
   // Downpipes → E145/E147
-  downpipesWhite:       7,
+  downpipesWhite: 7,
   downpipesColourSteel: 0,
   downpipesPvcColoured: 7,
 

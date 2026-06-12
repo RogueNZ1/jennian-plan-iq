@@ -81,14 +81,17 @@ function extractJson(text: string): string {
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
   if (start !== -1 && end > start) cleaned = cleaned.slice(start, end + 1);
-  cleaned = cleaned
-    .replace(/,(\s*[}\]])/g, "$1")
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+  // eslint-disable-next-line no-control-regex -- deliberate control-character sanitizer for AI JSON output
+  cleaned = cleaned.replace(/,(\s*[}\]])/g, "$1").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
   return cleaned;
 }
 
 function safeParseJson<T>(raw: string): T | null {
-  try { return JSON.parse(extractJson(raw)) as T; } catch { return null; }
+  try {
+    return JSON.parse(extractJson(raw)) as T;
+  } catch {
+    return null;
+  }
 }
 
 export const extractElevationsFn = createServerFn({ method: "POST" })
@@ -132,32 +135,49 @@ export const extractElevationsFn = createServerFn({ method: "POST" })
       throw new Error(`Anthropic API error ${res.status}: ${text.slice(0, 200)}`);
     }
 
-    const json = await res.json() as { content?: Array<{ type: string; text?: string }> };
-    const raw = json.content?.filter((b) => b.type === "text").map((b) => b.text ?? "").join("") ?? "";
+    const json = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+    const raw =
+      json.content
+        ?.filter((b) => b.type === "text")
+        .map((b) => b.text ?? "")
+        .join("") ?? "";
 
     const parsed = safeParseJson<ElevationData>(raw);
     if (!parsed) {
       console.error("[extractElevations] JSON parse failed:", raw.slice(0, 500));
       return {
-        claddingTypes: [], claddingTypeCode: null, roofType: null, roofPitchDegrees: null,
-        wallHeightMm: null, studHeightMm: null, facesPresent: [], windowCountPerFace: {},
-        externalDoorCount: 0, gableEndCount: 0, garageDoorsPresent: false,
+        claddingTypes: [],
+        claddingTypeCode: null,
+        roofType: null,
+        roofPitchDegrees: null,
+        wallHeightMm: null,
+        studHeightMm: null,
+        facesPresent: [],
+        windowCountPerFace: {},
+        externalDoorCount: 0,
+        gableEndCount: 0,
+        garageDoorsPresent: false,
       };
     }
 
     return {
       claddingTypes: Array.isArray(parsed.claddingTypes) ? parsed.claddingTypes : [],
-      claddingTypeCode: typeof parsed.claddingTypeCode === "number" ? parsed.claddingTypeCode : null,
+      claddingTypeCode:
+        typeof parsed.claddingTypeCode === "number" ? parsed.claddingTypeCode : null,
       roofType: typeof parsed.roofType === "string" ? parsed.roofType : null,
-      roofPitchDegrees: typeof parsed.roofPitchDegrees === "number" ? parsed.roofPitchDegrees : null,
+      roofPitchDegrees:
+        typeof parsed.roofPitchDegrees === "number" ? parsed.roofPitchDegrees : null,
       wallHeightMm: typeof parsed.wallHeightMm === "number" ? parsed.wallHeightMm : null,
       studHeightMm: typeof parsed.studHeightMm === "number" ? parsed.studHeightMm : null,
       facesPresent: Array.isArray(parsed.facesPresent) ? parsed.facesPresent : [],
-      windowCountPerFace: (parsed.windowCountPerFace && typeof parsed.windowCountPerFace === "object")
-        ? parsed.windowCountPerFace as Record<string, number>
-        : {},
-      externalDoorCount: typeof parsed.externalDoorCount === "number" ? parsed.externalDoorCount : 0,
+      windowCountPerFace:
+        parsed.windowCountPerFace && typeof parsed.windowCountPerFace === "object"
+          ? (parsed.windowCountPerFace as Record<string, number>)
+          : {},
+      externalDoorCount:
+        typeof parsed.externalDoorCount === "number" ? parsed.externalDoorCount : 0,
       gableEndCount: typeof parsed.gableEndCount === "number" ? parsed.gableEndCount : 0,
-      garageDoorsPresent: typeof parsed.garageDoorsPresent === "boolean" ? parsed.garageDoorsPresent : false,
+      garageDoorsPresent:
+        typeof parsed.garageDoorsPresent === "boolean" ? parsed.garageDoorsPresent : false,
     };
   });

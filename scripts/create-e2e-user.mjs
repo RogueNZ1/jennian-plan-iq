@@ -34,14 +34,14 @@ function parseEnv(filePath) {
 const env = { ...parseEnv(resolve(root, ".env")), ...parseEnv(resolve(root, ".env.local")) };
 
 const SUPABASE_URL = env.VITE_SUPABASE_URL ?? env.SUPABASE_URL;
-const SERVICE_KEY  = env.SUPABASE_SERVICE_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY;
+const SERVICE_KEY = env.SUPABASE_SERVICE_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
   console.error("❌  Missing VITE_SUPABASE_URL or SUPABASE_SERVICE_KEY in .env");
   process.exit(1);
 }
 
-const TEST_EMAIL    = "test@jennian-iq.internal";
+const TEST_EMAIL = "test@jennian-iq.internal";
 const TEST_PASSWORD = "JenniQ-E2E-2026!";
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
@@ -54,7 +54,10 @@ console.log(`\n→ Looking for existing user ${TEST_EMAIL}…`);
 let userId;
 
 const { data: listData, error: listErr } = await admin.auth.admin.listUsers({ perPage: 1000 });
-if (listErr) { console.error("❌  listUsers:", listErr.message); process.exit(1); }
+if (listErr) {
+  console.error("❌  listUsers:", listErr.message);
+  process.exit(1);
+}
 
 const existing = listData.users.find((u) => u.email?.toLowerCase() === TEST_EMAIL.toLowerCase());
 
@@ -64,7 +67,10 @@ if (existing) {
     password: TEST_PASSWORD,
     email_confirm: true,
   });
-  if (upErr) { console.error("❌  updateUserById:", upErr.message); process.exit(1); }
+  if (upErr) {
+    console.error("❌  updateUserById:", upErr.message);
+    process.exit(1);
+  }
   userId = existing.id;
   console.log(`✓  Password reset for ${TEST_EMAIL}`);
 } else {
@@ -78,7 +84,10 @@ if (existing) {
       role: "estimator",
     },
   });
-  if (createErr) { console.error("❌  createUser:", createErr.message); process.exit(1); }
+  if (createErr) {
+    console.error("❌  createUser:", createErr.message);
+    process.exit(1);
+  }
   userId = created.user.id;
   console.log(`✓  Created user ${userId} (${TEST_EMAIL})`);
 }
@@ -88,8 +97,13 @@ console.log(`\n→ Assigning estimator role to ${userId}…`);
 
 // Delete any existing roles first (mirror what the app does)
 await admin.from("user_roles").delete().eq("user_id", userId);
-const { error: roleErr } = await admin.from("user_roles").insert({ user_id: userId, role: "estimator" });
-if (roleErr) { console.error("❌  insert user_roles:", roleErr.message); process.exit(1); }
+const { error: roleErr } = await admin
+  .from("user_roles")
+  .insert({ user_id: userId, role: "estimator" });
+if (roleErr) {
+  console.error("❌  insert user_roles:", roleErr.message);
+  process.exit(1);
+}
 console.log(`✓  Role set to estimator`);
 
 // ── 3. Update .env.local ──────────────────────────────────────────────────────
@@ -97,12 +111,18 @@ console.log(`\n→ Updating .env.local…`);
 
 const localEnvPath = resolve(root, ".env.local");
 let localContent = "";
-try { localContent = readFileSync(localEnvPath, "utf8"); } catch { /* ok — file may not exist */ }
+try {
+  localContent = readFileSync(localEnvPath, "utf8");
+} catch {
+  /* ok — file may not exist */
+}
 
 function setEnvVar(content, key, value) {
   const re = new RegExp(`^${key}=.*$`, "m");
   const line = `${key}=${value}`;
-  return re.test(content) ? content.replace(re, line) : content + (content.endsWith("\n") ? "" : "\n") + line + "\n";
+  return re.test(content)
+    ? content.replace(re, line)
+    : content + (content.endsWith("\n") ? "" : "\n") + line + "\n";
 }
 
 localContent = setEnvVar(localContent, "PLAYWRIGHT_TEST_EMAIL", TEST_EMAIL);

@@ -144,9 +144,9 @@ describe("reconcileVectorVision", () => {
   it("FORCED FALLBACK — absent vector layer cross-checks nothing", () => {
     expect(reconcileVectorVision("2.7×2.1", 15, undefined).fields).toEqual([]);
     expect(reconcileVectorVision("2.7×2.1", 15, null).note).toBe("");
-    expect(reconcileVectorVision("2.7×2.1", 15, usableVector({ vector_usable: false })).flags).toEqual(
-      [],
-    );
+    expect(
+      reconcileVectorVision("2.7×2.1", 15, usableVector({ vector_usable: false })).flags,
+    ).toEqual([]);
   });
 
   it("does not flag a field the vision path never produced (uncheckable)", () => {

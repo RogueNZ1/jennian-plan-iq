@@ -27,16 +27,36 @@ import {
 } from "../../src/lib/takeoff/anomaly-detectors";
 import type { Opening } from "../../src/lib/takeoff/takeoff-types";
 
-const win = (room: string | null, h: number, w: number, type: Opening["type"] = "window"): Opening => ({
-  type, room, height_m: h, width_m: w, glazed: type !== "sectional_door", cladding: null,
-  area_m2: Math.round(h * w * 100) / 100, source: "vision", confidence: "medium",
+const win = (
+  room: string | null,
+  h: number,
+  w: number,
+  type: Opening["type"] = "window",
+): Opening => ({
+  type,
+  room,
+  height_m: h,
+  width_m: w,
+  glazed: type !== "sectional_door",
+  cladding: null,
+  area_m2: Math.round(h * w * 100) / 100,
+  source: "vision",
+  confidence: "medium",
 });
 
 /* ------------------------------------------------------------- taxonomy */
 
 describe("classifyRoomCategory — keyword taxonomy", () => {
   it("habitable", () => {
-    for (const l of ["Bed 3", "BED 1 (MASTER)", "Lounge", "Family/Living", "Dining", "Kitchen", "Study"]) {
+    for (const l of [
+      "Bed 3",
+      "BED 1 (MASTER)",
+      "Lounge",
+      "Family/Living",
+      "Dining",
+      "Kitchen",
+      "Study",
+    ]) {
       expect(classifyRoomCategory(l)).toBe("HABITABLE");
     }
   });
@@ -69,12 +89,22 @@ describe("detectMissingWindows", () => {
   });
 
   it("never fires for SERVICE (laundry/wc/garage) or BATHING rooms — windowless is legal", () => {
-    const openings = [win("Bed 1", 1.3, 1.8), win("Bed 2", 1.3, 1.5), win("Bed 3", 1.3, 1.5), win("Lounge", 1.4, 1.3)];
+    const openings = [
+      win("Bed 1", 1.3, 1.8),
+      win("Bed 2", 1.3, 1.5),
+      win("Bed 3", 1.3, 1.5),
+      win("Lounge", 1.4, 1.3),
+    ];
     expect(detectMissingWindows(rooms, openings)).toHaveLength(0);
   });
 
   it("loose room identity: 'Bed 1' label matches an opening roomed 'Bed 1 (Master)'", () => {
-    const openings = [win("Bed 1 (Master)", 1.3, 1.8), win("Bed 2", 1.3, 1.5), win("Bed 3", 1.3, 1.5), win("Lounge", 1.4, 1.3)];
+    const openings = [
+      win("Bed 1 (Master)", 1.3, 1.8),
+      win("Bed 2", 1.3, 1.5),
+      win("Bed 3", 1.3, 1.5),
+      win("Lounge", 1.4, 1.3),
+    ];
     expect(detectMissingWindows(rooms, openings)).toHaveLength(0);
   });
 });
@@ -89,7 +119,9 @@ describe("detectOutlierWindows", () => {
   });
 
   it("does NOT fire for a tall LAUNDRY window (Young's 1.8 is correct) or kitchen", () => {
-    expect(detectOutlierWindows([win("Laundry", 1.8, 0.6), win("Kitchen", 1.8, 0.6)])).toHaveLength(0);
+    expect(detectOutlierWindows([win("Laundry", 1.8, 0.6), win("Kitchen", 1.8, 0.6)])).toHaveLength(
+      0,
+    );
   });
 
   it("gross band fires in ANY room: below 0.3 or above 2.6", () => {

@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { IQ_MODULES, type IQModuleId } from "@/lib/iq-modules";
@@ -10,8 +15,13 @@ import { IQ_MODULES, type IQModuleId } from "@/lib/iq-modules";
  * IQ Procurement are Phase 2 — not valid push targets.
  */
 const PUSH_TARGETS: IQModuleId[] = [
-  "iq-core", "iq-cladding", "iq-framing", "iq-linings",
-  "iq-roofing", "iq-electrical", "iq-plumbing",
+  "iq-core",
+  "iq-cladding",
+  "iq-framing",
+  "iq-linings",
+  "iq-roofing",
+  "iq-electrical",
+  "iq-plumbing",
 ];
 
 export type PushSubmit = {
@@ -24,9 +34,15 @@ export type PushSubmit = {
 };
 
 export function PushToModuleDialog({
-  open, onOpenChange,
-  defaultLabel, defaultUnit, defaultValue, defaultBasis,
-  suggestedModules, sourceSummary, onSubmit,
+  open,
+  onOpenChange,
+  defaultLabel,
+  defaultUnit,
+  defaultValue,
+  defaultBasis,
+  suggestedModules,
+  sourceSummary,
+  onSubmit,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -62,13 +78,18 @@ export function PushToModuleDialog({
 
   const numeric = useMemo(() => Number(value), [value]);
   const canSubmit =
-    selected.size > 0 && label.trim().length > 0 && unit.trim().length > 0 &&
-    Number.isFinite(numeric) && numeric > 0 && !busy;
+    selected.size > 0 &&
+    label.trim().length > 0 &&
+    unit.trim().length > 0 &&
+    Number.isFinite(numeric) &&
+    numeric > 0 &&
+    !busy;
 
   function toggle(id: IQModuleId) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -97,9 +118,8 @@ export function PushToModuleDialog({
         <DialogHeader>
           <DialogTitle>Push to module</DialogTitle>
           <DialogDescription>
-            Adds this confirmed measurement to one or more module review lists.
-            The pushed item is marked Review Required and stamped with the
-            source plan page and measurement ID.
+            Adds this confirmed measurement to one or more module review lists. The pushed item is
+            marked Review Required and stamped with the source plan page and measurement ID.
           </DialogDescription>
         </DialogHeader>
         <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
@@ -109,7 +129,9 @@ export function PushToModuleDialog({
 
         <div className="space-y-3">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground mb-1">Target modules</div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground mb-1">
+              Target modules
+            </div>
             <div className="grid grid-cols-2 gap-1.5">
               {PUSH_TARGETS.map((id) => {
                 const m = IQ_MODULES.find((x) => x.id === id);
@@ -177,9 +199,13 @@ export function PushToModuleDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+            Cancel
+          </Button>
           <Button onClick={submit} disabled={!canSubmit}>
-            {busy ? "Pushing…" : `Push to ${selected.size || 0} module${selected.size === 1 ? "" : "s"}`}
+            {busy
+              ? "Pushing…"
+              : `Push to ${selected.size || 0} module${selected.size === 1 ? "" : "s"}`}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -190,7 +216,9 @@ export function PushToModuleDialog({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-[0.16em] text-muted-foreground mb-1">{label}</span>
+      <span className="block text-[10px] uppercase tracking-[0.16em] text-muted-foreground mb-1">
+        {label}
+      </span>
       {children}
     </label>
   );

@@ -15,15 +15,24 @@ import type { TakeoffJsonWriter } from "./persist-takeoff";
 import { extractFile, loadJobFiles, type ExtractedFile } from "./pdf-text";
 import { classifyPageWithType, pickWorkingPage, type ClassifiedPage } from "./classify";
 import { detectScaleFromText, writeCalibration } from "./scale";
-import { extractQuantitiesFromFile, persistQuantity, type ExtractedQty } from "./extract-quantities";
+import {
+  extractQuantitiesFromFile,
+  persistQuantity,
+  type ExtractedQty,
+} from "./extract-quantities";
 import { extractOpeningsFromFile, persistOpening, type ExtractedOpening } from "./extract-openings";
 import { extractSpecRowsFromFile, type SpecRow } from "./extract-spec";
 import { populateModulesFromTakeoff } from "./populate-modules";
 import { seedAllModulesForJob } from "@/lib/iq-modules";
 import type { PageClassification } from "./summary";
 import {
-  buildPageDiagnostic, runQuantityChecks, runOpeningChecks, runSpecChecks, deriveOutcome,
-  type FileDiagnostic, type TakeoffDiagnostics,
+  buildPageDiagnostic,
+  runQuantityChecks,
+  runOpeningChecks,
+  runSpecChecks,
+  deriveOutcome,
+  type FileDiagnostic,
+  type TakeoffDiagnostics,
 } from "./diagnostics";
 
 export type TakeoffStep =
@@ -77,7 +86,12 @@ export type TakeoffSummary = {
     | "flattened_plan_vision_review_required"
     | "no_usable_text_found";
   /** Plan files (A1/A2/A3) where every plan page returned 0 chars. */
-  flattenedPlanFiles: Array<{ fileId: string; fileName: string; pageSizes: string[]; pageCount: number }>;
+  flattenedPlanFiles: Array<{
+    fileId: string;
+    fileName: string;
+    pageSizes: string[];
+    pageCount: number;
+  }>;
   visionReviewRequired: boolean;
   visionReviewMarkedAt: string | null;
 };
@@ -104,8 +118,7 @@ export async function runAutomaticTakeoff(args: {
   onProgress?: (p: TakeoffProgress) => void;
 }): Promise<TakeoffSummary> {
   const { jobId, onProgress } = args;
-  const progress = (step: TakeoffStep, message: string) =>
-    onProgress?.({ step, message });
+  const progress = (step: TakeoffStep, message: string) => onProgress?.({ step, message });
 
   const { data: userResp } = await supabase.auth.getUser();
   const userId = userResp.user?.id;
@@ -141,19 +154,35 @@ export async function runAutomaticTakeoff(args: {
       summary.hasWarnings = true;
       summary.completedAt = new Date().toISOString();
       summary.diagnostics = {
-        jobId, uploadedFileCount: 0, includedFileCount: 0, files: [],
-        quantityChecks: [], specChecks: [],
-        openings: { pairsFound: 0, bareDoorsFound: 0, ignored: 0, duplicatesRemoved: 0, rowsCreated: 0, candidates: [] },
-        totalCharsExtracted: 0, pagesWithText: 0, pagesWithoutText: 0,
+        jobId,
+        uploadedFileCount: 0,
+        includedFileCount: 0,
+        files: [],
+        quantityChecks: [],
+        specChecks: [],
+        openings: {
+          pairsFound: 0,
+          bareDoorsFound: 0,
+          ignored: 0,
+          duplicatesRemoved: 0,
+          rowsCreated: 0,
+          candidates: [],
+        },
+        totalCharsExtracted: 0,
+        pagesWithText: 0,
+        pagesWithoutText: 0,
         outcome: "no_files",
         outcomeMessage: "No uploaded files found for this job.",
       };
-      await supabase.from("takeoff_runs").update({
-        status: "completed",
-        completed_at: new Date().toISOString(),
-        summary: toJson(summary),
-        error_message: "No uploaded files found.",
-      }).eq("id", runId);
+      await supabase
+        .from("takeoff_runs")
+        .update({
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          summary: toJson(summary),
+          error_message: "No uploaded files found.",
+        })
+        .eq("id", runId);
       await logAudit({ jobId, userId, action: "automatic_takeoff_completed", notes: "no files" });
       return summary;
     }
@@ -163,11 +192,16 @@ export async function runAutomaticTakeoff(args: {
       const isPlanOrSpec = f.file_type === "plan" || f.file_type === "specification";
       if (!isPlanOrSpec) {
         fileDiagnostics.push({
-          fileId: f.id, fileName: f.file_name, fileType: f.file_type,
-          storagePath: f.storage_url, storageStatus: "ok", storageError: null,
+          fileId: f.id,
+          fileName: f.file_name,
+          fileType: f.file_type,
+          storagePath: f.storage_url,
+          storageStatus: "ok",
+          storageError: null,
           included: false,
           inclusionReason: `Excluded — file_type "${f.file_type}" is not a plan or specification.`,
-          pageCount: 0, pages: [],
+          pageCount: 0,
+          pages: [],
         });
         continue;
       }
@@ -180,8 +214,12 @@ export async function runAutomaticTakeoff(args: {
         });
         extracted.push(ef);
         fileDiagnostics.push({
-          fileId: f.id, fileName: f.file_name, fileType: f.file_type,
-          storagePath: f.storage_url, storageStatus: "ok", storageError: null,
+          fileId: f.id,
+          fileName: f.file_name,
+          fileType: f.file_type,
+          storagePath: f.storage_url,
+          storageStatus: "ok",
+          storageError: null,
           included: true,
           inclusionReason: `Included — file_type "${f.file_type}".`,
           pageCount: ef.pages.length,
@@ -191,11 +229,16 @@ export async function runAutomaticTakeoff(args: {
         const msg = e instanceof Error ? e.message : "unknown error";
         errors.push(`Failed to read file: ${f.file_name} — ${msg}`);
         fileDiagnostics.push({
-          fileId: f.id, fileName: f.file_name, fileType: f.file_type,
-          storagePath: f.storage_url, storageStatus: "download_error", storageError: msg,
+          fileId: f.id,
+          fileName: f.file_name,
+          fileType: f.file_type,
+          storagePath: f.storage_url,
+          storageStatus: "download_error",
+          storageError: msg,
           included: false,
           inclusionReason: `Excluded — could not read PDF (${msg}).`,
-          pageCount: 0, pages: [],
+          pageCount: 0,
+          pages: [],
         });
       }
     }
@@ -205,8 +248,7 @@ export async function runAutomaticTakeoff(args: {
       fileId: file.fileId,
       fileName: file.fileName,
       fileType: file.fileType,
-      pages: file.pages.map<ClassifiedPage>((p) =>
-        classifyPageWithType(p, file.fileType)),
+      pages: file.pages.map<ClassifiedPage>((p) => classifyPageWithType(p, file.fileType)),
       rawPages: file.pages,
     }));
 
@@ -251,12 +293,17 @@ export async function runAutomaticTakeoff(args: {
       workingPageNumber = picked.page.pageNumber;
       workingPageType = picked.page.pageType;
       workingPageConf = picked.page.confidence;
-      await supabase.from("jobs").update({
-        working_plan_file_id: workingFileId,
-        working_plan_page_number: workingPageNumber,
-      }).eq("id", jobId);
+      await supabase
+        .from("jobs")
+        .update({
+          working_plan_file_id: workingFileId,
+          working_plan_page_number: workingPageNumber,
+        })
+        .eq("id", jobId);
       await logAudit({
-        jobId, userId, action: "working_plan_selected",
+        jobId,
+        userId,
+        action: "working_plan_selected",
         notes: `${picked.fileName} p${picked.page.pageNumber} — ${picked.page.pageType} (${picked.page.confidence})`,
       });
     }
@@ -276,10 +323,16 @@ export async function runAutomaticTakeoff(args: {
         if (scale.pixelsPerMm != null) {
           try {
             calibrationId = await writeCalibration({
-              jobId, fileId: picked.fileId, pageNumber: rawPage.pageNumber, scale, userId,
+              jobId,
+              fileId: picked.fileId,
+              pageNumber: rawPage.pageNumber,
+              scale,
+              userId,
             });
             await logAudit({
-              jobId, userId, action: "scale_detected",
+              jobId,
+              userId,
+              action: "scale_detected",
               notes: `${scale.scaleText} · ${scale.status}`,
             });
           } catch (e) {
@@ -300,7 +353,9 @@ export async function runAutomaticTakeoff(args: {
       allSpecRows.push(...extractSpecRowsFromFile(f));
     }
 
-    let qInserted = 0, qUpdated = 0, qConflicts = 0;
+    let qInserted = 0,
+      qUpdated = 0,
+      qConflicts = 0;
     for (const q of allQty) {
       try {
         const r = await persistQuantity({ jobId, q });
@@ -308,22 +363,35 @@ export async function runAutomaticTakeoff(args: {
         else if (r.status === "updated") qUpdated++;
         else if (r.status === "conflict") qConflicts++;
         if (r.status === "inserted") {
-          await logAudit({ jobId, userId, action: "quantity_created", notes: `${q.label}=${q.value}${q.unit}` });
+          await logAudit({
+            jobId,
+            userId,
+            action: "quantity_created",
+            notes: `${q.label}=${q.value}${q.unit}`,
+          });
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : "unknown error";
         const where = q.page != null ? ` on page ${q.page}` : "";
-        errors.push(`Failed to persist quantity: ${q.label} = ${q.value}${q.unit}${where} — ${msg}`);
+        errors.push(
+          `Failed to persist quantity: ${q.label} = ${q.value}${q.unit}${where} — ${msg}`,
+        );
       }
     }
 
-    let oInserted = 0, oSkipped = 0;
+    let oInserted = 0,
+      oSkipped = 0;
     for (const o of allOpenings) {
       try {
         const r = await persistOpening({ jobId, createdBy: userId, o });
         if (r.status === "inserted") {
           oInserted++;
-          await logAudit({ jobId, userId, action: "opening_created", notes: `${o.kind} ${o.width_mm}${o.height_mm ? `×${o.height_mm}` : ""}` });
+          await logAudit({
+            jobId,
+            userId,
+            action: "opening_created",
+            notes: `${o.kind} ${o.width_mm}${o.height_mm ? `×${o.height_mm}` : ""}`,
+          });
         } else {
           oSkipped++;
         }
@@ -337,11 +405,20 @@ export async function runAutomaticTakeoff(args: {
 
     progress("preparing_modules", "Preparing module review items…");
     const mod = await populateModulesFromTakeoff({
-      jobId, quantities: allQty, openings: allOpenings, specRows: allSpecRows, takeoffRunId: runId,
+      jobId,
+      quantities: allQty,
+      openings: allOpenings,
+      specRows: allSpecRows,
+      takeoffRunId: runId,
     });
     if (mod.errors.length > 0) errors.push(...mod.errors);
     if (mod.inserted > 0) {
-      await logAudit({ jobId, userId, action: "module_item_created", notes: `${mod.inserted} draft items` });
+      await logAudit({
+        jobId,
+        userId,
+        action: "module_item_created",
+        notes: `${mod.inserted} draft items`,
+      });
     }
 
     // Confidence + review counts across module_items + extracted_quantities for this job.
@@ -362,7 +439,9 @@ export async function runAutomaticTakeoff(args: {
 
     const totalRows = qInserted + qUpdated + oInserted + mod.inserted + mod.updated;
     if (totalRows === 0) {
-      warnings.push("No quantities, openings, or module items were extracted from the uploaded files.");
+      warnings.push(
+        "No quantities, openings, or module items were extracted from the uploaded files.",
+      );
     }
     const completedAt = new Date().toISOString();
 
@@ -374,16 +453,20 @@ export async function runAutomaticTakeoff(args: {
     const insertedSpecKeys = new Set(allSpecRows.map((r) => `${r.moduleId}|${r.label}`));
     const specChecks = specChecksRaw.map((c) => ({
       ...c,
-      rowCreated: insertedSpecKeys.has(`${c.moduleId}|${c.label}`) && mod.inserted + mod.updated > 0,
+      rowCreated:
+        insertedSpecKeys.has(`${c.moduleId}|${c.label}`) && mod.inserted + mod.updated > 0,
     }));
     const totalChars = extracted.reduce(
-      (s, f) => s + f.pages.reduce((ss, p) => ss + (p.text?.length ?? 0), 0), 0,
+      (s, f) => s + f.pages.reduce((ss, p) => ss + (p.text?.length ?? 0), 0),
+      0,
     );
     const pagesWithText = extracted.reduce(
-      (s, f) => s + f.pages.filter((p) => (p.text?.length ?? 0) > 0).length, 0,
+      (s, f) => s + f.pages.filter((p) => (p.text?.length ?? 0) > 0).length,
+      0,
     );
     const pagesWithoutText = extracted.reduce(
-      (s, f) => s + f.pages.filter((p) => (p.text?.length ?? 0) === 0).length, 0,
+      (s, f) => s + f.pages.filter((p) => (p.text?.length ?? 0) === 0).length,
+      0,
     );
     const { outcome, outcomeMessage } = deriveOutcome({
       fileCount: files.length,
@@ -417,7 +500,8 @@ export async function runAutomaticTakeoff(args: {
       if (ef.pages.length === 0) continue;
       const planPages = ef.pages;
       const allLargeFlatten = planPages.every(
-        (p) => (p.text?.length ?? 0) === 0 &&
+        (p) =>
+          (p.text?.length ?? 0) === 0 &&
           (p.pageSize === "A1" || p.pageSize === "A2" || p.pageSize === "A3"),
       );
       if (allLargeFlatten) {
@@ -457,7 +541,11 @@ export async function runAutomaticTakeoff(args: {
     } else {
       resultType = "no_usable_text_found";
     }
-    if (flattenedPlanFiles.length > 0 && (resultType === "specification_only_takeoff" || resultType === "limited_specification_takeoff")) {
+    if (
+      flattenedPlanFiles.length > 0 &&
+      (resultType === "specification_only_takeoff" ||
+        resultType === "limited_specification_takeoff")
+    ) {
       warnings.push(
         `${flattenedPlanFiles.length} plan ${flattenedPlanFiles.length === 1 ? "file appears" : "files appear"} to be flattened images — vision review required for plan measurements.`,
       );
@@ -477,13 +565,15 @@ export async function runAutomaticTakeoff(args: {
     let finalOutcomeMessage = outcomeMessage;
     if (resultType === "flattened_plan_vision_review_required") {
       finalOutcome = "flattened_plan";
-      finalOutcomeMessage = "Plan PDF is flattened (no text layer). Vision review required for plan measurements.";
+      finalOutcomeMessage =
+        "Plan PDF is flattened (no text layer). Vision review required for plan measurements.";
     } else if (resultType === "limited_specification_takeoff") {
       finalOutcome = "limited_specification";
       finalOutcomeMessage = `Only ${usefulSpecCount} useful specification ${usefulSpecCount === 1 ? "item" : "items"} extracted from readable text.`;
     } else if (resultType === "specification_only_takeoff") {
       finalOutcome = "specification_only";
-      finalOutcomeMessage = "Specification text was readable; plan drawings could not be read for measurements.";
+      finalOutcomeMessage =
+        "Specification text was readable; plan drawings could not be read for measurements.";
     }
     diagnostics.outcome = finalOutcome;
     diagnostics.outcomeMessage = finalOutcomeMessage;
@@ -493,9 +583,14 @@ export async function runAutomaticTakeoff(args: {
       runId,
       filesScanned: extracted.length,
       pagesScanned: extracted.reduce((s, f) => s + f.pages.length, 0),
-      workingFileId, workingFileName, workingPageNumber, workingPageType,
+      workingFileId,
+      workingFileName,
+      workingPageNumber,
+      workingPageType,
       workingPageConfidence: workingPageConf,
-      scaleText, scaleStatus, calibrationId,
+      scaleText,
+      scaleStatus,
+      calibrationId,
       quantitiesInserted: qInserted,
       quantitiesUpdated: qUpdated,
       quantityConflicts: qConflicts,
@@ -505,7 +600,9 @@ export async function runAutomaticTakeoff(args: {
       moduleItemsUpdated: mod.updated,
       moduleItemConflicts: mod.conflicts,
       reviewRequiredCount,
-      highCount, midCount, lowCount,
+      highCount,
+      midCount,
+      lowCount,
       errors,
       warnings,
       hasWarnings: hasWarnings2,
@@ -519,7 +616,11 @@ export async function runAutomaticTakeoff(args: {
     };
 
     // Concept mode: geometry measurement + fill missing items with Jennian standard allowances
-    const { data: jobRow } = await supabase.from("jobs").select("plan_type").eq("id", jobId).single();
+    const { data: jobRow } = await supabase
+      .from("jobs")
+      .select("plan_type")
+      .eq("id", jobId)
+      .single();
     if (jobRow?.plan_type === "concept") {
       // Canonical-takeoff integrity (11 Jun): a run that never persists takeoff_json must
       // say so LOUDLY instead of completing silently — the export quietly falls back to the
@@ -558,21 +659,30 @@ export async function runAutomaticTakeoff(args: {
               );
               if (geoResult) {
                 // Clear any previous geometry measurements for this job then re-insert
-                await supabase.from("plan_measurements").delete()
-                  .eq("job_id", jobId).eq("source", "geometry_api");
+                await supabase
+                  .from("plan_measurements")
+                  .delete()
+                  .eq("job_id", jobId)
+                  .eq("source", "geometry_api");
 
                 const scaleNote = geoResult.scale.string ?? null;
                 const m = geoResult.measurements;
                 const inserts: Array<{
-                  job_id: string; created_by: string; measurement_type: string;
-                  calculated_area_m2?: number | null; calculated_length_m?: number | null;
-                  confidence: string; source: string; notes?: string | null;
+                  job_id: string;
+                  created_by: string;
+                  measurement_type: string;
+                  calculated_area_m2?: number | null;
+                  calculated_length_m?: number | null;
+                  confidence: string;
+                  source: string;
+                  notes?: string | null;
                   plan_page_number: number;
                 }> = [];
 
                 if (m.floor_area_m2 != null) {
                   inserts.push({
-                    job_id: jobId, created_by: userId,
+                    job_id: jobId,
+                    created_by: userId,
                     measurement_type: "floor_area",
                     calculated_area_m2: m.floor_area_m2,
                     confidence: geoResult.confidence.floor_area,
@@ -583,7 +693,8 @@ export async function runAutomaticTakeoff(args: {
                 }
                 if (m.perimeter_m != null) {
                   inserts.push({
-                    job_id: jobId, created_by: userId,
+                    job_id: jobId,
+                    created_by: userId,
                     measurement_type: "perimeter",
                     calculated_length_m: m.perimeter_m,
                     confidence: geoResult.confidence.perimeter,
@@ -598,9 +709,12 @@ export async function runAutomaticTakeoff(args: {
 
                 // Persist overall geometry confidence back to the job record
                 const conf = overallConfidence(geoResult.confidence);
-                await supabase.from("jobs").update({
-                  confidence_score: conf === "high" ? 95 : conf === "medium" ? 70 : 40,
-                }).eq("id", jobId);
+                await supabase
+                  .from("jobs")
+                  .update({
+                    confidence_score: conf === "high" ? 95 : conf === "medium" ? 70 : 40,
+                  })
+                  .eq("id", jobId);
               }
 
               // Pass 0 + vision takeoff → persist plan_context, then COMPOSE the takeoff
@@ -614,13 +728,12 @@ export async function runAutomaticTakeoff(args: {
                 const { renderPageForAnalysis } = await import("@/lib/pdf-pages");
                 const { extractConceptTakeoffs } = await import("./concept.functions");
                 const { composeTakeoff } = await import("./compose-takeoff");
-                const planFile = new File(
-                  [fileData],
-                  fileRow.file_name ?? "plan.pdf",
-                  { type: "application/pdf" },
-                );
+                const planFile = new File([fileData], fileRow.file_name ?? "plan.pdf", {
+                  type: "application/pdf",
+                });
                 const pageBlob = await renderPageForAnalysis(planFile, workingPageNumber ?? 1);
-                if (!pageBlob) canonicalSkipReason = "working page could not be rendered for vision";
+                if (!pageBlob)
+                  canonicalSkipReason = "working page could not be rendered for vision";
                 if (pageBlob) {
                   const b64 = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -650,7 +763,12 @@ export async function runAutomaticTakeoff(args: {
                     geoResult?.scale?.string ?? scaleText,
                   );
                   if (doorEngine) {
-                    console.info("[door-engine]", doorEngine.counts, "flags:", doorEngine.flags.length);
+                    console.info(
+                      "[door-engine]",
+                      doorEngine.counts,
+                      "flags:",
+                      doorEngine.flags.length,
+                    );
                   }
                   const composed = composeTakeoff({
                     visionTakeoff: conceptResult.takeoffData,
@@ -705,49 +823,79 @@ export async function runAutomaticTakeoff(args: {
       }
 
       try {
-        const { data: existingItems } = await supabase.from("module_items")
-          .select("label, value_source").eq("job_id", jobId);
+        const { data: existingItems } = await supabase
+          .from("module_items")
+          .select("label, value_source")
+          .eq("job_id", jobId);
         const existingLabels = new Set<string>(
           (existingItems ?? [])
-            .filter((i: { label: string; value_source: string | null }) => i.value_source === "extracted")
+            .filter(
+              (i: { label: string; value_source: string | null }) => i.value_source === "extracted",
+            )
             .map((i: { label: string }) => i.label),
         );
-        const { data: floorQty } = await supabase.from("extracted_quantities")
-          .select("extracted_value").eq("job_id", jobId).eq("quantity_type", "total_floor_area").maybeSingle();
-        const floorAreaM2 = typeof floorQty?.extracted_value === "number" ? floorQty.extracted_value : null;
+        const { data: floorQty } = await supabase
+          .from("extracted_quantities")
+          .select("extracted_value")
+          .eq("job_id", jobId)
+          .eq("quantity_type", "total_floor_area")
+          .maybeSingle();
+        const floorAreaM2 =
+          typeof floorQty?.extracted_value === "number" ? floorQty.extracted_value : null;
         const { applyConceptAssumptions } = await import("./concept-assumptions");
-        const assumptionResult = await applyConceptAssumptions({ jobId, runId, floorAreaM2, existingLabels });
-        await supabase.from("jobs").update({ confidence_score: assumptionResult.confidenceScore }).eq("id", jobId);
+        const assumptionResult = await applyConceptAssumptions({
+          jobId,
+          runId,
+          floorAreaM2,
+          existingLabels,
+        });
+        await supabase
+          .from("jobs")
+          .update({ confidence_score: assumptionResult.confidenceScore })
+          .eq("id", jobId);
       } catch (assumptionErr) {
-        console.warn("[concept-mode] applyConceptAssumptions failed — run continues:", assumptionErr);
+        console.warn(
+          "[concept-mode] applyConceptAssumptions failed — run continues:",
+          assumptionErr,
+        );
       }
     }
 
-    await supabase.from("takeoff_runs").update({
-      // recomputed live: integrity warnings are pushed after the hasWarnings2 snapshot
-      status: errors.length > 0 || warnings.length > 0 ? "completed_with_warnings" : "completed",
-      completed_at: completedAt,
-      working_file_id: workingFileId,
-      working_page_number: workingPageNumber,
-      working_page_type: workingPageType,
-      classification_confidence: workingPageConf,
-      scale_text: scaleText,
-      calibration_id: calibrationId,
-      summary: toJson(summary),
-      error_message: errors.length > 0 ? errors.slice(0, 5).join(" | ") : null,
-    }).eq("id", runId);
+    await supabase
+      .from("takeoff_runs")
+      .update({
+        // recomputed live: integrity warnings are pushed after the hasWarnings2 snapshot
+        status: errors.length > 0 || warnings.length > 0 ? "completed_with_warnings" : "completed",
+        completed_at: completedAt,
+        working_file_id: workingFileId,
+        working_page_number: workingPageNumber,
+        working_page_type: workingPageType,
+        classification_confidence: workingPageConf,
+        scale_text: scaleText,
+        calibration_id: calibrationId,
+        summary: toJson(summary),
+        error_message: errors.length > 0 ? errors.slice(0, 5).join(" | ") : null,
+      })
+      .eq("id", runId);
 
-    await logAudit({ jobId, userId, action: "automatic_takeoff_completed",
-      notes: `${qInserted} quantities · ${oInserted} openings · ${mod.inserted} module items${errors.length ? ` · ${errors.length} errors` : ""}` });
+    await logAudit({
+      jobId,
+      userId,
+      action: "automatic_takeoff_completed",
+      notes: `${qInserted} quantities · ${oInserted} openings · ${mod.inserted} module items${errors.length ? ` · ${errors.length} errors` : ""}`,
+    });
 
     return summary;
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown takeoff failure.";
-    await supabase.from("takeoff_runs").update({
-      status: "failed",
-      completed_at: new Date().toISOString(),
-      error_message: msg,
-    }).eq("id", runId);
+    await supabase
+      .from("takeoff_runs")
+      .update({
+        status: "failed",
+        completed_at: new Date().toISOString(),
+        error_message: msg,
+      })
+      .eq("id", runId);
     await logAudit({ jobId, userId, action: "automatic_takeoff_failed", notes: msg });
     throw err;
   }
@@ -756,17 +904,32 @@ export async function runAutomaticTakeoff(args: {
 function emptySummary(runId: string): TakeoffSummary {
   return {
     runId,
-    filesScanned: 0, pagesScanned: 0,
-    workingFileId: null, workingFileName: null,
-    workingPageNumber: null, workingPageType: null,
+    filesScanned: 0,
+    pagesScanned: 0,
+    workingFileId: null,
+    workingFileName: null,
+    workingPageNumber: null,
+    workingPageType: null,
     workingPageConfidence: null,
-    scaleText: null, scaleStatus: "Manual Calibration Required",
+    scaleText: null,
+    scaleStatus: "Manual Calibration Required",
     calibrationId: null,
-    quantitiesInserted: 0, quantitiesUpdated: 0, quantityConflicts: 0,
-    openingsInserted: 0, openingsSkipped: 0,
-    moduleItemsInserted: 0, moduleItemsUpdated: 0, moduleItemConflicts: 0,
-    reviewRequiredCount: 0, highCount: 0, midCount: 0, lowCount: 0,
-    errors: [], warnings: [], hasWarnings: false, completedAt: null,
+    quantitiesInserted: 0,
+    quantitiesUpdated: 0,
+    quantityConflicts: 0,
+    openingsInserted: 0,
+    openingsSkipped: 0,
+    moduleItemsInserted: 0,
+    moduleItemsUpdated: 0,
+    moduleItemConflicts: 0,
+    reviewRequiredCount: 0,
+    highCount: 0,
+    midCount: 0,
+    lowCount: 0,
+    errors: [],
+    warnings: [],
+    hasWarnings: false,
+    completedAt: null,
     pageClassifications: [],
     diagnostics: null,
     resultType: "no_usable_text_found",

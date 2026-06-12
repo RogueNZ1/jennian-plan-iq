@@ -24,18 +24,37 @@ import type { Opening } from "../../src/lib/takeoff/takeoff-types";
 import type { VectorEntrance } from "../../src/lib/takeoff/geometry-api";
 
 const win = (room: string, h: number, w: number): Opening => ({
-  type: "window", room, height_m: h, width_m: w, glazed: true, cladding: null,
-  area_m2: round2(h * w) ?? 0, source: "vision", confidence: "high",
+  type: "window",
+  room,
+  height_m: h,
+  width_m: w,
+  glazed: true,
+  cladding: null,
+  area_m2: round2(h * w) ?? 0,
+  source: "vision",
+  confidence: "high",
 });
 const sectional = (): Opening => ({
-  type: "sectional_door", room: "Garage", height_m: 2.1, width_m: 4.8, glazed: false,
-  cladding: null, area_m2: 10.08, source: "vision", confidence: "high",
+  type: "sectional_door",
+  room: "Garage",
+  height_m: 2.1,
+  width_m: 4.8,
+  glazed: false,
+  cladding: null,
+  area_m2: 10.08,
+  source: "vision",
+  confidence: "high",
 });
 // Beddis entry door: width is UNRESOLVED on the plan → the fix uses ASSUMED_OPENING_WIDTH_M (1.0),
 // flagged. Height is the asserted building standard 2.1m. Single source for both paths.
 const unresolvedEntrance: VectorEntrance = {
-  type: "entry", width_mm: null, width_source: "unresolved",
-  height_mm: 2100, height_source: "standard_assumed", label: "ENTRY", page: 0,
+  type: "entry",
+  width_mm: null,
+  width_source: "unresolved",
+  height_mm: 2100,
+  height_source: "standard_assumed",
+  label: "ENTRY",
+  page: 0,
 };
 
 // Windows + the sectional garage door, NO entrance — the schedule-path bug state.
@@ -79,7 +98,7 @@ describe("schedule-path entry-door fold", () => {
 
   it("after the fold: glazed 8.82→10.92, total 18.9→21.0; sectional stays EXCLUDED from glass", () => {
     const t = deriveOpeningTotals(foldScheduleEntrance(scheduleOpenings, unresolvedEntrance));
-    expect(t.glazed_sqm).toBe(10.92);   // 8.82 windows + 2.10 entrance; sectional 10.08 excluded
+    expect(t.glazed_sqm).toBe(10.92); // 8.82 windows + 2.10 entrance; sectional 10.08 excluded
     expect(t.total_opening_sqm).toBe(21.0); // includes the sectional
   });
 

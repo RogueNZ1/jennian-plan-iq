@@ -16,16 +16,43 @@ export type InternalWallConfidence = "high" | "medium" | "low";
 
 /** Rooms that should always be dimensioned on a complete plan. */
 export const MAIN_ROOM_KEYWORDS = [
-  "bed", "master", "bedroom", "lounge", "living", "kitchen",
-  "dining", "family", "garage", "study", "office", "theatre",
-  "media", "rumpus",
+  "bed",
+  "master",
+  "bedroom",
+  "lounge",
+  "living",
+  "kitchen",
+  "dining",
+  "family",
+  "garage",
+  "study",
+  "office",
+  "theatre",
+  "media",
+  "rumpus",
 ];
 
 /** Service rooms — frequently undimensioned, not an error if missing. */
 export const SERVICE_ROOM_KEYWORDS = [
-  "wc", "toilet", "wir", "wardrobe", "robe", "hall", "corridor",
-  "store", "storage", "cupboard", "linen", "laundry", "entry",
-  "foyer", "porch", "lobby", "ensuite", "ens", "bath",
+  "wc",
+  "toilet",
+  "wir",
+  "wardrobe",
+  "robe",
+  "hall",
+  "corridor",
+  "store",
+  "storage",
+  "cupboard",
+  "linen",
+  "laundry",
+  "entry",
+  "foyer",
+  "porch",
+  "lobby",
+  "ensuite",
+  "ens",
+  "bath",
 ];
 
 /**

@@ -23,13 +23,15 @@ vi.mock("../../src/integrations/supabase/client", () => ({
       select: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
           order: vi.fn().mockReturnValue({
-            limit: vi.fn().mockImplementation((n: number) =>
-              Promise.resolve(
-                rowsHolder.error
-                  ? { data: null, error: rowsHolder.error }
-                  : { data: rowsHolder.rows.slice(0, n), error: null },
+            limit: vi
+              .fn()
+              .mockImplementation((n: number) =>
+                Promise.resolve(
+                  rowsHolder.error
+                    ? { data: null, error: rowsHolder.error }
+                    : { data: rowsHolder.rows.slice(0, n), error: null },
+                ),
               ),
-            ),
           }),
         }),
       }),
@@ -50,7 +52,7 @@ beforeEach(() => {
 describe("loadEnrichedTakeoffJson — run selection", () => {
   it("skips a latest FAILED run (null payload) and returns the previous run's takeoff_json", async () => {
     rowsHolder.rows = [
-      { started_at: "2026-06-09T10:00:00Z", takeoff_json: null },      // failed re-run
+      { started_at: "2026-06-09T10:00:00Z", takeoff_json: null }, // failed re-run
       { started_at: "2026-06-08T10:00:00Z", takeoff_json: GOOD_JSON }, // the real data
     ];
     const out = await loadEnrichedTakeoffJson("job-jm0020");

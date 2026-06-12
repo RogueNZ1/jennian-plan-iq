@@ -3,8 +3,20 @@ import { Link } from "@tanstack/react-router";
 import type { LatestTakeoffRun } from "@/lib/takeoff/run";
 import { normalizeSummary, isEmptyRun } from "@/lib/takeoff/summary";
 import {
-  FileSearch, Ruler, ListChecks, Layers, AlertCircle, ClipboardCheck, Eye,
-  AlertTriangle, FileWarning, ChevronDown, ChevronRight, ScanEye, CheckCircle2, Printer,
+  FileSearch,
+  Ruler,
+  ListChecks,
+  Layers,
+  AlertCircle,
+  ClipboardCheck,
+  Eye,
+  AlertTriangle,
+  FileWarning,
+  ChevronDown,
+  ChevronRight,
+  ScanEye,
+  CheckCircle2,
+  Printer,
 } from "lucide-react";
 import { useRoles } from "@/hooks/use-roles";
 import { TakeoffDiagnosticsPanel } from "./TakeoffDiagnostics";
@@ -20,18 +32,15 @@ const GEOMETRY_DEFERRED = [
   "Roof area (if not printed)",
 ];
 
-export function TakeoffSummary({
-  run, jobId,
-}: {
-  run: LatestTakeoffRun;
-  jobId: string;
-}) {
+export function TakeoffSummary({ run, jobId }: { run: LatestTakeoffRun; jobId: string }) {
   const s = normalizeSummary(run.summary);
   const { isAdmin } = useRoles();
   const failed = run.status === "failed";
   const hasWarnings =
-    s.hasWarnings || run.status === "completed_with_warnings" ||
-    s.errors.length > 0 || s.warnings.length > 0;
+    s.hasWarnings ||
+    run.status === "completed_with_warnings" ||
+    s.errors.length > 0 ||
+    s.warnings.length > 0;
   const empty = !failed && isEmptyRun(s);
   const diag = s.diagnostics;
 
@@ -53,7 +62,9 @@ export function TakeoffSummary({
         .eq("id", run.id)
         .single();
       if (readErr) throw readErr;
-      const existing = (row?.summary && typeof row.summary === "object" ? row.summary : {}) as Record<string, unknown>;
+      const existing = (
+        row?.summary && typeof row.summary === "object" ? row.summary : {}
+      ) as Record<string, unknown>;
       const nowIso = new Date().toISOString();
       const merged = {
         ...existing,
@@ -76,7 +87,11 @@ export function TakeoffSummary({
 
   const completedLabel = (() => {
     const ts = s.completedAt ?? run.completed_at ?? run.started_at;
-    try { return new Date(ts).toLocaleString(); } catch { return "—"; }
+    try {
+      return new Date(ts).toLocaleString();
+    } catch {
+      return "—";
+    }
   })();
 
   const resultTypeLabel: Record<typeof s.resultType, string> = {
@@ -95,8 +110,7 @@ export function TakeoffSummary({
       "Only a small number of specification items were extracted. Review the uploaded files — the specification may not include schedule-style values, or extraction patterns may need to be expanded.",
     flattened_plan_vision_review_required:
       "Plan pages appear to be flattened images. Text-based takeoff cannot read dimensions from these drawings. OCR / vision review is required for automatic plan measurement.",
-    no_usable_text_found:
-      "No useful plan or specification text was found in the uploaded files.",
+    no_usable_text_found: "No useful plan or specification text was found in the uploaded files.",
   };
   const showVisionSection =
     s.resultType === "flattened_plan_vision_review_required" ||
@@ -108,15 +122,15 @@ export function TakeoffSummary({
     s.workingPlanStatus === "not_identified"
       ? "Not identified"
       : s.workingPlanStatus === "candidate"
-      ? `${s.workingPlanFileName} · Page ${s.workingPlanPageNumber ?? "—"}`
-      : `${s.workingPlanFileName} · Page ${s.workingPlanPageNumber ?? "—"}`;
+        ? `${s.workingPlanFileName} · Page ${s.workingPlanPageNumber ?? "—"}`
+        : `${s.workingPlanFileName} · Page ${s.workingPlanPageNumber ?? "—"}`;
 
   const workingPlanSub =
     s.workingPlanStatus === "not_identified"
       ? "No floorplan candidate was confidently detected in uploaded plans."
       : s.workingPlanStatus === "candidate"
-      ? "Candidate selected for review. Please confirm before measuring."
-      : `${s.workingPlanPageType ?? "Floorplan"} · ${s.workingPlanConfidence ?? "low"} confidence`;
+        ? "Candidate selected for review. Please confirm before measuring."
+        : `${s.workingPlanPageType ?? "Floorplan"} · ${s.workingPlanConfidence ?? "low"} confidence`;
 
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
@@ -127,8 +141,8 @@ export function TakeoffSummary({
             {failed
               ? `Last run failed${run.error_message ? ` — ${run.error_message}` : ""}.`
               : hasWarnings
-              ? `Last run ${completedLabel} — completed with warnings.`
-              : `Last run ${completedLabel}. Draft quantities prepared for review.`}
+                ? `Last run ${completedLabel} — completed with warnings.`
+                : `Last run ${completedLabel}. Draft quantities prepared for review.`}
           </div>
         </div>
       </div>
@@ -160,20 +174,20 @@ export function TakeoffSummary({
                 {diag?.outcome === "no_readable_text"
                   ? "No PDF text layer detected"
                   : diag?.outcome === "partial_readable_text_no_matches"
-                  ? "Some pages have no readable text"
-                  : diag?.outcome === "matches_no_module_rows"
-                  ? "Matches found but no module rows created"
-                  : diag?.outcome === "errors"
-                  ? "Errors during file processing"
-                  : diag?.outcome === "no_files"
-                  ? "No uploaded files"
-                  : diag?.outcome === "limited_specification"
-                  ? "Limited specification takeoff"
-                  : diag?.outcome === "specification_only"
-                  ? "Specification only takeoff"
-                  : diag?.outcome === "flattened_plan"
-                  ? "Flattened plan — vision review required"
-                  : "Readable text but no quantity matches"}
+                    ? "Some pages have no readable text"
+                    : diag?.outcome === "matches_no_module_rows"
+                      ? "Matches found but no module rows created"
+                      : diag?.outcome === "errors"
+                        ? "Errors during file processing"
+                        : diag?.outcome === "no_files"
+                          ? "No uploaded files"
+                          : diag?.outcome === "limited_specification"
+                            ? "Limited specification takeoff"
+                            : diag?.outcome === "specification_only"
+                              ? "Specification only takeoff"
+                              : diag?.outcome === "flattened_plan"
+                                ? "Flattened plan — vision review required"
+                                : "Readable text but no quantity matches"}
               </div>
               <div className="mt-1 text-[11.5px] text-muted-foreground">
                 {diag?.outcomeMessage ??
@@ -194,12 +208,17 @@ export function TakeoffSummary({
                 ))}
               </ul>
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Link to="/jobs/$jobId" params={{ jobId }}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent">
+                <Link
+                  to="/jobs/$jobId"
+                  params={{ jobId }}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent"
+                >
                   <Eye className="h-3 w-3" /> Open Working Plan
                 </Link>
-                <Link to="/upload"
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent">
+                <Link
+                  to="/upload"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent"
+                >
                   <FileSearch className="h-3 w-3" /> Review Uploaded Files
                 </Link>
               </div>
@@ -213,22 +232,37 @@ export function TakeoffSummary({
           <div className="flex items-start gap-2">
             <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-600 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <div className="text-[12.5px] font-semibold tracking-tight">Takeoff completed with warnings</div>
+              <div className="text-[12.5px] font-semibold tracking-tight">
+                Takeoff completed with warnings
+              </div>
               {s.warnings.length > 0 && (
                 <ul className="mt-1 text-[11.5px] text-muted-foreground space-y-0.5">
-                  {s.warnings.map((w, i) => (<li key={`w${i}`}>• {w}</li>))}
+                  {s.warnings.map((w, i) => (
+                    <li key={`w${i}`}>• {w}</li>
+                  ))}
                 </ul>
               )}
               {s.errors.length > 0 && (
                 <div className="mt-1.5">
-                  <button type="button" onClick={() => setErrorsOpen((v) => !v)}
-                    className="inline-flex items-center gap-1 text-[11px] font-medium hover:underline">
-                    {errorsOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                  <button
+                    type="button"
+                    onClick={() => setErrorsOpen((v) => !v)}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium hover:underline"
+                  >
+                    {errorsOpen ? (
+                      <ChevronDown className="h-3 w-3" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3" />
+                    )}
                     {s.errors.length} row-level {s.errors.length === 1 ? "error" : "errors"}
                   </button>
                   {errorsOpen && (
                     <ul className="mt-1 text-[11px] text-muted-foreground space-y-0.5 max-h-48 overflow-auto">
-                      {s.errors.map((e, i) => (<li key={`e${i}`} className="break-words">• {e}</li>))}
+                      {s.errors.map((e, i) => (
+                        <li key={`e${i}`} className="break-words">
+                          • {e}
+                        </li>
+                      ))}
                     </ul>
                   )}
                 </div>
@@ -239,36 +273,56 @@ export function TakeoffSummary({
       )}
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-border">
-        <Card icon={<FileSearch className="h-4 w-4" />}
+        <Card
+          icon={<FileSearch className="h-4 w-4" />}
           label={s.workingPlanStatus === "candidate" ? "Working Plan Candidate" : "Working Plan"}
           value={workingPlanValue}
-          sub={workingPlanSub} />
-        <Card icon={<Ruler className="h-4 w-4" />} label="Scale Status"
+          sub={workingPlanSub}
+        />
+        <Card
+          icon={<Ruler className="h-4 w-4" />}
+          label="Scale Status"
           value={s.scaleText ?? s.scaleStatus}
           sub={
             s.scaleStatus === "Auto-calibrated"
               ? "Auto-calibrated from text — review before measuring."
               : s.scaleStatus === "Not checked"
-              ? "Working plan not identified — scale not checked."
-              : "Manual calibration required before measured quantities can be created."
-          } />
-        <Card icon={<ListChecks className="h-4 w-4" />} label="IQ Core Draft Quantities"
+                ? "Working plan not identified — scale not checked."
+                : "Manual calibration required before measured quantities can be created."
+          }
+        />
+        <Card
+          icon={<ListChecks className="h-4 w-4" />}
+          label="IQ Core Draft Quantities"
           value={String(s.quantitiesInserted + s.quantitiesRefreshed)}
-          sub={`${s.quantitiesInserted} new · ${s.quantitiesRefreshed} refreshed${s.quantityConflicts ? ` · ${s.quantityConflicts} conflicts` : ""}`} />
-        <Card icon={<Layers className="h-4 w-4" />} label="Openings Found"
+          sub={`${s.quantitiesInserted} new · ${s.quantitiesRefreshed} refreshed${s.quantityConflicts ? ` · ${s.quantityConflicts} conflicts` : ""}`}
+        />
+        <Card
+          icon={<Layers className="h-4 w-4" />}
+          label="Openings Found"
           value={String(s.openingsInserted + s.openingsRefreshed)}
-          sub={`${s.openingsInserted} new · ${s.openingsRefreshed} refreshed`} />
-        <Card icon={<ClipboardCheck className="h-4 w-4" />} label="Module Draft Items"
+          sub={`${s.openingsInserted} new · ${s.openingsRefreshed} refreshed`}
+        />
+        <Card
+          icon={<ClipboardCheck className="h-4 w-4" />}
+          label="Module Draft Items"
           value={String(s.moduleItemsInserted + s.moduleItemsRefreshed)}
-          sub={`${s.moduleItemsInserted} new · ${s.moduleItemsRefreshed} refreshed${s.moduleItemConflicts ? ` · ${s.moduleItemConflicts} conflicts` : ""}`} />
-        <Card icon={<AlertCircle className="h-4 w-4" />} label="Review Required Items"
+          sub={`${s.moduleItemsInserted} new · ${s.moduleItemsRefreshed} refreshed${s.moduleItemConflicts ? ` · ${s.moduleItemConflicts} conflicts` : ""}`}
+        />
+        <Card
+          icon={<AlertCircle className="h-4 w-4" />}
+          label="Review Required Items"
           value={String(s.reviewRequiredCount)}
-          sub={`${s.highConfidenceCount} high · ${s.mediumConfidenceCount} medium · ${s.lowConfidenceCount} low confidence`} />
+          sub={`${s.highConfidenceCount} high · ${s.mediumConfidenceCount} medium · ${s.lowConfidenceCount} low confidence`}
+        />
       </div>
 
       <div className="px-5 py-3 border-t border-border bg-muted/20">
-        <button type="button" onClick={() => setPagesOpen((v) => !v)}
-          className="inline-flex items-center gap-1 text-[11px] font-medium hover:underline">
+        <button
+          type="button"
+          onClick={() => setPagesOpen((v) => !v)}
+          className="inline-flex items-center gap-1 text-[11px] font-medium hover:underline"
+        >
           {pagesOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
           Page Review {s.pageClassifications.length > 0 ? `(${s.pageClassifications.length})` : ""}
         </button>
@@ -292,7 +346,10 @@ export function TakeoffSummary({
                   </thead>
                   <tbody>
                     {s.pageClassifications.map((p, i) => (
-                      <tr key={`${p.fileName}-${p.pageNumber}-${i}`} className="border-t border-border">
+                      <tr
+                        key={`${p.fileName}-${p.pageNumber}-${i}`}
+                        className="border-t border-border"
+                      >
                         <td className="px-2.5 py-1.5 truncate max-w-[180px]">{p.fileName}</td>
                         <td className="px-2.5 py-1.5 tabular-nums">{p.pageNumber}</td>
                         <td className="px-2.5 py-1.5">{p.pageType}</td>
@@ -320,7 +377,8 @@ export function TakeoffSummary({
                 </span>
               </div>
               <div className="mt-1 text-[11.5px] text-muted-foreground">
-                Flattened drawings require OCR / vision processing before Jennian IQ can automatically read dimensions, rooms, openings, and scale.
+                Flattened drawings require OCR / vision processing before Jennian IQ can
+                automatically read dimensions, rooms, openings, and scale.
               </div>
               {s.flattenedPlanFiles.length > 0 && (
                 <ul className="mt-2 text-[11px] text-muted-foreground space-y-0.5">
@@ -328,9 +386,9 @@ export function TakeoffSummary({
                     <li key={f.fileId} className="flex items-start gap-1.5">
                       <span className="text-muted-foreground/60 mt-1.5 inline-block h-1 w-1 rounded-full bg-current flex-shrink-0" />
                       <span className="break-all">
-                        <span className="font-medium text-foreground">{f.fileName}</span>{" "}
-                        — {f.pageCount} {f.pageCount === 1 ? "page" : "pages"}{" "}
-                        ({f.pageSizes.join(", ") || "unknown size"}), no text layer detected
+                        <span className="font-medium text-foreground">{f.fileName}</span> —{" "}
+                        {f.pageCount} {f.pageCount === 1 ? "page" : "pages"} (
+                        {f.pageSizes.join(", ") || "unknown size"}), no text layer detected
                       </span>
                     </li>
                   ))}
@@ -339,7 +397,15 @@ export function TakeoffSummary({
               {visionMarked && visionMarkedAt && (
                 <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-emerald-700">
                   <CheckCircle2 className="h-3 w-3" />
-                  Marked for vision review on {(() => { try { return new Date(visionMarkedAt).toLocaleString(); } catch { return visionMarkedAt; } })()}.
+                  Marked for vision review on{" "}
+                  {(() => {
+                    try {
+                      return new Date(visionMarkedAt).toLocaleString();
+                    } catch {
+                      return visionMarkedAt;
+                    }
+                  })()}
+                  .
                 </div>
               )}
               {visionError && (
@@ -353,10 +419,17 @@ export function TakeoffSummary({
                   className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ScanEye className="h-3 w-3" />
-                  {visionMarked ? "Marked for Vision Review" : visionBusy ? "Marking…" : "Mark for Vision Review"}
+                  {visionMarked
+                    ? "Marked for Vision Review"
+                    : visionBusy
+                      ? "Marking…"
+                      : "Mark for Vision Review"}
                 </button>
-                <Link to="/jobs/$jobId" params={{ jobId }}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent">
+                <Link
+                  to="/jobs/$jobId"
+                  params={{ jobId }}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent"
+                >
                   <Eye className="h-3 w-3" /> Open Working Plan for Manual Measurement
                 </Link>
               </div>
@@ -369,7 +442,9 @@ export function TakeoffSummary({
         <VisionTakeoffPanel
           jobId={jobId}
           flattenedFiles={s.flattenedPlanFiles.map((f) => ({
-            fileId: f.fileId, fileName: f.fileName, pageCount: f.pageCount,
+            fileId: f.fileId,
+            fileName: f.fileName,
+            pageCount: f.pageCount,
           }))}
         />
       )}
@@ -379,7 +454,8 @@ export function TakeoffSummary({
           Not yet auto-detected — measure manually
         </div>
         <div className="text-[11.5px] text-muted-foreground">
-          Geometry measurement has not been auto-detected in this pass. Use the Working Plan tools to measure perimeter, areas, and internal walls. Affected:
+          Geometry measurement has not been auto-detected in this pass. Use the Working Plan tools
+          to measure perimeter, areas, and internal walls. Affected:
         </div>
         <ul className="mt-1.5 grid sm:grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground">
           {GEOMETRY_DEFERRED.map((g) => (
@@ -392,20 +468,33 @@ export function TakeoffSummary({
       </div>
 
       <div className="px-5 py-3 border-t border-border flex flex-wrap items-center gap-2">
-        <Link to="/jobs/$jobId/verification" params={{ jobId }}
-          className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-2.5 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/10">
+        <Link
+          to="/jobs/$jobId/verification"
+          params={{ jobId }}
+          className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-2.5 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/10"
+        >
           <Printer className="h-3 w-3" /> Verification Printout
         </Link>
-        <Link to="/review" search={{ job: jobId }}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent">
+        <Link
+          to="/review"
+          search={{ job: jobId }}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent"
+        >
           <ClipboardCheck className="h-3 w-3" /> Review IQ Core
         </Link>
-        <Link to="/modules/$moduleId" params={{ moduleId: "iq-framing" }} search={{ job: jobId }}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent">
+        <Link
+          to="/modules/$moduleId"
+          params={{ moduleId: "iq-framing" }}
+          search={{ job: jobId }}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent"
+        >
           <Layers className="h-3 w-3" /> Review Modules
         </Link>
-        <Link to="/jobs/$jobId" params={{ jobId }}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent">
+        <Link
+          to="/jobs/$jobId"
+          params={{ jobId }}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent"
+        >
           <Eye className="h-3 w-3" /> Open Working Plan
         </Link>
       </div>
@@ -415,11 +504,23 @@ export function TakeoffSummary({
   );
 }
 
-function Card({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
+function Card({
+  icon,
+  label,
+  value,
+  sub,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  sub?: string;
+}) {
   return (
     <div className="bg-card p-4">
       <div className="flex items-center gap-2 text-muted-foreground">
-        <span className="h-6 w-6 rounded-md bg-primary/10 grid place-items-center text-primary">{icon}</span>
+        <span className="h-6 w-6 rounded-md bg-primary/10 grid place-items-center text-primary">
+          {icon}
+        </span>
         <span className="text-[10px] uppercase tracking-[0.16em]">{label}</span>
       </div>
       <div className="mt-2 text-[15px] font-semibold tracking-tight">{value}</div>

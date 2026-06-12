@@ -45,9 +45,11 @@ function Page() {
       .upload("Jennian_SMW_Template.docx", smwFile, { upsert: true });
     setUploadingSMW(false);
     if (error) toast.error(error.message);
-    else { setSmwFile(null); toast.success("SMW template uploaded"); }
+    else {
+      setSmwFile(null);
+      toast.success("SMW template uploaded");
+    }
   }
-
 
   async function save() {
     if (!user) return;
@@ -71,7 +73,9 @@ function Page() {
         <PageHeader title="Settings" subtitle="Workspace and review defaults." />
 
         <div className="mb-6 rounded-xl border border-border bg-card p-5">
-          <div className="text-[10.5px] font-medium uppercase tracking-[0.16em] text-muted-foreground mb-4">Your Profile</div>
+          <div className="text-[10.5px] font-medium uppercase tracking-[0.16em] text-muted-foreground mb-4">
+            Your Profile
+          </div>
           <div className="space-y-4">
             <div>
               <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground block mb-1.5">
@@ -93,7 +97,9 @@ function Page() {
                 disabled
                 className="w-full rounded-md border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
               />
-              <p className="mt-1 text-[11px] text-muted-foreground">Email is managed by your account provider.</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Email is managed by your account provider.
+              </p>
             </div>
           </div>
           <div className="mt-4 flex justify-end">
@@ -108,9 +114,12 @@ function Page() {
         </div>
 
         <div className="mb-6 rounded-xl border border-border bg-card p-5">
-          <div className="text-[10.5px] font-medium uppercase tracking-[0.16em] text-muted-foreground mb-4">SMW Template</div>
+          <div className="text-[10.5px] font-medium uppercase tracking-[0.16em] text-muted-foreground mb-4">
+            SMW Template
+          </div>
           <p className="text-xs text-muted-foreground mb-4">
-            Upload the Jennian SMW Word template. This file is used when exporting SMW documents from job pages.
+            Upload the Jennian SMW Word template. This file is used when exporting SMW documents
+            from job pages.
           </p>
           <div className="flex items-center gap-3">
             <label className="flex-1">
@@ -135,10 +144,12 @@ function Page() {
           </div>
         </div>
 
-
         <div className="space-y-3">
           {READ_ONLY_SETTINGS.map((s) => (
-            <div key={s.title} className="rounded-lg border border-border bg-card p-5 flex items-center justify-between">
+            <div
+              key={s.title}
+              className="rounded-lg border border-border bg-card p-5 flex items-center justify-between"
+            >
               <div>
                 <div className="text-sm font-semibold">{s.title}</div>
                 <div className="text-xs text-muted-foreground mt-0.5">{s.desc}</div>
@@ -151,7 +162,8 @@ function Page() {
         </div>
 
         <p className="mt-6 text-xs text-muted-foreground">
-          Workspace settings can only be changed by an administrator. Contact your workspace owner to update these values.
+          Workspace settings can only be changed by an administrator. Contact your workspace owner
+          to update these values.
         </p>
       </div>
     </AppLayout>

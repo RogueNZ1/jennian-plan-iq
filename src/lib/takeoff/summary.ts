@@ -67,7 +67,12 @@ export type NormalizedSummary = {
     | "limited_specification_takeoff"
     | "flattened_plan_vision_review_required"
     | "no_usable_text_found";
-  flattenedPlanFiles: Array<{ fileId: string; fileName: string; pageSizes: string[]; pageCount: number }>;
+  flattenedPlanFiles: Array<{
+    fileId: string;
+    fileName: string;
+    pageSizes: string[];
+    pageCount: number;
+  }>;
   visionReviewRequired: boolean;
   visionReviewMarkedAt: string | null;
 };
@@ -91,7 +96,7 @@ function conf(v: unknown): "high" | "mid" | "low" | null {
 }
 
 export function normalizeSummary(raw: unknown): NormalizedSummary {
-  const r = (raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {});
+  const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
 
   const workingFileId = str(pickFirst(r.workingPlanFileId, r.workingFileId));
   const workingFileName = str(pickFirst(r.workingPlanFileName, r.workingFileName));
@@ -204,11 +209,14 @@ export function normalizeSummary(raw: unknown): NormalizedSummary {
         v === "limited_specification_takeoff" ||
         v === "flattened_plan_vision_review_required" ||
         v === "no_usable_text_found"
-      ) return v;
+      )
+        return v;
       // Backward compat: if no resultType, infer from numeric fields.
       const total =
-        num(r.quantitiesInserted) + num(pickFirst(r.quantitiesRefreshed, r.quantitiesUpdated)) +
-        num(r.openingsInserted) + num(r.moduleItemsInserted);
+        num(r.quantitiesInserted) +
+        num(pickFirst(r.quantitiesRefreshed, r.quantitiesUpdated)) +
+        num(r.openingsInserted) +
+        num(r.moduleItemsInserted);
       return total > 0 ? "text_takeoff_completed" : "no_usable_text_found";
     })(),
 
@@ -226,7 +234,10 @@ export function normalizeSummary(raw: unknown): NormalizedSummary {
           pageCount: num(o.pageCount),
         };
       })
-      .filter((p): p is { fileId: string; fileName: string; pageSizes: string[]; pageCount: number } => p !== null),
+      .filter(
+        (p): p is { fileId: string; fileName: string; pageSizes: string[]; pageCount: number } =>
+          p !== null,
+      ),
 
     visionReviewRequired: r.visionReviewRequired === true,
     visionReviewMarkedAt: str(r.visionReviewMarkedAt),

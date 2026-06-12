@@ -32,23 +32,23 @@ export type PageConfidence = "high" | "mid" | "low";
 
 export const PAGE_TYPE_LABEL: Record<PageType, string> = {
   dimension_floor_plan: "Dimension Floor Plan",
-  floor_plan:           "Floor Plan",
-  site_plan:            "Site Plan",
-  elevations:           "Elevations",
-  sections:             "Sections",
-  electrical:           "Electrical",
-  plumbing:             "Plumbing",
-  roofing:              "Roofing",
-  legends:              "Legends",
-  details:              "Details",
-  window_schedule:      "Door & Window Schedule",
-  unknown:              "Unknown",
+  floor_plan: "Floor Plan",
+  site_plan: "Site Plan",
+  elevations: "Elevations",
+  sections: "Sections",
+  electrical: "Electrical",
+  plumbing: "Plumbing",
+  roofing: "Roofing",
+  legends: "Legends",
+  details: "Details",
+  window_schedule: "Door & Window Schedule",
+  unknown: "Unknown",
 };
 
 export const CONFIDENCE_LABEL: Record<PageConfidence, string> = {
   high: "High",
-  mid:  "Medium",
-  low:  "Low",
+  mid: "Medium",
+  low: "Low",
 };
 
 /**
@@ -65,18 +65,18 @@ export const CONFIDENCE_LABEL: Record<PageConfidence, string> = {
  * additional window source.
  */
 export const FLOORPLAN_SCORE: Record<PageType, number> = {
-  floor_plan:           100,
+  floor_plan: 100,
   dimension_floor_plan: 90,
-  unknown:              5,
-  site_plan:            -5,
-  details:              -10,
-  roofing:              -20,
-  plumbing:             -25,
-  electrical:           -30,
-  sections:             -40,
-  window_schedule:      -45,
-  elevations:           -50,
-  legends:              -60,
+  unknown: 5,
+  site_plan: -5,
+  details: -10,
+  roofing: -20,
+  plumbing: -25,
+  electrical: -30,
+  sections: -40,
+  window_schedule: -45,
+  elevations: -50,
+  legends: -60,
 };
 
 /** Score a classified page (type + confidence) the way analyzePdfPages does. */
@@ -193,9 +193,7 @@ export function pickPrimaryFloorplan(pages: readonly ScoredPage[]): {
   certainty: PageConfidence;
 } | null {
   if (pages.length === 0) return null;
-  const ranked = pages
-    .map((p, i) => ({ p, i }))
-    .sort((a, b) => b.p.score - a.p.score);
+  const ranked = pages.map((p, i) => ({ p, i })).sort((a, b) => b.p.score - a.p.score);
   const top = ranked[0];
   if (top.p.score <= 0) return null;
 

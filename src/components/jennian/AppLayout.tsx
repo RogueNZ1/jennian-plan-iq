@@ -1,7 +1,21 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
-  LayoutDashboard, Briefcase, Upload, ClipboardCheck, BarChart3, Users, Settings, Search, Bell, LogOut, Layers,
-  CheckCircle2, FileSpreadsheet, AlertTriangle, X, Zap,
+  LayoutDashboard,
+  Briefcase,
+  Upload,
+  ClipboardCheck,
+  BarChart3,
+  Users,
+  Settings,
+  Search,
+  Bell,
+  LogOut,
+  Layers,
+  CheckCircle2,
+  FileSpreadsheet,
+  AlertTriangle,
+  X,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth, initialsFor } from "@/hooks/use-auth";
@@ -10,25 +24,38 @@ import { HouseFrame } from "./HouseFrame";
 import { useRoles } from "@/hooks/use-roles";
 import { supabase } from "@/integrations/supabase/client";
 
-type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; gate?: "admin" | "owner" };
+type NavItem = {
+  to: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  gate?: "admin" | "owner";
+};
 const nav: NavItem[] = [
-  { to: "/",               label: "Dashboard",       icon: LayoutDashboard },
-  { to: "/jobs",           label: "Jobs",            icon: Briefcase },
-  { to: "/upload",         label: "Upload Plan",     icon: Upload },
-  { to: "/review",         label: "Quantity Review", icon: ClipboardCheck },
-  { to: "/modules",        label: "Modules",         icon: Layers },
-  { to: "/reports",        label: "Reports",         icon: BarChart3 },
-  { to: "/intelligence",   label: "007 Intelligence",icon: Zap,      gate: "owner" },
-  { to: "/users",          label: "Users",           icon: Users,    gate: "admin" },
-  { to: "/settings",       label: "Settings",        icon: Settings, gate: "owner" },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/jobs", label: "Jobs", icon: Briefcase },
+  { to: "/upload", label: "Upload Plan", icon: Upload },
+  { to: "/review", label: "Quantity Review", icon: ClipboardCheck },
+  { to: "/modules", label: "Modules", icon: Layers },
+  { to: "/reports", label: "Reports", icon: BarChart3 },
+  { to: "/intelligence", label: "007 Intelligence", icon: Zap, gate: "owner" },
+  { to: "/users", label: "Users", icon: Users, gate: "admin" },
+  { to: "/settings", label: "Settings", icon: Settings, gate: "owner" },
 ];
 
 type SearchResult = { id: string; job_number: string; client_name: string; address: string };
-type NotifItem = { id: string; job_number: string; client_name: string; status: string; created_at: string };
+type NotifItem = {
+  id: string;
+  job_number: string;
+  client_name: string;
+  status: string;
+  created_at: string;
+};
 
 function notifIcon(status: string) {
-  if (status === "approved") return <CheckCircle2 className="h-3.5 w-3.5 text-confidence-high shrink-0" />;
-  if (status === "exported") return <FileSpreadsheet className="h-3.5 w-3.5 text-primary shrink-0" />;
+  if (status === "approved")
+    return <CheckCircle2 className="h-3.5 w-3.5 text-confidence-high shrink-0" />;
+  if (status === "exported")
+    return <FileSpreadsheet className="h-3.5 w-3.5 text-primary shrink-0" />;
   return <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />;
 }
 
@@ -86,7 +113,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   // Debounced search
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    if (searchQuery.length < 2) { setSearchResults([]); setSearchOpen(false); return; }
+    if (searchQuery.length < 2) {
+      setSearchResults([]);
+      setSearchOpen(false);
+      return;
+    }
     searchTimer.current = setTimeout(async () => {
       const q = searchQuery;
       const { data } = await supabase
@@ -100,7 +131,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, [searchQuery]);
 
   if (loading || !user) {
-    return <div className="min-h-screen grid place-items-center bg-background text-sm text-muted-foreground">Loading…</div>;
+    return (
+      <div className="min-h-screen grid place-items-center bg-background text-sm text-muted-foreground">
+        Loading…
+      </div>
+    );
   }
 
   const initials = initialsFor(user);
@@ -126,46 +161,63 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="px-3 flex-1 space-y-0.5 overflow-y-auto">
-          {nav.filter((item) => {
-            if (rolesLoading) return true;
-            if (item.gate === "owner") return isOwner;
-            if (item.gate === "admin") return isAdmin;
-            return true;
-          }).map(({ to, label, icon: Icon }) => {
-            const active = to === "/" ? path === "/" : path.startsWith(to);
-            return (
-              <Link
-                key={to}
-                to={to}
-                className={cn(
-                  "group relative flex items-center gap-3 rounded-md px-3 py-2 text-[13.5px] font-medium transition-colors",
-                  active
-                    ? "bg-sidebar-accent text-white"
-                    : "text-sidebar-foreground/75 hover:bg-sidebar-accent/60 hover:text-white",
-                )}
-              >
-                {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-primary" />}
-                <Icon className={cn("h-4 w-4", active ? "text-primary" : "text-sidebar-foreground/60 group-hover:text-sidebar-foreground")} />
-                <span>{label}</span>
-              </Link>
-            );
-          })}
+          {nav
+            .filter((item) => {
+              if (rolesLoading) return true;
+              if (item.gate === "owner") return isOwner;
+              if (item.gate === "admin") return isAdmin;
+              return true;
+            })
+            .map(({ to, label, icon: Icon }) => {
+              const active = to === "/" ? path === "/" : path.startsWith(to);
+              return (
+                <Link
+                  key={to}
+                  to={to}
+                  className={cn(
+                    "group relative flex items-center gap-3 rounded-md px-3 py-2 text-[13.5px] font-medium transition-colors",
+                    active
+                      ? "bg-sidebar-accent text-white"
+                      : "text-sidebar-foreground/75 hover:bg-sidebar-accent/60 hover:text-white",
+                  )}
+                >
+                  {active && (
+                    <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-primary" />
+                  )}
+                  <Icon
+                    className={cn(
+                      "h-4 w-4",
+                      active
+                        ? "text-primary"
+                        : "text-sidebar-foreground/60 group-hover:text-sidebar-foreground",
+                    )}
+                  />
+                  <span>{label}</span>
+                </Link>
+              );
+            })}
         </nav>
 
         <div className="mx-3 mb-4 mt-4 rounded-lg bg-[oklch(0.18_0.01_260)] border border-sidebar-border/70 overflow-hidden">
           <div className="px-4 pt-4 pb-3">
             <div className="flex items-center gap-1.5">
               <span className="h-px w-5 bg-primary" />
-              <span className="text-[9.5px] uppercase tracking-[0.22em] text-sidebar-foreground/55 font-medium">Estimating workspace</span>
+              <span className="text-[9.5px] uppercase tracking-[0.22em] text-sidebar-foreground/55 font-medium">
+                Estimating workspace
+              </span>
             </div>
-            <div className="mt-1 text-[12.5px] text-sidebar-foreground/85 leading-snug">Plans, quantities and pricing preparation.</div>
+            <div className="mt-1 text-[12.5px] text-sidebar-foreground/85 leading-snug">
+              Plans, quantities and pricing preparation.
+            </div>
           </div>
           <div className="px-3 pb-2">
             <HouseFrame className="w-full text-sidebar-foreground/65" />
           </div>
           <div className="mx-4 my-2 h-px bg-sidebar-border/70" />
           <div className="px-4 pb-3.5">
-            <div className="text-[9.5px] uppercase tracking-[0.22em] text-sidebar-foreground/45 font-medium">Workspace</div>
+            <div className="text-[9.5px] uppercase tracking-[0.22em] text-sidebar-foreground/45 font-medium">
+              Workspace
+            </div>
             <div className="mt-0.5 text-[13px] font-medium text-white">Jennian Homes Manawātū</div>
           </div>
         </div>
@@ -175,7 +227,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 border-b border-border bg-background/80 backdrop-blur sticky top-0 z-10 flex items-center justify-between px-6">
           {/* Search */}
-          <div ref={searchRef} className="relative flex items-center gap-2 text-sm text-muted-foreground">
+          <div
+            ref={searchRef}
+            className="relative flex items-center gap-2 text-sm text-muted-foreground"
+          >
             <Search className="h-4 w-4 shrink-0" />
             <input
               value={searchQuery}
@@ -187,7 +242,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             {searchQuery && (
               <button
                 type="button"
-                onClick={() => { setSearchQuery(""); setSearchResults([]); setSearchOpen(false); }}
+                onClick={() => {
+                  setSearchQuery("");
+                  setSearchResults([]);
+                  setSearchOpen(false);
+                }}
                 className="text-muted-foreground/60 hover:text-foreground"
               >
                 <X className="h-3.5 w-3.5" />
@@ -210,7 +269,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       <Briefcase className="h-3 w-3 text-muted-foreground" />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-[13px] font-medium truncate">{r.job_number} · {r.client_name}</div>
+                      <div className="text-[13px] font-medium truncate">
+                        {r.job_number} · {r.client_name}
+                      </div>
                       <div className="text-[11px] text-muted-foreground truncate">{r.address}</div>
                     </div>
                   </button>
@@ -244,7 +305,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     <div className="text-[12px] font-semibold">Notifications</div>
                   </div>
                   {notifications.length === 0 ? (
-                    <div className="px-4 py-5 text-[12px] text-muted-foreground text-center">No notifications</div>
+                    <div className="px-4 py-5 text-[12px] text-muted-foreground text-center">
+                      No notifications
+                    </div>
                   ) : (
                     <ul className="max-h-72 overflow-y-auto divide-y divide-border">
                       {notifications.map((n) => (
@@ -262,7 +325,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                               <div className="text-[12px] font-medium truncate">
                                 {notifLabel(n.status, n.job_number, n.client_name)}
                               </div>
-                              <div className="text-[10.5px] text-muted-foreground">{n.client_name}</div>
+                              <div className="text-[10.5px] text-muted-foreground">
+                                {n.client_name}
+                              </div>
                               <div className="text-[10px] text-muted-foreground/70 tabular-nums">
                                 {new Date(n.created_at).toLocaleDateString()}
                               </div>
@@ -292,7 +357,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     <div className="text-[11px] text-muted-foreground truncate">{user.email}</div>
                   </div>
                   <button
-                    onClick={async () => { await signOut(); navigate({ to: "/login" }); }}
+                    onClick={async () => {
+                      await signOut();
+                      navigate({ to: "/login" });
+                    }}
                     className="w-full text-left px-3 py-2 text-[13px] hover:bg-accent flex items-center gap-2"
                   >
                     <LogOut className="h-3.5 w-3.5" /> Sign out
@@ -308,7 +376,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {
+export function PageHeader({
+  title,
+  subtitle,
+  actions,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: React.ReactNode;
+}) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
       <div>
@@ -323,13 +399,26 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
 export function ConfidencePill({ level }: { level: "high" | "mid" | "low" }) {
   const map = {
     high: { bg: "bg-confidence-high-bg", text: "text-confidence-high", label: "High" },
-    mid:  { bg: "bg-confidence-mid-bg",  text: "text-confidence-mid",  label: "Review" },
-    low:  { bg: "bg-confidence-low-bg",  text: "text-confidence-low",  label: "Low" },
+    mid: { bg: "bg-confidence-mid-bg", text: "text-confidence-mid", label: "Review" },
+    low: { bg: "bg-confidence-low-bg", text: "text-confidence-low", label: "Low" },
   } as const;
   const m = map[level];
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium", m.bg, m.text)}>
-      <span className={cn("h-1.5 w-1.5 rounded-full", level === "high" && "bg-confidence-high", level === "mid" && "bg-confidence-mid", level === "low" && "bg-confidence-low")} />
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+        m.bg,
+        m.text,
+      )}
+    >
+      <span
+        className={cn(
+          "h-1.5 w-1.5 rounded-full",
+          level === "high" && "bg-confidence-high",
+          level === "mid" && "bg-confidence-mid",
+          level === "low" && "bg-confidence-low",
+        )}
+      />
       {m.label}
     </span>
   );

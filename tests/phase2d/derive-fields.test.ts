@@ -69,9 +69,7 @@ describe("computeOpeningAreaM2 — sum of every extracted opening", () => {
       { id: "W02", height_m: 2.0, width_m: 2.1 }, // 4.20
     ];
     // garage "4.8×2.1" → 4.8 × 2.1 = 10.08. Total = 2.34 + 4.20 + 10.08 = 16.62.
-    expect(
-      computeOpeningAreaM2({ windowsSchedule, garageDoorSize: "4.8×2.1" }),
-    ).toBe(16.62);
+    expect(computeOpeningAreaM2({ windowsSchedule, garageDoorSize: "4.8×2.1" })).toBe(16.62);
   });
 
   it("prefers the schedule over floor-plan callouts when both are present", () => {

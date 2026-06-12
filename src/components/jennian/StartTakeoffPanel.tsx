@@ -18,7 +18,8 @@ export function StartTakeoffPanel({
         <div>
           <div className="text-[14px] font-semibold tracking-tight">Start Quantity Takeoff</div>
           <div className="text-[12px] text-muted-foreground mt-0.5">
-            No takeoff data yet. IQ will analyse the uploaded plans and prepare draft quantities automatically.
+            No takeoff data yet. IQ will analyse the uploaded plans and prepare draft quantities
+            automatically.
           </div>
         </div>
       </div>

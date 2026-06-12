@@ -1,7 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
 
 export type Confidence = "high" | "mid" | "low";
-export type JobStatus = "draft" | "uploaded" | "extracted" | "review_required" | "approved" | "exported";
+export type JobStatus =
+  | "draft"
+  | "uploaded"
+  | "extracted"
+  | "review_required"
+  | "approved"
+  | "exported";
 
 export type PlanType = "concept" | "detailed";
 
@@ -109,13 +115,15 @@ export async function listOverrides(jobId: string): Promise<OverrideRow[]> {
     .order("timestamp", { ascending: false });
   if (error) throw error;
   // Strip the nested join column so the result matches OverrideRow exactly.
-  return (data ?? []).map((row): OverrideRow => ({
-    id: row.id,
-    quantity_id: row.quantity_id,
-    original_value: row.original_value,
-    new_value: row.new_value,
-    edited_by: row.edited_by,
-    reason: row.reason,
-    timestamp: row.timestamp,
-  }));
+  return (data ?? []).map(
+    (row): OverrideRow => ({
+      id: row.id,
+      quantity_id: row.quantity_id,
+      original_value: row.original_value,
+      new_value: row.new_value,
+      edited_by: row.edited_by,
+      reason: row.reason,
+      timestamp: row.timestamp,
+    }),
+  );
 }

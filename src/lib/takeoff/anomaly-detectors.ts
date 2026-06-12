@@ -31,7 +31,10 @@ export type RoomCategory = "HABITABLE" | "SERVICE" | "BATHING" | "UNKNOWN";
  * the height cap while remaining exempt from the missing-window rule (only HABITABLE
  * fires that). Matching is substring-based on the normalised label.
  */
-const ROOM_CATEGORY_KEYWORDS: ReadonlyArray<{ category: RoomCategory; keywords: ReadonlyArray<string> }> = [
+const ROOM_CATEGORY_KEYWORDS: ReadonlyArray<{
+  category: RoomCategory;
+  keywords: ReadonlyArray<string>;
+}> = [
   {
     category: "BATHING",
     keywords: ["ensuite", "bathroom", "bath", "wc", "powder", "toilet"],
@@ -39,16 +42,46 @@ const ROOM_CATEGORY_KEYWORDS: ReadonlyArray<{ category: RoomCategory; keywords: 
   {
     category: "SERVICE",
     keywords: [
-      "laundry", "garage", "entry", "entrance", "foyer", "porch", "hall",
-      "pantry", "scullery", "robe", "wardrobe", "wir", "linen", "store", "storage",
-      "cupboard", "stair", "void", "alfresco", "patio", "deck",
+      "laundry",
+      "garage",
+      "entry",
+      "entrance",
+      "foyer",
+      "porch",
+      "hall",
+      "pantry",
+      "scullery",
+      "robe",
+      "wardrobe",
+      "wir",
+      "linen",
+      "store",
+      "storage",
+      "cupboard",
+      "stair",
+      "void",
+      "alfresco",
+      "patio",
+      "deck",
     ],
   },
   {
     category: "HABITABLE",
     keywords: [
-      "bed", "master", "lounge", "living", "family", "dining", "kitchen",
-      "study", "office", "media", "rumpus", "games", "theatre", "snug",
+      "bed",
+      "master",
+      "lounge",
+      "living",
+      "family",
+      "dining",
+      "kitchen",
+      "study",
+      "office",
+      "media",
+      "rumpus",
+      "games",
+      "theatre",
+      "snug",
     ],
   },
 ];
@@ -63,7 +96,11 @@ export const GROSS_MAX_WINDOW_HEIGHT_M = 2.6;
 const DETECTOR_WINDOW_TYPES = new Set<Opening["type"]>(["window", "slider", "garage_window"]);
 
 function normLabel(label: string | null | undefined): string {
-  return (label ?? "").replace(/[^A-Za-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+  return (label ?? "")
+    .replace(/[^A-Za-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 export function classifyRoomCategory(label: string | null | undefined): RoomCategory {
@@ -126,24 +163,40 @@ export function detectMissingWindows(
  * Window-type openings with implausible heights: over the bathing cap in BATHING rooms,
  * or outside the global gross band in any room. Pure.
  */
-export function detectOutlierWindows(
-  openings: ReadonlyArray<Opening>,
-): OutlierWindowAnomaly[] {
+export function detectOutlierWindows(openings: ReadonlyArray<Opening>): OutlierWindowAnomaly[] {
   const out: OutlierWindowAnomaly[] = [];
   for (const o of openings) {
     if (!DETECTOR_WINDOW_TYPES.has(o.type)) continue;
     const h = o.height_m;
     if (h <= 0) continue; // unresolved height is flagged at source, not an outlier read
     if (h < GROSS_MIN_WINDOW_HEIGHT_M) {
-      out.push({ kind: "outlier_height", room: o.room, opening: o, rule: "gross_band", limit_m: GROSS_MIN_WINDOW_HEIGHT_M });
+      out.push({
+        kind: "outlier_height",
+        room: o.room,
+        opening: o,
+        rule: "gross_band",
+        limit_m: GROSS_MIN_WINDOW_HEIGHT_M,
+      });
       continue;
     }
     if (h > GROSS_MAX_WINDOW_HEIGHT_M) {
-      out.push({ kind: "outlier_height", room: o.room, opening: o, rule: "gross_band", limit_m: GROSS_MAX_WINDOW_HEIGHT_M });
+      out.push({
+        kind: "outlier_height",
+        room: o.room,
+        opening: o,
+        rule: "gross_band",
+        limit_m: GROSS_MAX_WINDOW_HEIGHT_M,
+      });
       continue;
     }
     if (classifyRoomCategory(o.room) === "BATHING" && h > BATHING_MAX_WINDOW_HEIGHT_M) {
-      out.push({ kind: "outlier_height", room: o.room, opening: o, rule: "bathing_max", limit_m: BATHING_MAX_WINDOW_HEIGHT_M });
+      out.push({
+        kind: "outlier_height",
+        room: o.room,
+        opening: o,
+        rule: "bathing_max",
+        limit_m: BATHING_MAX_WINDOW_HEIGHT_M,
+      });
     }
   }
   return out;

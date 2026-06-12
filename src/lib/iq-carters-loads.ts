@@ -90,15 +90,11 @@ export function calculateCartersLoads(inp: CartersInputs): CartersLoad[] {
   const wetRoomCount = inp.bathroomCount + inp.ensuiteCount + (inp.hasLaundry ? 1 : 0);
   const wetRoomPerimeterM = wetRoomCount * 8;
   const ceilPerimeterLm = inp.perimeterLm * 1.3;
-  const openingAreaM2 =
-    inp.windowTotalAreaM2 + inp.doorCount * 1.98 + inp.garageDoorCount * 10.08;
+  const openingAreaM2 = inp.windowTotalAreaM2 + inp.doorCount * 1.98 + inp.garageDoorCount * 10.08;
 
   const gibCeilingStdM2 = Math.round(inp.floorAreaM2 * 1.05);
   const gibCeilingAqualineM2 = Math.round(wetRoomCount * 6);
-  const gibWallStdM2 = Math.max(
-    0,
-    Math.round(extWallAreaM2 * 2 - openingAreaM2 * 1.5),
-  );
+  const gibWallStdM2 = Math.max(0, Math.round(extWallAreaM2 * 2 - openingAreaM2 * 1.5));
   const gibWallAqualineM2 = Math.round(wetRoomPerimeterM * inp.studHeightM);
   const gibWallBracelineM2 = Math.round(inp.perimeterLm * 0.15);
 
@@ -239,7 +235,12 @@ export function calculateCartersLoads(inp: CartersInputs): CartersLoad[] {
         },
         ...(inp.brickAreaM2 > 0
           ? [
-              { qty: 1, unit: "Each", code: "ADSKBSP4", description: "Sika Blackseal 4L (Brick Cladding)" },
+              {
+                qty: 1,
+                unit: "Each",
+                code: "ADSKBSP4",
+                description: "Sika Blackseal 4L (Brick Cladding)",
+              },
               { qty: 1, unit: "Each", description: "Cheap 100mm Brush (Brick Cladding)" },
             ]
           : []),
@@ -251,7 +252,13 @@ export function calculateCartersLoads(inp: CartersInputs): CartersLoad[] {
       name: "Load 3 Close In",
       items: [
         ...(inp.solartubeCount > 0
-          ? [{ qty: inp.solartubeCount, unit: "Each", description: "Velux Solar Tube — flexible ducting" }]
+          ? [
+              {
+                qty: inp.solartubeCount,
+                unit: "Each",
+                description: "Velux Solar Tube — flexible ducting",
+              },
+            ]
           : []),
         {
           qty: Math.ceil(inp.floorAreaM2 / 3.24),
@@ -302,12 +309,14 @@ export function calculateCartersLoads(inp: CartersInputs): CartersLoad[] {
           description: "RAD FJ H3.1 No.24A 18x18 D4S Arrised 5.4m Preprimed",
         },
         ...(inp.brickAreaM2 > 0
-          ? [{
-              qty: Math.ceil(inp.brickAreaM2 / 200),
-              unit: "Roll",
-              code: "RPDLDPC200",
-              description: "200mm Supercourse x30m (Brick Only)",
-            }]
+          ? [
+              {
+                qty: Math.ceil(inp.brickAreaM2 / 200),
+                unit: "Roll",
+                code: "RPDLDPC200",
+                description: "200mm Supercourse x30m (Brick Only)",
+              },
+            ]
           : []),
         {
           qty: Math.ceil(inp.perimeterLm / 15),
@@ -327,7 +336,12 @@ export function calculateCartersLoads(inp: CartersInputs): CartersLoad[] {
           code: "CPSKNZ00177",
           description: "Sika PEF Backing Rod 15mm 100m",
         },
-        { qty: Math.ceil(sf * 4), unit: "Each", code: "ADSK000404", description: "Sika Boom Expanding Foam 500ml" },
+        {
+          qty: Math.ceil(sf * 4),
+          unit: "Each",
+          code: "ADSK000404",
+          description: "Sika Boom Expanding Foam 500ml",
+        },
         ...(inp.lineaAreaM2 > 0
           ? [
               {
@@ -354,11 +368,13 @@ export function calculateCartersLoads(inp: CartersInputs): CartersLoad[] {
             ]
           : []),
         ...(inp.obliqueAreaM2 > 0
-          ? [{
-              qty: Math.ceil(inp.obliqueAreaM2 / 0.54),
-              unit: "Lgth",
-              description: "50x20 H3.1 Castellated Cavity Batten 2.7m (Oblique)",
-            }]
+          ? [
+              {
+                qty: Math.ceil(inp.obliqueAreaM2 / 0.54),
+                unit: "Lgth",
+                description: "50x20 H3.1 Castellated Cavity Batten 2.7m (Oblique)",
+              },
+            ]
           : []),
         {
           qty: Math.ceil(inp.soffitPerimeterLm / 5),
@@ -372,7 +388,11 @@ export function calculateCartersLoads(inp: CartersInputs): CartersLoad[] {
         },
         { qty: 2, unit: "Can", description: "Spray Primer" },
         { qty: Math.ceil(inp.lineaAreaM2 / 50), unit: "Box", description: "75mm Jolt Screws" },
-        { qty: Math.ceil(inp.windowCount / 5), unit: "Tube", description: "Bostik Seal & Flex White" },
+        {
+          qty: Math.ceil(inp.windowCount / 5),
+          unit: "Tube",
+          description: "Bostik Seal & Flex White",
+        },
       ],
     },
 
@@ -420,7 +440,8 @@ export function calculateCartersLoads(inp: CartersInputs): CartersLoad[] {
         {
           qty: "",
           unit: "",
-          description: "⚠ Builder to advise quantities and sizes of Gib (confirm Aqualine locations)",
+          description:
+            "⚠ Builder to advise quantities and sizes of Gib (confirm Aqualine locations)",
         },
       ],
     },
@@ -477,7 +498,8 @@ export function calculateCartersLoads(inp: CartersInputs): CartersLoad[] {
         {
           qty: "",
           unit: "",
-          description: "⚠ Builder to advise quantities and sizes of Gib (confirm Braceline locations)",
+          description:
+            "⚠ Builder to advise quantities and sizes of Gib (confirm Braceline locations)",
         },
       ],
     },
@@ -590,7 +612,9 @@ export async function buildCartersInputs(
 
   const specItem = (label: string): string | null => {
     const i = items.find((i) =>
-      String(i["label"] ?? "").toLowerCase().includes(label.toLowerCase()),
+      String(i["label"] ?? "")
+        .toLowerCase()
+        .includes(label.toLowerCase()),
     );
     return (i?.["approved_value"] ?? i?.["extracted_value"] ?? null) as string | null;
   };
@@ -612,10 +636,8 @@ export async function buildCartersInputs(
   }, 0);
 
   const totalCladdingArea = qty("cladding_area") || perimeter * studHeight * 0.85;
-  const lineaArea =
-    Number(specItem("Linea") ?? 0) || totalCladdingArea * 0.3;
-  const brickArea =
-    Number(specItem("Brick") ?? 0) || totalCladdingArea * 0.5;
+  const lineaArea = Number(specItem("Linea") ?? 0) || totalCladdingArea * 0.3;
+  const brickArea = Number(specItem("Brick") ?? 0) || totalCladdingArea * 0.5;
   const obliqueArea = Math.max(0, totalCladdingArea - lineaArea - brickArea);
 
   const bedroomCount = Number(specItem("Bedrooms") ?? 3);
@@ -623,31 +645,21 @@ export async function buildCartersInputs(
   const ensuiteCount = Number(specItem("Ensuite") ?? 1);
 
   const foundationSpec = String(specItem("Foundation") ?? "");
-  const foundationType: CartersInputs["foundationType"] =
-    /expol/i.test(foundationSpec)
-      ? "expol"
-      : /xpod|firth/i.test(foundationSpec)
-        ? "xpod_firth"
-        : "expol";
+  const foundationType: CartersInputs["foundationType"] = /expol/i.test(foundationSpec)
+    ? "expol"
+    : /xpod|firth/i.test(foundationSpec)
+      ? "xpod_firth"
+      : "expol";
 
   // Merge job header from extracted files: Supabase > SMW > plans > fallback
   const smwHeader = files?.map(extractJobHeaderFromFile).find((h) => h.source === "smw");
   const plansHeader = files?.map(extractJobHeaderFromFile).find((h) => h.source === "plans");
   const resolvedJobName =
-    String(job?.["client_name"] ?? "") ||
-    smwHeader?.clientName ||
-    plansHeader?.clientName ||
-    "";
+    String(job?.["client_name"] ?? "") || smwHeader?.clientName || plansHeader?.clientName || "";
   const resolvedJobNumber =
-    String(job?.["job_number"] ?? "") ||
-    smwHeader?.jmwNumber ||
-    plansHeader?.jobNumber ||
-    "";
+    String(job?.["job_number"] ?? "") || smwHeader?.jmwNumber || plansHeader?.jobNumber || "";
   const resolvedAddress =
-    String(job?.["address"] ?? "") ||
-    smwHeader?.addressLine1 ||
-    plansHeader?.addressLine1 ||
-    "";
+    String(job?.["address"] ?? "") || smwHeader?.addressLine1 || plansHeader?.addressLine1 || "";
 
   return {
     jobName: resolvedJobName,
@@ -692,10 +704,7 @@ export async function buildCartersInputs(
 
 // ── Excel writer ───────────────────────────────────────────────────────────
 
-export function writeCartersLoadsExcel(
-  loads: CartersLoad[],
-  inputs: CartersInputs,
-): Blob {
+export function writeCartersLoadsExcel(loads: CartersLoad[], inputs: CartersInputs): Blob {
   const wb = XLSX.utils.book_new();
 
   for (const load of loads) {

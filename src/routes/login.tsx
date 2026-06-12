@@ -37,10 +37,14 @@ function LoginPage() {
         <div className="absolute inset-x-12 top-1/2 h-px bg-white/5" />
 
         <div className="relative flex items-center gap-3">
-          <div className="h-10 w-10 rounded-md bg-primary grid place-items-center text-primary-foreground font-semibold shadow-sm">J</div>
+          <div className="h-10 w-10 rounded-md bg-primary grid place-items-center text-primary-foreground font-semibold shadow-sm">
+            J
+          </div>
           <div className="leading-tight">
             <div className="text-white font-semibold tracking-tight text-[16px]">Jennian IQ</div>
-            <div className="text-[10.5px] uppercase tracking-[0.18em] text-primary/90 font-medium mt-0.5">Jennian Homes Manawatū</div>
+            <div className="text-[10.5px] uppercase tracking-[0.18em] text-primary/90 font-medium mt-0.5">
+              Jennian Homes Manawatū
+            </div>
           </div>
         </div>
 
@@ -49,13 +53,16 @@ function LoginPage() {
             Better building starts with better information.
           </h1>
           <p className="mt-5 text-sm text-sidebar-foreground/70 max-w-md leading-relaxed">
-            Jennian IQ helps standardise quantity review, plan analysis, and estimating preparation — creating greater consistency, visibility, and control across projects.
+            Jennian IQ helps standardise quantity review, plan analysis, and estimating preparation
+            — creating greater consistency, visibility, and control across projects.
           </p>
         </div>
 
         <div className="relative flex items-end justify-between">
           <div className="text-[11px] text-sidebar-foreground/50">© Jennian Homes Manawatū</div>
-          <div className="text-[10px] uppercase tracking-[0.2em] text-sidebar-foreground/40">Plans · Quantities · Pricing · Procurement</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-sidebar-foreground/40">
+            Plans · Quantities · Pricing · Procurement
+          </div>
         </div>
       </div>
 
@@ -72,15 +79,31 @@ function LoginPage() {
           <div className="space-y-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground">Email</label>
-              <input value={email} onChange={(e) => setEmail(e.target.value)} required type="email" className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                type="email"
+                className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground">Password</label>
-              <input value={password} onChange={(e) => setPassword(e.target.value)} required type="password" className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                type="password"
+                className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
             </div>
           </div>
 
-          <button disabled={busy} type="submit" className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60 shadow-sm">
+          <button
+            disabled={busy}
+            type="submit"
+            className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60 shadow-sm"
+          >
             {busy ? "Signing in…" : "Sign in"}
           </button>
 

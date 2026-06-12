@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { VisionTakeoffPanel } from "./VisionTakeoffPanel";
 import { Loader2 } from "lucide-react";
@@ -7,7 +13,9 @@ import { Loader2 } from "lucide-react";
 type FlatFile = { fileId: string; fileName: string; pageCount: number };
 
 export function VisionTakeoffDialog({
-  open, onOpenChange, jobId,
+  open,
+  onOpenChange,
+  jobId,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -34,7 +42,9 @@ export function VisionTakeoffDialog({
         }));
       setFiles(planFiles);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [open, jobId]);
 
   return (

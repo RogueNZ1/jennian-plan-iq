@@ -98,7 +98,12 @@ export type EnrichedTakeoff = {
    * wrong cell). flags carry page-space hits for the estimator review overlay and the
    * future crop re-read. Raw passthrough; optional so old payloads round-trip unchanged.
    */
-  door_counts_auto?: { singles: number; doubles: number; cavitySliders: number; barn: number } | null;
+  door_counts_auto?: {
+    singles: number;
+    doubles: number;
+    cavitySliders: number;
+    barn: number;
+  } | null;
   door_flags?: Array<Record<string, unknown>> | null;
   /**
    * Plan-overlay slice (13 Jun): EVERY door-engine hit (confirmed + flagged) with its

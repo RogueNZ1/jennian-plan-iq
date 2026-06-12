@@ -49,7 +49,9 @@ export function UpdateWatcher() {
     }
 
     const interval = setInterval(check, POLL_MS);
-    const onFocus = () => { if (document.visibilityState === "visible") void check(); };
+    const onFocus = () => {
+      if (document.visibilityState === "visible") void check();
+    };
     document.addEventListener("visibilitychange", onFocus);
     void check();
 

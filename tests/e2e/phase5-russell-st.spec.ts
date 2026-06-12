@@ -21,24 +21,24 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const EMAIL    = process.env.PLAYWRIGHT_TEST_EMAIL    ?? "";
+const EMAIL = process.env.PLAYWRIGHT_TEST_EMAIL ?? "";
 const PASSWORD = process.env.PLAYWRIGHT_TEST_PASSWORD ?? "";
 const FIXTURES = path.join(__dirname, "../fixtures");
 
-const PLAN_FILE  = path.join(FIXTURES, "15a-russell-st-floorplan.pdf");
-const ELEV_FILE  = path.join(FIXTURES, "15a-russell-st-elevations.pdf");
-const SITE_FILE  = path.join(FIXTURES, "15a-russell-st-siteplan.pdf");
+const PLAN_FILE = path.join(FIXTURES, "15a-russell-st-floorplan.pdf");
+const ELEV_FILE = path.join(FIXTURES, "15a-russell-st-elevations.pdf");
+const SITE_FILE = path.join(FIXTURES, "15a-russell-st-siteplan.pdf");
 
 const EXPECTED = {
   floorAreaM2: 135.0,
-  perimeterM:  57.1,
+  perimeterM: 57.1,
   tolerancePct: 5,
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function withinTol(actual: number, expected: number, pct: number): boolean {
-  return Math.abs(actual - expected) / expected * 100 <= pct;
+  return (Math.abs(actual - expected) / expected) * 100 <= pct;
 }
 
 function parseNum(text: string): number | null {
@@ -93,17 +93,25 @@ test.describe("15A Russell St — Phase 5 ground-truth validation", () => {
     try {
       // ── 1. Upload form ──────────────────────────────────────────────────────
       await page.goto("/upload");
-      await expect(page.getByRole("heading", { name: "Upload Plan" })).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole("heading", { name: "Upload Plan" })).toBeVisible({
+        timeout: 15_000,
+      });
 
       // Upload primary plan PDF
-      const planInput = page.locator('input[type="file"][accept="application/pdf"]:not([multiple])').first();
+      const planInput = page
+        .locator('input[type="file"][accept="application/pdf"]:not([multiple])')
+        .first();
       await planInput.setInputFiles(PLAN_FILE);
       await expect(page.getByText("15a-russell-st-floorplan.pdf")).toBeVisible({ timeout: 10_000 });
 
       // Upload elevations + siteplan to the additional PDFs zone (multiple input)
-      const additionalInput = page.locator('input[type="file"][accept="application/pdf"][multiple]').first();
+      const additionalInput = page
+        .locator('input[type="file"][accept="application/pdf"][multiple]')
+        .first();
       await additionalInput.setInputFiles([ELEV_FILE, SITE_FILE]);
-      await expect(page.getByText("15a-russell-st-elevations.pdf")).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText("15a-russell-st-elevations.pdf")).toBeVisible({
+        timeout: 10_000,
+      });
       await expect(page.getByText("15a-russell-st-siteplan.pdf")).toBeVisible({ timeout: 10_000 });
 
       // Wait for auto-classification to complete
@@ -120,8 +128,8 @@ test.describe("15A Russell St — Phase 5 ground-truth validation", () => {
       // ── 2. Page selection ───────────────────────────────────────────────────
       await page.locator('button[type="submit"]').click();
 
-      const confirmBtn        = page.getByRole("button", { name: /Confirm Selection/i });
-      const continueBtn       = page.getByRole("button", { name: /^Continue/i });
+      const confirmBtn = page.getByRole("button", { name: /Confirm Selection/i });
+      const continueBtn = page.getByRole("button", { name: /^Continue/i });
       await Promise.race([
         confirmBtn.waitFor({ state: "visible", timeout: 30_000 }),
         continueBtn.waitFor({ state: "visible", timeout: 30_000 }),
@@ -133,13 +141,13 @@ test.describe("15A Russell St — Phase 5 ground-truth validation", () => {
       await continueBtn.click();
 
       // ── 3. Scale step ───────────────────────────────────────────────────────
-      const scaleContinueBtn    = page.getByRole("button", { name: /Continue to Plan Check/i });
-      const planCheckHeading    = page.getByRole("heading", { name: /Plan Check/i });
-      const continueToTakeoffs  = page.getByRole("button", { name: /Continue to Takeoffs/i });
+      const scaleContinueBtn = page.getByRole("button", { name: /Continue to Plan Check/i });
+      const planCheckHeading = page.getByRole("heading", { name: /Plan Check/i });
+      const continueToTakeoffs = page.getByRole("button", { name: /Continue to Takeoffs/i });
 
-      await expect(
-        scaleContinueBtn.or(planCheckHeading).or(continueToTakeoffs),
-      ).toBeVisible({ timeout: 120_000 });
+      await expect(scaleContinueBtn.or(planCheckHeading).or(continueToTakeoffs)).toBeVisible({
+        timeout: 120_000,
+      });
 
       if (await scaleContinueBtn.isVisible().catch(() => false)) {
         await scaleContinueBtn.click();
@@ -164,7 +172,9 @@ test.describe("15A Russell St — Phase 5 ground-truth validation", () => {
 
       // Floor area
       const floorArea = await getTakeoffValue(page, "Floor area");
-      console.log(`  Floor area    : ${floorArea} m²  (expected ~${EXPECTED.floorAreaM2} m², ±${EXPECTED.tolerancePct}%)`);
+      console.log(
+        `  Floor area    : ${floorArea} m²  (expected ~${EXPECTED.floorAreaM2} m², ±${EXPECTED.tolerancePct}%)`,
+      );
       expect(floorArea, "floor area must be a number").not.toBeNull();
       expect(
         withinTol(floorArea!, EXPECTED.floorAreaM2, EXPECTED.tolerancePct),
@@ -173,7 +183,9 @@ test.describe("15A Russell St — Phase 5 ground-truth validation", () => {
 
       // Perimeter → shown as "External wall" in takeoff table
       const perimeter = await getTakeoffValue(page, "External wall");
-      console.log(`  Perimeter     : ${perimeter} m   (expected ~${EXPECTED.perimeterM} m, ±${EXPECTED.tolerancePct}%)`);
+      console.log(
+        `  Perimeter     : ${perimeter} m   (expected ~${EXPECTED.perimeterM} m, ±${EXPECTED.tolerancePct}%)`,
+      );
       if (perimeter !== null) {
         expect(
           withinTol(perimeter, EXPECTED.perimeterM, EXPECTED.tolerancePct),
@@ -190,14 +202,25 @@ test.describe("15A Russell St — Phase 5 ground-truth validation", () => {
 
       // Log extracted cladding + roof text for the report
       const elevSection = page.locator("text=Elevation & Site Plan").locator("..").locator("..");
-      const claddingVal = await elevSection.locator("text=/Cladding:/").textContent().catch(() => "N/A");
-      const roofVal     = await elevSection.locator("text=/Roof:/").textContent().catch(() => "N/A");
+      const claddingVal = await elevSection
+        .locator("text=/Cladding:/")
+        .textContent()
+        .catch(() => "N/A");
+      const roofVal = await elevSection
+        .locator("text=/Roof:/")
+        .textContent()
+        .catch(() => "N/A");
       console.log(`  Cladding      : ${claddingVal?.trim()}`);
       console.log(`  Roof          : ${roofVal?.trim()}`);
 
       // Concrete total — log 243 m² if present; soft check (siteplan extraction is aspirational)
-      const concreteVisible = await page.getByText(/243/).isVisible().catch(() => false);
-      console.log(`  Concrete 243  : ${concreteVisible ? "visible ✓" : "not shown (soft — siteplan extraction pending)"}`);
+      const concreteVisible = await page
+        .getByText(/243/)
+        .isVisible()
+        .catch(() => false);
+      console.log(
+        `  Concrete 243  : ${concreteVisible ? "visible ✓" : "not shown (soft — siteplan extraction pending)"}`,
+      );
 
       // Builder badge
       await expect(page.getByText(/Builder:.*Jennian/i)).toBeVisible({ timeout: 5_000 });

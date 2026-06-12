@@ -50,7 +50,10 @@ describe("applyConceptAssumptions — confidence formula", () => {
 
   it("returns 0 confidence when no items extracted and all assumed", async () => {
     const result = await applyConceptAssumptions({
-      jobId: "j1", runId: "r1", floorAreaM2: 120, existingLabels: new Set(),
+      jobId: "j1",
+      runId: "r1",
+      floorAreaM2: 120,
+      existingLabels: new Set(),
     });
     // 0 extracted / (0 + 20) = 0%
     expect(result.confidenceScore).toBe(0);
@@ -71,7 +74,10 @@ describe("applyConceptAssumptions — confidence formula", () => {
       "Insulation — Floor (assumed)",
     ]);
     const result = await applyConceptAssumptions({
-      jobId: "j2", runId: "r2", floorAreaM2: 150, existingLabels,
+      jobId: "j2",
+      runId: "r2",
+      floorAreaM2: 150,
+      existingLabels,
     });
     expect(result.confidenceScore).toBe(50);
     expect(result.inserted).toBe(10);
@@ -81,12 +87,12 @@ describe("applyConceptAssumptions — confidence formula", () => {
 
 describe("applyConceptAssumptions — skip-if-existing", () => {
   it("does not insert rows whose labels are already in existingLabels", async () => {
-    const existingLabels = new Set([
-      "Window — Bed 1 (assumed)",
-      "Door — Entry (assumed)",
-    ]);
+    const existingLabels = new Set(["Window — Bed 1 (assumed)", "Door — Entry (assumed)"]);
     await applyConceptAssumptions({
-      jobId: "j3", runId: "r3", floorAreaM2: 100, existingLabels,
+      jobId: "j3",
+      runId: "r3",
+      floorAreaM2: 100,
+      existingLabels,
     });
     const insertedRows: Array<{ label: string }> = mockInsert.mock.calls[0]?.[0] ?? [];
     const insertedLabels = insertedRows.map((r) => r.label);
@@ -96,9 +102,13 @@ describe("applyConceptAssumptions — skip-if-existing", () => {
 
   it("all inserted rows have value_source=assumed and review_status=review_required", async () => {
     await applyConceptAssumptions({
-      jobId: "j4", runId: "r4", floorAreaM2: 100, existingLabels: new Set(),
+      jobId: "j4",
+      runId: "r4",
+      floorAreaM2: 100,
+      existingLabels: new Set(),
     });
-    const rows: Array<{ value_source: string; review_status: string }> = mockInsert.mock.calls[0]?.[0] ?? [];
+    const rows: Array<{ value_source: string; review_status: string }> =
+      mockInsert.mock.calls[0]?.[0] ?? [];
     rows.forEach((r) => {
       expect(r.value_source).toBe("assumed");
       expect(r.review_status).toBe("review_required");
@@ -110,7 +120,10 @@ describe("applyConceptAssumptions — error handling", () => {
   it("returns inserted=0 and confidenceScore=0 when Supabase insert fails", async () => {
     mockInsert.mockResolvedValue({ error: { message: "DB error" } });
     const result = await applyConceptAssumptions({
-      jobId: "j5", runId: "r5", floorAreaM2: 100, existingLabels: new Set(),
+      jobId: "j5",
+      runId: "r5",
+      floorAreaM2: 100,
+      existingLabels: new Set(),
     });
     expect(result.inserted).toBe(0);
     expect(result.confidenceScore).toBe(0);
@@ -120,7 +133,10 @@ describe("applyConceptAssumptions — error handling", () => {
     mockInsert.mockResolvedValue({ error: { message: "DB error" } });
     const existingLabels = new Set(["Window — Bed 1 (assumed)"]);
     const result = await applyConceptAssumptions({
-      jobId: "j6", runId: "r6", floorAreaM2: 100, existingLabels,
+      jobId: "j6",
+      runId: "r6",
+      floorAreaM2: 100,
+      existingLabels,
     });
     expect(result.skipped).toBe(1);
   });
@@ -129,9 +145,13 @@ describe("applyConceptAssumptions — error handling", () => {
 describe("applyConceptAssumptions — floor area defaults", () => {
   it("uses 120m² default when floorAreaM2 is null", async () => {
     await applyConceptAssumptions({
-      jobId: "j7", runId: "r7", floorAreaM2: null, existingLabels: new Set(),
+      jobId: "j7",
+      runId: "r7",
+      floorAreaM2: null,
+      existingLabels: new Set(),
     });
-    const rows: Array<{ label: string; extracted_value: string }> = mockInsert.mock.calls[0]?.[0] ?? [];
+    const rows: Array<{ label: string; extracted_value: string }> =
+      mockInsert.mock.calls[0]?.[0] ?? [];
     const foundation = rows.find((r) => r.label === "Foundation — Raft slab (assumed)");
     // 120 * 0.13 = 15.6 → Math.round = 16
     expect(foundation?.extracted_value).toBe("16");

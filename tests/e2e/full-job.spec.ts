@@ -59,7 +59,7 @@ const PLANS: PlanSpec[] = [
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function withinTolerance(actual: number, expected: number, pct: number): boolean {
-  return Math.abs(actual - expected) / expected * 100 <= pct;
+  return (Math.abs(actual - expected) / expected) * 100 <= pct;
 }
 
 /** Parse the first number from a cell text (e.g. "136.3" → 136.3). */
@@ -168,9 +168,9 @@ async function runConceptPipeline(page: Page, spec: PlanSpec) {
   const continueToTakeoffsBtn = page.getByRole("button", { name: /Continue to Takeoffs/i });
   const planCheckHeading = page.getByRole("heading", { name: /Plan Check/i });
 
-  await expect(
-    scaleContinueBtn.or(planCheckHeading).or(continueToTakeoffsBtn),
-  ).toBeVisible({ timeout: 120_000 });
+  await expect(scaleContinueBtn.or(planCheckHeading).or(continueToTakeoffsBtn)).toBeVisible({
+    timeout: 120_000,
+  });
 
   if (await scaleContinueBtn.isVisible().catch(() => false)) {
     await scaleContinueBtn.click();
@@ -222,18 +222,18 @@ async function assertResults(page: Page, spec: PlanSpec) {
   ).toBe(true);
 
   // Builder badge chip — contains "Builder:" prefix and the builder name
-  await expect(
-    page.getByText(new RegExp(`Builder:.*${spec.builderContains}`, "i")),
-  ).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText(new RegExp(`Builder:.*${spec.builderContains}`, "i"))).toBeVisible({
+    timeout: 5_000,
+  });
 
   // No error-state banners
   await expect(page.getByText("Extraction failed")).not.toBeVisible();
   await expect(page.getByText("could not run")).not.toBeVisible();
 
   // Geometry confidence badge must be visible (green or amber)
-  await expect(
-    page.getByText(/Geometry: (high|medium) confidence/i),
-  ).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText(/Geometry: (high|medium) confidence/i)).toBeVisible({
+    timeout: 5_000,
+  });
 }
 
 async function assertExport(page: Page) {

@@ -30,7 +30,10 @@ import {
 } from "../../src/lib/pdf-page-classify";
 import { readWindowSchedule } from "../../src/lib/takeoff/extract-window-schedule";
 import { aggregateWindows, applyWindowAggregate } from "../../src/lib/takeoff/aggregate-windows";
-import { resolveGeometryPageIndex, reconcileGeometryPage } from "../../src/lib/takeoff/page-of-truth";
+import {
+  resolveGeometryPageIndex,
+  reconcileGeometryPage,
+} from "../../src/lib/takeoff/page-of-truth";
 import {
   preferVectorGarage,
   safeguardScheduleHeights,
@@ -59,7 +62,10 @@ async function geometry(pdf: string, page?: number) {
   form.append("file", new Blob([new Uint8Array(buf)], { type: "application/pdf" }), pdf);
   // Phase 3 — pin geometry to the AI-classified floor-plan page (0-based) when provided,
   // mirroring upload.tsx's measurePlanGeometry(planFile, name, geometryPageIndex).
-  const url = page != null && page >= 0 ? `${GEOMETRY_BASE}/measure?page=${page}` : `${GEOMETRY_BASE}/measure`;
+  const url =
+    page != null && page >= 0
+      ? `${GEOMETRY_BASE}/measure?page=${page}`
+      : `${GEOMETRY_BASE}/measure`;
   const res = await fetch(url, { method: "POST", body: form });
   if (!res.ok) throw new Error(`geometry ${res.status}: ${(await res.text()).slice(0, 200)}`);
   return await res.json();
@@ -95,6 +101,7 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
   beforeAll(() => loadEnvLocal());
 
   it("runs the full pipeline on prelim + concept and dumps a scorecard", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdf.js/Supabase boundary types are deliberately loose here
     const out: any = { generatedAt: new Date().toISOString(), prelim: {}, concept: {} };
 
     // ── PRELIM: Pass 0 on every page → see how the pipeline handles a multi-page set
@@ -118,17 +125,25 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
       score: scoredPages[i].score,
     }));
     const pick = pickPrimaryFloorplan(scoredPages);
-    out.prelim.selected = pick ? { page: prelimPages[pick.index], certainty: pick.certainty } : null;
+    out.prelim.selected = pick
+      ? { page: prelimPages[pick.index], certainty: pick.certainty }
+      : null;
 
     // ── Phase 3: page-of-truth — pin geometry to the AI-classified floor-plan page
     // (resolveGeometryPageIndex) instead of letting it auto-detect (which could land on
     // the site plan). Record the reconciliation: requested page vs geometry's page_used.
     // Fetched here (before the takeoff seam) so the Phase 4 vector_annotations are in
     // scope to feed the garage override + head-datum safeguard, mirroring upload.tsx.
-    const prelimGeomPage = resolveGeometryPageIndex(pick ? pick.index : null, prelimPages.map((n) => ({ pageNumber: n })));
+    const prelimGeomPage = resolveGeometryPageIndex(
+      pick ? pick.index : null,
+      prelimPages.map((n) => ({ pageNumber: n })),
+    );
     out.prelim.geometry = await geometry("prelim.pdf", prelimGeomPage);
     out.prelim.geometry_page_requested = prelimGeomPage ?? null;
-    out.prelim.page_reconciliation = reconcileGeometryPage(prelimGeomPage, out.prelim.geometry.page_used);
+    out.prelim.page_reconciliation = reconcileGeometryPage(
+      prelimGeomPage,
+      out.prelim.geometry.page_used,
+    );
     const prelimVector = out.prelim.geometry.vector_annotations;
     out.prelim.vector_annotations = prelimVector ?? null;
 
@@ -177,7 +192,10 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
       // F-022 — capture the VISION window count before preferVectorOpenings overrides it.
       const visionWindowCount = finalTakeoff.window_count;
       finalTakeoff = preferVectorOpenings(finalTakeoff, prelimVector);
-      out.prelim.opening_widths = resolveOpeningWidths(visionOpeningWidthsMm(finalTakeoff), prelimVector);
+      out.prelim.opening_widths = resolveOpeningWidths(
+        visionOpeningWidthsMm(finalTakeoff),
+        prelimVector,
+      );
 
       // ── Phase 4, Slice 3: fold the ASSERTED entrance door into the opening set
       // (windows_by_room.entrance). HEIGHT is the building standard 2.1m (asserted, not
@@ -303,6 +321,7 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     expect(out.prelim.takeoff.window_count).toBe(13);
     expect(out.prelim.takeoff.windows_schedule).not.toBeNull();
     expect(out.prelim.takeoff.windows_schedule.length).toBe(13);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdf.js/Supabase boundary types are deliberately loose here
     const ids = out.prelim.takeoff.windows_schedule.map((w: any) => w.id);
     for (let n = 1; n <= 13; n++) {
       expect(ids).toContain("W" + String(n).padStart(2, "0"));
@@ -376,9 +395,13 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     expect(out.prelim.reconciliation).not.toBeNull();
     expect(out.prelim.reconciliation.flags).toEqual([]);
     expect(out.prelim.reconciliation.note).toBe("");
-    const recGarage = out.prelim.reconciliation.fields.find((f: any) => f.field === "garage_door_width");
+    const recGarage = out.prelim.reconciliation.fields.find(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdf.js/Supabase boundary types are deliberately loose here
+      (f: any) => f.field === "garage_door_width",
+    );
     expect(recGarage.status).toBe("agree");
     expect(recGarage.vectorValue).toBe(4800);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdf.js/Supabase boundary types are deliberately loose here
     const recCount = out.prelim.reconciliation.fields.find((f: any) => f.field === "window_count");
     expect(recCount.status).toBe("agree");
     // The cross-check is signal-only: it changed no value (garage still 4.8×2.1) and added
@@ -409,6 +432,7 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     // The vector width is unresolved (null) → the entrance width cross-check is uncheckable,
     // never a false flag.
     const recEntrance = out.prelim.reconciliation.fields.find(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdf.js/Supabase boundary types are deliberately loose here
       (f: any) => f.field === "entrance_door_width",
     );
     expect(recEntrance.status).toBe("uncheckable");

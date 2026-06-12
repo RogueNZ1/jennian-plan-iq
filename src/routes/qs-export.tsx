@@ -6,20 +6,24 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  buildQSExportData, writeIQDataSheetFull,
-  buildElectricalSchedule, electricalScheduleToCSV,
+  buildQSExportData,
+  writeIQDataSheetFull,
+  buildElectricalSchedule,
+  electricalScheduleToCSV,
   type QSExportData,
 } from "@/lib/iq-qs-export";
 import { IQ_MODULES, type IQModuleId } from "@/lib/iq-modules";
 import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
-import {
-  FileSpreadsheet, Zap, DoorOpen, Download, ArrowLeft, Loader2,
-} from "lucide-react";
+import { FileSpreadsheet, Zap, DoorOpen, Download, ArrowLeft, Loader2 } from "lucide-react";
 
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
 type OpeningRow = Database["public"]["Tables"]["opening_schedule"]["Row"];
@@ -34,7 +38,10 @@ export const Route = createFileRoute("/qs-export")({
   head: () => ({
     meta: [
       { title: "QS Takeoff Export — Jennian Plan IQ" },
-      { name: "description", content: "Trade-by-trade quantity surveyor takeoff export with download package." },
+      {
+        name: "description",
+        content: "Trade-by-trade quantity surveyor takeoff export with download package.",
+      },
     ],
   }),
   component: QSExportPage,
@@ -44,7 +51,9 @@ function downloadBlob(bytes: BlobPart, filename: string, mime: string) {
   const blob = new Blob([bytes], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = filename; a.click();
+  a.href = url;
+  a.download = filename;
+  a.click();
   URL.revokeObjectURL(url);
 }
 
@@ -62,17 +71,38 @@ function reviewTone(s: string | null): "default" | "secondary" | "outline" {
 }
 
 function buildOpeningCSV(rows: OpeningRow[]): string {
-  const header = ["Type", "Room", "Qty", "Width (mm)", "Height (mm)", "Source", "Confidence", "Review Status", "Page"];
+  const header = [
+    "Type",
+    "Room",
+    "Qty",
+    "Width (mm)",
+    "Height (mm)",
+    "Source",
+    "Confidence",
+    "Review Status",
+    "Page",
+  ];
   const lines = [header.join(",")];
   for (const o of rows) {
     const cells = [
-      o.opening_type, o.room_name ?? "", o.quantity, o.width_mm,
-      o.height_mm ?? "", o.source, o.confidence, o.review_status, o.plan_page_number,
+      o.opening_type,
+      o.room_name ?? "",
+      o.quantity,
+      o.width_mm,
+      o.height_mm ?? "",
+      o.source,
+      o.confidence,
+      o.review_status,
+      o.plan_page_number,
     ];
-    lines.push(cells.map((c) => {
-      const s = String(c ?? "");
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    }).join(","));
+    lines.push(
+      cells
+        .map((c) => {
+          const s = String(c ?? "");
+          return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+        })
+        .join(","),
+    );
   }
   return lines.join("\n");
 }
@@ -100,20 +130,29 @@ function QSExportPage() {
         .order("created_at", { ascending: false })
         .limit(50);
       if (cancelled) return;
-      if (error) { toast.error(`Could not load jobs: ${error.message}`); return; }
+      if (error) {
+        toast.error(`Could not load jobs: ${error.message}`);
+        return;
+      }
       setJobs(data ?? []);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Job-scoped data
   useEffect(() => {
     if (!jobParam) {
-      setJob(null); setData(null); setItems([]); setOpenings([]);
+      setJob(null);
+      setData(null);
+      setItems([]);
+      setOpenings([]);
       return;
     }
     let cancelled = false;
-    setLoading(true); setError(null);
+    setLoading(true);
+    setError(null);
     (async () => {
       try {
         const [jobRes, itemsRes, openingsRes, exportData] = await Promise.all([
@@ -134,7 +173,9 @@ function QSExportPage() {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [jobParam]);
 
   const itemsByModule = useMemo(() => {
@@ -147,22 +188,29 @@ function QSExportPage() {
     return map;
   }, [items]);
 
-  const surname = data ? (data.clientSurname || data.clientName.split(" ").pop() || "Client") : "";
+  const surname = data ? data.clientSurname || data.clientName.split(" ").pop() || "Client" : "";
   const fileBase = data ? `${data.jmwNumber || data.jobNumber}-${surname}` : "QS-Takeoff";
 
   async function withExport(label: string, fn: () => Promise<void> | void) {
     setExporting(label);
-    try { await fn(); } catch (e) {
+    try {
+      await fn();
+    } catch (e) {
       toast.error(`Export failed: ${e instanceof Error ? e.message : String(e)}`);
-    } finally { setExporting(null); }
+    } finally {
+      setExporting(null);
+    }
   }
 
   function exportIQData() {
     if (!data) return;
     void withExport("iq", async () => {
       const bytes = await writeIQDataSheetFull({ ...data, jobId: jobParam });
-      downloadBlob(bytes as BlobPart, `${fileBase}-QS-Export.xlsx`,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      downloadBlob(
+        bytes as BlobPart,
+        `${fileBase}-QS-Export.xlsx`,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
       toast.success("QS Export downloaded");
     });
   }
@@ -175,7 +223,10 @@ function QSExportPage() {
     });
   }
   function exportOpenings() {
-    if (openings.length === 0) { toast.error("No opening schedule rows to export."); return; }
+    if (openings.length === 0) {
+      toast.error("No opening schedule rows to export.");
+      return;
+    }
     void withExport("openings", () => {
       const csv = buildOpeningCSV(openings);
       downloadBlob(csv, `${fileBase}-Openings.csv`, "text/csv;charset=utf-8");
@@ -183,22 +234,20 @@ function QSExportPage() {
     });
   }
 
-  const firstModuleWithItems = IQ_MODULES.find((m) => (itemsByModule.get(m.id)?.length ?? 0) > 0)?.id
-    ?? IQ_MODULES[0].id;
+  const firstModuleWithItems =
+    IQ_MODULES.find((m) => (itemsByModule.get(m.id)?.length ?? 0) > 0)?.id ?? IQ_MODULES[0].id;
 
   return (
     <AppLayout>
       <div className="px-8 py-8 max-w-7xl">
-        <Breadcrumbs items={[
-          { label: "Jobs", to: "/jobs" },
-          { label: "QS Takeoff Export" },
-        ]} />
+        <Breadcrumbs items={[{ label: "Jobs", to: "/jobs" }, { label: "QS Takeoff Export" }]} />
 
         <PageHeader
           title="QS Takeoff Export"
           subtitle={
-            job ? `${job.job_number} · ${job.client_name} · ${job.address}`
-                : "Select a job to view its trade-by-trade takeoff and download the QS package."
+            job
+              ? `${job.job_number} · ${job.client_name} · ${job.address}`
+              : "Select a job to view its trade-by-trade takeoff and download the QS package."
           }
           actions={
             job ? (
@@ -247,7 +296,8 @@ function QSExportPage() {
         {!jobParam && (
           <div className="rounded-lg border border-dashed border-border bg-muted/20 p-10 text-center">
             <p className="text-[13px] text-muted-foreground">
-              Pick a job above, or open this page with <code className="px-1 rounded bg-muted">?job=&lt;jobId&gt;</code>.
+              Pick a job above, or open this page with{" "}
+              <code className="px-1 rounded bg-muted">?job=&lt;jobId&gt;</code>.
             </p>
           </div>
         )}
@@ -288,7 +338,9 @@ function QSExportPage() {
                       <div className="rounded-lg border border-border bg-card overflow-hidden">
                         <div className="px-4 py-3 border-b border-border bg-muted/30">
                           <div className="text-[13px] font-semibold tracking-tight">{m.name}</div>
-                          <div className="text-[11.5px] text-muted-foreground">{m.shortDescription}</div>
+                          <div className="text-[11.5px] text-muted-foreground">
+                            {m.shortDescription}
+                          </div>
                         </div>
                         {rows.length === 0 ? (
                           <div className="p-6 text-center text-[12px] text-muted-foreground italic">
@@ -299,30 +351,55 @@ function QSExportPage() {
                             <table className="w-full text-[12px]">
                               <thead>
                                 <tr className="border-b border-border text-left bg-muted/10">
-                                  <th className="px-3 py-2 font-semibold text-muted-foreground">Item</th>
-                                  <th className="px-3 py-2 font-semibold text-muted-foreground text-right">Value</th>
-                                  <th className="px-3 py-2 font-semibold text-muted-foreground">Unit</th>
-                                  <th className="px-3 py-2 font-semibold text-muted-foreground">Source</th>
-                                  <th className="px-3 py-2 font-semibold text-muted-foreground">Confidence</th>
-                                  <th className="px-3 py-2 font-semibold text-muted-foreground">Status</th>
+                                  <th className="px-3 py-2 font-semibold text-muted-foreground">
+                                    Item
+                                  </th>
+                                  <th className="px-3 py-2 font-semibold text-muted-foreground text-right">
+                                    Value
+                                  </th>
+                                  <th className="px-3 py-2 font-semibold text-muted-foreground">
+                                    Unit
+                                  </th>
+                                  <th className="px-3 py-2 font-semibold text-muted-foreground">
+                                    Source
+                                  </th>
+                                  <th className="px-3 py-2 font-semibold text-muted-foreground">
+                                    Confidence
+                                  </th>
+                                  <th className="px-3 py-2 font-semibold text-muted-foreground">
+                                    Status
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {rows.map((r) => {
                                   const value = r.extracted_value ?? "—";
                                   return (
-                                    <tr key={r.id} className="border-b border-border/40 last:border-0 hover:bg-muted/20">
+                                    <tr
+                                      key={r.id}
+                                      className="border-b border-border/40 last:border-0 hover:bg-muted/20"
+                                    >
                                       <td className="px-3 py-2">
                                         <div className="font-medium">{r.label}</div>
                                         {r.source_evidence && (
-                                          <div className="text-[10.5px] text-muted-foreground line-clamp-1">{r.source_evidence}</div>
+                                          <div className="text-[10.5px] text-muted-foreground line-clamp-1">
+                                            {r.source_evidence}
+                                          </div>
                                         )}
                                       </td>
-                                      <td className="px-3 py-2 text-right tabular-nums font-medium">{value}</td>
-                                      <td className="px-3 py-2 text-muted-foreground">{r.unit ?? "—"}</td>
-                                      <td className="px-3 py-2 text-muted-foreground">{r.data_source ?? "—"}</td>
+                                      <td className="px-3 py-2 text-right tabular-nums font-medium">
+                                        {value}
+                                      </td>
+                                      <td className="px-3 py-2 text-muted-foreground">
+                                        {r.unit ?? "—"}
+                                      </td>
+                                      <td className="px-3 py-2 text-muted-foreground">
+                                        {r.data_source ?? "—"}
+                                      </td>
                                       <td className="px-3 py-2">
-                                        <Badge variant={confidenceTone(r.confidence)}>{r.confidence ?? "n/a"}</Badge>
+                                        <Badge variant={confidenceTone(r.confidence)}>
+                                          {r.confidence ?? "n/a"}
+                                        </Badge>
                                       </td>
                                       <td className="px-3 py-2">
                                         <Badge variant={reviewTone(r.review_status)}>

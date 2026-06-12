@@ -37,7 +37,9 @@ function makeSupabaseMock() {
             })),
           }),
           insert: vi.fn().mockResolvedValue({ data: [{ id: "item-new" }], error: null }),
-          update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+          update: vi
+            .fn()
+            .mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
         };
       }
 
@@ -69,9 +71,13 @@ function makeSupabaseMock() {
 
       // Fallback for any other table
       return {
-        select: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+        select: vi
+          .fn()
+          .mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }),
         insert: vi.fn().mockResolvedValue({ data: [], error: null }),
-        update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+        update: vi
+          .fn()
+          .mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
         upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
       };
     }),
@@ -90,41 +96,40 @@ describe("confidencePercent", () => {
   });
 
   it("returns 0 when all items are low confidence", () => {
-    expect(confidencePercent([
-      { confidence: "low" }, { confidence: "low" }, { confidence: "mid" },
-    ])).toBe(0);
+    expect(
+      confidencePercent([{ confidence: "low" }, { confidence: "low" }, { confidence: "mid" }]),
+    ).toBe(0);
   });
 
   it("returns 100 when all items are high confidence", () => {
-    expect(confidencePercent([
-      { confidence: "high" }, { confidence: "high" },
-    ])).toBe(100);
+    expect(confidencePercent([{ confidence: "high" }, { confidence: "high" }])).toBe(100);
   });
 
   it("returns 50 for half high, half low", () => {
-    expect(confidencePercent([
-      { confidence: "high" }, { confidence: "low" },
-    ])).toBe(50);
+    expect(confidencePercent([{ confidence: "high" }, { confidence: "low" }])).toBe(50);
   });
 
   it("returns 60 for 3 high out of 5 (rounds correctly)", () => {
-    expect(confidencePercent([
-      { confidence: "high" }, { confidence: "high" }, { confidence: "high" },
-      { confidence: "low" }, { confidence: "mid" },
-    ])).toBe(60);
+    expect(
+      confidencePercent([
+        { confidence: "high" },
+        { confidence: "high" },
+        { confidence: "high" },
+        { confidence: "low" },
+        { confidence: "mid" },
+      ]),
+    ).toBe(60);
   });
 
   it("treats null confidence as non-high", () => {
-    expect(confidencePercent([
-      { confidence: "high" }, { confidence: null },
-    ])).toBe(50);
+    expect(confidencePercent([{ confidence: "high" }, { confidence: null }])).toBe(50);
   });
 
   it("rounds down fractional results", () => {
     // 1 high out of 3 = 33.33... → should round to 33
-    expect(confidencePercent([
-      { confidence: "high" }, { confidence: "low" }, { confidence: "low" },
-    ])).toBe(33);
+    expect(
+      confidencePercent([{ confidence: "high" }, { confidence: "low" }, { confidence: "low" }]),
+    ).toBe(33);
   });
 });
 
@@ -139,9 +144,7 @@ describe("recomputeRunAggregates", () => {
   it("writes item_count=0 and confidence_avg=0 when no items exist for run", async () => {
     moduleItemsDb.set("run-empty", []);
     await recomputeRunAggregates("run-empty");
-    const update = moduleRunUpdates.find(
-      (u) => u.item_count === 0 && u.confidence_avg === 0,
-    );
+    const update = moduleRunUpdates.find((u) => u.item_count === 0 && u.confidence_avg === 0);
     expect(update).toBeDefined();
   });
 

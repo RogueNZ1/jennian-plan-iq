@@ -36,24 +36,66 @@ function quantityToDrafts(q: ExtractedQty): ModuleDraft[] {
   const drafts: ModuleDraft[] = [];
   switch (q.kind) {
     case "external_perimeter":
-      drafts.push({ ...base, moduleId: "iq-cladding", label: "External Perimeter", unit: "lm", value: v });
-      drafts.push({ ...base, moduleId: "iq-framing",  label: "External Walls",      unit: "lm", value: v });
+      drafts.push({
+        ...base,
+        moduleId: "iq-cladding",
+        label: "External Perimeter",
+        unit: "lm",
+        value: v,
+      });
+      drafts.push({
+        ...base,
+        moduleId: "iq-framing",
+        label: "External Walls",
+        unit: "lm",
+        value: v,
+      });
       break;
     case "internal_wall_length":
-      drafts.push({ ...base, moduleId: "iq-framing", label: "Internal Walls",        unit: "lm", value: v });
-      drafts.push({ ...base, moduleId: "iq-linings", label: "Internal Wall Length",  unit: "lm", value: v });
+      drafts.push({
+        ...base,
+        moduleId: "iq-framing",
+        label: "Internal Walls",
+        unit: "lm",
+        value: v,
+      });
+      drafts.push({
+        ...base,
+        moduleId: "iq-linings",
+        label: "Internal Wall Length",
+        unit: "lm",
+        value: v,
+      });
       break;
     case "cladding_area":
-      drafts.push({ ...base, moduleId: "iq-cladding", label: "Cladding Area", unit: "m²", value: v });
+      drafts.push({
+        ...base,
+        moduleId: "iq-cladding",
+        label: "Cladding Area",
+        unit: "m²",
+        value: v,
+      });
       break;
     case "roof_pitch":
       drafts.push({ ...base, moduleId: "iq-roofing", label: "Pitch", unit: "°", value: v });
       break;
     case "coverage_area":
-      drafts.push({ ...base, moduleId: "iq-roofing", label: "Coverage Area", unit: "m²", value: v });
+      drafts.push({
+        ...base,
+        moduleId: "iq-roofing",
+        label: "Coverage Area",
+        unit: "m²",
+        value: v,
+      });
       break;
     case "garage_door_size":
-      drafts.push({ ...base, moduleId: "iq-cladding", label: "Garage Door Opening", unit: "mm", value: v });
+      drafts.push({
+        ...base,
+        moduleId: "iq-cladding",
+        label: "Garage Door Opening",
+        unit: "mm",
+        value: v,
+      });
       break;
     default:
       break;
@@ -169,7 +211,13 @@ async function persistDraft(
     return { status: "error", ...tag, error: `Lookup failed: ${matchErr.message}` };
   }
   const existing = matching?.[0] as
-    | { id: string; approved_value: string | null; extracted_value: string | null; data_source: string | null; review_status: string | null }
+    | {
+        id: string;
+        approved_value: string | null;
+        extracted_value: string | null;
+        data_source: string | null;
+        review_status: string | null;
+      }
     | undefined;
 
   if (existing?.data_source === "User Override") return { status: "skipped", ...tag };
@@ -189,34 +237,44 @@ async function persistDraft(
         drift = existing.approved_value === newValueStr ? 0 : 1;
       }
       if (drift > 0.02) {
-        const { error: upErr } = await supabase.from("module_items").update({
-          extracted_value: newValueStr,
-          review_status: "review_required",
-          notes: `Automatic takeoff value "${newValueStr}" differs from approved "${existing.approved_value}". Review before approval.`,
-        }).eq("id", existing.id);
-        if (upErr) return { status: "error", ...tag, error: `Conflict update failed: ${upErr.message}` };
+        const { error: upErr } = await supabase
+          .from("module_items")
+          .update({
+            extracted_value: newValueStr,
+            review_status: "review_required",
+            notes: `Automatic takeoff value "${newValueStr}" differs from approved "${existing.approved_value}". Review before approval.`,
+          })
+          .eq("id", existing.id);
+        if (upErr)
+          return { status: "error", ...tag, error: `Conflict update failed: ${upErr.message}` };
         return { status: "conflict", ...tag };
       }
-      const { error: upErr } = await supabase.from("module_items").update({
-        extracted_value: newValueStr,
-        source_evidence: draft.evidence,
-        plan_page_number: draft.page,
-        file_id: draft.fileId,
-      }).eq("id", existing.id);
+      const { error: upErr } = await supabase
+        .from("module_items")
+        .update({
+          extracted_value: newValueStr,
+          source_evidence: draft.evidence,
+          plan_page_number: draft.page,
+          file_id: draft.fileId,
+        })
+        .eq("id", existing.id);
       if (upErr) return { status: "error", ...tag, error: `Refresh failed: ${upErr.message}` };
       return { status: "updated", ...tag };
     }
-    const { error: upErr } = await supabase.from("module_items").update({
-      extracted_value: newValueStr,
-      unit: draft.unit,
-      data_source: draft.dataSource,
-      source_evidence: draft.evidence,
-      confidence: draft.confidence,
-      review_status: "review_required",
-      plan_page_number: draft.page,
-      file_id: draft.fileId,
-      notes: draft.note ?? null,
-    }).eq("id", existing.id);
+    const { error: upErr } = await supabase
+      .from("module_items")
+      .update({
+        extracted_value: newValueStr,
+        unit: draft.unit,
+        data_source: draft.dataSource,
+        source_evidence: draft.evidence,
+        confidence: draft.confidence,
+        review_status: "review_required",
+        plan_page_number: draft.page,
+        file_id: draft.fileId,
+        notes: draft.note ?? null,
+      })
+      .eq("id", existing.id);
     if (upErr) return { status: "error", ...tag, error: `Draft refresh failed: ${upErr.message}` };
     return { status: "updated", ...tag };
   }
@@ -249,7 +307,13 @@ export async function populateModulesFromTakeoff(args: {
   openings: ExtractedOpening[];
   specRows?: SpecRow[];
   takeoffRunId: string;
-}): Promise<{ inserted: number; updated: number; conflicts: number; skipped: number; errors: string[] }> {
+}): Promise<{
+  inserted: number;
+  updated: number;
+  conflicts: number;
+  skipped: number;
+  errors: string[];
+}> {
   const drafts: ModuleDraft[] = [];
   for (const q of args.quantities) drafts.push(...quantityToDrafts(q));
   drafts.push(...openingsToDrafts(args.openings));
@@ -257,7 +321,10 @@ export async function populateModulesFromTakeoff(args: {
     drafts.push(...specRowsToDrafts(args.specRows));
   }
 
-  let inserted = 0, updated = 0, conflicts = 0, skipped = 0;
+  let inserted = 0,
+    updated = 0,
+    conflicts = 0,
+    skipped = 0;
   const errors: string[] = [];
   for (const d of drafts) {
     try {

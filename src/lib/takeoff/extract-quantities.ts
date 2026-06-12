@@ -67,18 +67,81 @@ type LabelDef = {
 };
 
 const AREA_LABELS: LabelDef[] = [
-  { kind: "area_over_frame",      label: "Area Over Frame",      patterns: [/area\s+over\s+frame/i],                              unit: "m²", category: "area", confidence: "high" },
-  { kind: "total_floor_area",     label: "Total Floor Area",     patterns: [/total\s+floor\s+area/i, /total\s+area/i, /floor\s+area\b/i], unit: "m²", category: "area", confidence: "high" },
-  { kind: "coverage_area",        label: "Coverage Area",        patterns: [/coverage\s+area/i, /\bcoverage\b/i],                  unit: "m²", category: "area", confidence: "mid" },
-  { kind: "porch_area",           label: "Porch Area",           patterns: [/porch\s+area/i, /entry\s+porch/i],                    unit: "m²", category: "area", confidence: "mid" },
-  { kind: "garage_area",          label: "Garage Area",          patterns: [/garage\s+area/i],                                     unit: "m²", category: "area", confidence: "high" },
-  { kind: "living_area",          label: "Living Area",          patterns: [/living\s+area/i, /\bhabitable\s+area/i],              unit: "m²", category: "area", confidence: "mid" },
-  { kind: "cladding_area",        label: "Cladding Area",        patterns: [/cladding\s+area/i],                                   unit: "m²", category: "area", confidence: "high" },
+  {
+    kind: "area_over_frame",
+    label: "Area Over Frame",
+    patterns: [/area\s+over\s+frame/i],
+    unit: "m²",
+    category: "area",
+    confidence: "high",
+  },
+  {
+    kind: "total_floor_area",
+    label: "Total Floor Area",
+    patterns: [/total\s+floor\s+area/i, /total\s+area/i, /floor\s+area\b/i],
+    unit: "m²",
+    category: "area",
+    confidence: "high",
+  },
+  {
+    kind: "coverage_area",
+    label: "Coverage Area",
+    patterns: [/coverage\s+area/i, /\bcoverage\b/i],
+    unit: "m²",
+    category: "area",
+    confidence: "mid",
+  },
+  {
+    kind: "porch_area",
+    label: "Porch Area",
+    patterns: [/porch\s+area/i, /entry\s+porch/i],
+    unit: "m²",
+    category: "area",
+    confidence: "mid",
+  },
+  {
+    kind: "garage_area",
+    label: "Garage Area",
+    patterns: [/garage\s+area/i],
+    unit: "m²",
+    category: "area",
+    confidence: "high",
+  },
+  {
+    kind: "living_area",
+    label: "Living Area",
+    patterns: [/living\s+area/i, /\bhabitable\s+area/i],
+    unit: "m²",
+    category: "area",
+    confidence: "mid",
+  },
+  {
+    kind: "cladding_area",
+    label: "Cladding Area",
+    patterns: [/cladding\s+area/i],
+    unit: "m²",
+    category: "area",
+    confidence: "high",
+  },
 ];
 
 const LENGTH_LABELS: LabelDef[] = [
-  { kind: "external_perimeter",   label: "External Perimeter",   patterns: [/external\s+perimeter/i, /perimeter/i],                unit: "lm", category: "length", confidence: "mid" },
-  { kind: "internal_wall_length", label: "Internal Wall Length", patterns: [/internal\s+wall\s+length/i, /internal\s+walls?\b/i],  unit: "lm", category: "length", confidence: "mid" },
+  {
+    kind: "external_perimeter",
+    label: "External Perimeter",
+    patterns: [/external\s+perimeter/i, /perimeter/i],
+    unit: "lm",
+    category: "length",
+    confidence: "mid",
+  },
+  {
+    kind: "internal_wall_length",
+    label: "Internal Wall Length",
+    patterns: [/internal\s+wall\s+length/i, /internal\s+walls?\b/i],
+    unit: "lm",
+    category: "length",
+    confidence: "mid",
+  },
 ];
 
 function findArea(text: string, def: LabelDef): { value: number; evidence: string } | null {
@@ -96,7 +159,10 @@ function findArea(text: string, def: LabelDef): { value: number; evidence: strin
     if (!vm) continue;
     const v = parseNum(vm[1]);
     if (v == null || v <= 0 || v > 10000) continue;
-    return { value: v, evidence: snippet(text, labelM.index, labelM[0].length + (vm.index ?? 0) + vm[0].length) };
+    return {
+      value: v,
+      evidence: snippet(text, labelM.index, labelM[0].length + (vm.index ?? 0) + vm[0].length),
+    };
   }
   return null;
 }
@@ -115,7 +181,10 @@ function findLength(text: string, def: LabelDef): { value: number; evidence: str
     if (v == null || v <= 0) continue;
     if (vm[2].toLowerCase() === "mm") v = v / 1000;
     if (v > 5000) continue; // sanity cap
-    return { value: v, evidence: snippet(text, labelM.index, labelM[0].length + (vm.index ?? 0) + vm[0].length) };
+    return {
+      value: v,
+      evidence: snippet(text, labelM.index, labelM[0].length + (vm.index ?? 0) + vm[0].length),
+    };
   }
   return null;
 }
@@ -132,7 +201,8 @@ function findRoofPitch(text: string): { value: number; evidence: string } | null
 
 function findStudHeight(text: string): { value: number; evidence: string } | null {
   // "Stud Height: 2.4m" or "stud height ground floor 2.4m"
-  const re = /stud\s+height(?:\s+(?:ground|first|upper|lower)\s+floor)?[:\s]+(\d(?:\.\d{1,2})?|\d{4})\s*(m|mm)\b/i;
+  const re =
+    /stud\s+height(?:\s+(?:ground|first|upper|lower)\s+floor)?[:\s]+(\d(?:\.\d{1,2})?|\d{4})\s*(m|mm)\b/i;
   const m = text.match(re);
   if (!m || m.index == null) return null;
   let v = parseNum(m[1]);
@@ -145,17 +215,21 @@ function findStudHeight(text: string): { value: number; evidence: string } | nul
 function findGarageDoor(text: string): { width: number; height: number; evidence: string } | null {
   // "Garage Door: 4800 x 2100" or "Garage Door 4.8m x 2.1m"
   const reMm = /garage\s+door[:\s]+(\d{3,5})\s*[x×X]\s*(\d{3,5})/i;
-  const reM  = /garage\s+door[:\s]+(\d(?:\.\d)?)\s*m?\s*[x×X]\s*(\d(?:\.\d)?)\s*m/i;
+  const reM = /garage\s+door[:\s]+(\d(?:\.\d)?)\s*m?\s*[x×X]\s*(\d(?:\.\d)?)\s*m/i;
   let m = text.match(reMm);
-  let w: number | null = null, h: number | null = null;
+  let w: number | null = null,
+    h: number | null = null;
   if (m && m.index != null) {
-    w = parseNum(m[1]); h = parseNum(m[2]);
+    w = parseNum(m[1]);
+    h = parseNum(m[2]);
   } else {
     m = text.match(reM);
     if (!m || m.index == null) return null;
-    const wm = parseNum(m[1]); const hm = parseNum(m[2]);
+    const wm = parseNum(m[1]);
+    const hm = parseNum(m[2]);
     if (wm == null || hm == null) return null;
-    w = wm * 1000; h = hm * 1000;
+    w = wm * 1000;
+    h = hm * 1000;
   }
   if (w == null || h == null || w < 2000 || w > 7500 || h < 1500 || h > 3500) return null;
   return { width: w, height: h, evidence: snippet(text, m.index, m[0].length) };
@@ -171,7 +245,10 @@ export function extractQuantitiesFromFile(file: ExtractedFile): ExtractedQty[] {
   const seen = new Set<QuantityKind>();
   for (const page of file.pages) {
     if (!page.text) continue;
-    const push = (kind: QuantityKind, q: Omit<ExtractedQty, "fileId" | "fileName" | "fileType" | "page" | "dataSource" | "kind">) => {
+    const push = (
+      kind: QuantityKind,
+      q: Omit<ExtractedQty, "fileId" | "fileName" | "fileType" | "page" | "dataSource" | "kind">,
+    ) => {
       if (seen.has(kind)) return; // first occurrence wins, deterministic
       seen.add(kind);
       out.push({
@@ -187,35 +264,54 @@ export function extractQuantitiesFromFile(file: ExtractedFile): ExtractedQty[] {
 
     for (const def of AREA_LABELS) {
       const r = findArea(page.text, def);
-      if (r) push(def.kind, {
-        label: def.label, unit: def.unit, value: r.value,
-        evidence: `${def.label} — ${r.evidence}`,
-        confidence: def.confidence,
-      });
+      if (r)
+        push(def.kind, {
+          label: def.label,
+          unit: def.unit,
+          value: r.value,
+          evidence: `${def.label} — ${r.evidence}`,
+          confidence: def.confidence,
+        });
     }
     for (const def of LENGTH_LABELS) {
       const r = findLength(page.text, def);
-      if (r) push(def.kind, {
-        label: def.label, unit: def.unit, value: r.value,
-        evidence: `${def.label} — ${r.evidence}`,
-        confidence: def.confidence,
-      });
+      if (r)
+        push(def.kind, {
+          label: def.label,
+          unit: def.unit,
+          value: r.value,
+          evidence: `${def.label} — ${r.evidence}`,
+          confidence: def.confidence,
+        });
     }
     const pitch = findRoofPitch(page.text);
-    if (pitch) push("roof_pitch", {
-      label: "Roof Pitch", unit: "°", value: pitch.value,
-      evidence: `Roof Pitch — ${pitch.evidence}`, confidence: "high",
-    });
+    if (pitch)
+      push("roof_pitch", {
+        label: "Roof Pitch",
+        unit: "°",
+        value: pitch.value,
+        evidence: `Roof Pitch — ${pitch.evidence}`,
+        confidence: "high",
+      });
     const stud = findStudHeight(page.text);
-    if (stud) push("stud_height", {
-      label: "Stud Height", unit: "m", value: stud.value,
-      evidence: `Stud Height — ${stud.evidence}`, confidence: "high",
-    });
+    if (stud)
+      push("stud_height", {
+        label: "Stud Height",
+        unit: "m",
+        value: stud.value,
+        evidence: `Stud Height — ${stud.evidence}`,
+        confidence: "high",
+      });
     const gd = findGarageDoor(page.text);
-    if (gd) push("garage_door_size", {
-      label: "Garage Door Size", unit: "mm", value: gd.width, secondaryValue: gd.height,
-      evidence: `Garage Door — ${gd.evidence}`, confidence: "high",
-    });
+    if (gd)
+      push("garage_door_size", {
+        label: "Garage Door Size",
+        unit: "mm",
+        value: gd.width,
+        secondaryValue: gd.height,
+        evidence: `Garage Door — ${gd.evidence}`,
+        confidence: "high",
+      });
   }
   return out;
 }
@@ -241,37 +337,49 @@ export async function persistQuantity(args: {
     .limit(1);
 
   const evidenceWithFile = `${args.q.fileName} p${args.q.page} — ${args.q.evidence.slice(0, 200)}`;
-  const confLabel = args.q.confidence === "high" ? "High" : args.q.confidence === "low" ? "Low" : "Medium";
+  const confLabel =
+    args.q.confidence === "high" ? "High" : args.q.confidence === "low" ? "Low" : "Medium";
 
   if (existing && existing[0]) {
-    const row = existing[0] as { id: string; extracted_value: number | null; approved_value: number | null };
+    const row = existing[0] as {
+      id: string;
+      extracted_value: number | null;
+      approved_value: number | null;
+    };
     // Never silently overwrite an approved_value — flag for review if drift.
     const existingNum = row.approved_value ?? row.extracted_value;
-    const drift = existingNum != null && existingNum !== 0
-      ? Math.abs(args.q.value - Number(existingNum)) / Math.abs(Number(existingNum))
-      : null;
+    const drift =
+      existingNum != null && existingNum !== 0
+        ? Math.abs(args.q.value - Number(existingNum)) / Math.abs(Number(existingNum))
+        : null;
     if (row.approved_value != null && drift != null && drift > 0.02) {
       // Keep approved_value untouched, refresh extracted_value, set review_required.
-      await supabase.from("extracted_quantities").update({
+      await supabase
+        .from("extracted_quantities")
+        .update({
+          extracted_value: args.q.value,
+          unit: args.q.unit,
+          source_evidence: evidenceWithFile,
+          plan_page_number: args.q.page,
+          confidence: args.q.confidence,
+          confidence_label: confLabel,
+          review_status: "review_required",
+          notes: `Re-extracted ${args.q.value} differs from approved ${row.approved_value} (Δ${(drift * 100).toFixed(1)}%).`,
+        })
+        .eq("id", row.id);
+      return { status: "conflict", existingId: row.id };
+    }
+    await supabase
+      .from("extracted_quantities")
+      .update({
         extracted_value: args.q.value,
         unit: args.q.unit,
         source_evidence: evidenceWithFile,
         plan_page_number: args.q.page,
         confidence: args.q.confidence,
         confidence_label: confLabel,
-        review_status: "review_required",
-        notes: `Re-extracted ${args.q.value} differs from approved ${row.approved_value} (Δ${(drift * 100).toFixed(1)}%).`,
-      }).eq("id", row.id);
-      return { status: "conflict", existingId: row.id };
-    }
-    await supabase.from("extracted_quantities").update({
-      extracted_value: args.q.value,
-      unit: args.q.unit,
-      source_evidence: evidenceWithFile,
-      plan_page_number: args.q.page,
-      confidence: args.q.confidence,
-      confidence_label: confLabel,
-    }).eq("id", row.id);
+      })
+      .eq("id", row.id);
     return { status: "updated", existingId: row.id };
   }
 

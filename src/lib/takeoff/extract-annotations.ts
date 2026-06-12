@@ -1,5 +1,5 @@
-import { callVisionModel, getAnthropicApiKey, safeParseJson } from './anthropic-client';
-import type { PlanContext } from './plan-context';
+import { callVisionModel, getAnthropicApiKey, safeParseJson } from "./anthropic-client";
+import type { PlanContext } from "./plan-context";
 
 export interface RawAnnotation {
   /** The exact text found on the plan, e.g. "1300x1800" */
@@ -25,15 +25,17 @@ export interface RawAnnotations {
 }
 
 function buildSystemPrompt(context: PlanContext): string {
-  const formatLabel = context.dimensionFormat === 'HEIGHT_x_WIDTH' ? 'HEIGHT × WIDTH' : 'WIDTH × HEIGHT';
-  const formatSource = context.dimensionFormatSource === 'stated_on_plan'
-    ? 'This format was explicitly stated in the plan notes.'
-    : `This is the standard NZ convention for ${context.builder.name}.`;
-  const firstLabel = context.dimensionFormat === 'HEIGHT_x_WIDTH' ? 'height' : 'width';
-  const secondLabel = context.dimensionFormat === 'HEIGHT_x_WIDTH' ? 'width' : 'height';
+  const formatLabel =
+    context.dimensionFormat === "HEIGHT_x_WIDTH" ? "HEIGHT × WIDTH" : "WIDTH × HEIGHT";
+  const formatSource =
+    context.dimensionFormatSource === "stated_on_plan"
+      ? "This format was explicitly stated in the plan notes."
+      : `This is the standard NZ convention for ${context.builder.name}.`;
+  const firstLabel = context.dimensionFormat === "HEIGHT_x_WIDTH" ? "height" : "width";
+  const secondLabel = context.dimensionFormat === "HEIGHT_x_WIDTH" ? "width" : "height";
 
   return `Return ONLY valid JSON. No markdown, no prose.
-You are reading a ${context.builder.name} floor plan at scale ${context.scaleString ?? 'unknown'}.
+You are reading a ${context.builder.name} floor plan at scale ${context.scaleString ?? "unknown"}.
 
 CRITICAL READING RULE: Window and opening dimension annotations on this plan are written in the format: ${formatLabel} in millimetres.
 ${formatSource}
@@ -102,13 +104,18 @@ export async function extractAnnotations(
   } catch (err) {
     // Fail loud (F-014/F-001): a failed Pass 1 must halt the takeoff, not return
     // EMPTY_ANNOTATIONS — an empty-but-plausible result that poisons the fixture.
-    console.error("[extractAnnotations] AI call failed:", err instanceof Error ? err.message : String(err));
+    console.error(
+      "[extractAnnotations] AI call failed:",
+      err instanceof Error ? err.message : String(err),
+    );
     throw err instanceof Error ? err : new Error(String(err));
   }
 
   const parsed = safeParseJson<Partial<RawAnnotations>>(raw);
   if (!parsed) {
-    throw new Error(`[extractAnnotations] Could not parse AI response as JSON. Raw (first 300 chars): ${raw.slice(0, 300)}`);
+    throw new Error(
+      `[extractAnnotations] Could not parse AI response as JSON. Raw (first 300 chars): ${raw.slice(0, 300)}`,
+    );
   }
 
   return {

@@ -105,10 +105,7 @@ describe("pickWindowSchedule", () => {
   });
 
   it("returns null when the set has no schedule page", () => {
-    const pages: ScoredPage[] = [
-      scored("GROUND FLOOR PLAN", 9),
-      scored("NORTH ELEVATIONS", 3),
-    ];
+    const pages: ScoredPage[] = [scored("GROUND FLOOR PLAN", 9), scored("NORTH ELEVATIONS", 3)];
     expect(pickWindowSchedule(pages)).toBeNull();
   });
 
@@ -180,7 +177,8 @@ describe("normaliseWindowSchedule", () => {
   });
 
   it("tolerates markdown fences / trailing commas and bad JSON", () => {
-    const fenced = "```json\n{ \"windows\": [ { \"id\": \"W01\", \"heightMm\": 2210, \"widthMm\": 1800 }, ] }\n```";
+    const fenced =
+      '```json\n{ "windows": [ { "id": "W01", "heightMm": 2210, "widthMm": 1800 }, ] }\n```';
     expect(normaliseWindowSchedule(fenced).windows).toHaveLength(1);
     expect(normaliseWindowSchedule("not json at all").windows).toEqual([]);
   });

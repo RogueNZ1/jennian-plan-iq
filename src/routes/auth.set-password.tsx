@@ -30,7 +30,9 @@ function SetPasswordPage() {
   // (no supabase.co redirect hop). Detect it synchronously so the
   // "no session → back to login" redirect below waits for verification.
   const [hasTokenHash] = useState(
-    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("token_hash"),
+    () =>
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).has("token_hash"),
   );
   const [verifyState, setVerifyState] = useState<"idle" | "verifying" | "failed">(
     hasTokenHash ? "verifying" : "idle",
@@ -41,11 +43,18 @@ function SetPasswordPage() {
     const sp = new URLSearchParams(window.location.search);
     const tokenHash = sp.get("token_hash");
     if (!tokenHash) return;
-    const type = (sp.get("type") ?? "invite") as "invite" | "magiclink" | "recovery" | "signup" | "email";
+    const type = (sp.get("type") ?? "invite") as
+      | "invite"
+      | "magiclink"
+      | "recovery"
+      | "signup"
+      | "email";
     supabase.auth.verifyOtp({ type, token_hash: tokenHash }).then(({ error }) => {
       if (error) {
         setVerifyState("failed");
-        toast.error("This invite link has expired or has already been used. Ask for it to be resent.");
+        toast.error(
+          "This invite link has expired or has already been used. Ask for it to be resent.",
+        );
         navigate({ to: "/login" });
       } else {
         setVerifyState("idle");
@@ -61,7 +70,9 @@ function SetPasswordPage() {
   // verification above instead.
   useEffect(() => {
     if (!loading && !user && !hasTokenHash) {
-      toast.error("This invite link has expired or has already been used. Please contact your administrator.");
+      toast.error(
+        "This invite link has expired or has already been used. Please contact your administrator.",
+      );
       navigate({ to: "/login" });
     }
   }, [user, loading, hasTokenHash, navigate]);
@@ -106,10 +117,14 @@ function SetPasswordPage() {
         <div className="absolute inset-x-12 top-1/2 h-px bg-white/5" />
 
         <div className="relative flex items-center gap-3">
-          <div className="h-10 w-10 rounded-md bg-primary grid place-items-center text-primary-foreground font-semibold shadow-sm">J</div>
+          <div className="h-10 w-10 rounded-md bg-primary grid place-items-center text-primary-foreground font-semibold shadow-sm">
+            J
+          </div>
           <div className="leading-tight">
             <div className="text-white font-semibold tracking-tight text-[16px]">Jennian IQ</div>
-            <div className="text-[10.5px] uppercase tracking-[0.18em] text-primary/90 font-medium mt-0.5">Jennian Homes Manawatū</div>
+            <div className="text-[10.5px] uppercase tracking-[0.18em] text-primary/90 font-medium mt-0.5">
+              Jennian Homes Manawatū
+            </div>
           </div>
         </div>
 
@@ -124,7 +139,9 @@ function SetPasswordPage() {
 
         <div className="relative flex items-end justify-between">
           <div className="text-[11px] text-sidebar-foreground/50">© Jennian Homes Manawatū</div>
-          <div className="text-[10px] uppercase tracking-[0.2em] text-sidebar-foreground/40">Plans · Quantities · Pricing · Procurement</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-sidebar-foreground/40">
+            Plans · Quantities · Pricing · Procurement
+          </div>
         </div>
       </div>
 

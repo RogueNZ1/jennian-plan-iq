@@ -49,8 +49,13 @@ describe.skipIf(!LIVE)("LIVE invite policy ground truth", () => {
     const { data: roleRows, error } = await supabase.from("user_roles").select("user_id, role");
     expect(error).toBeNull();
     const owners = (roleRows ?? []).filter((r) => r.role === "owner");
-    const ownerEmails = owners.map((o) => byId.get(o.user_id)?.email?.toLowerCase() ?? `?${o.user_id.slice(0, 8)}`);
-    console.log(`[invites] owner-role holders (${owners.length}):`, ownerEmails.map(maskEmail).join(", ") || "(none)");
+    const ownerEmails = owners.map(
+      (o) => byId.get(o.user_id)?.email?.toLowerCase() ?? `?${o.user_id.slice(0, 8)}`,
+    );
+    console.log(
+      `[invites] owner-role holders (${owners.length}):`,
+      ownerEmails.map(maskEmail).join(", ") || "(none)",
+    );
 
     const tally = (roleRows ?? []).reduce<Record<string, number>>((acc, r) => {
       acc[r.role] = (acc[r.role] ?? 0) + 1;

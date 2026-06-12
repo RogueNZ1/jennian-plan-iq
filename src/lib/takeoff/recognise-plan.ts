@@ -1,10 +1,15 @@
-import { callVisionModel, getAnthropicApiKey, safeParseJson } from './anthropic-client';
-import { detectBuilder } from './builder-config';
-import type { PlanContext, SheetType } from './plan-context';
+import { callVisionModel, getAnthropicApiKey, safeParseJson } from "./anthropic-client";
+import { detectBuilder } from "./builder-config";
+import type { PlanContext, SheetType } from "./plan-context";
 
 const VALID_SHEET_TYPES = new Set<SheetType>([
-  'floor_plan', 'dimension_plan', 'elevation', 'site_plan',
-  'concept_impression', 'electrical', 'unknown',
+  "floor_plan",
+  "dimension_plan",
+  "elevation",
+  "site_plan",
+  "concept_impression",
+  "electrical",
+  "unknown",
 ]);
 
 interface ReconResponse {
@@ -12,7 +17,7 @@ interface ReconResponse {
   sheetType: string;
   scaleString: string | null;
   scaleFactor: number | null;
-  dimensionFormat: 'HEIGHT_x_WIDTH' | 'WIDTH_x_HEIGHT' | null;
+  dimensionFormat: "HEIGHT_x_WIDTH" | "WIDTH_x_HEIGHT" | null;
   studHeightMm: number | null;
   livingAreaM2: number | null;
   perimeterM: number | null;
@@ -76,36 +81,41 @@ export async function recognisePlan(
       planImageBase64,
     );
   } catch (err) {
-    console.error("[recognisePlan] AI call failed:", err instanceof Error ? err.message : String(err));
+    console.error(
+      "[recognisePlan] AI call failed:",
+      err instanceof Error ? err.message : String(err),
+    );
     throw err instanceof Error ? err : new Error(String(err));
   }
 
   const parsed = safeParseJson<Partial<ReconResponse>>(raw);
   if (!parsed) {
-    throw new Error(`[recognisePlan] Could not parse AI response as JSON. Raw (first 300 chars): ${raw.slice(0, 300)}`);
+    throw new Error(
+      `[recognisePlan] Could not parse AI response as JSON. Raw (first 300 chars): ${raw.slice(0, 300)}`,
+    );
   }
 
-  const builder = detectBuilder(parsed.builderName ?? '');
-  const rawSheetType = parsed.sheetType ?? 'unknown';
+  const builder = detectBuilder(parsed.builderName ?? "");
+  const rawSheetType = parsed.sheetType ?? "unknown";
   const sheetType: SheetType = VALID_SHEET_TYPES.has(rawSheetType as SheetType)
     ? (rawSheetType as SheetType)
-    : 'unknown';
+    : "unknown";
 
   const statedFormat = parsed.dimensionFormat ?? null;
   const dimensionFormat = statedFormat ?? builder.defaultDimensionFormat;
   const dimensionFormatSource = statedFormat
-    ? 'stated_on_plan'
-    : builder.name !== 'Unknown'
-    ? 'builder_default'
-    : 'nz_default';
+    ? "stated_on_plan"
+    : builder.name !== "Unknown"
+      ? "builder_default"
+      : "nz_default";
 
   const statedStudHeight = parsed.studHeightMm ?? null;
   const studHeightMm = statedStudHeight ?? builder.defaultStudHeightMm;
   const studHeightSource = statedStudHeight
-    ? 'stated_on_plan'
-    : builder.name !== 'Unknown'
-    ? 'builder_default'
-    : 'nz_default';
+    ? "stated_on_plan"
+    : builder.name !== "Unknown"
+      ? "builder_default"
+      : "nz_default";
 
   return {
     builder,

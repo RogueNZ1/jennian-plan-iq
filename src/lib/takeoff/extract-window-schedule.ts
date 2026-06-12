@@ -76,9 +76,8 @@ function extractJson(text: string): string {
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
   if (start !== -1 && end > start) cleaned = cleaned.slice(start, end + 1);
-  cleaned = cleaned
-    .replace(/,(\s*[}\]])/g, "$1")
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+  // eslint-disable-next-line no-control-regex -- deliberate control-character sanitizer for AI JSON output
+  cleaned = cleaned.replace(/,(\s*[}\]])/g, "$1").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
   return cleaned;
 }
 
@@ -108,7 +107,9 @@ export function normaliseWindowSchedule(raw: string): WindowScheduleData {
   const seen = new Set<string>();
   const windows: ScheduleWindow[] = [];
   for (const w of parsed.windows) {
-    const id = String(w?.id ?? "").trim().toUpperCase();
+    const id = String(w?.id ?? "")
+      .trim()
+      .toUpperCase();
     // Window IDs only: W followed by digits (W1, W01, W13). Excludes D01/GD/etc.
     if (!/^W\d{1,3}$/.test(id)) continue;
     if (seen.has(id)) continue;
@@ -150,7 +151,10 @@ export async function readWindowSchedule(
               type: "text",
               text: `This is the Door & Window Schedule sheet for a ${opts.builderName ?? "Jennian Homes"} dwelling in New Zealand. Return every window entry (ID + HEIGHT × WIDTH in mm) as JSON.`,
             },
-            { type: "image", source: { type: "base64", media_type: "image/jpeg", data: imageBase64 } },
+            {
+              type: "image",
+              source: { type: "base64", media_type: "image/jpeg", data: imageBase64 },
+            },
           ],
         },
       ],
@@ -164,6 +168,10 @@ export async function readWindowSchedule(
   }
 
   const json = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
-  const raw = json.content?.filter((b) => b.type === "text").map((b) => b.text ?? "").join("") ?? "";
+  const raw =
+    json.content
+      ?.filter((b) => b.type === "text")
+      .map((b) => b.text ?? "")
+      .join("") ?? "";
   return normaliseWindowSchedule(raw);
 }

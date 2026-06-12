@@ -43,33 +43,173 @@ type AssumptionSpec = {
 function buildAssumptions(floorM2: number): AssumptionSpec[] {
   return [
     // ── Windows (bedroom / bathroom defaults) ───────────────────────────────
-    { moduleId: "iq-core", label: "Window — Bed 1 (assumed)", value: "1300x1000", unit: "mm H×W", description: "3× bedroom window default", sortOrder: 100 },
-    { moduleId: "iq-core", label: "Window — Bed 2 (assumed)", value: "1200x1000", unit: "mm H×W", description: "Standard bedroom window", sortOrder: 101 },
-    { moduleId: "iq-core", label: "Window — Bed 3 (assumed)", value: "1200x1000", unit: "mm H×W", description: "Standard bedroom window", sortOrder: 102 },
-    { moduleId: "iq-core", label: "Window — Bathroom (assumed)", value: "600x900", unit: "mm H×W", description: "600×900 obscure glass", sortOrder: 103 },
-    { moduleId: "iq-core", label: "Window — Living (assumed)", value: (_m) => `${Math.round(_m * 0.6 * 100) / 100}m wide`, unit: "approx. W", description: "2/3 of room width estimate", sortOrder: 104 },
+    {
+      moduleId: "iq-core",
+      label: "Window — Bed 1 (assumed)",
+      value: "1300x1000",
+      unit: "mm H×W",
+      description: "3× bedroom window default",
+      sortOrder: 100,
+    },
+    {
+      moduleId: "iq-core",
+      label: "Window — Bed 2 (assumed)",
+      value: "1200x1000",
+      unit: "mm H×W",
+      description: "Standard bedroom window",
+      sortOrder: 101,
+    },
+    {
+      moduleId: "iq-core",
+      label: "Window — Bed 3 (assumed)",
+      value: "1200x1000",
+      unit: "mm H×W",
+      description: "Standard bedroom window",
+      sortOrder: 102,
+    },
+    {
+      moduleId: "iq-core",
+      label: "Window — Bathroom (assumed)",
+      value: "600x900",
+      unit: "mm H×W",
+      description: "600×900 obscure glass",
+      sortOrder: 103,
+    },
+    {
+      moduleId: "iq-core",
+      label: "Window — Living (assumed)",
+      value: (_m) => `${Math.round(_m * 0.6 * 100) / 100}m wide`,
+      unit: "approx. W",
+      description: "2/3 of room width estimate",
+      sortOrder: 104,
+    },
     // ── Doors ───────────────────────────────────────────────────────────────
-    { moduleId: "iq-core", label: "Door — Entry (assumed)", value: "1200", unit: "mm W", description: "Jennian standard entry door", sortOrder: 110 },
-    { moduleId: "iq-core", label: "Door — Passage (assumed)", value: "810", unit: "mm W", description: "Standard passage door", sortOrder: 111 },
-    { moduleId: "iq-core", label: "Door — WC / Laundry (assumed)", value: "760", unit: "mm W", description: "Compact internal door", sortOrder: 112 },
+    {
+      moduleId: "iq-core",
+      label: "Door — Entry (assumed)",
+      value: "1200",
+      unit: "mm W",
+      description: "Jennian standard entry door",
+      sortOrder: 110,
+    },
+    {
+      moduleId: "iq-core",
+      label: "Door — Passage (assumed)",
+      value: "810",
+      unit: "mm W",
+      description: "Standard passage door",
+      sortOrder: 111,
+    },
+    {
+      moduleId: "iq-core",
+      label: "Door — WC / Laundry (assumed)",
+      value: "760",
+      unit: "mm W",
+      description: "Compact internal door",
+      sortOrder: 112,
+    },
     // ── Foundation ──────────────────────────────────────────────────────────
-    { moduleId: "iq-framing", label: "Foundation — Raft slab (assumed)", value: (_m) => String(Math.round(_m * 0.13)), unit: "m³", description: "130 L/m² concrete allowance", sortOrder: 200 },
+    {
+      moduleId: "iq-framing",
+      label: "Foundation — Raft slab (assumed)",
+      value: (_m) => String(Math.round(_m * 0.13)),
+      unit: "m³",
+      description: "130 L/m² concrete allowance",
+      sortOrder: 200,
+    },
     // ── Insulation ──────────────────────────────────────────────────────────
-    { moduleId: "iq-linings", label: "Insulation — Floor (assumed)", value: (_m) => String(Math.round(_m)), unit: "m²", description: "Full floor area insulation", sortOrder: 300 },
-    { moduleId: "iq-linings", label: "Insulation — Ceiling (assumed)", value: (_m) => String(Math.round(_m)), unit: "m²", description: "Full ceiling area insulation", sortOrder: 301 },
+    {
+      moduleId: "iq-linings",
+      label: "Insulation — Floor (assumed)",
+      value: (_m) => String(Math.round(_m)),
+      unit: "m²",
+      description: "Full floor area insulation",
+      sortOrder: 300,
+    },
+    {
+      moduleId: "iq-linings",
+      label: "Insulation — Ceiling (assumed)",
+      value: (_m) => String(Math.round(_m)),
+      unit: "m²",
+      description: "Full ceiling area insulation",
+      sortOrder: 301,
+    },
     // ── Electrical ──────────────────────────────────────────────────────────
-    { moduleId: "iq-electrical", label: "Electrical — Standard allowance (assumed)", value: (_m) => String(Math.round(_m * 85)), unit: "NZD", description: "$85/m² Jennian electrical budget", sortOrder: 400 },
+    {
+      moduleId: "iq-electrical",
+      label: "Electrical — Standard allowance (assumed)",
+      value: (_m) => String(Math.round(_m * 85)),
+      unit: "NZD",
+      description: "$85/m² Jennian electrical budget",
+      sortOrder: 400,
+    },
     // ── Plumbing ────────────────────────────────────────────────────────────
-    { moduleId: "iq-plumbing", label: "Plumbing — Hot water cylinder (assumed)", value: "180", unit: "L", description: "Jennian standard HWC", sortOrder: 500 },
-    { moduleId: "iq-plumbing", label: "Plumbing — Shower (assumed)", value: "1", unit: "ea", description: "1 shower per bathroom", sortOrder: 501 },
-    { moduleId: "iq-plumbing", label: "Plumbing — Bath (assumed)", value: "1", unit: "ea", description: "Standard bath allowance", sortOrder: 502 },
-    { moduleId: "iq-plumbing", label: "Plumbing — WC (assumed)", value: "2", unit: "ea", description: "2 WC standard", sortOrder: 503 },
+    {
+      moduleId: "iq-plumbing",
+      label: "Plumbing — Hot water cylinder (assumed)",
+      value: "180",
+      unit: "L",
+      description: "Jennian standard HWC",
+      sortOrder: 500,
+    },
+    {
+      moduleId: "iq-plumbing",
+      label: "Plumbing — Shower (assumed)",
+      value: "1",
+      unit: "ea",
+      description: "1 shower per bathroom",
+      sortOrder: 501,
+    },
+    {
+      moduleId: "iq-plumbing",
+      label: "Plumbing — Bath (assumed)",
+      value: "1",
+      unit: "ea",
+      description: "Standard bath allowance",
+      sortOrder: 502,
+    },
+    {
+      moduleId: "iq-plumbing",
+      label: "Plumbing — WC (assumed)",
+      value: "2",
+      unit: "ea",
+      description: "2 WC standard",
+      sortOrder: 503,
+    },
     // ── Roofing ─────────────────────────────────────────────────────────────
-    { moduleId: "iq-roofing", label: "Roofing — Coverage area (assumed)", value: (_m) => String(Math.round(_m * 1.1)), unit: "m²", description: "Floor area × 1.1 coverage factor", sortOrder: 600 },
-    { moduleId: "iq-roofing", label: "Roofing — Ridge length (assumed)", value: (_m) => String(Math.round(Math.sqrt(_m) * 0.5)), unit: "lm", description: "Estimated from floor area", sortOrder: 601 },
-    { moduleId: "iq-roofing", label: "Roofing — Eaves (assumed)", value: (_m) => String(Math.round(Math.sqrt(_m) * 3)), unit: "lm", description: "Perimeter estimate", sortOrder: 602 },
+    {
+      moduleId: "iq-roofing",
+      label: "Roofing — Coverage area (assumed)",
+      value: (_m) => String(Math.round(_m * 1.1)),
+      unit: "m²",
+      description: "Floor area × 1.1 coverage factor",
+      sortOrder: 600,
+    },
+    {
+      moduleId: "iq-roofing",
+      label: "Roofing — Ridge length (assumed)",
+      value: (_m) => String(Math.round(Math.sqrt(_m) * 0.5)),
+      unit: "lm",
+      description: "Estimated from floor area",
+      sortOrder: 601,
+    },
+    {
+      moduleId: "iq-roofing",
+      label: "Roofing — Eaves (assumed)",
+      value: (_m) => String(Math.round(Math.sqrt(_m) * 3)),
+      unit: "lm",
+      description: "Perimeter estimate",
+      sortOrder: 602,
+    },
     // ── Cladding ────────────────────────────────────────────────────────────
-    { moduleId: "iq-cladding", label: "Cladding area (assumed)", value: (_m) => String(Math.round(_m * 1.2)), unit: "m²", description: "Floor × 1.2 wall area estimate", sortOrder: 700 },
+    {
+      moduleId: "iq-cladding",
+      label: "Cladding area (assumed)",
+      value: (_m) => String(Math.round(_m * 1.2)),
+      unit: "m²",
+      description: "Floor × 1.2 wall area estimate",
+      sortOrder: 700,
+    },
   ];
 }
 
@@ -121,9 +261,10 @@ export async function applyConceptAssumptions(
 
   const totalExtracted = ctx.existingLabels.size;
   const totalAssumed = toInsert.length;
-  const confidenceScore = totalExtracted + totalAssumed > 0
-    ? Math.round((totalExtracted / (totalExtracted + totalAssumed)) * 100)
-    : 0;
+  const confidenceScore =
+    totalExtracted + totalAssumed > 0
+      ? Math.round((totalExtracted / (totalExtracted + totalAssumed)) * 100)
+      : 0;
 
   return {
     inserted: toInsert.length,

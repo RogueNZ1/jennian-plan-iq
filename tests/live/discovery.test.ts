@@ -28,7 +28,10 @@ describe.skipIf(!LIVE)("LIVE DISCOVERY (report-only)", () => {
         .ilike("client_name", `%${needle}%`)
         .limit(3);
       const rows = jobs.data ?? [];
-      console.log(`[disc] '${needle}': ${rows.length} job(s)`, rows.map((r) => `${r.job_number}/${mask(r.client_name)}`));
+      console.log(
+        `[disc] '${needle}': ${rows.length} job(s)`,
+        rows.map((r) => `${r.job_number}/${mask(r.client_name)}`),
+      );
       const id = rows[0]?.id;
       if (!id) continue;
       const runs = await supabase
@@ -38,18 +41,27 @@ describe.skipIf(!LIVE)("LIVE DISCOVERY (report-only)", () => {
         .order("started_at", { ascending: false })
         .limit(3);
       for (const run of runs.data ?? []) {
-        const tj = (run as Record<string, unknown>)["takeoff_json"] as Record<string, unknown> | null;
+        const tj = (run as Record<string, unknown>)["takeoff_json"] as Record<
+          string,
+          unknown
+        > | null;
         if (!tj) continue;
         console.log(`[disc] ${needle} takeoff_json keys:`, Object.keys(tj).sort().join(","));
         // Hunt anything rooms-like at depth ≤ 2.
         for (const [k, v] of Object.entries(tj)) {
           if (/room/i.test(k) && Array.isArray(v)) {
-            console.log(`[disc] ${needle} ${k}[${v.length}] sample:`, JSON.stringify(v.slice(0, 4)));
+            console.log(
+              `[disc] ${needle} ${k}[${v.length}] sample:`,
+              JSON.stringify(v.slice(0, 4)),
+            );
           }
           if (v && typeof v === "object" && !Array.isArray(v)) {
             for (const [k2, v2] of Object.entries(v as Record<string, unknown>)) {
               if (/room/i.test(k2) && Array.isArray(v2)) {
-                console.log(`[disc] ${needle} ${k}.${k2}[${(v2 as unknown[]).length}] sample:`, JSON.stringify((v2 as unknown[]).slice(0, 4)));
+                console.log(
+                  `[disc] ${needle} ${k}.${k2}[${(v2 as unknown[]).length}] sample:`,
+                  JSON.stringify((v2 as unknown[]).slice(0, 4)),
+                );
               }
             }
           }
@@ -64,11 +76,16 @@ describe.skipIf(!LIVE)("LIVE DISCOVERY (report-only)", () => {
     // Supabase SQL editor. This probe tells the session whether it has landed.
     const res = await supabase.from("jobs").select("specifications").limit(1);
     if (res.error) {
-      console.log("[disc] jobs.specifications: MISSING —", res.error.message,
-        "→ run: alter table jobs add column if not exists specifications jsonb;");
+      console.log(
+        "[disc] jobs.specifications: MISSING —",
+        res.error.message,
+        "→ run: alter table jobs add column if not exists specifications jsonb;",
+      );
     } else {
-      console.log("[disc] jobs.specifications: PRESENT — sample:",
-        JSON.stringify(res.data?.[0]?.specifications ?? null)?.slice(0, 60));
+      console.log(
+        "[disc] jobs.specifications: PRESENT — sample:",
+        JSON.stringify(res.data?.[0]?.specifications ?? null)?.slice(0, 60),
+      );
     }
   });
 
@@ -82,18 +99,26 @@ describe.skipIf(!LIVE)("LIVE DISCOVERY (report-only)", () => {
       return;
     }
     const buckets = (await bRes.json()) as Array<{ id: string; name: string; public: boolean }>;
-    console.log("[disc] buckets:", buckets.map((b) => `${b.name}(${b.public ? "public" : "private"})`));
+    console.log(
+      "[disc] buckets:",
+      buckets.map((b) => `${b.name}(${b.public ? "public" : "private"})`),
+    );
     for (const b of buckets) {
       const lRes = await fetch(`${url}/storage/v1/object/list/${b.name}`, {
         method: "POST",
         headers: { ...h, "Content-Type": "application/json" },
         body: JSON.stringify({ prefix: "", limit: 100, sortBy: { column: "name", order: "asc" } }),
       });
-      if (!lRes.ok) { console.log(`[disc] list ${b.name} HTTP`, lRes.status); continue; }
+      if (!lRes.ok) {
+        console.log(`[disc] list ${b.name} HTTP`, lRes.status);
+        continue;
+      }
       const objs = (await lRes.json()) as Array<{ name: string; id: string | null }>;
       const folders = objs.filter((o) => !o.id).map((o) => o.name);
       const books = objs.filter((o) => /\.(xlsm|xlsx)$/i.test(o.name)).map((o) => o.name);
-      console.log(`[disc] ${b.name}: ${objs.length} root entries, folders:[${folders.slice(0, 8)}], workbooks:[${books}]`);
+      console.log(
+        `[disc] ${b.name}: ${objs.length} root entries, folders:[${folders.slice(0, 8)}], workbooks:[${books}]`,
+      );
       // One level into folders, workbooks only.
       for (const f of folders.slice(0, 10)) {
         const fRes = await fetch(`${url}/storage/v1/object/list/${b.name}`, {

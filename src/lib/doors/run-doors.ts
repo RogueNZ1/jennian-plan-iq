@@ -55,9 +55,10 @@ export async function runDoorEngine(
     const doc = await pdfjs.getDocument({
       // pdf.js rejects Node Buffer (a Uint8Array SUBCLASS, so instanceof passes
       // it through) — always hand over a true Uint8Array view, zero-copy.
-      data: pdfData instanceof Uint8Array
-        ? new Uint8Array(pdfData.buffer, pdfData.byteOffset, pdfData.byteLength)
-        : new Uint8Array(pdfData),
+      data:
+        pdfData instanceof Uint8Array
+          ? new Uint8Array(pdfData.buffer, pdfData.byteOffset, pdfData.byteLength)
+          : new Uint8Array(pdfData),
       useWorkerFetch: false,
       isEvalSupported: false,
       disableFontFace: true,
@@ -82,7 +83,10 @@ export async function runDoorEngine(
       await doc.destroy().catch(() => {});
     }
   } catch (e) {
-    console.warn("[door-engine] pass failed — door cells fall back:", e instanceof Error ? e.message : e);
+    console.warn(
+      "[door-engine] pass failed — door cells fall back:",
+      e instanceof Error ? e.message : e,
+    );
     return null;
   }
 }

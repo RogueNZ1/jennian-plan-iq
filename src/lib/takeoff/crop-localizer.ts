@@ -59,12 +59,17 @@ const MIN_CROP_EDGE_PT = 120;
 /* ---------------------------------------------------------------- parsing */
 
 const PAGE_RE = /<page\s+width="([\d.]+)"\s+height="([\d.]+)"\s*>([\s\S]*?)<\/page>/g;
-const WORD_RE = /<word\s+xMin="([\d.]+)"\s+yMin="([\d.]+)"\s+xMax="([\d.]+)"\s+yMax="([\d.]+)"\s*>([\s\S]*?)<\/word>/g;
+const WORD_RE =
+  /<word\s+xMin="([\d.]+)"\s+yMin="([\d.]+)"\s+xMax="([\d.]+)"\s+yMax="([\d.]+)"\s*>([\s\S]*?)<\/word>/g;
 
 function decodeEntities(s: string): string {
   return s
-    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)));
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)));
 }
 
 /** Parse `pdftotext -bbox` XHTML into pages of positioned words. Tolerant of namespaces. */
@@ -81,7 +86,10 @@ export function parsePdftotextBbox(xhtml: string): BboxPage[] {
       const [, x0, y0, x1, y1, text] = wm;
       words.push({
         text: decodeEntities(text.trim()),
-        xMin: Number(x0), yMin: Number(y0), xMax: Number(x1), yMax: Number(y1),
+        xMin: Number(x0),
+        yMin: Number(y0),
+        xMax: Number(x1),
+        yMax: Number(y1),
       });
     }
     pages.push({ width: Number(w), height: Number(h), words });
@@ -94,7 +102,11 @@ export function parsePdftotextBbox(xhtml: string): BboxPage[] {
 export type TextRun = { text: string; xMin: number; yMin: number; xMax: number; yMax: number };
 
 function norm(s: string): string {
-  return s.replace(/[^A-Za-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+  return s
+    .replace(/[^A-Za-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 /**
@@ -103,7 +115,7 @@ function norm(s: string): string {
  * embedded in a longer line ("BED 3 ROBE") still yields the exact "BED 3" run.
  */
 export function buildTextRuns(words: BboxWord[], maxTokens = 4): TextRun[] {
-  const sorted = [...words].sort((a, b) => (a.yMin - b.yMin) || (a.xMin - b.xMin));
+  const sorted = [...words].sort((a, b) => a.yMin - b.yMin || a.xMin - b.xMin);
   // Group into lines.
   const lines: BboxWord[][] = [];
   for (const w of sorted) {
@@ -122,7 +134,10 @@ export function buildTextRuns(words: BboxWord[], maxTokens = 4): TextRun[] {
     line.sort((a, b) => a.xMin - b.xMin);
     for (let i = 0; i < line.length; i++) {
       let text = line[i].text;
-      let xMin = line[i].xMin, yMin = line[i].yMin, xMax = line[i].xMax, yMax = line[i].yMax;
+      const xMin = line[i].xMin;
+      let yMin = line[i].yMin,
+        xMax = line[i].xMax,
+        yMax = line[i].yMax;
       runs.push({ text, xMin, yMin, xMax, yMax });
       for (let j = i + 1; j < Math.min(line.length, i + maxTokens); j++) {
         const prev = line[j - 1];
@@ -206,8 +221,14 @@ export function localizeRoomCrop(args: LocalizeArgs): LocalizeResult {
   const anchor = centre(best!.run);
 
   // Footprint-expanded crop, centred on the label, padded, floored, clamped.
-  const wPt = Math.max(args.footprint.width_mm * args.pageUnitsPerPlanMm * CROP_PAD_FACTOR, MIN_CROP_EDGE_PT);
-  const hPt = Math.max(args.footprint.depth_mm * args.pageUnitsPerPlanMm * CROP_PAD_FACTOR, MIN_CROP_EDGE_PT);
+  const wPt = Math.max(
+    args.footprint.width_mm * args.pageUnitsPerPlanMm * CROP_PAD_FACTOR,
+    MIN_CROP_EDGE_PT,
+  );
+  const hPt = Math.max(
+    args.footprint.depth_mm * args.pageUnitsPerPlanMm * CROP_PAD_FACTOR,
+    MIN_CROP_EDGE_PT,
+  );
   let x = anchor.x - wPt / 2;
   let y = anchor.y - hPt / 2;
   const width = Math.min(wPt, page.width);

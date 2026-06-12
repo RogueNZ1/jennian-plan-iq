@@ -24,21 +24,25 @@ import { classifyAnnotations } from "../../src/lib/takeoff/classify-annotations"
 const mockVision = () => vi.mocked(anthropic.callVisionModel);
 const hasFixtures = existsSync(GOLDEN_PATH) && existsSync(REPLAY_PATH);
 
-describe.skipIf(!hasFixtures)("Phase 1 — cached replay reproduces the golden pipeline offline", () => {
-  beforeEach(() => vi.clearAllMocks());
+describe.skipIf(!hasFixtures)(
+  "Phase 1 — cached replay reproduces the golden pipeline offline",
+  () => {
+    beforeEach(() => vi.clearAllMocks());
 
-  it("replaying cached AI responses yields the golden planContext + takeoff", async () => {
-    const replay = JSON.parse(readFileSync(REPLAY_PATH, "utf8")) as { recognise: string; extract: string };
-    const golden = JSON.parse(readFileSync(GOLDEN_PATH, "utf8")) as { pipeline: unknown };
+    it("replaying cached AI responses yields the golden planContext + takeoff", async () => {
+      const replay = JSON.parse(readFileSync(REPLAY_PATH, "utf8")) as {
+        recognise: string;
+        extract: string;
+      };
+      const golden = JSON.parse(readFileSync(GOLDEN_PATH, "utf8")) as { pipeline: unknown };
 
-    mockVision()
-      .mockResolvedValueOnce(replay.recognise)
-      .mockResolvedValueOnce(replay.extract);
+      mockVision().mockResolvedValueOnce(replay.recognise).mockResolvedValueOnce(replay.extract);
 
-    const ctx = await recognisePlan("cached-b64", "mcalevey.pdf");
-    const raw = await extractAnnotations("cached-b64", ctx);
-    const takeoff = classifyAnnotations(raw, ctx);
+      const ctx = await recognisePlan("cached-b64", "mcalevey.pdf");
+      const raw = await extractAnnotations("cached-b64", ctx);
+      const takeoff = classifyAnnotations(raw, ctx);
 
-    expect(normalizePipeline(ctx, takeoff)).toEqual(golden.pipeline);
-  });
-});
+      expect(normalizePipeline(ctx, takeoff)).toEqual(golden.pipeline);
+    });
+  },
+);

@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { loadJobTimeline, type JobTimelineEntry } from "@/lib/iq-modules";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { History } from "lucide-react";
 
 type Filter = "all" | "measurement" | "module" | "override" | "export";
@@ -75,7 +81,9 @@ function matchesFilter(e: JobTimelineEntry, f: Filter): boolean {
 }
 
 export function JobAuditTimeline({
-  jobId, open, onOpenChange,
+  jobId,
+  open,
+  onOpenChange,
 }: {
   jobId: string;
   open: boolean;
@@ -132,7 +140,10 @@ export function JobAuditTimeline({
             </div>
           )}
           {visible.map((e) => (
-            <div key={`${e.kind}-${e.id}`} className="rounded-md border border-border bg-card px-3 py-2">
+            <div
+              key={`${e.kind}-${e.id}`}
+              className="rounded-md border border-border bg-card px-3 py-2"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="text-[11.5px] font-medium tracking-tight">
                   {actionLabel(e.action)}
@@ -142,10 +153,31 @@ export function JobAuditTimeline({
                 </div>
               </div>
               <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-                {e.module_id && <span>Module: <span className="text-foreground">{e.module_id}</span></span>}
-                {e.measurement_id && <span>Measurement: <span className="text-foreground tabular-nums">{e.measurement_id.slice(0, 8)}</span></span>}
-                {e.opening_id && <span>Opening: <span className="text-foreground tabular-nums">{e.opening_id.slice(0, 8)}</span></span>}
-                {e.item_id && <span>Item: <span className="text-foreground tabular-nums">{e.item_id.slice(0, 8)}</span></span>}
+                {e.module_id && (
+                  <span>
+                    Module: <span className="text-foreground">{e.module_id}</span>
+                  </span>
+                )}
+                {e.measurement_id && (
+                  <span>
+                    Measurement:{" "}
+                    <span className="text-foreground tabular-nums">
+                      {e.measurement_id.slice(0, 8)}
+                    </span>
+                  </span>
+                )}
+                {e.opening_id && (
+                  <span>
+                    Opening:{" "}
+                    <span className="text-foreground tabular-nums">{e.opening_id.slice(0, 8)}</span>
+                  </span>
+                )}
+                {e.item_id && (
+                  <span>
+                    Item:{" "}
+                    <span className="text-foreground tabular-nums">{e.item_id.slice(0, 8)}</span>
+                  </span>
+                )}
               </div>
               {(e.previous_value || e.new_value) && (
                 <div className="mt-1 text-[11px] tabular-nums">
@@ -154,9 +186,7 @@ export function JobAuditTimeline({
                   <span>{e.new_value ?? "—"}</span>
                 </div>
               )}
-              {e.notes && (
-                <div className="mt-1 text-[11px] text-muted-foreground">{e.notes}</div>
-              )}
+              {e.notes && <div className="mt-1 text-[11px] text-muted-foreground">{e.notes}</div>}
             </div>
           ))}
         </div>

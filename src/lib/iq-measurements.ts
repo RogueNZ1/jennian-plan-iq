@@ -128,10 +128,7 @@ export function pxAreaToM2(pxArea: number, pixelsPerMm: number): number {
 
 /* ---------- Calibration ---------- */
 
-export async function loadCalibration(
-  jobId: string,
-  page: number,
-): Promise<Calibration | null> {
+export async function loadCalibration(jobId: string, page: number): Promise<Calibration | null> {
   const { data, error } = await supabase
     .from("plan_calibrations")
     .select("*")
@@ -182,9 +179,7 @@ export async function saveCalibration(args: {
 
 /* ---------- Measurements ---------- */
 
-export async function loadMeasurements(
-  jobId: string,
-): Promise<PlanMeasurement[]> {
+export async function loadMeasurements(jobId: string): Promise<PlanMeasurement[]> {
   const { data, error } = await supabase
     .from("plan_measurements")
     .select("*")
@@ -214,9 +209,7 @@ export async function saveMeasurement(args: {
   const lengthMm = pxToMm(pxLen, args.pixelsPerMm);
   const lengthM = lengthMm / 1000;
   const isArea = args.type === "area";
-  const areaM2 = isArea
-    ? pxAreaToM2(polygonPixelArea(args.points), args.pixelsPerMm)
-    : null;
+  const areaM2 = isArea ? pxAreaToM2(polygonPixelArea(args.points), args.pixelsPerMm) : null;
 
   const { data, error } = await supabase
     .from("plan_measurements")
@@ -246,16 +239,13 @@ export async function saveMeasurement(args: {
     jobId: args.jobId,
     measurementId: m.id,
     action: "measurement_created",
-    newValue: isArea ? `${areaM2?.toFixed(2)} m²` : `${(lengthM).toFixed(3)} m`,
+    newValue: isArea ? `${areaM2?.toFixed(2)} m²` : `${lengthM.toFixed(3)} m`,
     notes: `${args.type} on page ${args.page}`,
   });
   return m;
 }
 
-export async function setMeasurementReviewStatus(
-  id: string,
-  status: ReviewStatus,
-): Promise<void> {
+export async function setMeasurementReviewStatus(id: string, status: ReviewStatus): Promise<void> {
   // load current to capture previous status + jobId
   const { data: prev } = await supabase
     .from("plan_measurements")
@@ -308,14 +298,8 @@ export async function deleteMeasurement(id: string): Promise<void> {
   }
 }
 
-export async function updateMeasurementLabel(
-  id: string,
-  label: string | null,
-): Promise<void> {
-  const { error } = await supabase
-    .from("plan_measurements")
-    .update({ label })
-    .eq("id", id);
+export async function updateMeasurementLabel(id: string, label: string | null): Promise<void> {
+  const { error } = await supabase.from("plan_measurements").update({ label }).eq("id", id);
   if (error) throw error;
 }
 
@@ -379,9 +363,19 @@ export async function createOpening(args: {
 
 export async function updateOpening(
   id: string,
-  patch: Partial<Pick<Opening,
-    "opening_type" | "width_mm" | "height_mm" | "room_name" |
-    "quantity" | "review_status" | "notes" | "confidence">>,
+  patch: Partial<
+    Pick<
+      Opening,
+      | "opening_type"
+      | "width_mm"
+      | "height_mm"
+      | "room_name"
+      | "quantity"
+      | "review_status"
+      | "notes"
+      | "confidence"
+    >
+  >,
 ): Promise<void> {
   // If a value-bearing field changed, flag dependent module items so
   // approved quantities cannot drift unnoticed.
@@ -390,13 +384,13 @@ export async function updateOpening(
   let prevJobId: string | null = null;
   if (valueChanged) {
     const { data: prev } = await supabase
-      .from("opening_schedule").select("job_id").eq("id", id).maybeSingle();
+      .from("opening_schedule")
+      .select("job_id")
+      .eq("id", id)
+      .maybeSingle();
     prevJobId = (prev?.job_id as string | null) ?? null;
   }
-  const { error } = await supabase
-    .from("opening_schedule")
-    .update(patch)
-    .eq("id", id);
+  const { error } = await supabase.from("opening_schedule").update(patch).eq("id", id);
   if (error) throw error;
   if (valueChanged && prevJobId) {
     const { flagDependentModuleItems } = await import("./iq-modules");
@@ -407,7 +401,9 @@ export async function updateOpening(
       notes: "Opening dimensions changed",
     });
     await logPlanAudit({
-      jobId: prevJobId, openingId: id, action: "opening_updated",
+      jobId: prevJobId,
+      openingId: id,
+      action: "opening_updated",
       notes: "dimensions changed",
     });
   }
@@ -415,7 +411,10 @@ export async function updateOpening(
 
 export async function deleteOpening(id: string): Promise<void> {
   const { data: prev } = await supabase
-    .from("opening_schedule").select("job_id, opening_type, width_mm").eq("id", id).maybeSingle();
+    .from("opening_schedule")
+    .select("job_id, opening_type, width_mm")
+    .eq("id", id)
+    .maybeSingle();
   if (prev) {
     const { flagDependentModuleItems } = await import("./iq-modules");
     await flagDependentModuleItems({
@@ -425,7 +424,9 @@ export async function deleteOpening(id: string): Promise<void> {
       notes: `Opening deleted${prev.opening_type ? ` — ${prev.opening_type} ${prev.width_mm}mm` : ""}`,
     });
     await logPlanAudit({
-      jobId: prev.job_id as string, openingId: id, action: "opening_deleted",
+      jobId: prev.job_id as string,
+      openingId: id,
+      action: "opening_deleted",
     });
   }
   const { error } = await supabase.from("opening_schedule").delete().eq("id", id);
@@ -483,7 +484,9 @@ export async function pushMeasurementToModule(args: {
 
   // Inherit confidence from source. Never promote automatically.
   const allowed = new Set(["high", "mid", "low"]);
-  const inheritedConfidence = allowed.has(String(args.confidence)) ? String(args.confidence) : "low";
+  const inheritedConfidence = allowed.has(String(args.confidence))
+    ? String(args.confidence)
+    : "low";
 
   // find or create the run
   const { data: runs, error: runErr } = await supabase
@@ -509,31 +512,42 @@ export async function pushMeasurementToModule(args: {
     const prev = Number(existing.approved_value);
     const diffPct = prev === 0 ? 1 : Math.abs(args.value - prev) / Math.abs(prev);
     if (diffPct > 0.02) {
-      await supabase.from("module_items").update({
-        extracted_value: String(args.value),
-        review_status: "review_required",
-        notes:
-          `Measured value differs from approved module value. ` +
-          `Previous ${prev}, new ${args.value} (Δ${(diffPct * 100).toFixed(1)}%). Review before updating.`,
-        data_source: "Measured From Plan",
-        source: "calibrated_geometry",
-        source_evidence: args.evidence ?? null,
-        measurement_id: args.measurementId ?? null,
-        opening_id: args.openingId ?? null,
-        plan_page_number: args.page ?? null,
-        file_id: args.fileId ?? null,
-        confidence: inheritedConfidence,
-      }).eq("id", existing.id);
+      await supabase
+        .from("module_items")
+        .update({
+          extracted_value: String(args.value),
+          review_status: "review_required",
+          notes:
+            `Measured value differs from approved module value. ` +
+            `Previous ${prev}, new ${args.value} (Δ${(diffPct * 100).toFixed(1)}%). Review before updating.`,
+          data_source: "Measured From Plan",
+          source: "calibrated_geometry",
+          source_evidence: args.evidence ?? null,
+          measurement_id: args.measurementId ?? null,
+          opening_id: args.openingId ?? null,
+          plan_page_number: args.page ?? null,
+          file_id: args.fileId ?? null,
+          confidence: inheritedConfidence,
+        })
+        .eq("id", existing.id);
       await supabase.from("module_audit_logs").insert({
-        job_id: args.jobId, run_id: runId, item_id: existing.id, module_id: args.moduleId,
-        user_id: args.createdBy, action: "measurement_push_conflict",
-        previous_value: String(prev), new_value: String(args.value),
+        job_id: args.jobId,
+        run_id: runId,
+        item_id: existing.id,
+        module_id: args.moduleId,
+        user_id: args.createdBy,
+        action: "measurement_push_conflict",
+        previous_value: String(prev),
+        new_value: String(args.value),
         notes: `Δ${(diffPct * 100).toFixed(1)}% — review required`,
       });
       await logPlanAudit({
-        jobId: args.jobId, measurementId: args.measurementId ?? null,
-        openingId: args.openingId ?? null, action: "pushed_to_module",
-        previousValue: String(prev), newValue: String(args.value),
+        jobId: args.jobId,
+        measurementId: args.measurementId ?? null,
+        openingId: args.openingId ?? null,
+        action: "pushed_to_module",
+        previousValue: String(prev),
+        newValue: String(args.value),
         notes: `${args.moduleId} :: ${args.label} — conflict`,
       });
       return { status: "conflict", diffPct };
@@ -541,36 +555,50 @@ export async function pushMeasurementToModule(args: {
   }
 
   if (existing) {
-    await supabase.from("module_items").update({
-      extracted_value: String(args.value),
-      data_source: "Measured From Plan",
-      source: "calibrated_geometry",
-      source_evidence: args.evidence ?? null,
-      measurement_id: args.measurementId ?? null,
-      opening_id: args.openingId ?? null,
-      plan_page_number: args.page ?? null,
-      file_id: args.fileId ?? null,
-      basis: args.basis ?? "Measured From Plan",
-      unit: args.unit,
-      confidence: inheritedConfidence,
-      notes: args.notes ?? null,
-    }).eq("id", existing.id);
+    await supabase
+      .from("module_items")
+      .update({
+        extracted_value: String(args.value),
+        data_source: "Measured From Plan",
+        source: "calibrated_geometry",
+        source_evidence: args.evidence ?? null,
+        measurement_id: args.measurementId ?? null,
+        opening_id: args.openingId ?? null,
+        plan_page_number: args.page ?? null,
+        file_id: args.fileId ?? null,
+        basis: args.basis ?? "Measured From Plan",
+        unit: args.unit,
+        confidence: inheritedConfidence,
+        notes: args.notes ?? null,
+      })
+      .eq("id", existing.id);
     await supabase.from("module_audit_logs").insert({
-      job_id: args.jobId, run_id: runId, item_id: existing.id, module_id: args.moduleId,
-      user_id: args.createdBy, action: "measurement_pushed",
-      new_value: String(args.value), notes: `${args.label} updated from plan`,
+      job_id: args.jobId,
+      run_id: runId,
+      item_id: existing.id,
+      module_id: args.moduleId,
+      user_id: args.createdBy,
+      action: "measurement_pushed",
+      new_value: String(args.value),
+      notes: `${args.label} updated from plan`,
     });
     await logPlanAudit({
-      jobId: args.jobId, measurementId: args.measurementId ?? null,
-      openingId: args.openingId ?? null, action: "pushed_to_module",
-      newValue: String(args.value), notes: `${args.moduleId} :: ${args.label}`,
+      jobId: args.jobId,
+      measurementId: args.measurementId ?? null,
+      openingId: args.openingId ?? null,
+      action: "pushed_to_module",
+      newValue: String(args.value),
+      notes: `${args.moduleId} :: ${args.label}`,
     });
     return { status: "updated" };
   }
 
   const { data: tail } = await supabase
-    .from("module_items").select("sort_order")
-    .eq("run_id", runId).order("sort_order", { ascending: false }).limit(1);
+    .from("module_items")
+    .select("sort_order")
+    .eq("run_id", runId)
+    .order("sort_order", { ascending: false })
+    .limit(1);
   const nextSort = (tail?.[0]?.sort_order ?? 0) + 1;
 
   const { error: insErr } = await supabase.from("module_items").insert({
@@ -606,9 +634,12 @@ export async function pushMeasurementToModule(args: {
     notes: `${args.label} (${args.unit}) from plan measurement`,
   });
   await logPlanAudit({
-    jobId: args.jobId, measurementId: args.measurementId ?? null,
-    openingId: args.openingId ?? null, action: "pushed_to_module",
-    newValue: String(args.value), notes: `${args.moduleId} :: ${args.label}`,
+    jobId: args.jobId,
+    measurementId: args.measurementId ?? null,
+    openingId: args.openingId ?? null,
+    action: "pushed_to_module",
+    newValue: String(args.value),
+    notes: `${args.moduleId} :: ${args.label}`,
   });
   return { status: "inserted" };
 }
@@ -685,9 +716,7 @@ export type PrintedQuantity = {
   notes: string | null;
 };
 
-export async function loadPrintedQuantities(
-  jobId: string,
-): Promise<PrintedQuantity[]> {
+export async function loadPrintedQuantities(jobId: string): Promise<PrintedQuantity[]> {
   const { data, error } = await supabase
     .from("extracted_quantities")
     .select("*")
@@ -709,7 +738,8 @@ export async function upsertPrintedQuantity(args: {
   confidenceLabel?: "High" | "Medium" | "Low";
 }): Promise<void> {
   const conf = args.confidence ?? "mid";
-  const confLabel = args.confidenceLabel ?? (conf === "high" ? "High" : conf === "low" ? "Low" : "Medium");
+  const confLabel =
+    args.confidenceLabel ?? (conf === "high" ? "High" : conf === "low" ? "Low" : "Medium");
   // Find existing row of same type/source.
   const { data: existing } = await supabase
     .from("extracted_quantities")

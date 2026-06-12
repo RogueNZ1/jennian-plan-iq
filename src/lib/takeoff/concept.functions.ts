@@ -26,7 +26,10 @@ const MAX_ATTEMPTS = 3; // 1 initial attempt + up to 2 retries
 const RETRY_BASE_MS = 500;
 
 class TransientApiError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
     super(message);
     this.name = "TransientApiError";
   }
@@ -113,10 +116,17 @@ async function callVisionModelOnce(
   }
 
   // Anthropic response: { content: [{ type: "text", text: "..." }] }
-  const json = await res.json() as { content?: Array<{ type: string; text?: string }> };
-  const content = json.content?.filter((b) => b.type === "text").map((b) => b.text ?? "").join("") ?? "";
+  const json = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+  const content =
+    json.content
+      ?.filter((b) => b.type === "text")
+      .map((b) => b.text ?? "")
+      .join("") ?? "";
   if (!content) {
-    console.error("[callVisionModel] Empty response. Full body:", JSON.stringify(json).slice(0, 500));
+    console.error(
+      "[callVisionModel] Empty response. Full body:",
+      JSON.stringify(json).slice(0, 500),
+    );
     return "";
   }
   return content;
@@ -130,9 +140,8 @@ function extractJson(text: string): string {
   const end = cleaned.lastIndexOf("}");
   if (start !== -1 && end > start) cleaned = cleaned.slice(start, end + 1);
   // Repair trailing commas and control characters.
-  cleaned = cleaned
-    .replace(/,(\s*[}\]])/g, "$1")
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+  // eslint-disable-next-line no-control-regex -- deliberate control-character sanitizer for AI JSON output
+  cleaned = cleaned.replace(/,(\s*[}\]])/g, "$1").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
   return cleaned;
 }
 
@@ -143,13 +152,25 @@ function tryRepairTruncatedJson(text: string): string | null {
   let escape = false;
   for (let i = 0; i < s.length; i++) {
     const ch = s[i];
-    if (escape) { escape = false; continue; }
-    if (ch === "\\") { escape = true; continue; }
-    if (ch === '"') { inString = !inString; continue; }
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
     if (inString) continue;
     if (ch === "{" || ch === "[") stack.push(ch);
-    else if (ch === "}") { if (stack[stack.length - 1] === "{") stack.pop(); }
-    else if (ch === "]") { if (stack[stack.length - 1] === "[") stack.pop(); }
+    else if (ch === "}") {
+      if (stack[stack.length - 1] === "{") stack.pop();
+    } else if (ch === "]") {
+      if (stack[stack.length - 1] === "[") stack.pop();
+    }
   }
   if (inString) s += '"';
   s = s.replace(/,\s*$/, "");
@@ -157,14 +178,27 @@ function tryRepairTruncatedJson(text: string): string | null {
     const open = stack.pop();
     s += open === "{" ? "}" : "]";
   }
-  try { JSON.parse(s); return s; } catch { return null; }
+  try {
+    JSON.parse(s);
+    return s;
+  } catch {
+    return null;
+  }
 }
 
 function safeParseJson<T>(raw: string): T | null {
   const cleaned = extractJson(raw);
-  try { return JSON.parse(cleaned) as T; } catch {
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
     const repaired = tryRepairTruncatedJson(cleaned);
-    if (repaired) { try { return JSON.parse(repaired) as T; } catch { /* fall through */ } }
+    if (repaired) {
+      try {
+        return JSON.parse(repaired) as T;
+      } catch {
+        /* fall through */
+      }
+    }
     return null;
   }
 }
@@ -172,7 +206,11 @@ function safeParseJson<T>(raw: string): T | null {
 // ── Scale Extraction ──────────────────────────────────────────────────────────
 
 const PAPER_WIDTH_MM: Record<string, number> = {
-  A0: 1189, A1: 841, A2: 594, A3: 420, A4: 297,
+  A0: 1189,
+  A1: 841,
+  A2: 594,
+  A3: 420,
+  A4: 297,
 };
 
 export type ScaleResult = {
@@ -182,7 +220,9 @@ export type ScaleResult = {
 };
 
 export const extractScaleFactor = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => input as { imageBase64: string; imageWidth: number; imageHeight: number })
+  .inputValidator(
+    (input: unknown) => input as { imageBase64: string; imageWidth: number; imageHeight: number },
+  )
   .handler(async ({ data }): Promise<ScaleResult> => {
     const apiKey = getApiKey();
     const system = `Return ONLY valid JSON. No markdown, no prose.
@@ -220,7 +260,8 @@ Return ONLY the JSON object. No markdown fences.`;
     let raw: string;
     try {
       raw = await callVisionModel(
-        apiKey, system,
+        apiKey,
+        system,
         "Extract the printed scale from this architectural plan. Check the title block in the bottom-right corner first.",
         data.imageBase64,
       );
@@ -235,12 +276,19 @@ Return ONLY the JSON object. No markdown fences.`;
     }
 
     const parsedMaybe = safeParseJson<{
-      scaleRatio?: number | null; paperSize?: string | null;
-      scaleFactor?: number | null; confidence?: string; rationale?: string;
+      scaleRatio?: number | null;
+      paperSize?: string | null;
+      scaleFactor?: number | null;
+      confidence?: string;
+      rationale?: string;
     }>(raw);
     if (!parsedMaybe) {
       console.error("[extractScaleFactor] Could not parse AI response:", raw.slice(0, 300));
-      return { scaleFactor: null, confidence: "low", rationale: `AI returned an unparseable response: ${raw.slice(0, 160)}` };
+      return {
+        scaleFactor: null,
+        confidence: "low",
+        rationale: `AI returned an unparseable response: ${raw.slice(0, 160)}`,
+      };
     }
     const parsed = parsedMaybe;
 
@@ -262,7 +310,7 @@ Return ONLY the JSON object. No markdown fences.`;
       rationale:
         scaleFactor === null && parsed.scaleRatio && parsed.paperSize
           ? `Found "1:${parsed.scaleRatio} @ ${parsed.paperSize}" but paper size not in A0–A4. ${parsed.rationale ?? ""}`.trim()
-          : parsed.rationale ?? "AI did not return a scale or rationale.",
+          : (parsed.rationale ?? "AI did not return a scale or rationale."),
     };
   });
 
@@ -308,22 +356,36 @@ If the plan looks complete and has no issues, return an empty issues array — d
 Return ONLY the JSON object. No markdown fences.`;
 
     const raw = await callVisionModel(
-      apiKey, system,
+      apiKey,
+      system,
       "Check this floor plan for any issues that would affect quantity takeoffs.",
       data.imageBase64,
     );
 
     if (!raw.trim()) {
-      return { issues: [{ severity: "warning", description: "AI returned an empty response for plan check." }] };
+      return {
+        issues: [
+          { severity: "warning", description: "AI returned an empty response for plan check." },
+        ],
+      };
     }
 
     const parsed = safeParseJson<{ issues?: PlanIssue[] }>(raw);
     if (!parsed) {
       console.error("[checkPlanIssues] JSON parse failed. Raw response:", raw.slice(0, 1000));
-      return { issues: [{ severity: "warning", description: "Could not parse plan check response. Proceed with caution." }] };
+      return {
+        issues: [
+          {
+            severity: "warning",
+            description: "Could not parse plan check response. Proceed with caution.",
+          },
+        ],
+      };
     }
     const issues = (parsed.issues ?? []).map((issue) => ({
-      severity: (["error", "warning", "info"].includes(issue.severity) ? issue.severity : "info") as PlanIssue["severity"],
+      severity: (["error", "warning", "info"].includes(issue.severity)
+        ? issue.severity
+        : "info") as PlanIssue["severity"],
       description: issue.description ?? "",
       location: issue.location,
     }));
@@ -332,13 +394,13 @@ Return ONLY the JSON object. No markdown fences.`;
 
 // ── Takeoff Extraction ────────────────────────────────────────────────────────
 
-export type { WindowsByRoom, DoorBreakdown, TakeoffData } from './takeoff-types';
-import type { WindowsByRoom, DoorBreakdown, TakeoffData } from './takeoff-types';
-import type { PlanContext } from './plan-context';
-import { recognisePlan } from './recognise-plan';
-import { extractAnnotations } from './extract-annotations';
-import { classifyAnnotations } from './classify-annotations';
-import { readWindowSchedule, type WindowScheduleData } from './extract-window-schedule';
+export type { WindowsByRoom, DoorBreakdown, TakeoffData } from "./takeoff-types";
+import type { WindowsByRoom, DoorBreakdown, TakeoffData } from "./takeoff-types";
+import type { PlanContext } from "./plan-context";
+import { recognisePlan } from "./recognise-plan";
+import { extractAnnotations } from "./extract-annotations";
+import { classifyAnnotations } from "./classify-annotations";
+import { readWindowSchedule, type WindowScheduleData } from "./extract-window-schedule";
 
 export type ConceptTakeoffResult = {
   takeoffData: TakeoffData;
@@ -368,7 +430,10 @@ export const extractWindowScheduleFn = createServerFn({ method: "POST" })
         builderName: data.builderName,
       });
     } catch (err) {
-      console.error("[extractWindowScheduleFn] failed:", err instanceof Error ? err.message : String(err));
+      console.error(
+        "[extractWindowScheduleFn] failed:",
+        err instanceof Error ? err.message : String(err),
+      );
       return { windows: [] };
     }
   });
@@ -380,19 +445,31 @@ export const extractConceptTakeoffs = createServerFn({ method: "POST" })
     const context = await recognisePlan(data.imageBase64, data.filename);
 
     const emptyTakeoff: TakeoffData = {
-      floor_area_m2: null, garage_area_m2: null, alfresco_area_m2: null,
-      external_wall_lm: null, internal_wall_lm: null, roof_area_m2: null,
-      window_count: null, external_door_count: null, internal_door_count: null,
-      bathroom_count: null, ensuite_count: null, laundry_count: null,
-      kitchen_count: null, ceiling_height_m: null, foundation_type: null,
-      windows_by_room: null, door_breakdown: null, garage_door_size: null,
+      floor_area_m2: null,
+      garage_area_m2: null,
+      alfresco_area_m2: null,
+      external_wall_lm: null,
+      internal_wall_lm: null,
+      roof_area_m2: null,
+      window_count: null,
+      external_door_count: null,
+      internal_door_count: null,
+      bathroom_count: null,
+      ensuite_count: null,
+      laundry_count: null,
+      kitchen_count: null,
+      ceiling_height_m: null,
+      foundation_type: null,
+      windows_by_room: null,
+      door_breakdown: null,
+      garage_door_size: null,
       notes: "Sheet type not suitable for takeoff.",
     };
 
     // Only floor and dimension plans contain extractable takeoff data
-    if (context.sheetType !== 'floor_plan' && context.sheetType !== 'dimension_plan') {
+    if (context.sheetType !== "floor_plan" && context.sheetType !== "dimension_plan") {
       console.warn(`[extractConceptTakeoffs] Skipping — sheetType=${context.sheetType}`);
-      const label = context.sheetType.replace(/_/g, ' ');
+      const label = context.sheetType.replace(/_/g, " ");
       return {
         takeoffData: { ...emptyTakeoff },
         planContext: context,

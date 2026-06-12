@@ -60,11 +60,18 @@ export function computeCladding(input: CladdingInput): CladdingResult {
 
   // Wall rectangle — both terms must be real measurements/extractions.
   let wallRect: number | null = null;
-  if (input.perimeterLm != null && input.perimeterLm > 0 && input.studHeightM != null && input.studHeightM > 0) {
+  if (
+    input.perimeterLm != null &&
+    input.perimeterLm > 0 &&
+    input.studHeightM != null &&
+    input.studHeightM > 0
+  ) {
     wallRect = r2(input.perimeterLm * input.studHeightM);
   } else {
-    if (input.perimeterLm == null || input.perimeterLm <= 0) flags.push("perimeter not measured — wall area not computed");
-    if (input.studHeightM == null || input.studHeightM <= 0) flags.push("stud height not extracted — wall area not computed");
+    if (input.perimeterLm == null || input.perimeterLm <= 0)
+      flags.push("perimeter not measured — wall area not computed");
+    if (input.studHeightM == null || input.studHeightM <= 0)
+      flags.push("stud height not extracted — wall area not computed");
   }
 
   // Gables — excluded (flagged) rather than guessed when pitch or span is missing.
@@ -72,10 +79,14 @@ export function computeCladding(input: CladdingInput): CladdingResult {
   if (input.gableEndCount > 0) {
     if (input.roofPitchDeg == null || input.roofPitchDeg <= 0) {
       gable = null;
-      flags.push(`${input.gableEndCount} gable end(s) present but roof pitch missing — gable area excluded`);
+      flags.push(
+        `${input.gableEndCount} gable end(s) present but roof pitch missing — gable area excluded`,
+      );
     } else if (input.gableSpanM == null || input.gableSpanM <= 0) {
       gable = null;
-      flags.push(`${input.gableEndCount} gable end(s) present but gable span not measured — gable area excluded`);
+      flags.push(
+        `${input.gableEndCount} gable end(s) present but gable span not measured — gable area excluded`,
+      );
     } else {
       const rise = (input.gableSpanM / 2) * Math.tan((input.roofPitchDeg * Math.PI) / 180);
       gable = r2(input.gableEndCount * 0.5 * input.gableSpanM * rise);
@@ -84,7 +95,10 @@ export function computeCladding(input: CladdingInput): CladdingResult {
 
   // Glazing deduction — every opening is a hole in the cladding.
   const glazing = r2(
-    input.openings.reduce((s, o) => s + (o.height_m > 0 && o.width_m > 0 ? o.height_m * o.width_m : 0), 0)
+    input.openings.reduce(
+      (s, o) => s + (o.height_m > 0 && o.width_m > 0 ? o.height_m * o.width_m : 0),
+      0,
+    ),
   );
 
   const net = wallRect != null && gable != null ? r2(wallRect + gable - glazing) : null;
@@ -99,7 +113,9 @@ export function computeCladding(input: CladdingInput): CladdingResult {
     perCladding = [{ type: input.claddingTypes[0], areaM2: net }];
   } else {
     perCladding = input.claddingTypes.map((t) => ({ type: t, areaM2: null }));
-    flags.push("multiple cladding types — per-type split requires per-elevation banding (manual % for now)");
+    flags.push(
+      "multiple cladding types — per-type split requires per-elevation banding (manual % for now)",
+    );
   }
 
   return {

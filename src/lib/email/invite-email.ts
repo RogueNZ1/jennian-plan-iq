@@ -50,8 +50,7 @@ const FAINT = "#9AA0A8";
 const BORDER = "#E3E5E8";
 const CARD_BG = "#FAFAFB";
 const TINT_BG = "#F8EFEE";
-const FONT =
-  "'Helvetica Neue', Helvetica, Arial, 'Segoe UI', sans-serif";
+const FONT = "'Helvetica Neue', Helvetica, Arial, 'Segoe UI', sans-serif";
 
 export function escapeHtml(value: string): string {
   return value
@@ -231,7 +230,9 @@ ${noteBlock}
     `Role: ${p.roleLabel}`,
     ...(p.branch?.trim() ? [`Branch: ${p.branch.trim()}`] : []),
     `Invited by: ${p.inviterName ?? "Haydon Christian"}`,
-    ...(p.welcomeMessage?.trim() ? [``, `Note from ${p.inviterName ?? "Haydon Christian"}: ${p.welcomeMessage.trim()}`] : []),
+    ...(p.welcomeMessage?.trim()
+      ? [``, `Note from ${p.inviterName ?? "Haydon Christian"}: ${p.welcomeMessage.trim()}`]
+      : []),
     ``,
     `Activate your account (expires in ${hours} hours):`,
     p.actionUrl,

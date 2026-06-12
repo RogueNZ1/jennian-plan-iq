@@ -15,16 +15,16 @@ const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
   for (let i = 0; i < 256; i++) {
     let c = i;
-    for (let j = 0; j < 8; j++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    for (let j = 0; j < 8; j++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
     t[i] = c;
   }
   return t;
 })();
 
 function crc32(data: Uint8Array): number {
-  let c = 0xFFFFFFFF;
-  for (const b of data) c = CRC_TABLE[(c ^ b) & 0xFF] ^ (c >>> 8);
-  return (c ^ 0xFFFFFFFF) >>> 0;
+  let c = 0xffffffff;
+  for (const b of data) c = CRC_TABLE[(c ^ b) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
 }
 
 /* --------------------------------------------------------- inflate (raw) */
@@ -43,7 +43,10 @@ async function decompressDeflate(data: Uint8Array): Promise<Uint8Array> {
   }
   const out = new Uint8Array(chunks.reduce((s, c) => s + c.length, 0));
   let off = 0;
-  for (const c of chunks) { out.set(c, off); off += c.length; }
+  for (const c of chunks) {
+    out.set(c, off);
+    off += c.length;
+  }
   return out;
 }
 
@@ -75,7 +78,9 @@ async function parseZip(buffer: ArrayBuffer): Promise<Map<string, Uint8Array>> {
     const extraLen = view.getUint16(cdPos + 30, true);
     const commentLen = view.getUint16(cdPos + 32, true);
     const localHeaderOffset = view.getUint32(cdPos + 42, true);
-    const fileName = new TextDecoder("utf-8").decode(bytes.slice(cdPos + 46, cdPos + 46 + fileNameLen));
+    const fileName = new TextDecoder("utf-8").decode(
+      bytes.slice(cdPos + 46, cdPos + 46 + fileNameLen),
+    );
     cdPos += 46 + fileNameLen + extraLen + commentLen;
 
     // Read local file header
@@ -142,17 +147,17 @@ function buildZip(fileMap: Map<string, Uint8Array>): Uint8Array {
     // Local file header (30 bytes + name)
     const lh = new Uint8Array(30 + nameBytes.length);
     const lv = new DataView(lh.buffer);
-    lv.setUint32(0, 0x04034b50, true);   // signature
-    lv.setUint16(4, 20, true);            // version needed
-    lv.setUint16(6, 0, true);             // flags
-    lv.setUint16(8, 0, true);             // method: STORED
+    lv.setUint32(0, 0x04034b50, true); // signature
+    lv.setUint16(4, 20, true); // version needed
+    lv.setUint16(6, 0, true); // flags
+    lv.setUint16(8, 0, true); // method: STORED
     lv.setUint16(10, time, true);
     lv.setUint16(12, date, true);
     lv.setUint32(14, crc, true);
-    lv.setUint32(18, data.length, true);  // compressed size
-    lv.setUint32(22, data.length, true);  // uncompressed size
+    lv.setUint32(18, data.length, true); // compressed size
+    lv.setUint32(22, data.length, true); // uncompressed size
     lv.setUint16(26, nameBytes.length, true);
-    lv.setUint16(28, 0, true);            // extra field length
+    lv.setUint16(28, 0, true); // extra field length
     lh.set(nameBytes, 30);
 
     chunks.push(lh);
@@ -168,22 +173,22 @@ function buildZip(fileMap: Map<string, Uint8Array>): Uint8Array {
   for (const entry of localEntries) {
     const cd = new Uint8Array(46 + entry.name.length);
     const cv = new DataView(cd.buffer);
-    cv.setUint32(0, 0x02014b50, true);   // signature
-    cv.setUint16(4, 20, true);            // version made by
-    cv.setUint16(6, 20, true);            // version needed
-    cv.setUint16(8, 0, true);             // flags
-    cv.setUint16(10, 0, true);            // method: STORED
+    cv.setUint32(0, 0x02014b50, true); // signature
+    cv.setUint16(4, 20, true); // version made by
+    cv.setUint16(6, 20, true); // version needed
+    cv.setUint16(8, 0, true); // flags
+    cv.setUint16(10, 0, true); // method: STORED
     cv.setUint16(12, time, true);
     cv.setUint16(14, date, true);
     cv.setUint32(16, entry.crc, true);
     cv.setUint32(20, entry.data.length, true); // compressed
     cv.setUint32(24, entry.data.length, true); // uncompressed
     cv.setUint16(28, entry.name.length, true);
-    cv.setUint16(30, 0, true);            // extra
-    cv.setUint16(32, 0, true);            // comment
-    cv.setUint16(34, 0, true);            // disk start
-    cv.setUint16(36, 0, true);            // internal attr
-    cv.setUint32(38, 0, true);            // external attr
+    cv.setUint16(30, 0, true); // extra
+    cv.setUint16(32, 0, true); // comment
+    cv.setUint16(34, 0, true); // disk start
+    cv.setUint16(36, 0, true); // internal attr
+    cv.setUint32(38, 0, true); // external attr
     cv.setUint32(42, entry.localOffset, true);
     cd.set(entry.name, 46);
     chunks.push(cd);
@@ -196,20 +201,23 @@ function buildZip(fileMap: Map<string, Uint8Array>): Uint8Array {
   const eocd = new Uint8Array(22);
   const ev = new DataView(eocd.buffer);
   ev.setUint32(0, 0x06054b50, true);
-  ev.setUint16(4, 0, true);   // disk number
-  ev.setUint16(6, 0, true);   // cd start disk
+  ev.setUint16(4, 0, true); // disk number
+  ev.setUint16(6, 0, true); // cd start disk
   ev.setUint16(8, localEntries.length, true);
   ev.setUint16(10, localEntries.length, true);
   ev.setUint32(12, cdSize, true);
   ev.setUint32(16, cdStart, true);
-  ev.setUint16(20, 0, true);  // comment length
+  ev.setUint16(20, 0, true); // comment length
   chunks.push(eocd);
 
   // Concatenate all chunks
   const totalLen = chunks.reduce((s, c) => s + c.length, 0);
   const out = new Uint8Array(totalLen);
   let pos = 0;
-  for (const c of chunks) { out.set(c, pos); pos += c.length; }
+  for (const c of chunks) {
+    out.set(c, pos);
+    pos += c.length;
+  }
   return out;
 }
 
@@ -218,8 +226,18 @@ function buildZip(fileMap: Map<string, Uint8Array>): Uint8Array {
 function applyPlaceholders(xml: string, data: QSExportData): string {
   const now = new Date();
   const months = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
   ];
   const dateStr = `${String(now.getDate()).padStart(2, "0")} ${months[now.getMonth()]} ${now.getFullYear()}`;
 
@@ -249,7 +267,11 @@ function applyPlaceholders(xml: string, data: QSExportData): string {
   rep("[UNDERLAY]", data.specItems["Underlay"] ?? data.underlay ?? "");
   rep("[PITCH]", data.specItems["Main Roof Pitch"] ?? data.roofPitch ?? "");
   rep("[SOFFIT]", data.specItems["Soffit Linings"] ?? "");
-  rep("[STUD HEIGHT]", data.specItems["Stud Height Ground Floor"] ?? (data.studHeightMm ? `${data.studHeightMm}mm` : ""));
+  rep(
+    "[STUD HEIGHT]",
+    data.specItems["Stud Height Ground Floor"] ??
+      (data.studHeightMm ? `${data.studHeightMm}mm` : ""),
+  );
   rep("[FASCIA]", data.specItems["Fascia"] ?? "");
   rep("[SPOUTING]", data.specItems["Spouting"] ?? "");
   rep("[SPOUTING PROFILE]", data.specItems["Spouting Profile"] ?? "");
@@ -295,14 +317,21 @@ function applyPlaceholders(xml: string, data: QSExportData): string {
   rep("[DOOR ARCHITRAVES]", data.specItems["Door Architraves"] ?? "");
   rep("[WINDOW JAMBS]", data.specItems["Window Jambs"] ?? "");
   rep("[WINDOW ARCHITRAVES]", data.specItems["Window Architraves"] ?? "");
-  rep("[WARDROBE SPEC]", data.specItems["Wardrobe doors"] ?? data.specItems["Wardrobe Doors"] ?? "");
+  rep(
+    "[WARDROBE SPEC]",
+    data.specItems["Wardrobe doors"] ?? data.specItems["Wardrobe Doors"] ?? "",
+  );
   rep("[LINEN CUPBOARD]", data.specItems["Linen Cupboard"] ?? "");
   rep("[ATTIC STORAGE]", data.atticStair > 0 ? "Included" : "No allowance");
   rep("[HWC]", data.specItems["Hot Water Heating"] ?? "");
   rep("[MAINS CABLE]", data.specItems["Mains Cable"] ?? "");
 
   // Window schedule placeholders
-  const windowRooms: Array<{ code: string; roomLabel: string; key: keyof QSExportData["windowsByRoom"] }> = [
+  const windowRooms: Array<{
+    code: string;
+    roomLabel: string;
+    key: keyof QSExportData["windowsByRoom"];
+  }> = [
     { code: "W01", roomLabel: "Bed 1", key: "bed1" },
     { code: "W02", roomLabel: "Ensuite", key: "ensuite" },
     { code: "W03", roomLabel: "Bed 2", key: "bed2" },
@@ -366,11 +395,13 @@ function buildMinimalSMWDocx(data: QSExportData): Uint8Array {
     `NOTE: Upload Jennian_SMW_Template.docx to Supabase Storage (smw-templates bucket) to enable full template export.`,
   ].filter((l) => l !== null);
 
-  const paragraphs = lines.map((line) =>
-    line
-      ? `<w:p><w:r><w:t xml:space="preserve">${line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</w:t></w:r></w:p>`
-      : `<w:p/>`,
-  ).join("\n");
+  const paragraphs = lines
+    .map((line) =>
+      line
+        ? `<w:p><w:r><w:t xml:space="preserve">${line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</w:t></w:r></w:p>`
+        : `<w:p/>`,
+    )
+    .join("\n");
 
   const document = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
@@ -407,7 +438,9 @@ export async function exportSMWDocument(jobId: string): Promise<{ blob: Blob; fi
     // No template uploaded yet — return minimal placeholder docx
     const minDocx = buildMinimalSMWDocx(data);
     return {
-      blob: new Blob([minDocx as BlobPart], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
+      blob: new Blob([minDocx as BlobPart], {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      }),
       filename,
     };
   }
@@ -425,7 +458,9 @@ export async function exportSMWDocument(jobId: string): Promise<{ blob: Blob; fi
   const zipBytes = buildZip(entries);
 
   return {
-    blob: new Blob([zipBytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
+    blob: new Blob([zipBytes as BlobPart], {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }),
     filename,
   };
 }

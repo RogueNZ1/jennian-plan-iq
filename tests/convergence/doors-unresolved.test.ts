@@ -84,16 +84,19 @@ describe("doors fail-safe — sourceless counts never assert", () => {
   });
 
   it("doorsSource undefined (legacy callers) behaves as null — blank + flag", () => {
-    const ws = buildDropInSheet(
-      base({ intDoorStandard: 0 }),
-    ) as unknown as Record<string, unknown>;
+    const ws = buildDropInSheet(base({ intDoorStandard: 0 })) as unknown as Record<string, unknown>;
     expect(cellVal(ws, "B27")).toBe("");
     expect(sheetText(ws)).toContain("Internal doors NOT deterministically counted");
   });
 
   it("engine-sourced counts assert numbers and raise NO flag", () => {
     const ws = buildDropInSheet(
-      base({ doorsSource: "engine", intDoorStandard: 12, intDoorDouble: 4, intDoorCavitySlider: 1 }),
+      base({
+        doorsSource: "engine",
+        intDoorStandard: 12,
+        intDoorDouble: 4,
+        intDoorCavitySlider: 1,
+      }),
     ) as unknown as Record<string, unknown>;
     expect(cellVal(ws, "B27")).toBe(12);
     expect(cellVal(ws, "B29")).toBe(4);

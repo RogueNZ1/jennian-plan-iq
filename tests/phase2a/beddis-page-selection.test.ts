@@ -30,29 +30,33 @@ function scoredFromText(text: string): ScoredPage & { type: string } {
   return { pageType: type, confidence, score: scoreFor(type, confidence), type };
 }
 
-describe.skipIf(!hasFixtures)("Phase 2a — Beddis prelim page selection (offline, real text)", () => {
-  // Guarded: the describe callback still executes during collection even when skipped,
-  // so the (gitignored, client-sensitive) fixture read must not run eagerly without them.
-  const pages = hasFixtures
-    ? PAGES.map((p) =>
-        scoredFromText(readFileSync(resolve(TEXT_DIR, `prelim-${p}.txt`), "utf8")),
-      )
-    : [];
+describe.skipIf(!hasFixtures)(
+  "Phase 2a — Beddis prelim page selection (offline, real text)",
+  () => {
+    // Guarded: the describe callback still executes during collection even when skipped,
+    // so the (gitignored, client-sensitive) fixture read must not run eagerly without them.
+    const pages = hasFixtures
+      ? PAGES.map((p) => scoredFromText(readFileSync(resolve(TEXT_DIR, `prelim-${p}.txt`), "utf8")))
+      : [];
 
-  it("selects a floor-plan page (non-null)", () => {
-    const pick = pickPrimaryFloorplan(pages);
-    // eslint-disable-next-line no-console
-    console.log(
-      "BEDDIS_PRELIM_PAGE_CLASSES=" +
-        JSON.stringify(pages.map((p, i) => ({ page: i + 1, type: p.type, score: p.score }))),
-    );
-    // eslint-disable-next-line no-console
-    console.log("BEDDIS_PRELIM_PICK=" + JSON.stringify(pick && { page: pick.index + 1, certainty: pick.certainty }));
-    expect(pick).not.toBeNull();
-  });
+    it("selects a floor-plan page (non-null)", () => {
+      const pick = pickPrimaryFloorplan(pages);
 
-  it("does NOT pick a non-plan page (elevations/legend/site)", () => {
-    const pick = pickPrimaryFloorplan(pages)!;
-    expect(["floor_plan", "dimension_floor_plan"]).toContain(pages[pick.index].pageType);
-  });
-});
+      console.log(
+        "BEDDIS_PRELIM_PAGE_CLASSES=" +
+          JSON.stringify(pages.map((p, i) => ({ page: i + 1, type: p.type, score: p.score }))),
+      );
+
+      console.log(
+        "BEDDIS_PRELIM_PICK=" +
+          JSON.stringify(pick && { page: pick.index + 1, certainty: pick.certainty }),
+      );
+      expect(pick).not.toBeNull();
+    });
+
+    it("does NOT pick a non-plan page (elevations/legend/site)", () => {
+      const pick = pickPrimaryFloorplan(pages)!;
+      expect(["floor_plan", "dimension_floor_plan"]).toContain(pages[pick.index].pageType);
+    });
+  },
+);

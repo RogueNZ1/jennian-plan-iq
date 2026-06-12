@@ -57,25 +57,54 @@ describe.skipIf(!LIVE)("LIVE — JM-0020 export faithfulness", () => {
     expect(id, "JM-0020 not found — check the job number").toBeTruthy();
     const enriched = await loadEnrichedTakeoffJson(id!);
     enrichedNull = enriched == null;
-    console.log("[live] JM-0020 enriched takeoff loaded:", !enrichedNull,
-      "openings:", enriched?.openings?.length ?? 0);
+    console.log(
+      "[live] JM-0020 enriched takeoff loaded:",
+      !enrichedNull,
+      "openings:",
+      enriched?.openings?.length ?? 0,
+    );
     const data = await buildQSExportData(id!);
     console.log("[live] takeoffSource:", data.takeoffSource);
     ws = buildDropInSheet(data);
-    loungeOpenings = (enriched?.openings ?? []).filter((o) =>
-      ["window", "slider", "garage_window"].includes(o.type) && (o.room ?? "").toLowerCase().includes("lounge"));
-    console.log("[live] lounge canonical:", loungeOpenings.map((o) => `${o.type} ${o.height_m}x${o.width_m}`));
+    loungeOpenings = (enriched?.openings ?? []).filter(
+      (o) =>
+        ["window", "slider", "garage_window"].includes(o.type) &&
+        (o.room ?? "").toLowerCase().includes("lounge"),
+    );
+    console.log(
+      "[live] lounge canonical:",
+      loungeOpenings.map((o) => `${o.type} ${o.height_m}x${o.width_m}`),
+    );
     console.log("[live] IQ lounge row 42:", cell(ws, "B42"), cell(ws, "C42"), cell(ws, "D42"));
-    console.log("[live] IQ garage row 44 + B24:", cell(ws, "B44"), cell(ws, "C44"), cell(ws, "D44"), "|", cell(ws, "B24"));
-    console.log("[live] IQ doors B27-30:", [27, 28, 29, 30].map((r) => cell(ws, `B${r}`)));
-    console.log("[live] rooms persisted:", enriched?.rooms?.length ?? 0, (enriched?.rooms ?? []).map((r) => r.label).join("|"));
+    console.log(
+      "[live] IQ garage row 44 + B24:",
+      cell(ws, "B44"),
+      cell(ws, "C44"),
+      cell(ws, "D44"),
+      "|",
+      cell(ws, "B24"),
+    );
+    console.log(
+      "[live] IQ doors B27-30:",
+      [27, 28, 29, 30].map((r) => cell(ws, `B${r}`)),
+    );
+    console.log(
+      "[live] rooms persisted:",
+      enriched?.rooms?.length ?? 0,
+      (enriched?.rooms ?? []).map((r) => r.label).join("|"),
+    );
     // SPECIFICATIONS block (report-only): proves jobs.specifications reads through
     // the live export path and the fixed-row block renders. Counts stay 0 until
     // selections are made in the app — the header must render regardless.
     const specAnswered = Object.keys(data.specifications ?? {}).length;
-    console.log("[live] specifications answered:", specAnswered,
-      "| header row 100:", String(cell(ws, "A100") ?? "").slice(0, 30),
-      "| heating B108:", cell(ws, "B108") ?? "(blank)");
+    console.log(
+      "[live] specifications answered:",
+      specAnswered,
+      "| header row 100:",
+      String(cell(ws, "A100") ?? "").slice(0, 30),
+      "| heating B108:",
+      cell(ws, "B108") ?? "(blank)",
+    );
   });
 
   it("the export runs on the ENRICHED path (loader found a real takeoff_json)", () => {
@@ -89,7 +118,8 @@ describe.skipIf(!LIVE)("LIVE — JM-0020 export faithfulness", () => {
     const groups: Array<{ qty: number; h: number; w: number }> = [];
     for (const o of loungeOpenings) {
       const g = groups.find((x) => x.h === o.height_m && x.w === o.width_m);
-      if (g) g.qty += 1; else groups.push({ qty: 1, h: o.height_m, w: o.width_m });
+      if (g) g.qty += 1;
+      else groups.push({ qty: 1, h: o.height_m, w: o.width_m });
     }
     let manual = "";
     for (let r = 47; r < 80; r++) {
@@ -123,7 +153,11 @@ describe.skipIf(!LIVE)("LIVE — Beddis export faithfulness (export === stored c
   it("every stored canonical opening is rendered, none invented (the claim MY code owns)", async () => {
     let id = await jobIdByNumber("%26001%");
     if (!id) {
-      const byName = await supabase.from("jobs").select("id, job_number").ilike("client_name", "%beddis%").limit(2);
+      const byName = await supabase
+        .from("jobs")
+        .select("id, job_number")
+        .ilike("client_name", "%beddis%")
+        .limit(2);
       if (byName.error) throw new Error(byName.error.message);
       id = byName.data?.[0]?.id ?? null;
     }
@@ -144,39 +178,80 @@ describe.skipIf(!LIVE)("LIVE — Beddis export faithfulness (export === stored c
     // total rendered === total routable. Agreement with QS ground truth stays the
     // PIPELINE's claim (stored extraction may be stale — re-run the takeoff to refresh).
     const SLOT_KEYWORDS: Array<[number, string[]]> = [
-      [33, ["bed 1", "bedroom 1", "master"]], [34, ["ensuite"]], [35, ["bed 2"]], [36, ["bed 3"]],
-      [37, ["bed 4"]], [38, ["bathroom", "bath"]], [39, ["kitchen"]],
-      [40, ["family", "living", "open plan"]], [41, ["dining"]], [42, ["lounge"]], [43, ["garage"]],
+      [33, ["bed 1", "bedroom 1", "master"]],
+      [34, ["ensuite"]],
+      [35, ["bed 2"]],
+      [36, ["bed 3"]],
+      [37, ["bed 4"]],
+      [38, ["bathroom", "bath"]],
+      [39, ["kitchen"]],
+      [40, ["family", "living", "open plan"]],
+      [41, ["dining"]],
+      [42, ["lounge"]],
+      [43, ["garage"]],
     ];
     const TOILET = ["toilet", "wc", "powder"];
     const routable = (enriched.openings ?? []).filter((o) => {
       if (!["window", "slider", "garage_window"].includes(o.type)) return false;
       const room = (o.room ?? "").toLowerCase();
       if (room.includes("laundry")) return false;
-      return SLOT_KEYWORDS.some(([, ks]) => ks.some((k) => room.includes(k))) || TOILET.some((k) => room.includes(k));
+      return (
+        SLOT_KEYWORDS.some(([, ks]) => ks.some((k) => room.includes(k))) ||
+        TOILET.some((k) => room.includes(k))
+      );
     });
-    const slotTotal = SLOT_KEYWORDS.reduce((sum, [row]) => sum + Number(cell(ws, `B${row}`) ?? 0), 0);
+    const slotTotal = SLOT_KEYWORDS.reduce(
+      (sum, [row]) => sum + Number(cell(ws, `B${row}`) ?? 0),
+      0,
+    );
     let manualText = "";
     for (let r = 47; r < 90; r++) {
       const v = (ws[`A${r}`] as { v?: unknown } | undefined)?.v;
       if (typeof v === "string") manualText += v + "\n";
     }
-    const overflowQty = [...manualText.matchAll(/: (\d+) more @/g)].reduce((s2, m) => s2 + Number(m[1]), 0);
+    const overflowQty = [...manualText.matchAll(/: (\d+) more @/g)].reduce(
+      (s2, m) => s2 + Number(m[1]),
+      0,
+    );
     const toiletLines = (manualText.match(/• Toilet window /g) ?? []).length;
-    const toiletQtyMarked = [...manualText.matchAll(/• Toilet window .*×(\d+)/g)].reduce((s2, m) => s2 + Number(m[1]) - 1, 0);
+    const toiletQtyMarked = [...manualText.matchAll(/• Toilet window .*×(\d+)/g)].reduce(
+      (s2, m) => s2 + Number(m[1]) - 1,
+      0,
+    );
     const rendered = slotTotal + overflowQty + toiletLines + toiletQtyMarked;
-    console.log("[live] Beddis routable:", routable.length, "→ slots:", slotTotal, "overflow:", overflowQty, "toilet:", toiletLines + toiletQtyMarked);
+    console.log(
+      "[live] Beddis routable:",
+      routable.length,
+      "→ slots:",
+      slotTotal,
+      "overflow:",
+      overflowQty,
+      "toilet:",
+      toiletLines + toiletQtyMarked,
+    );
     expect(rendered).toBe(routable.length);
 
     const sectionals = (enriched.openings ?? []).filter((o) => o.type === "sectional_door");
-    console.log("[live] Beddis sectionals:", sectionals.length, "→ B24:", cell(ws, "B24"), "row44 qty:", cell(ws, "B44"));
+    console.log(
+      "[live] Beddis sectionals:",
+      sectionals.length,
+      "→ B24:",
+      cell(ws, "B24"),
+      "row44 qty:",
+      cell(ws, "B44"),
+    );
     if (sectionals.length > 0) {
       expect(String(cell(ws, "B24") ?? "")).toMatch(/^\d/); // a real size string
       expect(Number(cell(ws, "B44"))).toBeGreaterThan(0);
     }
     // Report-only: stored extraction vs committed QS ground truth (pipeline freshness).
-    console.log("[live][report] bed1 row33:", cell(ws, "B33"), cell(ws, "C33"), cell(ws, "D33"),
-      "(QS ground truth: 2 windows, first 2.1h × 1.6w — mismatch ⇒ stored extraction is stale, re-run the takeoff)");
+    console.log(
+      "[live][report] bed1 row33:",
+      cell(ws, "B33"),
+      cell(ws, "C33"),
+      cell(ws, "D33"),
+      "(QS ground truth: 2 windows, first 2.1h × 1.6w — mismatch ⇒ stored extraction is stale, re-run the takeoff)",
+    );
   });
 });
 
@@ -193,10 +268,16 @@ describe.skipIf(!LIVE)("LIVE — §5.5 internal doors reach the export", () => {
     if (jobIds.length === 0) return; // nothing to validate against — report-only
     let validated = 0;
     for (const id of jobIds.slice(0, 5)) {
-      const dc = await supabase.from("door_counts").select("confirmed_at").eq("job_id", id).maybeSingle();
+      const dc = await supabase
+        .from("door_counts")
+        .select("confirmed_at")
+        .eq("job_id", id)
+        .maybeSingle();
       if (dc.data?.confirmed_at) continue; // confirmed counts legitimately override
       const data = await buildQSExportData(id);
-      console.log(`[live] job ${id}: interiorDoors=${data.interiorDoors.length} intDoorStandard=${data.intDoorStandard}`);
+      console.log(
+        `[live] job ${id}: interiorDoors=${data.interiorDoors.length} intDoorStandard=${data.intDoorStandard}`,
+      );
       expect(data.intDoorStandard).toBeGreaterThan(0);
       validated += 1;
       if (validated >= 2) break;

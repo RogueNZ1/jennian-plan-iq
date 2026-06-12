@@ -35,7 +35,10 @@ declare module "xlsx" {
   }
 
   export function read(data: Uint8Array | ArrayBuffer | string, opts?: ParsingOptions): WorkBook;
-  export function write(wb: WorkBook, opts: WritingOptions & { type: "array" }): Uint8Array<ArrayBuffer>;
+  export function write(
+    wb: WorkBook,
+    opts: WritingOptions & { type: "array" },
+  ): Uint8Array<ArrayBuffer>;
   export function write(wb: WorkBook, opts: WritingOptions): string | Uint8Array<ArrayBuffer>;
 
   export const utils: {

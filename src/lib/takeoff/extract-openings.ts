@@ -31,10 +31,12 @@ export type ExtractedOpening = {
   confidence: "high" | "mid" | "low";
 };
 
-const WIN_CTX = /(window|awning|casement|fixed|joinery|sliding\s+door|stacker|ranchslider|french\s+door|bifold)/i;
+const WIN_CTX =
+  /(window|awning|casement|fixed|joinery|sliding\s+door|stacker|ranchslider|french\s+door|bifold)/i;
 const DOOR_CTX = /(door|entry|hinged|cavity\s+slider|internal\s+door)/i;
 const GARAGE_CTX = /(garage\s+door|sectional\s+door|tilt\s+door|roller\s+door)/i;
-const ROOM_CTX = /(bed(?:room)?\s*\d?|lounge|kitchen|bathroom|ensuite|wc|laundry|dining|living|family|hall|entry|garage|study|office|pantry)/i;
+const ROOM_CTX =
+  /(bed(?:room)?\s*\d?|lounge|kitchen|bathroom|ensuite|wc|laundry|dining|living|family|hall|entry|garage|study|office|pantry)/i;
 
 const PAIR_RE = /(\d{3,5})\s*[x×]\s*(\d{3,5})/g;
 const BARE_DOOR_RE = /\b(710|760|810|860|910)\b/g;
@@ -45,7 +47,11 @@ function nearby(text: string, idx: number, len: number, pad = 60): string {
   return text.slice(a, b);
 }
 
-function classifyPair(ctx: string, w: number, h: number): { kind: OpeningKind; conf: "high" | "mid" | "low" } {
+function classifyPair(
+  ctx: string,
+  w: number,
+  h: number,
+): { kind: OpeningKind; conf: "high" | "mid" | "low" } {
   if (GARAGE_CTX.test(ctx) || (w >= 2000 && h >= 1800 && h <= 2400)) {
     return { kind: "garage_door", conf: "high" };
   }

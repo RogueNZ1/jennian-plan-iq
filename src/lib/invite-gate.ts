@@ -16,9 +16,7 @@ export const DEFAULT_INVITE_ALLOWLIST = ["haydon.christian@jennian.co.nz"];
 export type InviteGateResult = { allowed: true } | { allowed: false; reason: string };
 
 export function parseAllowlist(env: string | null | undefined): string[] {
-  const raw = env?.trim()
-    ? env.split(",")
-    : DEFAULT_INVITE_ALLOWLIST;
+  const raw = env?.trim() ? env.split(",") : DEFAULT_INVITE_ALLOWLIST;
   return raw.map((e) => e.trim().toLowerCase()).filter(Boolean);
 }
 

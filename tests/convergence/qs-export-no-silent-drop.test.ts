@@ -28,42 +28,96 @@ function manualText(ws: ReturnType<typeof buildDropInSheet>): string {
 
 function base(over: Partial<QSExportData> = {}): QSExportData {
   return {
-    jobNumber: "JM-0027", clientName: "Test Client", address: "Full Test",
-    templateId: null, createdAt: "", floorAreaM2: 199, perimeterLm: 80,
-    firstFloorAreaM2: null, studHeightMm: 2400, alfrescoAreaM2: 1.1,
-    roofPitch: null, ridgeType: null, underlay: null, claddingType1: null, claddingType2: null,
-    windows: [], garageDoors: [], interiorDoors: [], downpipes: [], heatPumps: [],
-    extras: [], skylights: [], clientFirstName: "Test", clientSurname: "Client",
-    streetAddress: "1 Test St", addressLine2: null, city: "Feilding",
-    email: null, phone: null, jmwNumber: "JM-0027", planVersion: "1",
-    exteriorWallLengthLm: 80, exteriorWallHeightM: 2.4,
-    pathsPatioM2: null, drivewayM2: null, windowsByRoom: {},
-    downpipesWhite: 0, downpipesColourSteel: 0, downpipesPvcColoured: 0,
-    garageDoor48x21Std: 0, garageDoor48x21Insulated: 0,
-    garageDoor24x21Std: 0, garageDoor24x21Insulated: 0,
-    garageDoor27x21Std: 0, garageDoor27x21Insulated: 0,
-    intDoorStandard: 0, intDoorUGroove: 0, intDoorVGroove: 0,
-    intDoorBarnSlider: 0, intDoorDouble: 0, intDoorCavitySlider: 0,
-    ceilingHatch: 0, atticStair: 0, letterboxUrban: 0, washingLine: 0,
-    heatPumpWallUnit: 0, heatPumpDucted: 0, specItems: {},
+    jobNumber: "JM-0027",
+    clientName: "Test Client",
+    address: "Full Test",
+    templateId: null,
+    createdAt: "",
+    floorAreaM2: 199,
+    perimeterLm: 80,
+    firstFloorAreaM2: null,
+    studHeightMm: 2400,
+    alfrescoAreaM2: 1.1,
+    roofPitch: null,
+    ridgeType: null,
+    underlay: null,
+    claddingType1: null,
+    claddingType2: null,
+    windows: [],
+    garageDoors: [],
+    interiorDoors: [],
+    downpipes: [],
+    heatPumps: [],
+    extras: [],
+    skylights: [],
+    clientFirstName: "Test",
+    clientSurname: "Client",
+    streetAddress: "1 Test St",
+    addressLine2: null,
+    city: "Feilding",
+    email: null,
+    phone: null,
+    jmwNumber: "JM-0027",
+    planVersion: "1",
+    exteriorWallLengthLm: 80,
+    exteriorWallHeightM: 2.4,
+    pathsPatioM2: null,
+    drivewayM2: null,
+    windowsByRoom: {},
+    downpipesWhite: 0,
+    downpipesColourSteel: 0,
+    downpipesPvcColoured: 0,
+    garageDoor48x21Std: 0,
+    garageDoor48x21Insulated: 0,
+    garageDoor24x21Std: 0,
+    garageDoor24x21Insulated: 0,
+    garageDoor27x21Std: 0,
+    garageDoor27x21Insulated: 0,
+    intDoorStandard: 0,
+    intDoorUGroove: 0,
+    intDoorVGroove: 0,
+    intDoorBarnSlider: 0,
+    intDoorDouble: 0,
+    intDoorCavitySlider: 0,
+    ceilingHatch: 0,
+    atticStair: 0,
+    letterboxUrban: 0,
+    washingLine: 0,
+    heatPumpWallUnit: 0,
+    heatPumpDucted: 0,
+    specItems: {},
     openings: null,
     ...over,
   };
 }
 
 function op(type: Opening["type"], room: string | null, h: number, w: number): Opening {
-  return { type, room, height_m: h, width_m: w, glazed: type !== "sectional_door",
-           cladding: null, area_m2: h * w, source: "vision", confidence: "medium" };
+  return {
+    type,
+    room,
+    height_m: h,
+    width_m: w,
+    glazed: type !== "sectional_door",
+    cladding: null,
+    area_m2: h * w,
+    source: "vision",
+    confidence: "medium",
+  };
 }
 
 /** JM-0027 stored shape: 13 vision windows, 7 of which had no slot pre-fix. */
 const JM0027_OPENINGS: Opening[] = [
-  op("window", "Bed 1 (Master)", 0.6, 1.5), op("window", "Bed 1 (Master)", 0.6, 1.5),
-  op("window", "Ensuite", 1.52, 2.01),      op("window", "Ensuite", 1.52, 2.01),
+  op("window", "Bed 1 (Master)", 0.6, 1.5),
+  op("window", "Bed 1 (Master)", 0.6, 1.5),
+  op("window", "Ensuite", 1.52, 2.01),
+  op("window", "Ensuite", 1.52, 2.01),
   op("window", "Bed 4", 1.35, 0.9),
-  op("window", "Media", 1.8, 0.9), op("window", "Media", 1.8, 0.9),
-  op("window", "Media", 1.8, 0.9), op("window", "Media", 1.8, 0.9),
-  op("window", "Bedroom", 1.2, 0.9), op("window", "Bedroom", 1.2, 0.9),
+  op("window", "Media", 1.8, 0.9),
+  op("window", "Media", 1.8, 0.9),
+  op("window", "Media", 1.8, 0.9),
+  op("window", "Media", 1.8, 0.9),
+  op("window", "Bedroom", 1.2, 0.9),
+  op("window", "Bedroom", 1.2, 0.9),
   op("window", "Laundry", 1.1, 0.6),
   op("garage_window", "Garage", 0.6, 0.6),
 ];
@@ -107,10 +161,12 @@ describe("export never silently drops a window (JM-0027 regression)", () => {
 });
 
 describe("JM-0029 regression: weak extraction is shown, not zeroed", () => {
-  const ws = buildDropInSheet(base({
-    jobNumber: "JM-0029",
-    openings: [op("window", "Unknown", 1.0, 0.51), op("window", "Unknown", 1.0, 0.51)],
-  }));
+  const ws = buildDropInSheet(
+    base({
+      jobNumber: "JM-0029",
+      openings: [op("window", "Unknown", 1.0, 0.51), op("window", "Unknown", 1.0, 0.51)],
+    }),
+  );
 
   it("B15 shows 2 (pre-fix it showed 0)", () => {
     expect(cellVal(ws, "B15")).toBe(2);

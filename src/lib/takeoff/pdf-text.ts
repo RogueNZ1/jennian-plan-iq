@@ -59,7 +59,8 @@ export function pageLongEdgeMm(p: ExtractedPage): number {
 
 async function readPdfBytes(storagePath: string): Promise<ArrayBuffer> {
   const { data, error } = await supabase.storage.from("job-files").download(storagePath);
-  if (error || !data) throw new Error(`Could not download ${storagePath}: ${error?.message ?? "no data"}`);
+  if (error || !data)
+    throw new Error(`Could not download ${storagePath}: ${error?.message ?? "no data"}`);
   return await data.arrayBuffer();
 }
 
@@ -105,9 +106,14 @@ export async function extractFile(args: {
   };
 }
 
-export async function loadJobFiles(jobId: string): Promise<Array<{
-  id: string; file_name: string; file_type: "plan" | "specification"; storage_url: string;
-}>> {
+export async function loadJobFiles(jobId: string): Promise<
+  Array<{
+    id: string;
+    file_name: string;
+    file_type: "plan" | "specification";
+    storage_url: string;
+  }>
+> {
   const { data, error } = await supabase
     .from("uploaded_files")
     .select("id, file_name, file_type, storage_url")
@@ -115,6 +121,9 @@ export async function loadJobFiles(jobId: string): Promise<Array<{
     .order("uploaded_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as Array<{
-    id: string; file_name: string; file_type: "plan" | "specification"; storage_url: string;
+    id: string;
+    file_name: string;
+    file_type: "plan" | "specification";
+    storage_url: string;
   }>;
 }

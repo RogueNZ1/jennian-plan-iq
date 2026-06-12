@@ -28,7 +28,9 @@ const CTX: PlanContext = {
   perimeterM: null,
 };
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("extractAnnotations — fail-loud (F-014)", () => {
   it("throws (does not return EMPTY_ANNOTATIONS) when the AI call fails", async () => {
@@ -42,13 +44,21 @@ describe("extractAnnotations — fail-loud (F-014)", () => {
   });
 
   it("returns parsed annotations on a normal response", async () => {
-    mockVision().mockResolvedValue(JSON.stringify({
-      openingAnnotations: [{ text: "1300x1800", nearestRoomLabel: "BED 1", nearOpening: true }],
-      roomLabels: ["BED 1"],
-      areaSummary: { livingAreaM2: 136.3, garageAreaM2: null, alfrescoAreaM2: null, coverageAreaM2: null, perimeterM: 54.8 },
-      garageDoorAnnotations: [],
-      internalDoorAnnotations: [],
-    }));
+    mockVision().mockResolvedValue(
+      JSON.stringify({
+        openingAnnotations: [{ text: "1300x1800", nearestRoomLabel: "BED 1", nearOpening: true }],
+        roomLabels: ["BED 1"],
+        areaSummary: {
+          livingAreaM2: 136.3,
+          garageAreaM2: null,
+          alfrescoAreaM2: null,
+          coverageAreaM2: null,
+          perimeterM: 54.8,
+        },
+        garageDoorAnnotations: [],
+        internalDoorAnnotations: [],
+      }),
+    );
     const out = await extractAnnotations("fake-b64", CTX);
     expect(out.openingAnnotations).toHaveLength(1);
     expect(out.openingAnnotations[0].text).toBe("1300x1800");

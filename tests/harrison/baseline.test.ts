@@ -38,7 +38,10 @@ import {
   type ScoredPage,
 } from "../../src/lib/pdf-page-classify";
 import { aggregateWindows, applyWindowAggregate } from "../../src/lib/takeoff/aggregate-windows";
-import { resolveGeometryPageIndex, reconcileGeometryPage } from "../../src/lib/takeoff/page-of-truth";
+import {
+  resolveGeometryPageIndex,
+  reconcileGeometryPage,
+} from "../../src/lib/takeoff/page-of-truth";
 import {
   preferVectorGarage,
   preferVectorOpenings,
@@ -59,6 +62,7 @@ const RUN = !!process.env.HARRISON_LIVE;
 
 const TRUTH = JSON.parse(readFileSync(resolve(DIR, "ground-truth.json"), "utf8")).truth as Record<
   string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdf.js/Supabase boundary types are deliberately loose here
   any
 >;
 
@@ -70,7 +74,10 @@ async function geometry(pdf: string, page?: number) {
   form.append("file", new Blob([new Uint8Array(buf)], { type: "application/pdf" }), pdf);
   // Phase 3 — pin geometry to the AI-classified floor-plan page (0-based) when provided,
   // mirroring upload.tsx's measurePlanGeometry(planFile, name, geometryPageIndex).
-  const url = page != null && page >= 0 ? `${GEOMETRY_BASE}/measure?page=${page}` : `${GEOMETRY_BASE}/measure`;
+  const url =
+    page != null && page >= 0
+      ? `${GEOMETRY_BASE}/measure?page=${page}`
+      : `${GEOMETRY_BASE}/measure`;
   const res = await fetch(url, { method: "POST", body: form });
   if (!res.ok) throw new Error(`geometry ${res.status}: ${(await res.text()).slice(0, 200)}`);
   return await res.json();
@@ -102,6 +109,7 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
   beforeAll(() => loadEnvLocal());
 
   it("runs the full pipeline on concept rev 4 and dumps a scorecard", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdf.js/Supabase boundary types are deliberately loose here
     const out: any = { generatedAt: new Date().toISOString(), concept: {} };
 
     // ── CONCEPT rev 4: 6-page set. Pass 0 on every page, then production page
@@ -138,10 +146,16 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     // plan. Now pin geometry to the AI-classified floor-plan page and record the
     // reconciliation (requested page vs geometry's page_used). Fetched here (before the
     // takeoff seam) so the Phase 4 vector_annotations feed the garage override.
-    const conceptGeomPage = resolveGeometryPageIndex(pick ? pick.index : null, pages.map((n) => ({ pageNumber: n })));
+    const conceptGeomPage = resolveGeometryPageIndex(
+      pick ? pick.index : null,
+      pages.map((n) => ({ pageNumber: n })),
+    );
     out.concept.geometry = await geometry("concept.pdf", conceptGeomPage);
     out.concept.geometry_page_requested = conceptGeomPage ?? null;
-    out.concept.page_reconciliation = reconcileGeometryPage(conceptGeomPage, out.concept.geometry.page_used);
+    out.concept.page_reconciliation = reconcileGeometryPage(
+      conceptGeomPage,
+      out.concept.geometry.page_used,
+    );
     const conceptVector = out.concept.geometry.vector_annotations;
     out.concept.vector_annotations = conceptVector ?? null;
 
@@ -173,7 +187,10 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
       // F-022 — capture the VISION window count before preferVectorOpenings overrides it.
       const visionWindowCount = finalTakeoff.window_count;
       finalTakeoff = preferVectorOpenings(finalTakeoff, conceptVector);
-      out.concept.opening_widths = resolveOpeningWidths(visionOpeningWidthsMm(finalTakeoff), conceptVector);
+      out.concept.opening_widths = resolveOpeningWidths(
+        visionOpeningWidthsMm(finalTakeoff),
+        conceptVector,
+      );
 
       // ── Phase 4, Slice 3: fold the ASSERTED entrance door into the opening set. Harrison
       // prints "Frame to Frame 1430" near the entry/porch label, so the engine reads WIDTH
@@ -243,16 +260,39 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     // since the QS, not any plan's printed number, is truth and some values are AI-read).
     const t = out.concept.takeoff;
     out.concept.scorecard = t && {
-      floor_area_m2: { got: t.floor_area_m2, truth: TRUTH.floor_area_m2, delta: delta(t.floor_area_m2, TRUTH.floor_area_m2) },
+      floor_area_m2: {
+        got: t.floor_area_m2,
+        truth: TRUTH.floor_area_m2,
+        delta: delta(t.floor_area_m2, TRUTH.floor_area_m2),
+      },
       external_wall_lm: { got: t.external_wall_lm, truth_perimeter_m: TRUTH.perimeter_m },
       // Derived (Phase 2d). ext wall area = perimeter × stud − openings (QS D21);
       // total area = floor + alfresco (QS D14). Reported with deltas — inherits the
       // opening/alfresco extraction, so not hard-asserted to the QS figure.
-      external_wall_area_m2: { got: t.external_wall_area_m2 ?? null, truth: TRUTH.external_wall_area_m2, delta: delta(t.external_wall_area_m2 ?? null, TRUTH.external_wall_area_m2) },
-      total_area_m2: { got: t.total_area_m2 ?? null, truth: TRUTH.total_area_m2, delta: delta(t.total_area_m2 ?? null, TRUTH.total_area_m2) },
-      window_count: { got: t.window_count, truth_plan_callouts: TRUTH.window_count_plan_callouts, windows_proper: TRUTH.windows_proper_count },
-      garage_door_size: { got: t.garage_door_size, truth: `${TRUTH.garage_door.width_m}×${TRUTH.garage_door.height_m}` },
-      internal_door_count: { got: t.internal_door_count, truth_standard: TRUTH.interior_doors.standard, note: "plan may show doubles (2/710, 2/610); QS simplified to 7/0/0 — report, do not tune" },
+      external_wall_area_m2: {
+        got: t.external_wall_area_m2 ?? null,
+        truth: TRUTH.external_wall_area_m2,
+        delta: delta(t.external_wall_area_m2 ?? null, TRUTH.external_wall_area_m2),
+      },
+      total_area_m2: {
+        got: t.total_area_m2 ?? null,
+        truth: TRUTH.total_area_m2,
+        delta: delta(t.total_area_m2 ?? null, TRUTH.total_area_m2),
+      },
+      window_count: {
+        got: t.window_count,
+        truth_plan_callouts: TRUTH.window_count_plan_callouts,
+        windows_proper: TRUTH.windows_proper_count,
+      },
+      garage_door_size: {
+        got: t.garage_door_size,
+        truth: `${TRUTH.garage_door.width_m}×${TRUTH.garage_door.height_m}`,
+      },
+      internal_door_count: {
+        got: t.internal_door_count,
+        truth_standard: TRUTH.interior_doors.standard,
+        note: "plan may show doubles (2/710, 2/610); QS simplified to 7/0/0 — report, do not tune",
+      },
     };
 
     // ── SECONDARY (report-only): earlier 08.12.25 revision, run only if present.
@@ -314,7 +354,9 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     expect(out.concept.vector_annotations.openings.datum_mm).toBeGreaterThanOrEqual(1500);
     expect(out.concept.vector_annotations.openings.widths_raw.length).toBeGreaterThan(0);
     // Window count is the vector-preferred floor-plan W-code count.
-    expect(out.concept.takeoff.window_count).toBe(out.concept.vector_annotations.openings.window_count);
+    expect(out.concept.takeoff.window_count).toBe(
+      out.concept.vector_annotations.openings.window_count,
+    );
     expect(out.concept.window_source).toBe("floor_plan_callouts"); // source label unchanged
     expect(out.concept.opening_widths.source).toBe("vector");
     expect(out.concept.opening_widths.preferred_vector).toBe(true);
@@ -332,7 +374,10 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     // → not flagged, proving the gate is material-only, not noise.
     expect(out.concept.vision_garage_size).toBe("2.7×2.1");
     expect(out.concept.reconciliation).not.toBeNull();
-    const recGarage = out.concept.reconciliation.fields.find((f: any) => f.field === "garage_door_width");
+    const recGarage = out.concept.reconciliation.fields.find(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdf.js/Supabase boundary types are deliberately loose here
+      (f: any) => f.field === "garage_door_width",
+    );
     expect(recGarage.status).toBe("disagree");
     expect(recGarage.visionValue).toBe(2700);
     expect(recGarage.vectorValue).toBe(4800);
@@ -343,7 +388,10 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     // Signal-only: the disagreement did NOT change the resolved value — vector still wins.
     expect(out.concept.takeoff.garage_door_size).toBe("4.8×2.1");
     // The window count agreed across paths (15 vs 14, within tolerance) → no false flag.
-    expect(out.concept.reconciliation.fields.find((f: any) => f.field === "window_count").status).toBe("agree");
+    expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdf.js/Supabase boundary types are deliberately loose here
+      out.concept.reconciliation.fields.find((f: any) => f.field === "window_count").status,
+    ).toBe("agree");
 
     // ── Phase 4, Slice 3 definition of done (asserted entrance — printed width) ─
     // Harrison annotates "Frame to Frame 1430" near the entry/porch label, so the engine
@@ -358,15 +406,22 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     expect(out.concept.vector_annotations.entrance.width_source).toBe("vector_text");
     // Folded into the opening set as 1.43 wide × 2.1 high.
     expect(out.concept.entrance).toEqual({ qty: 1, height_m: 2.1, width_m: 1.43 });
-    expect(out.concept.takeoff.windows_by_room.entrance).toEqual({ qty: 1, height_m: 2.1, width_m: 1.43 });
+    expect(out.concept.takeoff.windows_by_room.entrance).toEqual({
+      qty: 1,
+      height_m: 2.1,
+      width_m: 1.43,
+    });
     // Honesty rails: height flagged assumed-standard; the width is CREDITED to the printed
     // frame-to-frame dimension (not flagged as assumed); the entry door is counted in the opening area.
     expect(out.concept.takeoff.notes).toContain("height assumed standard 2.1m");
-    expect(out.concept.takeoff.notes).toContain("width 1.43m read from the printed frame-to-frame dimension");
+    expect(out.concept.takeoff.notes).toContain(
+      "width 1.43m read from the printed frame-to-frame dimension",
+    );
     expect(out.concept.takeoff.notes).toContain("counted in the opening area");
     // Single-source (vision reads no entry door) → the entrance width cross-check is
     // uncheckable, never a false flag — even though a printed width exists on the vector side.
     const recEntrance = out.concept.reconciliation.fields.find(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdf.js/Supabase boundary types are deliberately loose here
       (f: any) => f.field === "entrance_door_width",
     );
     expect(recEntrance.status).toBe("uncheckable");

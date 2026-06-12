@@ -34,7 +34,13 @@ import {
   type ScheduleSafeguardResult,
 } from "./vector-annotations";
 import { aggregateWindows, applyWindowAggregate } from "./aggregate-windows";
-import { deriveOpenings, deriveOpeningTotals, foldSymbolOpenings, foldScheduleEntrance, computeExternalWallAreaM2 } from "./derive-fields";
+import {
+  deriveOpenings,
+  deriveOpeningTotals,
+  foldSymbolOpenings,
+  foldScheduleEntrance,
+  computeExternalWallAreaM2,
+} from "./derive-fields";
 import {
   reconcileVectorVision,
   type ReconciliationReport,
@@ -241,7 +247,9 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   // glazed_sqm / total_opening_sqm / the ext-wall deduction all include it (counted once).
   // Strictly gated OFF when symbol_openings fired (route-2 already added the entrance) → no
   // double-count; foldScheduleEntrance's own dedup is a further backstop.
-  const hasSymbolOpenings = !!(vectorAnnotations?.symbol_openings && vectorAnnotations.symbol_openings.length > 0);
+  const hasSymbolOpenings = !!(
+    vectorAnnotations?.symbol_openings && vectorAnnotations.symbol_openings.length > 0
+  );
   const composedOpenings = hasSymbolOpenings
     ? folded.openings
     : foldScheduleEntrance(folded.openings, vectorAnnotations?.entrance);
@@ -254,7 +262,11 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   // jobs with neither fold keep their existing ext-wall value untouched.
   const composedExtWallAreaM2 =
     composedOpenings !== baseOpenings && composedOpeningTotals.total_opening_sqm != null
-      ? computeExternalWallAreaM2(t.external_wall_lm, t.ceiling_height_m, composedOpeningTotals.total_opening_sqm)
+      ? computeExternalWallAreaM2(
+          t.external_wall_lm,
+          t.ceiling_height_m,
+          composedOpeningTotals.total_opening_sqm,
+        )
       : t.external_wall_area_m2;
   const reconFlag = (field: string): string | null =>
     reconciliation.fields.find((f) => f.field === field)?.flag ?? null;
@@ -325,7 +337,11 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       // Route 2 — the sectional callout reconciles the garage size (e.g. fixes a garbled vision
       // read); composedGarageDoorSize == t.garage_door_size when no sectional callout applied.
       composedGarageDoorSize,
-      composedGarageDoorSize !== t.garage_door_size ? "vector" : garageChanged ? "vector" : "vision",
+      composedGarageDoorSize !== t.garage_door_size
+        ? "vector"
+        : garageChanged
+          ? "vector"
+          : "vision",
       reconConf(reconStatusOf("garage_door_width")),
       flagsFor(
         reconFlag("garage_door_width"),

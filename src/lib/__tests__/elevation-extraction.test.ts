@@ -9,10 +9,10 @@ import type { ElevationData } from "../takeoff/extract-elevations";
 // (verified against the PDF: brick + Linea, 25° metal tiles, 4 faces)
 const russellStExpected: ElevationData = {
   claddingTypes: expect.arrayContaining(["brick"]) as unknown as string[],
-  claddingTypeCode: 3,          // mixed: brick + Linea
+  claddingTypeCode: 3, // mixed: brick + Linea
   roofType: expect.stringContaining("tile") as unknown as string,
   roofPitchDegrees: 25,
-  wallHeightMm: null,           // may or may not appear on this elevation sheet
+  wallHeightMm: null, // may or may not appear on this elevation sheet
   studHeightMm: null,
   facesPresent: expect.arrayContaining([expect.any(String)]) as unknown as string[],
   windowCountPerFace: expect.any(Object) as unknown as Record<string, number>,
@@ -87,7 +87,12 @@ describe("ElevationData structure", () => {
       wallHeightMm: 2400,
       studHeightMm: null,
       facesPresent: ["North Western", "South Western", "North Eastern", "South Eastern"],
-      windowCountPerFace: { "North Western": 3, "South Western": 2, "North Eastern": 2, "South Eastern": 1 },
+      windowCountPerFace: {
+        "North Western": 3,
+        "South Western": 2,
+        "North Eastern": 2,
+        "South Eastern": 1,
+      },
       externalDoorCount: 2,
       gableEndCount: 2,
       garageDoorsPresent: true,
@@ -124,7 +129,12 @@ describe("ElevationData structure", () => {
       roofPitchDegrees: 25,
       wallHeightMm: null,
       studHeightMm: null,
-      facesPresent: ["North Western Elevation", "South Western Elevation", "North Eastern Elevation", "South Eastern Elevation"],
+      facesPresent: [
+        "North Western Elevation",
+        "South Western Elevation",
+        "North Eastern Elevation",
+        "South Eastern Elevation",
+      ],
       windowCountPerFace: {
         "North Western Elevation": 3,
         "South Western Elevation": 2,

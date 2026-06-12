@@ -18,7 +18,10 @@ const MAX_ATTEMPTS = 3; // 1 initial attempt + up to 2 retries
 const RETRY_BASE_MS = 500;
 
 class TransientApiError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
     super(message);
     this.name = "TransientApiError";
   }
@@ -104,10 +107,17 @@ async function callVisionModelOnce(
     throw new Error(`Anthropic API error ${res.status}: ${text.slice(0, 200)}`);
   }
 
-  const json = await res.json() as { content?: Array<{ type: string; text?: string }> };
-  const content = json.content?.filter((b) => b.type === "text").map((b) => b.text ?? "").join("") ?? "";
+  const json = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+  const content =
+    json.content
+      ?.filter((b) => b.type === "text")
+      .map((b) => b.text ?? "")
+      .join("") ?? "";
   if (!content) {
-    console.error("[callVisionModel] Empty response. Full body:", JSON.stringify(json).slice(0, 500));
+    console.error(
+      "[callVisionModel] Empty response. Full body:",
+      JSON.stringify(json).slice(0, 500),
+    );
     return "";
   }
   return content;
@@ -118,9 +128,8 @@ function extractJson(text: string): string {
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
   if (start !== -1 && end > start) cleaned = cleaned.slice(start, end + 1);
-  cleaned = cleaned
-    .replace(/,(\s*[}\]])/g, "$1")
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+  // eslint-disable-next-line no-control-regex -- deliberate control-character sanitizer for AI JSON output
+  cleaned = cleaned.replace(/,(\s*[}\]])/g, "$1").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
   return cleaned;
 }
 
@@ -131,13 +140,25 @@ function tryRepairTruncatedJson(text: string): string | null {
   let escape = false;
   for (let i = 0; i < s.length; i++) {
     const ch = s[i];
-    if (escape) { escape = false; continue; }
-    if (ch === "\\") { escape = true; continue; }
-    if (ch === '"') { inString = !inString; continue; }
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
     if (inString) continue;
     if (ch === "{" || ch === "[") stack.push(ch);
-    else if (ch === "}") { if (stack[stack.length - 1] === "{") stack.pop(); }
-    else if (ch === "]") { if (stack[stack.length - 1] === "[") stack.pop(); }
+    else if (ch === "}") {
+      if (stack[stack.length - 1] === "{") stack.pop();
+    } else if (ch === "]") {
+      if (stack[stack.length - 1] === "[") stack.pop();
+    }
   }
   if (inString) s += '"';
   s = s.replace(/,\s*$/, "");
@@ -145,14 +166,27 @@ function tryRepairTruncatedJson(text: string): string | null {
     const open = stack.pop();
     s += open === "{" ? "}" : "]";
   }
-  try { JSON.parse(s); return s; } catch { return null; }
+  try {
+    JSON.parse(s);
+    return s;
+  } catch {
+    return null;
+  }
 }
 
 export function safeParseJson<T>(raw: string): T | null {
   const cleaned = extractJson(raw);
-  try { return JSON.parse(cleaned) as T; } catch {
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
     const repaired = tryRepairTruncatedJson(cleaned);
-    if (repaired) { try { return JSON.parse(repaired) as T; } catch { /* fall through */ } }
+    if (repaired) {
+      try {
+        return JSON.parse(repaired) as T;
+      } catch {
+        /* fall through */
+      }
+    }
     return null;
   }
 }

@@ -3,14 +3,30 @@ import { useEffect, useState } from "react";
 import { AppLayout, PageHeader } from "@/components/jennian/AppLayout";
 import { Breadcrumbs } from "@/components/jennian/Breadcrumbs";
 import {
-  buildQSExportData, writeIQDataSheetFull, buildElectricalSchedule, dropInSheetToTSV,
-  type QSExportData, type ElectricalSchedule,
+  buildQSExportData,
+  writeIQDataSheetFull,
+  buildElectricalSchedule,
+  dropInSheetToTSV,
+  type QSExportData,
+  type ElectricalSchedule,
 } from "@/lib/iq-qs-export";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
-  FileSpreadsheet, Ruler, Mountain, Square, Zap, Droplets,
-  Hammer, PaintRoller, DoorOpen, ArrowLeft, AlertTriangle, ClipboardCopy, Printer } from "lucide-react";
+  FileSpreadsheet,
+  Ruler,
+  Mountain,
+  Square,
+  Zap,
+  Droplets,
+  Hammer,
+  PaintRoller,
+  DoorOpen,
+  ArrowLeft,
+  AlertTriangle,
+  ClipboardCopy,
+  Printer,
+} from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
@@ -23,7 +39,11 @@ function fmt(v: number | null | undefined, unit = ""): string {
   return `${v.toLocaleString("en-NZ", { maximumFractionDigits: 2 })}${unit ? " " + unit : ""}`;
 }
 
-function SectionCard({ icon: Icon, title, children }: {
+function SectionCard({
+  icon: Icon,
+  title,
+  children,
+}: {
   icon: React.ElementType;
   title: string;
   children: React.ReactNode;
@@ -82,7 +102,9 @@ function QuickExport() {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [jobId]);
 
   async function handleExportExcel() {
@@ -97,7 +119,9 @@ function QuickExport() {
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url; a.download = filename; a.click();
+      a.href = url;
+      a.download = filename;
+      a.click();
       URL.revokeObjectURL(url);
       toast.success(`Downloaded ${filename}`);
     } catch (err) {
@@ -123,17 +147,21 @@ function QuickExport() {
 
   const job = data;
 
-  const surname = job ? (job.clientSurname || job.clientName.split(" ").pop() || "Client") : "";
-  const filename = job ? `${job.jmwNumber || job.jobNumber}-IQ-Data-${surname}.xlsx` : "IQ-Data.xlsx";
+  const surname = job ? job.clientSurname || job.clientName.split(" ").pop() || "Client" : "";
+  const filename = job
+    ? `${job.jmwNumber || job.jobNumber}-IQ-Data-${surname}.xlsx`
+    : "IQ-Data.xlsx";
 
   return (
     <AppLayout>
       <div className="px-8 py-8 max-w-5xl">
-        <Breadcrumbs items={[
-          { label: "Jobs", to: "/jobs" },
-          { label: job?.jmwNumber ?? jobId, to: "/jobs/$jobId", params: { jobId } },
-          { label: "Quick Export" },
-        ]} />
+        <Breadcrumbs
+          items={[
+            { label: "Jobs", to: "/jobs" },
+            { label: job?.jmwNumber ?? jobId, to: "/jobs/$jobId", params: { jobId } },
+            { label: "Quick Export" },
+          ]}
+        />
 
         <PageHeader
           title="Quick Export"
@@ -177,7 +205,9 @@ function QuickExport() {
         />
 
         {loading && (
-          <div className="py-12 text-center text-[13px] text-muted-foreground">Loading quantities…</div>
+          <div className="py-12 text-center text-[13px] text-muted-foreground">
+            Loading quantities…
+          </div>
         )}
 
         {error && (
@@ -188,7 +218,6 @@ function QuickExport() {
 
         {!loading && !error && data && (
           <div className="grid gap-4 mt-2">
-
             {/* Convergence Slice 6 — confidence / review notes from the enriched takeoff.
                 Shown only when the persisted takeoff_json carried per-field flags; absent for
                 pre-convergence (relational) jobs, so those render exactly as before. */}
@@ -219,7 +248,10 @@ function QuickExport() {
             <SectionCard icon={Ruler} title="Core Measurements">
               <Row label="Floor Area" value={fmt(data.floorAreaM2, "m²")} />
               <Row label="Perimeter" value={fmt(data.perimeterLm, "lm")} />
-              <Row label="Stud Height" value={data.studHeightMm ? fmt(data.studHeightMm, "mm") : "—"} />
+              <Row
+                label="Stud Height"
+                value={data.studHeightMm ? fmt(data.studHeightMm, "mm") : "—"}
+              />
               <Row label="Roof Pitch" value={data.roofPitch ?? "—"} />
               <Row label="Alfresco / Deck Area" value={fmt(data.alfrescoAreaM2, "m²")} />
               <Row label="First Floor Area" value={fmt(data.firstFloorAreaM2, "m²")} />
@@ -240,18 +272,26 @@ function QuickExport() {
                       <th className="pb-2 font-semibold text-muted-foreground">Type</th>
                       <th className="pb-2 font-semibold text-muted-foreground">Room</th>
                       <th className="pb-2 font-semibold text-muted-foreground text-right">Qty</th>
-                      <th className="pb-2 font-semibold text-muted-foreground text-right">H (mm)</th>
-                      <th className="pb-2 font-semibold text-muted-foreground text-right">W (mm)</th>
+                      <th className="pb-2 font-semibold text-muted-foreground text-right">
+                        H (mm)
+                      </th>
+                      <th className="pb-2 font-semibold text-muted-foreground text-right">
+                        W (mm)
+                      </th>
                       <th className="pb-2 font-semibold text-muted-foreground">Notes</th>
                     </tr>
                   </thead>
                   <tbody>
                     {openings.map((o) => (
                       <tr key={o.id} className="border-b border-border/40 last:border-0">
-                        <td className="py-1.5 pr-3 capitalize">{o.opening_type.replace(/_/g, " ")}</td>
+                        <td className="py-1.5 pr-3 capitalize">
+                          {o.opening_type.replace(/_/g, " ")}
+                        </td>
                         <td className="py-1.5 pr-3">{o.room_name ?? "—"}</td>
                         <td className="py-1.5 pr-3 text-right tabular-nums">{o.quantity}</td>
-                        <td className="py-1.5 pr-3 text-right tabular-nums">{o.height_mm ?? "—"}</td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">
+                          {o.height_mm ?? "—"}
+                        </td>
                         <td className="py-1.5 pr-3 text-right tabular-nums">{o.width_mm}</td>
                         <td className="py-1.5">{o.notes ?? "—"}</td>
                       </tr>
@@ -302,13 +342,15 @@ function QuickExport() {
                     <Row label="Cladding Type 2" value={data.claddingType2 ?? "—"} />
                     {claddingItems.length === 0 ? (
                       <EmptyNote text="No detailed cladding area data extracted yet." />
-                    ) : claddingItems.map((i) => (
-                      <Row
-                        key={i.id}
-                        label={i.label ?? ""}
-                        value={i.approved_value ?? i.extracted_value ?? "—"}
-                      />
-                    ))}
+                    ) : (
+                      claddingItems.map((i) => (
+                        <Row
+                          key={i.id}
+                          label={i.label ?? ""}
+                          value={i.approved_value ?? i.extracted_value ?? "—"}
+                        />
+                      ))
+                    )}
                   </>
                 );
               })()}
@@ -327,11 +369,18 @@ function QuickExport() {
                     ] as const
                   ).map(({ label, items: eitems }) => (
                     <div key={label}>
-                      <div className="text-[11px] uppercase tracking-widest text-muted-foreground mb-1">{label}</div>
+                      <div className="text-[11px] uppercase tracking-widest text-muted-foreground mb-1">
+                        {label}
+                      </div>
                       {eitems.map((item, idx) => (
-                        <div key={idx} className="flex items-center justify-between py-1 border-b border-border/40 last:border-0">
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between py-1 border-b border-border/40 last:border-0"
+                        >
                           <span className="text-[12px]">{item.description}</span>
-                          <span className="text-[12px] font-medium tabular-nums">{item.qty} {item.unit}</span>
+                          <span className="text-[12px] font-medium tabular-nums">
+                            {item.qty} {item.unit}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -339,7 +388,10 @@ function QuickExport() {
                   <div className="pt-2 border-t border-border flex justify-between">
                     <span className="text-[12px] font-semibold">Total Estimate (excl. GST)</span>
                     <span className="text-[12px] font-semibold tabular-nums">
-                      ${electrical.totalEstimate.toLocaleString("en-NZ", { maximumFractionDigits: 0 })}
+                      $
+                      {electrical.totalEstimate.toLocaleString("en-NZ", {
+                        maximumFractionDigits: 0,
+                      })}
                     </span>
                   </div>
                 </div>
@@ -353,7 +405,9 @@ function QuickExport() {
               {(() => {
                 const plumbingItems = getItemsByModule("iq-plumbing");
                 if (plumbingItems.length === 0) {
-                  return <EmptyNote text="No plumbing data extracted yet — run a takeoff with a specification document." />;
+                  return (
+                    <EmptyNote text="No plumbing data extracted yet — run a takeoff with a specification document." />
+                  );
                 }
                 return plumbingItems.map((i) => (
                   <Row
@@ -372,7 +426,10 @@ function QuickExport() {
                 if (framingItems.length === 0) {
                   return (
                     <>
-                      <Row label="Exterior Wall Length" value={fmt(data.exteriorWallLengthLm, "lm")} />
+                      <Row
+                        label="Exterior Wall Length"
+                        value={fmt(data.exteriorWallLengthLm, "lm")}
+                      />
                       <EmptyNote text="No detailed framing data extracted yet." />
                     </>
                   );
@@ -403,7 +460,6 @@ function QuickExport() {
                 ));
               })()}
             </SectionCard>
-
           </div>
         )}
       </div>

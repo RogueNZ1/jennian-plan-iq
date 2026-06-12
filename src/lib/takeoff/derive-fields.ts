@@ -34,7 +34,10 @@ export const ASSUMED_WIDTH_FLAG = "width assumed 1.0m — confirm against plan";
  * applies ASSUMED_OPENING_WIDTH_M ONLY for a genuinely missing width (null/≤0). `assumed`
  * tells the caller to attach ASSUMED_WIDTH_FLAG. Never overwrites a real width.
  */
-function resolveOpeningWidthM(widthM: number | null | undefined): { width_m: number; assumed: boolean } {
+function resolveOpeningWidthM(widthM: number | null | undefined): {
+  width_m: number;
+  assumed: boolean;
+} {
   if (widthM != null && widthM > 0) return { width_m: widthM, assumed: false };
   return { width_m: ASSUMED_OPENING_WIDTH_M, assumed: true };
 }
@@ -229,7 +232,11 @@ const ENTRY_ROOM_RE = /entr|entry|foyer|porch/i;
 /** Title-case + strip punctuation from a vector room label ("DINING" → "Dining"). */
 function normRoomLabel(label?: string): string | null {
   if (!label) return null;
-  const cleaned = label.replace(/[^A-Za-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+  const cleaned = label
+    .replace(/[^A-Za-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
   if (!cleaned) return null;
   return cleaned.replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -339,7 +346,8 @@ export function foldSymbolOpenings(
   //  - any existing entrance-room opening (vision typed it "window") when a callout entry exists.
   const kept = openings.filter((o) => {
     if (hasSectional && o.type === "sectional_door") return false;
-    if (hasEntrance && o.type !== "sectional_door" && ENTRY_ROOM_RE.test(o.room ?? "")) return false;
+    if (hasEntrance && o.type !== "sectional_door" && ENTRY_ROOM_RE.test(o.room ?? ""))
+      return false;
     return true;
   });
 
@@ -379,8 +387,9 @@ export function foldScheduleEntrance(
   vectorEntrance: VectorEntrance | null | undefined,
 ): Opening[] {
   if (!vectorEntrance) return openings;
-  const alreadyHasEntry =
-    openings.some((o) => o.type === "entrance" || ENTRY_ROOM_RE.test(o.room ?? ""));
+  const alreadyHasEntry = openings.some(
+    (o) => o.type === "entrance" || ENTRY_ROOM_RE.test(o.room ?? ""),
+  );
   if (alreadyHasEntry) return openings;
   return [...openings, entranceFallbackOpening(vectorEntrance)];
 }

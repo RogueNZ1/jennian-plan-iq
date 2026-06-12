@@ -34,8 +34,7 @@ export type VisionWindow = {
   source_evidence: string;
 };
 
-export type VisionDoorType =
-  | "internal" | "external" | "sliding" | "garage" | "robe" | "unknown";
+export type VisionDoorType = "internal" | "external" | "sliding" | "garage" | "robe" | "unknown";
 
 export type VisionDoor = {
   type: VisionDoorType;
@@ -69,8 +68,15 @@ export type VisionRoofing = {
 
 export type VisionPageResult = {
   page_type:
-    | "dimension_floorplan" | "floorplan" | "site_plan" | "elevations"
-    | "sections" | "roof_plan" | "electrical_plan" | "plumbing_plan" | "unknown";
+    | "dimension_floorplan"
+    | "floorplan"
+    | "site_plan"
+    | "elevations"
+    | "sections"
+    | "roof_plan"
+    | "electrical_plan"
+    | "plumbing_plan"
+    | "unknown";
   scale_text: string | null;
   scale_confidence: VisionConfidence;
   area_box: VisionAreaBox;

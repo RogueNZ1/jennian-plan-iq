@@ -82,11 +82,13 @@ describe("cladding engine — fail-safe: missing inputs flag, never guess", () =
   });
 
   it("zero-dim openings contribute nothing (junk-proof)", () => {
-    const r = computeCladding({ ...HOUSE, openings: [...HOUSE.openings, { height_m: 0, width_m: 1.2 }] });
+    const r = computeCladding({
+      ...HOUSE,
+      openings: [...HOUSE.openings, { height_m: 0, width_m: 1.2 }],
+    });
     expect(r.glazingDeductionM2).toBe(21.9);
   });
 });
-
 
 describe("V1.1 — measured gable span flows from geometry to the engine", () => {
   it("span present: gable area computes; the envelope assumption is a visible verify-note", async () => {
@@ -94,8 +96,13 @@ describe("V1.1 — measured gable span flows from geometry to the engine", () =>
     // minimal inline data via the engine's own contract — adapter-level test lives in dropin suite
     const { computeCladding } = await import("../../src/lib/cladding/cladding-engine");
     const r = computeCladding({
-      perimeterLm: 52, studHeightM: 2.4, roofPitchDeg: 25,
-      gableEndCount: 2, gableSpanM: 10, openings: [], claddingTypes: ["Brick Veneer"],
+      perimeterLm: 52,
+      studHeightM: 2.4,
+      roofPitchDeg: 25,
+      gableEndCount: 2,
+      gableSpanM: 10,
+      openings: [],
+      claddingTypes: ["Brick Veneer"],
     });
     expect(r.gableAreaM2).toBe(23.32);
     expect(r.flags).toEqual([]);

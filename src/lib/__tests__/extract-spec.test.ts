@@ -51,7 +51,9 @@ Plan Version: 1
       fileId: "f1",
       fileName: "JMW25025_Dixon_Bean_Stage_Loads.xlsx",
       fileType: "specification",
-      pages: [{ pageNumber: 1, text: "Some content", widthPts: 595, heightPts: 842, pageSize: "A4" }],
+      pages: [
+        { pageNumber: 1, text: "Some content", widthPts: 595, heightPts: 842, pageSize: "A4" },
+      ],
     };
     const header = extractJobHeaderFromFile(file);
     expect(header.jmwNumber).toBe("JMW25025");

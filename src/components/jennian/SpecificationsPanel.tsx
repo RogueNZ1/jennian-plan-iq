@@ -78,7 +78,6 @@ function SpecRow({
   );
 }
 
-
 /**
  * SpecificationsPicker — CONTROLLED spec selector (no persistence).
  * Used by the upload wizard to capture meeting specs BEFORE the job row exists;
@@ -139,7 +138,12 @@ export function SpecificationsPicker({
             </div>
             <div>
               {specs.map((sp) => (
-                <SpecRow key={sp.id} spec={sp} value={answers[sp.id]} onSelect={(c) => select(sp, c)} />
+                <SpecRow
+                  key={sp.id}
+                  spec={sp}
+                  value={answers[sp.id]}
+                  onSelect={(c) => select(sp, c)}
+                />
               ))}
             </div>
           </div>

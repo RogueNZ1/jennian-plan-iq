@@ -94,7 +94,7 @@ export const DEFAULT_CONFIG: DoorEngineConfig = {
   scale: 100,
   wardrobeDoublesRouting: "doors",
   leafMinMm: 450,
-  leafMaxMm: 920,  // wider leaves (1030 entry) are entrance doors -> glazing
+  leafMaxMm: 920, // wider leaves (1030 entry) are entrance doors -> glazing
   doubleMinMm: 1150,
   doubleMaxMm: 2100,
 };
@@ -105,8 +105,7 @@ const PT_PER_MM = 72 / 25.4;
 /** real-world mm → drawn pdf points at the given scale */
 const mmToPt = (mm: number, scale: number) => (mm / scale) * PT_PER_MM;
 const ptToMm = (pt: number, scale: number) => (pt / PT_PER_MM) * scale;
-const dist = (ax: number, ay: number, bx: number, by: number) =>
-  Math.hypot(ax - bx, ay - by);
+const dist = (ax: number, ay: number, bx: number, by: number) => Math.hypot(ax - bx, ay - by);
 
 // ── Arc recovery: circle-fit polylines (Kåsa fit) ──────────────────────────
 
@@ -117,19 +116,31 @@ function fitCircle(pts: Pt[]): { cx: number; cy: number; r: number; res: number 
   if (n < 4) return null;
   const mx = pts.reduce((s, p) => s + p.x, 0) / n;
   const my = pts.reduce((s, p) => s + p.y, 0) / n;
-  let Suu = 0, Svv = 0, Suv = 0, Suuu = 0, Svvv = 0, Suvv = 0, Svuu = 0;
+  let Suu = 0,
+    Svv = 0,
+    Suv = 0,
+    Suuu = 0,
+    Svvv = 0,
+    Suvv = 0,
+    Svuu = 0;
   for (const p of pts) {
-    const u = p.x - mx, v = p.y - my;
-    Suu += u * u; Svv += v * v; Suv += u * v;
-    Suuu += u * u * u; Svvv += v * v * v;
-    Suvv += u * v * v; Svuu += v * u * u;
+    const u = p.x - mx,
+      v = p.y - my;
+    Suu += u * u;
+    Svv += v * v;
+    Suv += u * v;
+    Suuu += u * u * u;
+    Svvv += v * v * v;
+    Suvv += u * v * v;
+    Svuu += v * u * u;
   }
   const det = 2 * (Suu * Svv - Suv * Suv);
   if (Math.abs(det) < 1e-9) return null;
   const uc = (Svv * (Suuu + Suvv) - Suv * (Svvv + Svuu)) / det;
   const vc = (Suu * (Svvv + Svuu) - Suv * (Suuu + Suvv)) / det;
   const r = Math.sqrt(uc * uc + vc * vc + (Suu + Svv) / n);
-  const cx = uc + mx, cy = vc + my;
+  const cx = uc + mx,
+    cy = vc + my;
   const res = pts.reduce((s, p) => s + Math.abs(dist(p.x, p.y, cx, cy) - r), 0) / n;
   return { cx, cy, r, res };
 }
@@ -140,10 +151,7 @@ function fitCircle(pts: Pt[]): { cx: number; cy: number; r: number; res: number 
  * segments corrupts fits with neighbouring geometry (hatching, leaf lines).
  * Path structure is preserved by the adapter; each subpath is fit directly.
  */
-export function recoverArcs(
-  polylines: Pt[][],
-  cfg: DoorEngineConfig
-): Arc[] {
+export function recoverArcs(polylines: Pt[][], cfg: DoorEngineConfig): Arc[] {
   const rMin = mmToPt(cfg.leafMinMm, cfg.scale) * 0.88;
   const rMax = mmToPt(cfg.leafMaxMm, cfg.scale) * 1.12;
   const arcs: Arc[] = [];
@@ -152,7 +160,10 @@ export function recoverArcs(
     // reject if any individual segment is long (straight runs aren't arcs)
     let longSeg = false;
     for (let i = 1; i < chain.length; i++)
-      if (dist(chain[i - 1].x, chain[i - 1].y, chain[i].x, chain[i].y) > 8) { longSeg = true; break; }
+      if (dist(chain[i - 1].x, chain[i - 1].y, chain[i].x, chain[i].y) > 8) {
+        longSeg = true;
+        break;
+      }
     if (longSeg) continue;
     const f = fitCircle(chain);
     if (!f) continue;
@@ -169,7 +180,13 @@ export function recoverArcs(
   for (const a of arcs) {
     const c = clustered.find((c) => dist(c.x, c.y, a.x, a.y) < 12 && Math.abs(c.r - a.r) < 2.5);
     if (c) {
-      if (a.nPts > c.nPts) { c.x = a.x; c.y = a.y; c.r = a.r; c.nPts = a.nPts; c.span = a.span; }
+      if (a.nPts > c.nPts) {
+        c.x = a.x;
+        c.y = a.y;
+        c.r = a.r;
+        c.nPts = a.nPts;
+        c.span = a.span;
+      }
     } else clustered.push({ ...a });
   }
   return clustered;
@@ -177,7 +194,13 @@ export function recoverArcs(
 
 // ── Label parsing ──────────────────────────────────────────────────────────
 
-type WidthLabel = { mm: number; x: number; y: number; vertical: boolean; kind: "single" | "double" };
+type WidthLabel = {
+  mm: number;
+  x: number;
+  y: number;
+  vertical: boolean;
+  kind: "single" | "double";
+};
 
 /**
  * Standalone numeric width labels only. "1 300x1 500" (windows, WxH) and
@@ -211,14 +234,22 @@ export function extractWidthLabels(labels: TextLabel[], cfg: DoorEngineConfig): 
 // >= 2 crossings -> interior. Furniture only ever adds crossings on interior
 // sides, so it cannot create a false exterior.
 
-export type InteriorTest = (x: number, y: number, vertical: boolean) => "interior" | "exterior" | "ambiguous";
+export type InteriorTest = (
+  x: number,
+  y: number,
+  vertical: boolean,
+) => "interior" | "exterior" | "ambiguous";
 
-export function envelopeInteriorTest(segments: Segment[], page: { width: number; height: number }): InteriorTest {
+export function envelopeInteriorTest(
+  segments: Segment[],
+  page: { width: number; height: number },
+): InteriorTest {
   const LONG = 25;
   const horizAll: Segment[] = [];
   const vertAll: Segment[] = [];
   for (const s of segments) {
-    const dx = Math.abs(s.x1 - s.x0), dy = Math.abs(s.y1 - s.y0);
+    const dx = Math.abs(s.x1 - s.x0),
+      dy = Math.abs(s.y1 - s.y0);
     const len = Math.hypot(dx, dy);
     if (len < LONG) continue;
     if (dy < dx * 0.5) horizAll.push(s);
@@ -227,11 +258,11 @@ export function envelopeInteriorTest(segments: Segment[], page: { width: number;
   // a segment only counts as a wall face if it has a parallel partner 1.5–6.5pt
   // away with real along-axis overlap — dimension lines and leaders are solitary
   const paired = (list: Segment[], isVert: boolean): Segment[] =>
-    list.filter(s => {
+    list.filter((s) => {
       const off = isVert ? (s.x0 + s.x1) / 2 : (s.y0 + s.y1) / 2;
       const lo = isVert ? Math.min(s.y0, s.y1) : Math.min(s.x0, s.x1);
       const hi = isVert ? Math.max(s.y0, s.y1) : Math.max(s.x0, s.x1);
-      return list.some(o => {
+      return list.some((o) => {
         if (o === s) return false;
         const ooff = isVert ? (o.x0 + o.x1) / 2 : (o.y0 + o.y1) / 2;
         const d = Math.abs(ooff - off);
@@ -247,7 +278,8 @@ export function envelopeInteriorTest(segments: Segment[], page: { width: number;
     // horizontal ray: crosses long VERTICAL segments
     let n = 0;
     for (const s of vert) {
-      const sy0 = Math.min(s.y0, s.y1), sy1 = Math.max(s.y0, s.y1);
+      const sy0 = Math.min(s.y0, s.y1),
+        sy1 = Math.max(s.y0, s.y1);
       if (y < sy0 - 1 || y > sy1 + 1) continue;
       const sx = (s.x0 + s.x1) / 2;
       if (dir === 1 ? sx > x + 2 : sx < x - 2) n++;
@@ -257,7 +289,8 @@ export function envelopeInteriorTest(segments: Segment[], page: { width: number;
   const crossingsV = (x: number, y: number, dir: 1 | -1) => {
     let n = 0;
     for (const s of horiz) {
-      const sx0 = Math.min(s.x0, s.x1), sx1 = Math.max(s.x0, s.x1);
+      const sx0 = Math.min(s.x0, s.x1),
+        sx1 = Math.max(s.x0, s.x1);
       if (x < sx0 - 1 || x > sx1 + 1) continue;
       const sy = (s.y0 + s.y1) / 2;
       if (dir === 1 ? sy > y + 2 : sy < y - 2) n++;
@@ -283,14 +316,18 @@ export function envelopeInteriorTest(segments: Segment[], page: { width: number;
 
 export function hasWallGap(
   segments: Segment[],
-  x: number, y: number, vertical: boolean,
-  widthPt: number
+  x: number,
+  y: number,
+  vertical: boolean,
+  widthPt: number,
 ): boolean {
-  const PERP_MAX = 9, MIN_LEN = 9;
+  const PERP_MAX = 9,
+    MIN_LEN = 9;
   type Span = { lo: number; hi: number; off: number };
   const spans: Span[] = [];
   for (const s of segments) {
-    const sdx = s.x1 - s.x0, sdy = s.y1 - s.y0;
+    const sdx = s.x1 - s.x0,
+      sdy = s.y1 - s.y0;
     const len = Math.hypot(sdx, sdy);
     if (len < MIN_LEN) continue;
     const segVertical = Math.abs(sdy) > Math.abs(sdx) * 2.5;
@@ -299,15 +336,16 @@ export function hasWallGap(
     if (!vertical && !segHorizontal) continue;
     const off = vertical ? (s.x0 + s.x1) / 2 - x : (s.y0 + s.y1) / 2 - y;
     if (Math.abs(off) > PERP_MAX) continue;
-    const a = vertical ? s.y0 : s.x0, b = vertical ? s.y1 : s.x1;
+    const a = vertical ? s.y0 : s.x0,
+      b = vertical ? s.y1 : s.x1;
     spans.push({ lo: Math.min(a, b), hi: Math.max(a, b), off });
   }
   const pos = vertical ? y : x;
-  const tol = Math.max(0.30 * widthPt, 4);
+  const tol = Math.max(0.3 * widthPt, 4);
   // a face row at offset `o` has the gap if a span ends before the label and
   // another begins after it, separated by ~widthPt
   const rowHasGap = (o: number): boolean => {
-    const row = spans.filter(sp => Math.abs(sp.off - o) < 1.1);
+    const row = spans.filter((sp) => Math.abs(sp.off - o) < 1.1);
     for (const s1 of row) {
       if (s1.hi > pos) continue;
       for (const s2 of row) {
@@ -317,11 +355,10 @@ export function hasWallGap(
     }
     return false;
   };
-  const offsets = [...new Set(spans.map(sp => Math.round(sp.off * 2) / 2))];
+  const offsets = [...new Set(spans.map((sp) => Math.round(sp.off * 2) / 2))];
   for (const o of offsets) if (rowHasGap(o)) return true;
   return false;
 }
-
 
 // ── Opening evidence for no-arc candidates ─────────────────────────────────
 //
@@ -334,14 +371,17 @@ export function hasWallGap(
 //          (slider leaf, pocket lines, or drawn-closed double leaves)
 export function openingEvidence(
   segments: Segment[],
-  x: number, y: number, vertical: boolean,
-  widthPt: number
+  x: number,
+  y: number,
+  vertical: boolean,
+  widthPt: number,
 ): { stub: boolean; leaf: boolean } {
   const PERP_MAX = 9;
   const pos = vertical ? y : x;
   let stub = false;
   for (const s of segments) {
-    const sdx = s.x1 - s.x0, sdy = s.y1 - s.y0;
+    const sdx = s.x1 - s.x0,
+      sdy = s.y1 - s.y0;
     const len = Math.hypot(sdx, sdy);
     if (len < 6) continue;
     const segVertical = Math.abs(sdy) > Math.abs(sdx) * 2.5;
@@ -350,27 +390,40 @@ export function openingEvidence(
     if (!vertical && !segHorizontal) continue;
     const off = vertical ? (s.x0 + s.x1) / 2 - x : (s.y0 + s.y1) / 2 - y;
     if (Math.abs(off) > PERP_MAX) continue;
-    const a = vertical ? s.y0 : s.x0, b = vertical ? s.y1 : s.x1;
-    const lo = Math.min(a, b), hi = Math.max(a, b);
+    const a = vertical ? s.y0 : s.x0,
+      b = vertical ? s.y1 : s.x1;
+    const lo = Math.min(a, b),
+      hi = Math.max(a, b);
     for (const end of [lo, hi]) {
       const d = Math.abs(end - pos);
-      if (d >= 0.30 * widthPt && d <= 1.20 * widthPt) { stub = true; break; }
+      if (d >= 0.3 * widthPt && d <= 1.2 * widthPt) {
+        stub = true;
+        break;
+      }
     }
     if (stub) break;
   }
   // leaf zone: along ±0.65w, perp ±6.5pt around the label
   let leaf = false;
-  const ALONG = 0.65 * widthPt, PERP = 6.5;
+  const ALONG = 0.65 * widthPt,
+    PERP = 6.5;
   for (const s of segments) {
-    const sdx = s.x1 - s.x0, sdy = s.y1 - s.y0;
+    const sdx = s.x1 - s.x0,
+      sdy = s.y1 - s.y0;
     const len = Math.hypot(sdx, sdy);
     if (len < 4 || len > 1.2 * widthPt) continue;
-    const parallel = vertical ? Math.abs(sdy) > Math.abs(sdx) * 1.8 : Math.abs(sdx) > Math.abs(sdy) * 1.8;
+    const parallel = vertical
+      ? Math.abs(sdy) > Math.abs(sdx) * 1.8
+      : Math.abs(sdx) > Math.abs(sdy) * 1.8;
     if (!parallel) continue;
-    const mx = (s.x0 + s.x1) / 2, my = (s.y0 + s.y1) / 2;
+    const mx = (s.x0 + s.x1) / 2,
+      my = (s.y0 + s.y1) / 2;
     const along = vertical ? Math.abs(my - y) : Math.abs(mx - x);
     const perp = vertical ? Math.abs(mx - x) : Math.abs(my - y);
-    if (along < ALONG && perp < PERP) { leaf = true; break; }
+    if (along < ALONG && perp < PERP) {
+      leaf = true;
+      break;
+    }
   }
   return { stub, leaf };
 }
@@ -380,7 +433,7 @@ export function openingEvidence(
 export function detectInteriorDoors(
   geom: PageGeometry,
   cfg: DoorEngineConfig = DEFAULT_CONFIG,
-  interiorTest?: InteriorTest
+  interiorTest?: InteriorTest,
 ): DoorEngineResult {
   const widthLabels = extractWidthLabels(geom.labels, cfg);
   const arcs = recoverArcs(geom.polylines, cfg);
@@ -401,16 +454,26 @@ export function detectInteriorDoors(
     if (wl.kind === "single") {
       // nearest unused arc whose radius matches this leaf width
       const nominalR = mmToPt(wl.mm, cfg.scale);
-      let best: Arc | null = null, bestD = Infinity;
+      let best: Arc | null = null,
+        bestD = Infinity;
       for (const a of arcs) {
         if (usedArcs.has(a)) continue;
         const d = dist(a.x, a.y, wl.x, wl.y);
-        if (d < bestD && d < PAIR_DIST && Math.abs(a.r - nominalR) < 4.5) { best = a; bestD = d; }
+        if (d < bestD && d < PAIR_DIST && Math.abs(a.r - nominalR) < 4.5) {
+          best = a;
+          bestD = d;
+        }
       }
-      if (best && (bestD < 18 || hasWallGap(geom.segments, wl.x, wl.y, wl.vertical, mmToPt(wl.mm, cfg.scale)))) {
+      if (
+        best &&
+        (bestD < 18 || hasWallGap(geom.segments, wl.x, wl.y, wl.vertical, mmToPt(wl.mm, cfg.scale)))
+      ) {
         usedArcs.add(best);
         const hit: DoorHit = {
-          type: "hinged", widthMm: wl.mm, x: best.x, y: best.y,
+          type: "hinged",
+          widthMm: wl.mm,
+          x: best.x,
+          y: best.y,
           arcMm: Math.round(ptToMm(best.r, cfg.scale)),
           confidence: side === "interior" ? "confirmed" : "flag",
           note: side === "ambiguous" ? "interior/exterior ambiguous — verify" : undefined,
@@ -419,12 +482,24 @@ export function detectInteriorDoors(
       } else if (!best) {
         // single width, no arc → cavity slider candidate, but only with real
         // opening evidence — interior annotations have neither stub nor leaf.
-        const ev = openingEvidence(geom.segments, wl.x, wl.y, wl.vertical, mmToPt(wl.mm, cfg.scale));
+        const ev = openingEvidence(
+          geom.segments,
+          wl.x,
+          wl.y,
+          wl.vertical,
+          mmToPt(wl.mm, cfg.scale),
+        );
         if (!ev.stub || !ev.leaf) continue;
         const hit: DoorHit = {
-          type: "cavity", widthMm: wl.mm, x: wl.x, y: wl.y,
+          type: "cavity",
+          widthMm: wl.mm,
+          x: wl.x,
+          y: wl.y,
           confidence: side === "interior" ? "confirmed" : "flag",
-          note: side === "ambiguous" ? "no swing arc; verify slider vs opening" : "no swing arc — slider",
+          note:
+            side === "ambiguous"
+              ? "no swing arc; verify slider vs opening"
+              : "no swing arc — slider",
         };
         (hit.confidence === "confirmed" ? cavity : flags).push(hit);
       }
@@ -434,7 +509,10 @@ export function detectInteriorDoors(
       const ev = openingEvidence(geom.segments, wl.x, wl.y, wl.vertical, mmToPt(wl.mm, cfg.scale));
       if (!ev.stub) continue;
       const hit: DoorHit = {
-        type: "double", widthMm: wl.mm, x: wl.x, y: wl.y,
+        type: "double",
+        widthMm: wl.mm,
+        x: wl.x,
+        y: wl.y,
         confidence: side === "interior" ? "confirmed" : "flag",
         note: side === "ambiguous" ? "interior/exterior ambiguous — verify" : undefined,
       };
@@ -443,7 +521,10 @@ export function detectInteriorDoors(
   }
 
   return {
-    hinged, doubles, cavity, flags,
+    hinged,
+    doubles,
+    cavity,
+    flags,
     counts: {
       singles: hinged.length,
       doubles: cfg.wardrobeDoublesRouting === "doors" ? doubles.length : 0,

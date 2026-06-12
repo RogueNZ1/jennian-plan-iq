@@ -2,12 +2,22 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { AppLayout, PageHeader, ConfidencePill } from "@/components/jennian/AppLayout";
 import { Breadcrumbs } from "@/components/jennian/Breadcrumbs";
 import {
-  IQ_MODULES, findIQModule,
-  loadModuleRun, updateModuleItem, markModuleReviewed,
-  approveModule, recalculateModule, exportModuleCsv,
+  IQ_MODULES,
+  findIQModule,
+  loadModuleRun,
+  updateModuleItem,
+  markModuleReviewed,
+  approveModule,
+  recalculateModule,
+  exportModuleCsv,
   manualOverrideApprovedValue,
-  REVIEW_STATUS_LABEL, statusLabel, statusBadgeClass,
-  type IQModuleId, type ItemReviewStatus, type ModuleItem, type ModuleRun,
+  REVIEW_STATUS_LABEL,
+  statusLabel,
+  statusBadgeClass,
+  type IQModuleId,
+  type ItemReviewStatus,
+  type ModuleItem,
+  type ModuleRun,
 } from "@/lib/iq-modules";
 import { getJob, type Job } from "@/lib/jennian-data";
 import { useAuth } from "@/hooks/use-auth";
@@ -15,21 +25,35 @@ import { useRoles } from "@/hooks/use-roles";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { OverrideReasonDialog } from "@/components/jennian/OverrideReasonDialog";
 import {
-  ArrowLeft, ClipboardCheck, CheckCircle2, FileSpreadsheet, RotateCcw, Info,
+  ArrowLeft,
+  ClipboardCheck,
+  CheckCircle2,
+  FileSpreadsheet,
+  RotateCcw,
+  Info,
 } from "lucide-react";
 
 type ProvenanceSource = "calibrated_geometry" | "ai_annotation" | "ai_inferred" | "manual_override";
 
 const PROVENANCE_META: Record<ProvenanceSource, { label: string; className: string }> = {
-  calibrated_geometry: { label: "Measured",  className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  ai_annotation:       { label: "Read",      className: "bg-blue-50 text-blue-700 border-blue-200" },
-  ai_inferred:         { label: "Inferred",  className: "bg-amber-50 text-amber-700 border-amber-200" },
-  manual_override:     { label: "Manual",    className: "bg-purple-50 text-purple-700 border-purple-200" },
+  calibrated_geometry: {
+    label: "Measured",
+    className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  },
+  ai_annotation: { label: "Read", className: "bg-blue-50 text-blue-700 border-blue-200" },
+  ai_inferred: { label: "Inferred", className: "bg-amber-50 text-amber-700 border-amber-200" },
+  manual_override: { label: "Manual", className: "bg-purple-50 text-purple-700 border-purple-200" },
 };
 
 function ProvenanceBadge({ source }: { source: string | null | undefined }) {
@@ -37,7 +61,9 @@ function ProvenanceBadge({ source }: { source: string | null | undefined }) {
   const meta = PROVENANCE_META[source as ProvenanceSource];
   if (!meta) return null;
   return (
-    <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9.5px] font-medium ${meta.className}`}>
+    <span
+      className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9.5px] font-medium ${meta.className}`}
+    >
       {meta.label}
     </span>
   );
@@ -67,7 +93,10 @@ function ModuleDetail() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<null | "recalculate" | "approve" | "review" | "export">(null);
   const [showRecalc, setShowRecalc] = useState(false);
-  const [overrideTarget, setOverrideTarget] = useState<{ item: ModuleItem; newValue: string } | null>(null);
+  const [overrideTarget, setOverrideTarget] = useState<{
+    item: ModuleItem;
+    newValue: string;
+  } | null>(null);
   const [overrideTick, setOverrideTick] = useState(0);
 
   const isPhase2 = mod ? PHASE2.has(mod.id) : false;
@@ -94,8 +123,14 @@ function ModuleDetail() {
   }
 
   useEffect(() => {
-    if (!jobId) { setJob(null); setLoading(false); return; }
-    getJob(jobId).then(setJob).catch(() => setJob(null));
+    if (!jobId) {
+      setJob(null);
+      setLoading(false);
+      return;
+    }
+    getJob(jobId)
+      .then(setJob)
+      .catch(() => setJob(null));
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId, moduleId]);
@@ -126,7 +161,9 @@ function ModuleDetail() {
       await refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not approve module.");
-    } finally { setBusy(null); }
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function onMarkReviewed() {
@@ -138,7 +175,9 @@ function ModuleDetail() {
       await refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not update module.");
-    } finally { setBusy(null); }
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function onRecalculate() {
@@ -151,7 +190,9 @@ function ModuleDetail() {
       await refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not recalculate.");
-    } finally { setBusy(null); }
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function onExport() {
@@ -162,7 +203,9 @@ function ModuleDetail() {
       toast.success("Module CSV exported.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not export.");
-    } finally { setBusy(null); }
+    } finally {
+      setBusy(null);
+    }
   }
 
   if (!mod) {
@@ -170,7 +213,9 @@ function ModuleDetail() {
       <AppLayout>
         <div className="px-8 py-10">
           <div className="text-sm">Module not found.</div>
-          <Link to="/jobs" className="mt-3 inline-block text-xs text-primary hover:underline">Back to Jobs</Link>
+          <Link to="/jobs" className="mt-3 inline-block text-xs text-primary hover:underline">
+            Back to Jobs
+          </Link>
         </div>
       </AppLayout>
     );
@@ -181,11 +226,19 @@ function ModuleDetail() {
       <AppLayout>
         <div className="px-8 py-10 max-w-2xl">
           <Breadcrumbs items={[{ label: "Jobs", to: "/jobs" }, { label: mod.name }]} />
-          <PageHeader title={mod.name} subtitle="Open this module from a job to load saved quantities." />
+          <PageHeader
+            title={mod.name}
+            subtitle="Open this module from a job to load saved quantities."
+          />
           <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
             Select a job to view {mod.name}.
             <div className="mt-4">
-              <Link to="/jobs" className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">Browse jobs</Link>
+              <Link
+                to="/jobs"
+                className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+              >
+                Browse jobs
+              </Link>
             </div>
           </div>
         </div>
@@ -200,18 +253,22 @@ function ModuleDetail() {
   return (
     <AppLayout>
       <div className="px-8 py-8 max-w-7xl">
-        <Breadcrumbs items={[
-          { label: "Jobs", to: "/jobs" },
-          { label: job?.job_number ?? "Job", to: "/jobs/$jobId", params: { jobId } },
-          { label: mod.name },
-        ]} />
+        <Breadcrumbs
+          items={[
+            { label: "Jobs", to: "/jobs" },
+            { label: job?.job_number ?? "Job", to: "/jobs/$jobId", params: { jobId } },
+            { label: mod.name },
+          ]}
+        />
 
         <PageHeader
           title={mod.name}
           subtitle={mod.longDescription}
           actions={
             <div className="flex items-center gap-2">
-              <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium ${statusBadgeClass(status)}`}>
+              <span
+                className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium ${statusBadgeClass(status)}`}
+              >
                 {statusLabel(status)}
               </span>
               {isCore ? (
@@ -249,7 +306,8 @@ function ModuleDetail() {
                       disabled={busy !== null || status === "approved"}
                       className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-60"
                     >
-                      <CheckCircle2 className="h-4 w-4" /> {status === "approved" ? "Approved" : "Approve Module"}
+                      <CheckCircle2 className="h-4 w-4" />{" "}
+                      {status === "approved" ? "Approved" : "Approve Module"}
                     </button>
                   )}
                   {canExport && (
@@ -302,8 +360,8 @@ function ModuleDetail() {
           </div>
         ) : isPhase2 ? (
           <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
-            This module is read-only in Phase 1. No editable quantities, manual
-            overrides, push targets, or exports are available yet.
+            This module is read-only in Phase 1. No editable quantities, manual overrides, push
+            targets, or exports are available yet.
           </div>
         ) : (
           <div className="rounded-lg border border-border bg-card overflow-hidden">
@@ -311,8 +369,11 @@ function ModuleDetail() {
               <div>
                 <div className="text-[13px] font-semibold tracking-tight">Reviewed items</div>
                 <div className="text-[11px] text-muted-foreground mt-0.5">
-                  {lastRunAt ? `Last reviewed ${new Date(lastRunAt).toLocaleString()}` : "Not yet reviewed"}
-                  {" · "}{approvedCount}/{items.length} confirmed
+                  {lastRunAt
+                    ? `Last reviewed ${new Date(lastRunAt).toLocaleString()}`
+                    : "Not yet reviewed"}
+                  {" · "}
+                  {approvedCount}/{items.length} confirmed
                 </div>
               </div>
               {run?.approved_at && (
@@ -339,10 +400,24 @@ function ModuleDetail() {
                 </thead>
                 <tbody>
                   {loading && (
-                    <tr><td colSpan={9} className="px-5 py-8 text-center text-xs text-muted-foreground">Loading…</td></tr>
+                    <tr>
+                      <td
+                        colSpan={9}
+                        className="px-5 py-8 text-center text-xs text-muted-foreground"
+                      >
+                        Loading…
+                      </td>
+                    </tr>
                   )}
                   {!loading && items.length === 0 && (
-                    <tr><td colSpan={9} className="px-5 py-8 text-center text-xs text-muted-foreground">No items.</td></tr>
+                    <tr>
+                      <td
+                        colSpan={9}
+                        className="px-5 py-8 text-center text-xs text-muted-foreground"
+                      >
+                        No items.
+                      </td>
+                    </tr>
                   )}
                   {items.map((it) => (
                     <tr key={it.id} className="border-t border-border align-top">
@@ -352,20 +427,23 @@ function ModuleDetail() {
                       <td className="px-5 py-3">
                         <ProvenanceBadge source={it.source} />
                         {!it.source && (it.data_source || it.source_evidence) && (
-                          <span className="text-[10px] text-muted-foreground">{it.data_source ?? "—"}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {it.data_source ?? "—"}
+                          </span>
                         )}
                       </td>
                       <td className="px-5 py-3 tabular-nums text-muted-foreground">
                         <div className="flex items-center gap-1.5">
                           <span>{it.extracted_value}</span>
-                          {it.review_status === "review_required" && (it.measurement_id || it.opening_id) && (
-                            <span
-                              title={`Source: ${it.data_source ?? "Measured From Plan"}${it.plan_page_number ? ` · page ${it.plan_page_number}` : ""}${it.source_evidence ? ` · ${it.source_evidence}` : ""}. Review before approval.`}
-                              className="inline-flex items-center rounded-full border border-confidence-mid/40 bg-confidence-mid/10 px-1.5 py-0.5 text-[9.5px] font-medium text-confidence-mid"
-                            >
-                              Stale
-                            </span>
-                          )}
+                          {it.review_status === "review_required" &&
+                            (it.measurement_id || it.opening_id) && (
+                              <span
+                                title={`Source: ${it.data_source ?? "Measured From Plan"}${it.plan_page_number ? ` · page ${it.plan_page_number}` : ""}${it.source_evidence ? ` · ${it.source_evidence}` : ""}. Review before approval.`}
+                                className="inline-flex items-center rounded-full border border-confidence-mid/40 bg-confidence-mid/10 px-1.5 py-0.5 text-[9.5px] font-medium text-confidence-mid"
+                              >
+                                Stale
+                              </span>
+                            )}
                         </div>
                         {(it.data_source || it.source_evidence || it.plan_page_number) && (
                           <div className="mt-0.5 text-[10px] text-muted-foreground/80">
@@ -395,20 +473,26 @@ function ModuleDetail() {
                         <select
                           value={it.confidence ?? "mid"}
                           disabled={!canEdit}
-                          onChange={(e) => patchItem(it, { confidence: e.target.value as Confidence })}
+                          onChange={(e) =>
+                            patchItem(it, { confidence: e.target.value as Confidence })
+                          }
                           className="rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           <option value="high">High</option>
                           <option value="mid">Review</option>
                           <option value="low">Low</option>
                         </select>
-                        <div className="mt-1"><ConfidencePill level={(it.confidence ?? "mid")} /></div>
+                        <div className="mt-1">
+                          <ConfidencePill level={it.confidence ?? "mid"} />
+                        </div>
                       </td>
                       <td className="px-5 py-3">
                         <select
                           value={it.review_status}
                           disabled={!canEdit && !canNoteOnly}
-                          onChange={(e) => patchItem(it, { review_status: e.target.value as ItemReviewStatus })}
+                          onChange={(e) =>
+                            patchItem(it, { review_status: e.target.value as ItemReviewStatus })
+                          }
                           className="rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           <option value="review_required">Review Required</option>
@@ -429,10 +513,14 @@ function ModuleDetail() {
                           className="w-full rounded-md border border-transparent hover:border-input bg-transparent px-2 py-1 text-xs text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:bg-background focus:border-input disabled:opacity-60 disabled:cursor-not-allowed"
                         />
                         {!canEdit && canNoteOnly && (
-                          <div className="mt-1 text-[10px] text-muted-foreground italic">Notes only</div>
+                          <div className="mt-1 text-[10px] text-muted-foreground italic">
+                            Notes only
+                          </div>
                         )}
                         {it.review_status === "confirmed" && (
-                          <div className="mt-1 text-[10px] text-confidence-high">{REVIEW_STATUS_LABEL.confirmed}</div>
+                          <div className="mt-1 text-[10px] text-confidence-high">
+                            {REVIEW_STATUS_LABEL.confirmed}
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -452,13 +540,21 @@ function ModuleDetail() {
           </button>
           <div className="text-[11px] text-muted-foreground">
             Other modules:{" "}
-            {IQ_MODULES.filter((m) => m.id !== mod.id).slice(0, 4).map((m, i, arr) => (
-              <span key={m.id}>
-                <Link to="/modules/$moduleId" params={{ moduleId: m.id }} search={{ job: jobId }} className="text-primary hover:underline">
-                  {m.name}
-                </Link>{i < arr.length - 1 ? " · " : ""}
-              </span>
-            ))}
+            {IQ_MODULES.filter((m) => m.id !== mod.id)
+              .slice(0, 4)
+              .map((m, i, arr) => (
+                <span key={m.id}>
+                  <Link
+                    to="/modules/$moduleId"
+                    params={{ moduleId: m.id }}
+                    search={{ job: jobId }}
+                    className="text-primary hover:underline"
+                  >
+                    {m.name}
+                  </Link>
+                  {i < arr.length - 1 ? " · " : ""}
+                </span>
+              ))}
           </div>
         </div>
       </div>
@@ -468,7 +564,8 @@ function ModuleDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>Recalculate Quantities?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will refresh calculated values for this module. Confirmed quantities will be preserved unless changed manually.
+              This will refresh calculated values for this module. Confirmed quantities will be
+              preserved unless changed manually.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -480,7 +577,11 @@ function ModuleDetail() {
 
       <OverrideReasonDialog
         open={overrideTarget !== null}
-        label={overrideTarget ? `${overrideTarget.item.label}${overrideTarget.item.unit ? ` (${overrideTarget.item.unit})` : ""}` : undefined}
+        label={
+          overrideTarget
+            ? `${overrideTarget.item.label}${overrideTarget.item.unit ? ` (${overrideTarget.item.unit})` : ""}`
+            : undefined
+        }
         currentValue={overrideTarget?.item.approved_value ?? ""}
         newValue={overrideTarget?.newValue ?? ""}
         onCancel={() => {
@@ -490,7 +591,12 @@ function ModuleDetail() {
         onConfirm={async (reason) => {
           if (!overrideTarget || !jobId) return;
           try {
-            await manualOverrideApprovedValue(jobId, overrideTarget.item, overrideTarget.newValue, reason);
+            await manualOverrideApprovedValue(
+              jobId,
+              overrideTarget.item,
+              overrideTarget.newValue,
+              reason,
+            );
             toast.success("Quantity overridden.");
             setOverrideTarget(null);
             await refresh();
@@ -508,7 +614,9 @@ function Tile({ label, value, mono = true }: { label: string; value: string; mon
   return (
     <div className="rounded-lg border border-border bg-card px-4 py-3">
       <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
-      <div className={`mt-1 text-sm font-medium truncate ${mono ? "tabular-nums" : ""}`}>{value}</div>
+      <div className={`mt-1 text-sm font-medium truncate ${mono ? "tabular-nums" : ""}`}>
+        {value}
+      </div>
     </div>
   );
 }

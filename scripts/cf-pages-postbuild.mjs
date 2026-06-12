@@ -53,11 +53,11 @@ const SECURITY_HEADERS = {
   // URL.createObjectURL() which returns blob: scheme URLs.
   "Content-Security-Policy": [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",   // unsafe-* for SSR hydration; blob: for pdf.js workers
-    "worker-src 'self' blob:",                                  // explicit: pdf.js Web Worker
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:", // unsafe-* for SSR hydration; blob: for pdf.js workers
+    "worker-src 'self' blob:", // explicit: pdf.js Web Worker
     "style-src 'self' 'unsafe-inline'",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.resend.com",
-    "img-src 'self' data: blob: https:",                       // blob: for pdf.js page thumbnails
+    "img-src 'self' data: blob: https:", // blob: for pdf.js page thumbnails
     "font-src 'self' data:",
     "frame-ancestors 'none'",
     "object-src 'none'",
@@ -170,7 +170,9 @@ console.log("✓ version.json written (build:", process.env.VITE_BUILD_ID ?? "nu
 
 cpSync(serverAssets, clientAssets, { recursive: true, force: true });
 
-console.log("✓ Cloudflare Pages: wrote _worker.js (with ASSETS binding, security headers), server.js and server assets into dist/client/");
+console.log(
+  "✓ Cloudflare Pages: wrote _worker.js (with ASSETS binding, security headers), server.js and server assets into dist/client/",
+);
 
 // ── Guard (v1.2.1): the geometry base must NOT leak into the prod bundle ──────────────
 // Prod must resolve geometry to the same-origin proxy (/api/geometry). A dev override of
@@ -219,10 +221,10 @@ if (geometryLeaks.length > 0) {
       "  has leaked; move it from .env.local to .env.development.local.",
   );
   if (geometryLeaks.length > 1) {
-    console.error(
-      "  matches: " + geometryLeaks.map((l) => `${l.match} @ ${l.file}`).join(", "),
-    );
+    console.error("  matches: " + geometryLeaks.map((l) => `${l.match} @ ${l.file}`).join(", "));
   }
   process.exit(1);
 }
-console.log("✓ Geometry-base guard: bundle resolves geometry to the /api/geometry proxy (no dev override leaked).");
+console.log(
+  "✓ Geometry-base guard: bundle resolves geometry to the /api/geometry proxy (no dev override leaked).",
+);

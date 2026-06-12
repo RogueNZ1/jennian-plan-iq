@@ -4,8 +4,19 @@ import { TEMPLATES } from "@/lib/jennian-data";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import {
-  UploadCloud, FileText, Sparkles, CheckCircle2, X, ArrowRight,
-  ArrowLeft, Wand2, AlertTriangle, Info, AlertCircle, Download, Edit3,
+  UploadCloud,
+  FileText,
+  Sparkles,
+  CheckCircle2,
+  X,
+  ArrowRight,
+  ArrowLeft,
+  Wand2,
+  AlertTriangle,
+  Info,
+  AlertCircle,
+  Download,
+  Edit3,
 } from "lucide-react";
 import { PlanThumbnail } from "@/components/jennian/PlanThumbnail";
 import { useEffect, useRef, useState } from "react";
@@ -17,18 +28,34 @@ import { toast } from "sonner";
 import { renderPdfThumbnail } from "@/lib/pdf-thumbnail";
 import { seedAllModulesForJob } from "@/lib/iq-modules";
 import {
-  analyzePdfPages, pickPrimaryFloorplan, pickWindowSchedule, disposePageAnalyses, renderPageForAnalysis,
-  PAGE_TYPE_LABEL, CONFIDENCE_LABEL,
-  type PageAnalysis, type PageConfidence,
+  analyzePdfPages,
+  pickPrimaryFloorplan,
+  pickWindowSchedule,
+  disposePageAnalyses,
+  renderPageForAnalysis,
+  PAGE_TYPE_LABEL,
+  CONFIDENCE_LABEL,
+  type PageAnalysis,
+  type PageConfidence,
 } from "@/lib/pdf-pages";
 import {
-  extractScaleFactor, checkPlanIssues, extractConceptTakeoffs, extractWindowScheduleFn,
-  type ScaleResult, type PlanIssue, type TakeoffData, type ConceptTakeoffResult,
+  extractScaleFactor,
+  checkPlanIssues,
+  extractConceptTakeoffs,
+  extractWindowScheduleFn,
+  type ScaleResult,
+  type PlanIssue,
+  type TakeoffData,
+  type ConceptTakeoffResult,
 } from "@/lib/takeoff/concept.functions";
 import { composeTakeoff, type ComposeTakeoffResult } from "@/lib/takeoff/compose-takeoff";
 import { unwrapTakeoff } from "@/lib/takeoff/enriched-takeoff";
 import type { PlanContext } from "@/lib/takeoff/plan-context";
-import { measurePlanGeometry, overallConfidence, type GeometryApiResult } from "@/lib/takeoff/geometry-api";
+import {
+  measurePlanGeometry,
+  overallConfidence,
+  type GeometryApiResult,
+} from "@/lib/takeoff/geometry-api";
 import { resolveGeometryPageIndex } from "@/lib/takeoff/page-of-truth";
 import * as XLSX from "xlsx";
 import { normaliseRoomName, classifyGarageDoor } from "@/lib/takeoff/classify";
@@ -51,10 +78,10 @@ type AdditionalPdf = {
 };
 
 const CONCEPT_STEPS: { key: Step; label: string }[] = [
-  { key: "form",    label: "Upload" },
-  { key: "select",  label: "Select page" },
-  { key: "scale",   label: "Scale" },
-  { key: "check",   label: "Plan check" },
+  { key: "form", label: "Upload" },
+  { key: "select", label: "Select page" },
+  { key: "scale", label: "Scale" },
+  { key: "check", label: "Plan check" },
   { key: "takeoff", label: "Takeoffs" },
 ];
 
@@ -94,14 +121,19 @@ function UploadPage() {
   const [specAnswers, setSpecAnswers] = useState<SpecAnswers>({});
   const [specsOpen, setSpecsOpen] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [analyzeProgress, setAnalyzeProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+  const [analyzeProgress, setAnalyzeProgress] = useState<{ done: number; total: number }>({
+    done: 0,
+    total: 0,
+  });
   const [pageAnalyses, setPageAnalyses] = useState<PageAnalysis[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [autoCertainty, setAutoCertainty] = useState<PageConfidence | null>(null);
   const [confirmed, setConfirmed] = useState(false);
 
   // Concept pipeline state
-  const [conceptBusy, setConceptBusy] = useState<null | "rendering" | "scale" | "check" | "takeoff">(null);
+  const [conceptBusy, setConceptBusy] = useState<
+    null | "rendering" | "scale" | "check" | "takeoff"
+  >(null);
   const [highResBlob, setHighResBlob] = useState<Blob | null>(null);
   const [scaleResult, setScaleResult] = useState<ScaleResult | null>(null);
   // Manual scale fallback
@@ -145,12 +177,16 @@ function UploadPage() {
   }, [planFile]);
 
   useEffect(() => {
-    return () => { disposePageAnalyses(pageAnalyses); };
+    return () => {
+      disposePageAnalyses(pageAnalyses);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    const prevent = (e: DragEvent) => { e.preventDefault(); };
+    const prevent = (e: DragEvent) => {
+      e.preventDefault();
+    };
     window.addEventListener("dragover", prevent);
     window.addEventListener("drop", prevent);
     return () => {
@@ -243,7 +279,10 @@ function UploadPage() {
         try {
           await saveJobSpecifications(job.id, specAnswers);
         } catch (specErr) {
-          console.warn("[wizard-specs] save failed — selections can be re-entered on the job page:", specErr);
+          console.warn(
+            "[wizard-specs] save failed — selections can be re-entered on the job page:",
+            specErr,
+          );
         }
       }
 
@@ -268,16 +307,16 @@ function UploadPage() {
 
       let thumbnailPath: string | null = null;
       if (planFile) {
-        const blob =
-          primaryThumbBlob ??
-          planThumbBlob ??
-          (await renderPdfThumbnail(planFile));
+        const blob = primaryThumbBlob ?? planThumbBlob ?? (await renderPdfThumbnail(planFile));
         if (blob) {
           thumbnailPath = `${user.id}/${job.id}/thumbnail-${Date.now()}.jpg`;
           const { error: tErr } = await supabase.storage
             .from("job-files")
             .upload(thumbnailPath, blob, { contentType: "image/jpeg", upsert: true });
-          if (tErr) { console.warn("Thumbnail upload failed:", tErr); thumbnailPath = null; }
+          if (tErr) {
+            console.warn("Thumbnail upload failed:", tErr);
+            thumbnailPath = null;
+          }
         }
       }
 
@@ -286,7 +325,10 @@ function UploadPage() {
         const now = Date.now();
         const apPath = `${user.id}/${job.id}/${ap.sheetType}-${now}-${ap.file.name}`;
         const { error: apErr } = await supabase.storage.from("job-files").upload(apPath, ap.file);
-        if (apErr) { console.warn(`Additional PDF upload failed (${ap.file.name}):`, apErr); continue; }
+        if (apErr) {
+          console.warn(`Additional PDF upload failed (${ap.file.name}):`, apErr);
+          continue;
+        }
         await supabase.from("uploaded_files").insert({
           job_id: job.id,
           file_type: ap.sheetType as string as never,
@@ -330,7 +372,11 @@ function UploadPage() {
           // No wizard takeoff available (user navigated here without running the in-memory
           // extraction). Fall back to letting the job page auto-run normally.
           toast.success("Job uploaded — running takeoff…");
-          navigate({ to: "/jobs/$jobId", params: { jobId: job.id }, state: { autostart: true } as never });
+          navigate({
+            to: "/jobs/$jobId",
+            params: { jobId: job.id },
+            state: { autostart: true } as never,
+          });
           return;
         }
 
@@ -385,22 +431,79 @@ function UploadPage() {
         const runIdByModule: Record<string, string> = Object.fromEntries(
           (moduleRunRows ?? []).map((r: { id: string; module_id: string }) => [r.module_id, r.id]),
         );
-        interface ItemSpec { moduleId: string; label: string; unit: string; value: number | null }
+        interface ItemSpec {
+          moduleId: string;
+          label: string;
+          unit: string;
+          value: number | null;
+        }
         const itemSpecs: ItemSpec[] = [
-          { moduleId: "iq-core",    label: "Floor Area",            unit: "m²", value: enriched.floor_area_m2.value },
-          { moduleId: "iq-core",    label: "Stud Height",           unit: "mm", value: enriched.ceiling_height_m.value != null ? Math.round(enriched.ceiling_height_m.value * 1000) : null },
-          { moduleId: "iq-framing", label: "Exterior Wall Length",  unit: "lm", value: enriched.external_wall_lm.value },
-          { moduleId: "iq-cladding",label: "External Perimeter",    unit: "lm", value: enriched.external_wall_lm.value },
-          { moduleId: "iq-framing", label: "External Walls",        unit: "lm", value: enriched.external_wall_lm.value },
-          { moduleId: "iq-framing", label: "Internal Walls",        unit: "lm", value: enriched.internal_wall_lm.value },
-          { moduleId: "iq-linings", label: "Internal Wall Length",  unit: "lm", value: enriched.internal_wall_lm.value },
+          {
+            moduleId: "iq-core",
+            label: "Floor Area",
+            unit: "m²",
+            value: enriched.floor_area_m2.value,
+          },
+          {
+            moduleId: "iq-core",
+            label: "Stud Height",
+            unit: "mm",
+            value:
+              enriched.ceiling_height_m.value != null
+                ? Math.round(enriched.ceiling_height_m.value * 1000)
+                : null,
+          },
+          {
+            moduleId: "iq-framing",
+            label: "Exterior Wall Length",
+            unit: "lm",
+            value: enriched.external_wall_lm.value,
+          },
+          {
+            moduleId: "iq-cladding",
+            label: "External Perimeter",
+            unit: "lm",
+            value: enriched.external_wall_lm.value,
+          },
+          {
+            moduleId: "iq-framing",
+            label: "External Walls",
+            unit: "lm",
+            value: enriched.external_wall_lm.value,
+          },
+          {
+            moduleId: "iq-framing",
+            label: "Internal Walls",
+            unit: "lm",
+            value: enriched.internal_wall_lm.value,
+          },
+          {
+            moduleId: "iq-linings",
+            label: "Internal Wall Length",
+            unit: "lm",
+            value: enriched.internal_wall_lm.value,
+          },
           ...(enriched.alfresco_area_m2.value != null
-            ? [{ moduleId: "iq-core", label: "Alfresco Area", unit: "m²", value: enriched.alfresco_area_m2.value } as ItemSpec]
+            ? [
+                {
+                  moduleId: "iq-core",
+                  label: "Alfresco Area",
+                  unit: "m²",
+                  value: enriched.alfresco_area_m2.value,
+                } as ItemSpec,
+              ]
             : []),
           // Coverage Area (roof m²) — surfaces takeoff_json.roof_area_m2 in "5. Data Input House".
           // The QS paste sheet has no dedicated roof-area paste cell; it lives in the data sheet.
           ...(enriched.roof_area_m2.value != null
-            ? [{ moduleId: "iq-roofing", label: "Coverage Area", unit: "m²", value: enriched.roof_area_m2.value } as ItemSpec]
+            ? [
+                {
+                  moduleId: "iq-roofing",
+                  label: "Coverage Area",
+                  unit: "m²",
+                  value: enriched.roof_area_m2.value,
+                } as ItemSpec,
+              ]
             : []),
         ];
         for (const spec of itemSpecs) {
@@ -420,8 +523,12 @@ function UploadPage() {
             sort_order: 0,
           });
           if (miErr) {
-            console.warn("[persist-wizard] module_items insert failed:",
-              spec.label, miErr.code, miErr.message);
+            console.warn(
+              "[persist-wizard] module_items insert failed:",
+              spec.label,
+              miErr.code,
+              miErr.message,
+            );
           }
         }
 
@@ -429,7 +536,10 @@ function UploadPage() {
         // gate (confirmedCounts?.confirmed_at) fires and writes H187/192/193 in the paste sheet.
         // The user saw and accepted these counts in the wizard preview.
         const db = enriched.door_breakdown?.value;
-        if (db && (db.standard > 0 || db.cavity_sliders > 0 || db.double_doors > 0 || db.barn_sliders > 0)) {
+        if (
+          db &&
+          (db.standard > 0 || db.cavity_sliders > 0 || db.double_doors > 0 || db.barn_sliders > 0)
+        ) {
           const { error: dcErr } = await supabase.from("door_counts").insert({
             job_id: job.id,
             standard: db.standard,
@@ -495,7 +605,9 @@ function UploadPage() {
       setHighResBlob(blob);
       if (!blob) throw new Error("No page image.");
       const [b64, dims] = await Promise.all([blobToBase64(blob), getBlobDimensions(blob)]);
-      const result = await extractScaleFactor({ data: { imageBase64: b64, imageWidth: dims.width, imageHeight: dims.height } });
+      const result = await extractScaleFactor({
+        data: { imageBase64: b64, imageWidth: dims.width, imageHeight: dims.height },
+      });
       setScaleResult(result);
       foundResult = result;
     } catch (e) {
@@ -530,7 +642,11 @@ function UploadPage() {
     setPlanIssues(null);
     setErrorsAcknowledged(false);
     try {
-      const blob = highResBlob ?? (planFile ? await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex!]?.pageNumber ?? 1) : null);
+      const blob =
+        highResBlob ??
+        (planFile
+          ? await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex!]?.pageNumber ?? 1)
+          : null);
       if (!blob) throw new Error("No plan image available.");
       const b64 = await blobToBase64(blob);
       const result = await checkPlanIssues({ data: { imageBase64: b64 } });
@@ -538,13 +654,19 @@ function UploadPage() {
     } catch (e) {
       console.error(e);
       toast.error("Plan check failed. You can still proceed.");
-      setPlanIssues([{ severity: "warning", description: "Plan check could not run. Proceed with caution." }]);
+      setPlanIssues([
+        { severity: "warning", description: "Plan check could not run. Proceed with caution." },
+      ]);
     } finally {
       setConceptBusy(null);
     }
     // Store for use in takeoff step
     if (resolvedScaleFactor !== null) {
-      setScaleResult((prev) => prev ? { ...prev, scaleFactor: resolvedScaleFactor } : { scaleFactor: resolvedScaleFactor, confidence: "high", rationale: "" });
+      setScaleResult((prev) =>
+        prev
+          ? { ...prev, scaleFactor: resolvedScaleFactor }
+          : { scaleFactor: resolvedScaleFactor, confidence: "high", rationale: "" },
+      );
     }
   }
 
@@ -559,15 +681,23 @@ function UploadPage() {
     setSitePlanData(null);
     setCrossRefResult(null);
     try {
-      const blob = highResBlob ?? (planFile ? await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex!]?.pageNumber ?? 1) : null);
+      const blob =
+        highResBlob ??
+        (planFile
+          ? await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex!]?.pageNumber ?? 1)
+          : null);
       if (!blob) throw new Error("No plan image available.");
       const b64 = await blobToBase64(blob);
 
       // Prepare elevation/site plan images if additional PDFs are present
       const elevFile = additionalPdfs.find((p) => p.sheetType === "elevations");
       const siteFile = additionalPdfs.find((p) => p.sheetType === "site_plan");
-      const elevBlobP = elevFile ? renderPageForAnalysis(elevFile.file, 1).catch(() => null) : Promise.resolve(null);
-      const siteBlobP = siteFile ? renderPageForAnalysis(siteFile.file, 1).catch(() => null) : Promise.resolve(null);
+      const elevBlobP = elevFile
+        ? renderPageForAnalysis(elevFile.file, 1).catch(() => null)
+        : Promise.resolve(null);
+      const siteBlobP = siteFile
+        ? renderPageForAnalysis(siteFile.file, 1).catch(() => null)
+        : Promise.resolve(null);
 
       // Phase 2b — locate the Door & Window Schedule page within the SAME plan PDF
       // (page selection already classified every page). The schedule is the canonical
@@ -575,7 +705,10 @@ function UploadPage() {
       const schedulePick = pickWindowSchedule(pageAnalyses);
       const scheduleBlobP =
         schedulePick && planFile
-          ? renderPageForAnalysis(planFile, pageAnalyses[schedulePick.index]?.pageNumber ?? 0).catch(() => null)
+          ? renderPageForAnalysis(
+              planFile,
+              pageAnalyses[schedulePick.index]?.pageNumber ?? 0,
+            ).catch(() => null)
           : Promise.resolve(null);
 
       // Phase 3 — page-of-truth reconciliation. Pin geometry to the SAME page the AI
@@ -587,7 +720,9 @@ function UploadPage() {
 
       // Run AI extraction and geometry measurement in parallel
       const [result, geoResult, elevBlob, siteBlob, scheduleBlob] = await Promise.all([
-        extractConceptTakeoffs({ data: { imageBase64: b64, filename: planFile?.name ?? "plan.jpg" } }) as Promise<ConceptTakeoffResult>,
+        extractConceptTakeoffs({
+          data: { imageBase64: b64, filename: planFile?.name ?? "plan.jpg" },
+        }) as Promise<ConceptTakeoffResult>,
         planFile
           ? measurePlanGeometry(planFile, planFile.name, geometryPageIndex).catch(() => null)
           : Promise.resolve(null),
@@ -625,7 +760,9 @@ function UploadPage() {
       // Deterministic door pass (no AI) — same fail-safe contract as run.ts: any
       // failure → null → door cells fall back through the precedence chain.
       const doorEngine = planFile
-        ? await (await import("@/lib/doors/run-doors")).runDoorEngine(
+        ? await (
+            await import("@/lib/doors/run-doors")
+          ).runDoorEngine(
             await planFile.arrayBuffer(),
             (geometryPageIndex ?? 0) + 1,
             geoResult?.scale?.string ?? null,
@@ -658,12 +795,12 @@ function UploadPage() {
       const [elev, site] = await Promise.all([
         elevBlob
           ? blobToBase64(elevBlob).then((b64) =>
-              extractElevationsFn({ data: { imageBase64: b64, builderName } }).catch(() => null)
+              extractElevationsFn({ data: { imageBase64: b64, builderName } }).catch(() => null),
             )
           : Promise.resolve(null),
         siteBlob
           ? blobToBase64(siteBlob).then((b64) =>
-              extractSitePlanFn({ data: { imageBase64: b64 } }).catch(() => null)
+              extractSitePlanFn({ data: { imageBase64: b64 } }).catch(() => null),
             )
           : Promise.resolve(null),
       ]);
@@ -679,12 +816,24 @@ function UploadPage() {
       console.error(e);
       toast.error("Takeoff extraction failed. Enter values manually below.");
       const empty: TakeoffData = {
-        floor_area_m2: null, garage_area_m2: null, alfresco_area_m2: null,
-        external_wall_lm: null, internal_wall_lm: null, roof_area_m2: null,
-        window_count: null, external_door_count: null, internal_door_count: null,
-        bathroom_count: null, ensuite_count: null, laundry_count: null,
-        kitchen_count: null, ceiling_height_m: null, foundation_type: null,
-        windows_by_room: null, door_breakdown: null, garage_door_size: null,
+        floor_area_m2: null,
+        garage_area_m2: null,
+        alfresco_area_m2: null,
+        external_wall_lm: null,
+        internal_wall_lm: null,
+        roof_area_m2: null,
+        window_count: null,
+        external_door_count: null,
+        internal_door_count: null,
+        bathroom_count: null,
+        ensuite_count: null,
+        laundry_count: null,
+        kitchen_count: null,
+        ceiling_height_m: null,
+        foundation_type: null,
+        windows_by_room: null,
+        door_breakdown: null,
+        garage_door_size: null,
         notes: "Extraction failed — enter values manually.",
       };
       setTakeoffData(empty);
@@ -718,24 +867,29 @@ function UploadPage() {
     const headers = ["Item", "Quantity", "Unit", "Notes"];
     const rows = [
       headers,
-      ["Floor area",          n(t.floor_area_m2),       "m²",    "Habitable, excluding garage"],
-      ["Garage area",         n(t.garage_area_m2),      "m²",    ""],
-      ["Alfresco / deck area",n(t.alfresco_area_m2),    "m²",    "Low confidence — confirm vs QS"],
-      ["Total area incl alfresco",n(t.total_area_m2 ?? null),   "m²",    "Floor + alfresco"],
-      ["External wall length",n(t.external_wall_lm),    "lm",    ""],
-      ["External wall area",  n(t.external_wall_area_m2 ?? null),"m²",   "Perimeter × stud − openings"],
-      ["Internal wall length",n(t.internal_wall_lm),    "lm",    ""],
-      ["Roof area",           n(t.roof_area_m2),        "m²",    ""],
-      ["Windows",             n(t.window_count),        "count", ""],
-      ["External doors",      n(t.external_door_count), "count", ""],
-      ["Internal doors",      n(t.internal_door_count), "count", ""],
-      ["Bathrooms",           n(t.bathroom_count),      "count", ""],
-      ["Ensuites",            n(t.ensuite_count),       "count", ""],
-      ["Laundry",             n(t.laundry_count),       "count", ""],
-      ["Kitchen",             n(t.kitchen_count),       "count", ""],
-      ["Ceiling height",      n(t.ceiling_height_m),    "m",     ""],
-      ["Foundation type",     s(t.foundation_type),     "",      ""],
-      ["Garage door size",    s(t.garage_door_size),    "",      ""],
+      ["Floor area", n(t.floor_area_m2), "m²", "Habitable, excluding garage"],
+      ["Garage area", n(t.garage_area_m2), "m²", ""],
+      ["Alfresco / deck area", n(t.alfresco_area_m2), "m²", "Low confidence — confirm vs QS"],
+      ["Total area incl alfresco", n(t.total_area_m2 ?? null), "m²", "Floor + alfresco"],
+      ["External wall length", n(t.external_wall_lm), "lm", ""],
+      [
+        "External wall area",
+        n(t.external_wall_area_m2 ?? null),
+        "m²",
+        "Perimeter × stud − openings",
+      ],
+      ["Internal wall length", n(t.internal_wall_lm), "lm", ""],
+      ["Roof area", n(t.roof_area_m2), "m²", ""],
+      ["Windows", n(t.window_count), "count", ""],
+      ["External doors", n(t.external_door_count), "count", ""],
+      ["Internal doors", n(t.internal_door_count), "count", ""],
+      ["Bathrooms", n(t.bathroom_count), "count", ""],
+      ["Ensuites", n(t.ensuite_count), "count", ""],
+      ["Laundry", n(t.laundry_count), "count", ""],
+      ["Kitchen", n(t.kitchen_count), "count", ""],
+      ["Ceiling height", n(t.ceiling_height_m), "m", ""],
+      ["Foundation type", s(t.foundation_type), "", ""],
+      ["Garage door size", s(t.garage_door_size), "", ""],
     ];
 
     // ── Door breakdown ────────────────────────────────────────────────────────
@@ -744,10 +898,10 @@ function UploadPage() {
       doorBreakdownRows.push(
         [],
         ["Door Breakdown", "Qty", "Type", "", ""],
-        ["— Standard hinged",  t.door_breakdown.standard,       "count", "", ""],
-        ["— Cavity sliders",   t.door_breakdown.cavity_sliders, "count", "", ""],
-        ["— Double doors",     t.door_breakdown.double_doors,   "count", "", ""],
-        ["— Barn sliders",     t.door_breakdown.barn_sliders,   "count", "", ""],
+        ["— Standard hinged", t.door_breakdown.standard, "count", "", ""],
+        ["— Cavity sliders", t.door_breakdown.cavity_sliders, "count", "", ""],
+        ["— Double doors", t.door_breakdown.double_doors, "count", "", ""],
+        ["— Barn sliders", t.door_breakdown.barn_sliders, "count", "", ""],
       );
     }
 
@@ -757,27 +911,35 @@ function UploadPage() {
     // QS cell references — cladding/qty/height/width columns matching "5. Data Input House " tab
     const QS_CELLS: Record<string, string> = {
       "Bed 1 (Master)": "C41/D41/E41/F41",
-      "Ensuite":        "C43/D43/E43/F43",
-      "Bed 2":          "C45/D45/E45/F45",
-      "Bed 3":          "C47/D47/E47/F47",
-      "Bed 4":          "C49/D49/E49/F49",
-      "Bathroom":       "C52/D52/E52/F52",
-      "Kitchen":        "C54/D54/E54/F54",
-      "Family/Living":  "C56/D56/E56/F56",
-      "Dining":         "C59/D59/E59/F59",
-      "Lounge":         "C62/D62/E62/F62",
-      "Garage Window":  "C65/D65/E65/F65",
-      "Garage Door":    "C67/D67/E67/F67",
-      "Entrance":       "C72/D72/E72/F72",
+      Ensuite: "C43/D43/E43/F43",
+      "Bed 2": "C45/D45/E45/F45",
+      "Bed 3": "C47/D47/E47/F47",
+      "Bed 4": "C49/D49/E49/F49",
+      Bathroom: "C52/D52/E52/F52",
+      Kitchen: "C54/D54/E54/F54",
+      "Family/Living": "C56/D56/E56/F56",
+      Dining: "C59/D59/E59/F59",
+      Lounge: "C62/D62/E62/F62",
+      "Garage Window": "C65/D65/E65/F65",
+      "Garage Door": "C67/D67/E67/F67",
+      Entrance: "C72/D72/E72/F72",
     };
 
     // Canonical QS room order matching "5. Data Input House " rows 41-72
     const QS_ROOMS = [
-      "Bed 1 (Master)", "Ensuite",
-      "Bed 2", "Bed 3", "Bed 4",
-      "Bathroom", "Kitchen", "Family/Living",
-      "Dining", "Lounge",
-      "Garage Window", "Garage Door", "Entrance",
+      "Bed 1 (Master)",
+      "Ensuite",
+      "Bed 2",
+      "Bed 3",
+      "Bed 4",
+      "Bathroom",
+      "Kitchen",
+      "Family/Living",
+      "Dining",
+      "Lounge",
+      "Garage Window",
+      "Garage Door",
+      "Entrance",
     ];
 
     // Normalise takeoff rooms; default null height to 1.2m (standard NZ window)
@@ -785,9 +947,9 @@ function UploadPage() {
     for (const [raw, d] of Object.entries(t.windows_by_room ?? {})) {
       const name = normaliseRoom(raw);
       byRoom[name] = {
-        qty:      d.qty      ?? 0,
+        qty: d.qty ?? 0,
         height_m: d.height_m ?? 1.2,
-        width_m:  d.width_m  ?? 0,
+        width_m: d.width_m ?? 0,
       };
     }
 
@@ -851,13 +1013,21 @@ function UploadPage() {
 
     // ── IQ Data Input sheet — cell addresses match QS Data Input tab exactly ──
     const wsQS: XLSX.WorkSheet = {};
-    const iqYellow   = { fill: { patternType: "solid", fgColor: { rgb: "FFFF00" } } };
-    const iqRed      = { fill: { patternType: "solid", fgColor: { rgb: "E71B23" } }, font: { bold: true, color: { rgb: "FFFFFF" }, sz: 14 } };
-    const iqSection  = { fill: { patternType: "solid", fgColor: { rgb: "404040" } }, font: { bold: true, color: { rgb: "FFFFFF" } } };
-    const iqLabel    = { font: { color: { rgb: "666666" } } };
-    const iqNote     = { font: { italic: true, color: { rgb: "444444" } } };
+    const iqYellow = { fill: { patternType: "solid", fgColor: { rgb: "FFFF00" } } };
+    const iqRed = {
+      fill: { patternType: "solid", fgColor: { rgb: "E71B23" } },
+      font: { bold: true, color: { rgb: "FFFFFF" }, sz: 14 },
+    };
+    const iqSection = {
+      fill: { patternType: "solid", fgColor: { rgb: "404040" } },
+      font: { bold: true, color: { rgb: "FFFFFF" } },
+    };
+    const iqLabel = { font: { color: { rgb: "666666" } } };
+    const iqNote = { font: { italic: true, color: { rgb: "444444" } } };
 
-    const qlbl = (addr: string, v: string, style: object = iqLabel) => { wsQS[addr] = { v, t: "s", s: style }; };
+    const qlbl = (addr: string, v: string, style: object = iqLabel) => {
+      wsQS[addr] = { v, t: "s", s: style };
+    };
     const qval = (addr: string, v: string | number | null | undefined) => {
       if (v === null || v === undefined || v === "" || v === 0) return;
       const out = typeof v === "number" ? (round2(v) ?? v) : v;
@@ -865,36 +1035,61 @@ function UploadPage() {
     };
 
     qlbl("A1", "JENNIAN IQ — Data Input Export", iqRed);
-    qlbl("A2", "Yellow cells match QS Data Input cell addresses exactly. Copy yellow cells → paste values only into QS.", iqNote);
+    qlbl(
+      "A2",
+      "Yellow cells match QS Data Input cell addresses exactly. Copy yellow cells → paste values only into QS.",
+      iqNote,
+    );
 
     qlbl("A4", "① JOB INFORMATION", iqSection);
-    qlbl("A5", "Client Name");   qval("I3", clientName || undefined);
-    qlbl("A6", "Site Address");  qval("I4", address    || undefined);
-    qlbl("A7", "City");          wsQS["I5"] = { v: "Palmerston North", t: "s", s: iqYellow };
-    qlbl("A8", "JMW Number");    qval("I8", jobNumber  || undefined);
-    qlbl("A9", "Date");          wsQS["B9"] = { v: today, t: "s", s: iqYellow };
+    qlbl("A5", "Client Name");
+    qval("I3", clientName || undefined);
+    qlbl("A6", "Site Address");
+    qval("I4", address || undefined);
+    qlbl("A7", "City");
+    wsQS["I5"] = { v: "Palmerston North", t: "s", s: iqYellow };
+    qlbl("A8", "JMW Number");
+    qval("I8", jobNumber || undefined);
+    qlbl("A9", "Date");
+    wsQS["B9"] = { v: today, t: "s", s: iqYellow };
 
     qlbl("A11", "② CORE MEASUREMENTS", iqSection);
-    qlbl("A12", "Floor Area (m²)");          qval("D12", t.floor_area_m2    ?? undefined);
-    qlbl("A13", "Alfresco Area (m²)");       qval("D13", t.alfresco_area_m2 ?? undefined);
-    qlbl("A14", "Total Area incl Alfresco (m²)"); qval("D14", t.total_area_m2 ?? undefined);
-    qlbl("A15", "Perimeter (lm)");           qval("D15", t.external_wall_lm ?? undefined);
-    qlbl("A19", "External Wall Length (lm)");qval("D19", t.external_wall_lm ?? undefined);
-    qlbl("A20", "External Wall Height (m)"); wsQS["D20"] = { v: round2(t.ceiling_height_m ?? 2.4) ?? 2.4, t: "n", s: iqYellow };
-    qlbl("A21", "External Wall Area (m²)");  qval("D21", t.external_wall_area_m2 ?? undefined);
+    qlbl("A12", "Floor Area (m²)");
+    qval("D12", t.floor_area_m2 ?? undefined);
+    qlbl("A13", "Alfresco Area (m²)");
+    qval("D13", t.alfresco_area_m2 ?? undefined);
+    qlbl("A14", "Total Area incl Alfresco (m²)");
+    qval("D14", t.total_area_m2 ?? undefined);
+    qlbl("A15", "Perimeter (lm)");
+    qval("D15", t.external_wall_lm ?? undefined);
+    qlbl("A19", "External Wall Length (lm)");
+    qval("D19", t.external_wall_lm ?? undefined);
+    qlbl("A20", "External Wall Height (m)");
+    wsQS["D20"] = { v: round2(t.ceiling_height_m ?? 2.4) ?? 2.4, t: "n", s: iqYellow };
+    qlbl("A21", "External Wall Area (m²)");
+    qval("D21", t.external_wall_area_m2 ?? undefined);
 
     // Rows match "5. Data Input House " sheet: D=qty, E=height, F=width. C (cladding type 1/2) = gap, fill in QS.
     qlbl("A38", "③ WINDOWS & OPENINGS", iqSection);
-    qlbl("C39", "Cladding (enter in QS)"); qlbl("D39", "Qty"); qlbl("E39", "H (m)"); qlbl("F39", "W (m)");
+    qlbl("C39", "Cladding (enter in QS)");
+    qlbl("D39", "Qty");
+    qlbl("E39", "H (m)");
+    qlbl("F39", "W (m)");
 
     const QS_WINDOW_ROWS: Array<{ name: string; row: number }> = [
-      { name: "Bed 1 (Master)", row: 41 }, { name: "Ensuite",       row: 43 },
-      { name: "Bed 2",          row: 45 }, { name: "Bed 3",         row: 47 },
-      { name: "Bed 4",          row: 49 }, { name: "Bathroom",      row: 52 },
-      { name: "Kitchen",        row: 54 }, { name: "Family/Living", row: 56 },
-      { name: "Dining",         row: 59 }, { name: "Lounge",        row: 62 },
-      { name: "Garage Window",  row: 65 }, { name: "Garage Door",   row: 67 },
-      { name: "Entrance",       row: 72 },
+      { name: "Bed 1 (Master)", row: 41 },
+      { name: "Ensuite", row: 43 },
+      { name: "Bed 2", row: 45 },
+      { name: "Bed 3", row: 47 },
+      { name: "Bed 4", row: 49 },
+      { name: "Bathroom", row: 52 },
+      { name: "Kitchen", row: 54 },
+      { name: "Family/Living", row: 56 },
+      { name: "Dining", row: 59 },
+      { name: "Lounge", row: 62 },
+      { name: "Garage Window", row: 65 },
+      { name: "Garage Door", row: 67 },
+      { name: "Entrance", row: 72 },
     ];
     for (const { name, row } of QS_WINDOW_ROWS) {
       qlbl(`A${row}`, name);
@@ -902,7 +1097,7 @@ function UploadPage() {
       if (wd && wd.qty > 0) {
         qval(`D${row}`, wd.qty);
         if (wd.height_m > 0) qval(`E${row}`, wd.height_m);
-        if (wd.width_m  > 0) qval(`F${row}`, wd.width_m);
+        if (wd.width_m > 0) qval(`F${row}`, wd.width_m);
       }
     }
 
@@ -934,15 +1129,15 @@ function UploadPage() {
     qlbl("A192", "Double doors");
     qlbl("A193", "Cavity sliders");
     if (t.door_breakdown) {
-      if (t.door_breakdown.standard > 0)       qval("H187", t.door_breakdown.standard);
-      if (t.door_breakdown.double_doors > 0)   qval("H192", t.door_breakdown.double_doors);
+      if (t.door_breakdown.standard > 0) qval("H187", t.door_breakdown.standard);
+      if (t.door_breakdown.double_doors > 0) qval("H192", t.door_breakdown.double_doors);
       if (t.door_breakdown.cavity_sliders > 0) qval("H193", t.door_breakdown.cavity_sliders);
     }
 
     // ⑤ ELEVATION & SITE PLAN DATA (if available)
     if (elevationData || sitePlanData) {
       const iqOrange = { font: { color: { rgb: "FF8C00" }, italic: true } };
-      const iqGreen  = { font: { color: { rgb: "008000" } } };
+      const iqGreen = { font: { color: { rgb: "008000" } } };
       qlbl("A197", "⑤ ELEVATION & SITE PLAN DATA", iqSection);
       qlbl("A199", "Cladding type code (1=brick · 2=weatherboard · 3=mixed)");
       if (elevationData?.claddingTypeCode != null) qval("D199", elevationData.claddingTypeCode);
@@ -980,15 +1175,24 @@ function UploadPage() {
     }
 
     wsQS["!cols"] = [
-      { wch: 35 }, { wch: 12 }, { wch: 15 }, { wch: 15 },
-      { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 25 },
+      { wch: 35 },
+      { wch: 12 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 25 },
     ];
     wsQS["!ref"] = "A1:I210";
     XLSX.utils.book_append_sheet(wb, wsQS, "IQ Data Input");
 
     try {
       const bytes = XLSX.write(wb, { type: "array", bookType: "xlsx" });
-      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const blob = new Blob([bytes], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -1010,12 +1214,15 @@ function UploadPage() {
             <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10 grid place-items-center">
               <Sparkles className="h-6 w-6 text-primary animate-pulse" />
             </div>
-            <h2 className="mt-6 text-xl font-semibold tracking-tight">Reviewing plan quantities…</h2>
+            <h2 className="mt-6 text-xl font-semibold tracking-tight">
+              Reviewing plan quantities…
+            </h2>
             <p className="mt-2 text-sm text-muted-foreground">
               Reading dimensions from{" "}
               {selectedIndex !== null && pageAnalyses[selectedIndex]
                 ? `Page ${pageAnalyses[selectedIndex].pageNumber} · ${PAGE_TYPE_LABEL[pageAnalyses[selectedIndex].pageType]}`
-                : "selected plan"}.
+                : "selected plan"}
+              .
             </p>
             <div className="mt-6 h-1 w-full overflow-hidden rounded-full bg-secondary">
               <div className="h-full w-1/3 bg-primary animate-[loading_1.4s_ease-in-out_infinite]" />
@@ -1047,15 +1254,21 @@ function UploadPage() {
               <Wand2 className="h-5 w-5 text-primary animate-pulse shrink-0" />
               <div>
                 <div className="text-sm font-medium">Reading scale from plan…</div>
-                <div className="text-xs text-muted-foreground mt-0.5">This takes a few seconds.</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  This takes a few seconds.
+                </div>
               </div>
             </div>
           )}
 
           {!isLoading && scaleResult && (
             <div className="space-y-4">
-              <div className={`rounded-lg border p-5 ${scaleOk ? "border-emerald-500/30 bg-emerald-50/5" : "border-amber-500/30 bg-amber-50/5"}`}>
-                <div className={`text-[10.5px] uppercase tracking-[0.16em] font-medium ${scaleOk ? "text-emerald-500" : "text-amber-500"}`}>
+              <div
+                className={`rounded-lg border p-5 ${scaleOk ? "border-emerald-500/30 bg-emerald-50/5" : "border-amber-500/30 bg-amber-50/5"}`}
+              >
+                <div
+                  className={`text-[10.5px] uppercase tracking-[0.16em] font-medium ${scaleOk ? "text-emerald-500" : "text-amber-500"}`}
+                >
                   {scaleOk ? "Scale detected" : "Scale not detected"}
                 </div>
                 <div className="mt-1 text-sm font-medium text-foreground">
@@ -1070,12 +1283,14 @@ function UploadPage() {
                 <div className="rounded-lg border border-border bg-card p-5 space-y-3">
                   <div className="text-sm font-medium">Enter a known dimension</div>
                   <p className="text-xs text-muted-foreground">
-                    If you know the real-world length of a specific wall or dimension on the plan, enter it below.
-                    We'll use it to calibrate the scale.
+                    If you know the real-world length of a specific wall or dimension on the plan,
+                    enter it below. We'll use it to calibrate the scale.
                   </p>
                   <div className="flex gap-2 items-end">
                     <div className="flex-1">
-                      <label className="text-xs font-medium text-muted-foreground">Known dimension (mm)</label>
+                      <label className="text-xs font-medium text-muted-foreground">
+                        Known dimension (mm)
+                      </label>
                       <input
                         type="number"
                         placeholder="e.g. 12000 for 12m wall"
@@ -1086,7 +1301,8 @@ function UploadPage() {
                     </div>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    If you don't have a reference dimension, you can still proceed — the AI will use visible annotations.
+                    If you don't have a reference dimension, you can still proceed — the AI will use
+                    visible annotations.
                   </p>
                 </div>
               )}
@@ -1145,7 +1361,9 @@ function UploadPage() {
               <Wand2 className="h-5 w-5 text-primary animate-pulse shrink-0" />
               <div>
                 <div className="text-sm font-medium">Checking plan…</div>
-                <div className="text-xs text-muted-foreground mt-0.5">Reviewing for missing dimensions, labels and wet areas.</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  Reviewing for missing dimensions, labels and wet areas.
+                </div>
               </div>
             </div>
           )}
@@ -1157,7 +1375,9 @@ function UploadPage() {
                   <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
                   <div>
                     <div className="text-sm font-semibold text-emerald-600">Plan looks good</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">No issues found. Ready to run takeoffs.</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      No issues found. Ready to run takeoffs.
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -1177,8 +1397,11 @@ function UploadPage() {
               {hasErrors && !errorsAcknowledged && (
                 <div className="rounded-md border border-red-500/30 bg-red-50/5 p-4">
                   <p className="text-sm text-muted-foreground">
-                    There are <strong className="text-red-500">{errors.length} error{errors.length > 1 ? "s" : ""}</strong> that may affect takeoff accuracy.
-                    Acknowledge to continue.
+                    There are{" "}
+                    <strong className="text-red-500">
+                      {errors.length} error{errors.length > 1 ? "s" : ""}
+                    </strong>{" "}
+                    that may affect takeoff accuracy. Acknowledge to continue.
                   </p>
                   <button
                     type="button"
@@ -1234,7 +1457,9 @@ function UploadPage() {
               <Wand2 className="h-5 w-5 text-primary animate-pulse shrink-0" />
               <div>
                 <div className="text-sm font-medium">Extracting quantities…</div>
-                <div className="text-xs text-muted-foreground mt-0.5">Reading dimensions and counting elements from the plan.</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  Reading dimensions and counting elements from the plan.
+                </div>
               </div>
             </div>
           )}
@@ -1245,9 +1470,15 @@ function UploadPage() {
                 Builder: {planContext.builder.name}
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 font-medium">
-                Dimensions: {planContext.dimensionFormat === 'HEIGHT_x_WIDTH' ? 'H × W' : 'W × H'}
+                Dimensions: {planContext.dimensionFormat === "HEIGHT_x_WIDTH" ? "H × W" : "W × H"}
                 <span className="text-muted-foreground font-normal">
-                  ({planContext.dimensionFormatSource === 'stated_on_plan' ? 'from plan notes' : planContext.dimensionFormatSource === 'builder_default' ? 'builder default' : 'NZ default'})
+                  (
+                  {planContext.dimensionFormatSource === "stated_on_plan"
+                    ? "from plan notes"
+                    : planContext.dimensionFormatSource === "builder_default"
+                      ? "builder default"
+                      : "NZ default"}
+                  )
                 </span>
               </span>
               {(geometryResult?.scale.string ?? planContext.scaleString) && (
@@ -1258,23 +1489,32 @@ function UploadPage() {
               <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 font-medium">
                 Stud: {planContext.studHeightMm}mm
                 <span className="text-muted-foreground font-normal">
-                  ({planContext.studHeightSource === 'stated_on_plan' ? 'from plan' : planContext.studHeightSource === 'builder_default' ? 'builder default' : 'NZ default'})
+                  (
+                  {planContext.studHeightSource === "stated_on_plan"
+                    ? "from plan"
+                    : planContext.studHeightSource === "builder_default"
+                      ? "builder default"
+                      : "NZ default"}
+                  )
                 </span>
               </span>
-              {geometryResult && (() => {
-                const conf = overallConfidence(geometryResult.confidence);
-                return (
-                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium ${
-                    conf === "high"
-                      ? "border-emerald-500/30 bg-emerald-50/5 text-emerald-600"
-                      : conf === "medium"
-                      ? "border-amber-500/30 bg-amber-50/5 text-amber-600"
-                      : "border-border bg-card text-muted-foreground"
-                  }`}>
-                    Geometry: {conf} confidence
-                  </span>
-                );
-              })()}
+              {geometryResult &&
+                (() => {
+                  const conf = overallConfidence(geometryResult.confidence);
+                  return (
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium ${
+                        conf === "high"
+                          ? "border-emerald-500/30 bg-emerald-50/5 text-emerald-600"
+                          : conf === "medium"
+                            ? "border-amber-500/30 bg-amber-50/5 text-amber-600"
+                            : "border-border bg-card text-muted-foreground"
+                      }`}
+                    >
+                      Geometry: {conf} confidence
+                    </span>
+                  );
+                })()}
             </div>
           )}
 
@@ -1284,9 +1524,15 @@ function UploadPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-muted/40">
-                      <th className="text-left px-4 py-2.5 text-[10.5px] uppercase tracking-[0.16em] font-medium text-muted-foreground">Item</th>
-                      <th className="text-left px-4 py-2.5 text-[10.5px] uppercase tracking-[0.16em] font-medium text-muted-foreground">Quantity</th>
-                      <th className="text-left px-4 py-2.5 text-[10.5px] uppercase tracking-[0.16em] font-medium text-muted-foreground">Unit</th>
+                      <th className="text-left px-4 py-2.5 text-[10.5px] uppercase tracking-[0.16em] font-medium text-muted-foreground">
+                        Item
+                      </th>
+                      <th className="text-left px-4 py-2.5 text-[10.5px] uppercase tracking-[0.16em] font-medium text-muted-foreground">
+                        Quantity
+                      </th>
+                      <th className="text-left px-4 py-2.5 text-[10.5px] uppercase tracking-[0.16em] font-medium text-muted-foreground">
+                        Unit
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1294,11 +1540,15 @@ function UploadPage() {
                       const val = t[key as keyof TakeoffData];
                       const isNull = val === null || val === undefined;
                       // Internal wall gets a confidence dot from the geometry API
-                      const iwConf = key === "internal_wall_lm"
-                        ? (geometryResult?.measurements?.internal_wall_confidence ?? null)
-                        : null;
+                      const iwConf =
+                        key === "internal_wall_lm"
+                          ? (geometryResult?.measurements?.internal_wall_confidence ?? null)
+                          : null;
                       return (
-                        <tr key={key} className="border-b border-border last:border-0 hover:bg-muted/20">
+                        <tr
+                          key={key}
+                          className="border-b border-border last:border-0 hover:bg-muted/20"
+                        >
                           <td className="px-4 py-2.5 font-medium">
                             {iwConf ? (
                               <span className="inline-flex items-center gap-2">
@@ -1309,21 +1559,25 @@ function UploadPage() {
                                     iwConf === "high"
                                       ? "bg-green-500"
                                       : iwConf === "medium"
-                                      ? "bg-amber-500"
-                                      : "bg-red-500"
+                                        ? "bg-amber-500"
+                                        : "bg-red-500"
                                   }`}
                                 />
                               </span>
-                            ) : label}
+                            ) : (
+                              label
+                            )}
                           </td>
                           <td className="px-4 py-2.5">
                             {isNull ? (
-                              <span className="text-amber-500 text-xs font-medium">Not found — enter manually</span>
+                              <span className="text-amber-500 text-xs font-medium">
+                                Not found — enter manually
+                              </span>
                             ) : (
                               <TakeoffCell
                                 value={val as number | string | null}
                                 onChange={(v) =>
-                                  setEditedTakeoff((prev) => prev ? { ...prev, [key]: v } : prev)
+                                  setEditedTakeoff((prev) => (prev ? { ...prev, [key]: v } : prev))
                                 }
                               />
                             )}
@@ -1339,16 +1593,21 @@ function UploadPage() {
               {/* Internal wall low-confidence warning — only shown when very few room dims found */}
               {geometryResult?.measurements?.internal_wall_confidence === "low" && (
                 <div className="rounded-lg border border-red-500/30 bg-red-50/5 p-4">
-                  <div className="text-[10.5px] uppercase tracking-[0.14em] font-medium text-red-500 mb-1">Internal wall — manual check required</div>
+                  <div className="text-[10.5px] uppercase tracking-[0.14em] font-medium text-red-500 mb-1">
+                    Internal wall — manual check required
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    Very few room dimensions found on this plan — check the internal wall measurement manually.
+                    Very few room dimensions found on this plan — check the internal wall
+                    measurement manually.
                   </p>
                 </div>
               )}
 
               {t.notes && (
                 <div className="rounded-lg border border-blue-500/20 bg-blue-50/5 p-4">
-                  <div className="text-[10.5px] uppercase tracking-[0.14em] font-medium text-blue-400 mb-1">AI notes & assumptions</div>
+                  <div className="text-[10.5px] uppercase tracking-[0.14em] font-medium text-blue-400 mb-1">
+                    AI notes & assumptions
+                  </div>
                   <p className="text-xs text-muted-foreground">{t.notes}</p>
                 </div>
               )}
@@ -1364,7 +1623,8 @@ function UploadPage() {
               {!elevationData && additionalPdfs.length === 0 && (
                 <div className="rounded-lg border border-border bg-card/50 p-4 flex items-center gap-2.5 text-xs text-muted-foreground">
                   <Info className="h-3.5 w-3.5 shrink-0" />
-                  Upload elevation and site plan PDFs to auto-detect cladding type, roof pitch, and concrete areas.
+                  Upload elevation and site plan PDFs to auto-detect cladding type, roof pitch, and
+                  concrete areas.
                 </div>
               )}
 
@@ -1436,13 +1696,18 @@ function UploadPage() {
                 <button
                   type="button"
                   onClick={continueFromPageSelection}
-                  disabled={selectedIndex === null || analyzing || !confirmed || conceptBusy !== null}
+                  disabled={
+                    selectedIndex === null || analyzing || !confirmed || conceptBusy !== null
+                  }
                   className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 shadow-sm disabled:opacity-60"
                 >
-                  {conceptBusy === "rendering"
-                    ? "Rendering…"
-                    : <>Continue <ArrowRight className="h-4 w-4" /></>
-                  }
+                  {conceptBusy === "rendering" ? (
+                    "Rendering…"
+                  ) : (
+                    <>
+                      Continue <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
                 </button>
               </div>
             }
@@ -1475,7 +1740,8 @@ function UploadPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground font-medium">
-                    Primary plan {autoCertainty === "high" ? "(auto-selected)" : "(needs confirmation)"}
+                    Primary plan{" "}
+                    {autoCertainty === "high" ? "(auto-selected)" : "(needs confirmation)"}
                   </div>
                   <div className="mt-1 text-[15px] font-semibold tracking-tight">
                     Page {pageAnalyses[selectedIndex].pageNumber} ·{" "}
@@ -1509,7 +1775,10 @@ function UploadPage() {
                   <button
                     key={p.pageNumber}
                     type="button"
-                    onClick={() => { setSelectedIndex(idx); setConfirmed(false); }}
+                    onClick={() => {
+                      setSelectedIndex(idx);
+                      setConfirmed(false);
+                    }}
                     className={`group text-left rounded-xl border bg-card overflow-hidden transition-all ${
                       active
                         ? "border-primary shadow-[0_4px_18px_-12px_rgba(0,0,0,0.25)] ring-2 ring-primary/30"
@@ -1562,10 +1831,18 @@ function UploadPage() {
   return (
     <AppLayout>
       <div className="px-8 py-8 max-w-4xl">
-        <PageHeader title="Upload Plan" subtitle="Provide the plan set and specification documents to begin quantity review." />
+        <PageHeader
+          title="Upload Plan"
+          subtitle="Provide the plan set and specification documents to begin quantity review."
+        />
 
-        <form onSubmit={(e) => { e.preventDefault(); startPlanReviewSelection(); }} className="space-y-8">
-
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            startPlanReviewSelection();
+          }}
+          className="space-y-8"
+        >
           {/* Dropzones */}
           <div className="space-y-4">
             <Dropzone
@@ -1593,10 +1870,25 @@ function UploadPage() {
           <div className="rounded-lg border border-border bg-card p-6 space-y-4">
             <h3 className="text-sm font-semibold tracking-tight">Job details</h3>
             <div className="grid md:grid-cols-2 gap-4">
-              <Field label="Job Number" placeholder="JM-2452" value={jobNumber} onChange={setJobNumber} />
-              <Field label="Client Name" placeholder="Full client name" value={clientName} onChange={setClientName} />
+              <Field
+                label="Job Number"
+                placeholder="JM-2452"
+                value={jobNumber}
+                onChange={setJobNumber}
+              />
+              <Field
+                label="Client Name"
+                placeholder="Full client name"
+                value={clientName}
+                onChange={setClientName}
+              />
               <div className="md:col-span-2">
-                <Field label="Address" placeholder="Street, Suburb, City" value={address} onChange={setAddress} />
+                <Field
+                  label="Address"
+                  placeholder="Street, Suburb, City"
+                  value={address}
+                  onChange={setAddress}
+                />
               </div>
               <div className="md:col-span-2">
                 <label className="text-xs font-medium text-muted-foreground">Select Template</label>
@@ -1606,7 +1898,9 @@ function UploadPage() {
                   className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   {TEMPLATES.map((t) => (
-                    <option key={t.id} value={`${t.code} — ${t.name}`}>{t.code} — {t.name}</option>
+                    <option key={t.id} value={`${t.code} — ${t.name}`}>
+                      {t.code} — {t.name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -1622,14 +1916,18 @@ function UploadPage() {
               className="w-full px-5 py-4 flex items-center justify-between text-left"
             >
               <div>
-                <div className="text-[14px] font-semibold tracking-tight">Client Specifications</div>
+                <div className="text-[14px] font-semibold tracking-tight">
+                  Client Specifications
+                </div>
                 <div className="text-[12px] text-muted-foreground mt-0.5">
-                  {answeredCount(specAnswers).answered} of {answeredCount(specAnswers).total} confirmed —
-                  capture meeting selections now, or complete later on the job page. Unanswered specs
-                  export blank, never assumed.
+                  {answeredCount(specAnswers).answered} of {answeredCount(specAnswers).total}{" "}
+                  confirmed — capture meeting selections now, or complete later on the job page.
+                  Unanswered specs export blank, never assumed.
                 </div>
               </div>
-              <span className="text-[11px] text-muted-foreground">{specsOpen ? "Collapse" : "Expand"}</span>
+              <span className="text-[11px] text-muted-foreground">
+                {specsOpen ? "Collapse" : "Expand"}
+              </span>
             </button>
             {specsOpen && (
               <div className="px-5 pb-4 border-t border-border pt-3">
@@ -1667,8 +1965,14 @@ function getBlobDimensions(blob: Blob): Promise<{ width: number; height: number 
   return new Promise((resolve) => {
     const url = URL.createObjectURL(blob);
     const img = new Image();
-    img.onload = () => { resolve({ width: img.naturalWidth, height: img.naturalHeight }); URL.revokeObjectURL(url); };
-    img.onerror = () => { resolve({ width: 0, height: 0 }); URL.revokeObjectURL(url); };
+    img.onload = () => {
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => {
+      resolve({ width: 0, height: 0 });
+      URL.revokeObjectURL(url);
+    };
     img.src = url;
   });
 }
@@ -1686,23 +1990,23 @@ function blobToBase64(blob: Blob): Promise<string> {
 }
 
 const TAKEOFF_ROWS: { key: keyof TakeoffData; label: string; unit: string }[] = [
-  { key: "floor_area_m2",        label: "Floor area",          unit: "m²" },
-  { key: "garage_area_m2",       label: "Garage area",         unit: "m²" },
-  { key: "alfresco_area_m2",     label: "Alfresco / deck",     unit: "m²" },
-  { key: "total_area_m2",        label: "Total area incl alfresco", unit: "m²" },
-  { key: "external_wall_lm",     label: "External wall",       unit: "lm" },
-  { key: "external_wall_area_m2",label: "External wall area",  unit: "m²" },
-  { key: "internal_wall_lm",     label: "Internal wall",       unit: "lm" },
-  { key: "roof_area_m2",         label: "Roof area",           unit: "m²" },
-  { key: "window_count",         label: "Windows",             unit: "count" },
-  { key: "external_door_count",  label: "External doors",      unit: "count" },
-  { key: "internal_door_count",  label: "Internal doors",      unit: "count" },
-  { key: "bathroom_count",       label: "Bathrooms",           unit: "count" },
-  { key: "ensuite_count",        label: "Ensuites",            unit: "count" },
-  { key: "laundry_count",        label: "Laundry",             unit: "count" },
-  { key: "kitchen_count",        label: "Kitchen",             unit: "count" },
-  { key: "ceiling_height_m",     label: "Ceiling height",      unit: "m" },
-  { key: "foundation_type",      label: "Foundation type",     unit: "" },
+  { key: "floor_area_m2", label: "Floor area", unit: "m²" },
+  { key: "garage_area_m2", label: "Garage area", unit: "m²" },
+  { key: "alfresco_area_m2", label: "Alfresco / deck", unit: "m²" },
+  { key: "total_area_m2", label: "Total area incl alfresco", unit: "m²" },
+  { key: "external_wall_lm", label: "External wall", unit: "lm" },
+  { key: "external_wall_area_m2", label: "External wall area", unit: "m²" },
+  { key: "internal_wall_lm", label: "Internal wall", unit: "lm" },
+  { key: "roof_area_m2", label: "Roof area", unit: "m²" },
+  { key: "window_count", label: "Windows", unit: "count" },
+  { key: "external_door_count", label: "External doors", unit: "count" },
+  { key: "internal_door_count", label: "Internal doors", unit: "count" },
+  { key: "bathroom_count", label: "Bathrooms", unit: "count" },
+  { key: "ensuite_count", label: "Ensuites", unit: "count" },
+  { key: "laundry_count", label: "Laundry", unit: "count" },
+  { key: "kitchen_count", label: "Kitchen", unit: "count" },
+  { key: "ceiling_height_m", label: "Ceiling height", unit: "m" },
+  { key: "foundation_type", label: "Foundation type", unit: "" },
 ];
 
 function TakeoffCell({
@@ -1723,7 +2027,10 @@ function TakeoffCell({
   function commit() {
     setEditing(false);
     const trimmed = draft.trim();
-    if (trimmed === "" || trimmed === "null") { onChange(null); return; }
+    if (trimmed === "" || trimmed === "null") {
+      onChange(null);
+      return;
+    }
     const num = Number(trimmed);
     onChange(isNaN(num) ? trimmed : num);
   }
@@ -1735,7 +2042,10 @@ function TakeoffCell({
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
-        onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") setEditing(false);
+        }}
         className="w-24 rounded border border-input bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
       />
     );
@@ -1744,10 +2054,17 @@ function TakeoffCell({
   return (
     <button
       type="button"
-      onClick={() => { setDraft(value === null ? "" : String(value)); setEditing(true); }}
+      onClick={() => {
+        setDraft(value === null ? "" : String(value));
+        setEditing(true);
+      }}
       className="inline-flex items-center gap-1.5 text-sm font-medium hover:text-primary group"
     >
-      {value === null ? <span className="text-amber-500 text-xs">Not found — click to enter</span> : String(value)}
+      {value === null ? (
+        <span className="text-amber-500 text-xs">Not found — click to enter</span>
+      ) : (
+        String(value)
+      )}
       <Edit3 className="h-3 w-3 opacity-0 group-hover:opacity-60" />
     </button>
   );
@@ -1755,9 +2072,21 @@ function TakeoffCell({
 
 function IssueCard({ issue }: { issue: PlanIssue }) {
   const colors = {
-    error: { bg: "bg-red-50/5 border-red-500/30", text: "text-red-500", icon: <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" /> },
-    warning: { bg: "bg-amber-50/5 border-amber-500/30", text: "text-amber-500", icon: <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" /> },
-    info: { bg: "bg-blue-50/5 border-blue-500/20", text: "text-blue-400", icon: <Info className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /> },
+    error: {
+      bg: "bg-red-50/5 border-red-500/30",
+      text: "text-red-500",
+      icon: <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />,
+    },
+    warning: {
+      bg: "bg-amber-50/5 border-amber-500/30",
+      text: "text-amber-500",
+      icon: <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />,
+    },
+    info: {
+      bg: "bg-blue-50/5 border-blue-500/20",
+      text: "text-blue-400",
+      icon: <Info className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />,
+    },
   };
   const c = colors[issue.severity];
   return (
@@ -1765,9 +2094,7 @@ function IssueCard({ issue }: { issue: PlanIssue }) {
       {c.icon}
       <div className="min-w-0">
         <div className="text-sm font-medium">{issue.description}</div>
-        {issue.location && (
-          <div className={`text-xs mt-0.5 ${c.text}`}>{issue.location}</div>
-        )}
+        {issue.location && <div className={`text-xs mt-0.5 ${c.text}`}>{issue.location}</div>}
       </div>
     </div>
   );
@@ -1793,7 +2120,13 @@ function ConceptProgressBar({ current }: { current: Step }) {
               }`}
             >
               {done && <CheckCircle2 className="h-3 w-3" />}
-              {String(i + 1).replace(/1/,"①").replace(/2/,"②").replace(/3/,"③").replace(/4/,"④").replace(/5/,"⑤")} {s.label}
+              {String(i + 1)
+                .replace(/1/, "①")
+                .replace(/2/, "②")
+                .replace(/3/, "③")
+                .replace(/4/, "④")
+                .replace(/5/, "⑤")}{" "}
+              {s.label}
             </span>
             {i < steps.length - 1 && <span className="text-muted-foreground/40">→</span>}
           </div>
@@ -1808,8 +2141,8 @@ function ConfidenceText({ level }: { level: PageConfidence }) {
     level === "high"
       ? "text-confidence-high"
       : level === "mid"
-      ? "text-confidence-mid"
-      : "text-confidence-low";
+        ? "text-confidence-mid"
+        : "text-confidence-low";
   return (
     <span className={`text-[10.5px] font-medium uppercase tracking-[0.14em] ${cls}`}>
       {CONFIDENCE_LABEL[level]}
@@ -1817,7 +2150,17 @@ function ConfidenceText({ level }: { level: PageConfidence }) {
   );
 }
 
-function Field({ label, placeholder, value, onChange }: { label: string; placeholder?: string; value: string; onChange: (v: string) => void }) {
+function Field({
+  label,
+  placeholder,
+  value,
+  onChange,
+}: {
+  label: string;
+  placeholder?: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
   return (
     <div>
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
@@ -1831,9 +2174,18 @@ function Field({ label, placeholder, value, onChange }: { label: string; placeho
   );
 }
 
-function Dropzone({ label, sub, file, onFile, previewUrl }: {
-  label: string; sub: string; file: File | null;
-  onFile: (f: File | null) => void; previewUrl?: string | null;
+function Dropzone({
+  label,
+  sub,
+  file,
+  onFile,
+  previewUrl,
+}: {
+  label: string;
+  sub: string;
+  file: File | null;
+  onFile: (f: File | null) => void;
+  previewUrl?: string | null;
 }) {
   const [isDragging, setIsDragging] = useState(false);
 
@@ -1903,7 +2255,9 @@ function Dropzone({ label, sub, file, onFile, previewUrl }: {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-3.5 w-3.5 text-confidence-high" />
-              <span className="text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground font-medium">{label}</span>
+              <span className="text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground font-medium">
+                {label}
+              </span>
             </div>
             <div className="mt-1 text-[13.5px] font-medium truncate">{file.name}</div>
             <div className="text-[11px] text-muted-foreground mt-0.5">
@@ -1912,8 +2266,15 @@ function Dropzone({ label, sub, file, onFile, previewUrl }: {
             <div className="mt-3 flex items-center gap-3">
               <label className="text-[11px] text-primary font-medium hover:underline cursor-pointer">
                 Replace file
-                <input type="file" accept="application/pdf" className="sr-only"
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) acceptFile(f); }} />
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) acceptFile(f);
+                  }}
+                />
               </label>
               <button
                 type="button"
@@ -1939,7 +2300,11 @@ function Dropzone({ label, sub, file, onFile, previewUrl }: {
         isDragging ? "border-primary/60 bg-accent/40" : "border-border"
       }`}
     >
-      <svg viewBox="0 0 200 80" className="absolute inset-x-0 bottom-0 w-full h-16 text-foreground/[0.05] pointer-events-none" aria-hidden>
+      <svg
+        viewBox="0 0 200 80"
+        className="absolute inset-x-0 bottom-0 w-full h-16 text-foreground/[0.05] pointer-events-none"
+        aria-hidden
+      >
         <g stroke="currentColor" strokeWidth="0.5">
           <line x1="0" y1="60" x2="200" y2="60" />
           <path d="M30 60 V32 L70 16 L110 32 V60" fill="none" />
@@ -1956,7 +2321,10 @@ function Dropzone({ label, sub, file, onFile, previewUrl }: {
         type="file"
         accept="application/pdf"
         className="sr-only"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) acceptFile(f); }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) acceptFile(f);
+        }}
       />
     </label>
   );
@@ -1966,15 +2334,15 @@ function Dropzone({ label, sub, file, onFile, previewUrl }: {
 
 const SHEET_TYPE_LABELS: Record<AdditionalPdfSheetType, string> = {
   elevations: "Elevations",
-  site_plan:  "Site Plan",
+  site_plan: "Site Plan",
   floor_plan: "Floor Plan (use primary slot)",
-  unknown:    "Unknown",
+  unknown: "Unknown",
 };
 const SHEET_TYPE_COLORS: Record<AdditionalPdfSheetType, string> = {
   elevations: "bg-amber-500/15 text-amber-600 border-amber-500/30",
-  site_plan:  "bg-blue-500/15 text-blue-600 border-blue-500/30",
+  site_plan: "bg-blue-500/15 text-blue-600 border-blue-500/30",
   floor_plan: "bg-red-500/15 text-red-600 border-red-500/30",
-  unknown:    "bg-muted text-muted-foreground border-border",
+  unknown: "bg-muted text-muted-foreground border-border",
 };
 
 async function classifyPdfFile(file: File): Promise<AdditionalPdfSheetType> {
@@ -2012,8 +2380,14 @@ function AdditionalPdfsZone({
 
   async function addFiles(files: File[]) {
     const accepted = files.filter((f) => {
-      if (!isPdf(f)) { toast.error(`${f.name} is not a PDF.`); return false; }
-      if (f.size > maxBytes) { toast.error(`${f.name} exceeds the 50 MB limit.`); return false; }
+      if (!isPdf(f)) {
+        toast.error(`${f.name} is not a PDF.`);
+        return false;
+      }
+      if (f.size > maxBytes) {
+        toast.error(`${f.name} exceeds the 50 MB limit.`);
+        return false;
+      }
       return true;
     });
     if (accepted.length === 0) return;
@@ -2028,17 +2402,20 @@ function AdditionalPdfsZone({
     for (const np of newPdfs) {
       classifyPdfFile(np.file).then((sheetType) => {
         onChange((prev) =>
-          prev.map((p) => p.id === np.id ? { ...p, sheetType, classifying: false } : p)
+          prev.map((p) => (p.id === np.id ? { ...p, sheetType, classifying: false } : p)),
         );
         if (sheetType === "floor_plan") {
-          toast.warning(`${np.file.name} looks like a floor plan — use the primary Plan PDF slot instead.`);
+          toast.warning(
+            `${np.file.name} looks like a floor plan — use the primary Plan PDF slot instead.`,
+          );
         }
       });
     }
   }
 
   function handleDrop(e: React.DragEvent) {
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
     setIsDragging(false);
     addFiles(Array.from(e.dataTransfer?.files ?? []));
   }
@@ -2047,21 +2424,35 @@ function AdditionalPdfsZone({
     return (
       <div>
         <div className="text-xs font-medium text-muted-foreground mb-2">
-          Elevation & Site Plan PDFs <span className="font-normal">(optional — up to 4 additional files)</span>
+          Elevation & Site Plan PDFs{" "}
+          <span className="font-normal">(optional — up to 4 additional files)</span>
         </div>
         <label
-          onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
-          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-          onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+          onDragEnter={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+          }}
           onDrop={handleDrop}
           className={`flex items-center gap-3 rounded-lg border-2 border-dashed px-5 py-4 cursor-pointer transition-colors ${
-            isDragging ? "border-primary/60 bg-accent/40" : "border-border hover:border-primary/30 hover:bg-accent/20"
+            isDragging
+              ? "border-primary/60 bg-accent/40"
+              : "border-border hover:border-primary/30 hover:bg-accent/20"
           }`}
         >
           <UploadCloud className="h-4 w-4 text-muted-foreground shrink-0" />
           <div>
             <span className="text-sm font-medium">Add elevation or site plan PDFs</span>
-            <span className="text-xs text-muted-foreground ml-2">Sheet types auto-detected · Max 50 MB each</span>
+            <span className="text-xs text-muted-foreground ml-2">
+              Sheet types auto-detected · Max 50 MB each
+            </span>
           </div>
           <input
             type="file"
@@ -2082,17 +2473,24 @@ function AdditionalPdfsZone({
       </div>
       <div className="space-y-2">
         {pdfs.map((pdf) => (
-          <div key={pdf.id} className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+          <div
+            key={pdf.id}
+            className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
+          >
             <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="text-[13px] font-medium truncate">{pdf.file.name}</div>
-              <div className="text-[11px] text-muted-foreground">{(pdf.file.size / 1024 / 1024).toFixed(2)} MB</div>
+              <div className="text-[11px] text-muted-foreground">
+                {(pdf.file.size / 1024 / 1024).toFixed(2)} MB
+              </div>
             </div>
             {pdf.classifying ? (
               <span className="text-[10px] text-muted-foreground animate-pulse">Classifying…</span>
             ) : (
               <div className="flex items-center gap-2">
-                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-medium ${SHEET_TYPE_COLORS[pdf.sheetType]}`}>
+                <span
+                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-medium ${SHEET_TYPE_COLORS[pdf.sheetType]}`}
+                >
                   {SHEET_TYPE_LABELS[pdf.sheetType]}
                 </span>
                 {(pdf.sheetType === "unknown" || pdf.sheetType === "floor_plan") && (
@@ -2100,7 +2498,9 @@ function AdditionalPdfsZone({
                     value={pdf.sheetType}
                     onChange={(e) => {
                       const t = e.target.value as AdditionalPdfSheetType;
-                      onChange((prev) => prev.map((p) => p.id === pdf.id ? { ...p, sheetType: t } : p));
+                      onChange((prev) =>
+                        prev.map((p) => (p.id === pdf.id ? { ...p, sheetType: t } : p)),
+                      );
                     }}
                     className="text-[11px] rounded border border-input bg-background px-1.5 py-0.5 focus:outline-none"
                   >
@@ -2156,14 +2556,18 @@ function ElevationSummaryCard({
 
       {/* Window cross-reference */}
       {crossRef && (
-        <div className={`rounded-md border px-3 py-2 flex items-center gap-2 text-[11px] ${
-          crossRef.windowCountMatch
-            ? "border-emerald-500/30 bg-emerald-50/5 text-emerald-600"
-            : "border-amber-500/30 bg-amber-50/5 text-amber-600"
-        }`}>
-          {crossRef.windowCountMatch
-            ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-            : <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
+        <div
+          className={`rounded-md border px-3 py-2 flex items-center gap-2 text-[11px] ${
+            crossRef.windowCountMatch
+              ? "border-emerald-500/30 bg-emerald-50/5 text-emerald-600"
+              : "border-amber-500/30 bg-amber-50/5 text-amber-600"
+          }`}
+        >
+          {crossRef.windowCountMatch ? (
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+          ) : (
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          )}
           {crossRef.windowCountMatch
             ? `${crossRef.windowCountElevations} windows verified across ${Object.keys(elevation?.windowCountPerFace ?? {}).length} elevations`
             : `Window mismatch — floor plan: ${crossRef.windowCountFloorPlan}, elevations: ${crossRef.windowCountElevations}`}
@@ -2181,7 +2585,9 @@ function ElevationSummaryCard({
                 : "Not detected"}
             </span>
             {elevation.claddingTypeCode && (
-              <span className="ml-1 text-[10px] text-muted-foreground">(type {elevation.claddingTypeCode})</span>
+              <span className="ml-1 text-[10px] text-muted-foreground">
+                (type {elevation.claddingTypeCode})
+              </span>
             )}
           </div>
           <div>
@@ -2201,7 +2607,9 @@ function ElevationSummaryCard({
           <span className="text-muted-foreground">Concrete: </span>
           <span className="font-medium">{sitePlan.totalConcreteM2} m² total</span>
           {sitePlan.drivewayConcretM2 != null && (
-            <span className="text-muted-foreground ml-2">({sitePlan.drivewayConcretM2} m² driveway)</span>
+            <span className="text-muted-foreground ml-2">
+              ({sitePlan.drivewayConcretM2} m² driveway)
+            </span>
           )}
         </div>
       )}

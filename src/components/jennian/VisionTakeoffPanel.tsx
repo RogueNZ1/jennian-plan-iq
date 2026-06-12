@@ -26,7 +26,8 @@ type PageCandidate = {
 };
 
 export function VisionTakeoffPanel({
-  jobId, flattenedFiles,
+  jobId,
+  flattenedFiles,
 }: {
   jobId: string;
   flattenedFiles: FlatFile[];
@@ -34,7 +35,11 @@ export function VisionTakeoffPanel({
   const runFn = useServerFn(runVisionTakeoff);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<{ message: string; operation?: string; technical?: string } | null>(null);
+  const [error, setError] = useState<{
+    message: string;
+    operation?: string;
+    technical?: string;
+  } | null>(null);
   const [result, setResult] = useState<VisionRunSummary | null>(null);
   const [candidates, setCandidates] = useState<PageCandidate[] | null>(null);
   const [totalPages, setTotalPages] = useState<number>(0);
@@ -50,7 +55,11 @@ export function VisionTakeoffPanel({
     (async () => {
       try {
         const ids = flattenedFiles.map((f) => f.fileId);
-        if (ids.length === 0) { setCandidates([]); setTotalPages(0); return; }
+        if (ids.length === 0) {
+          setCandidates([]);
+          setTotalPages(0);
+          return;
+        }
         const { data: rows } = await supabase
           .from("uploaded_files")
           .select("id, file_name, file_type, storage_url")
@@ -74,9 +83,13 @@ export function VisionTakeoffPanel({
           for (const pg of extracted.pages) {
             const c = classifyPageWithType(pg, "plan");
             const score =
-              c.pageType === "Dimension Floorplan" ? 100 :
-              c.pageType === "Floorplan" ? 80 :
-              c.pageType === "Unknown" ? -100 : -200;
+              c.pageType === "Dimension Floorplan"
+                ? 100
+                : c.pageType === "Floorplan"
+                  ? 80
+                  : c.pageType === "Unknown"
+                    ? -100
+                    : -200;
             if (score > 0) {
               positives.push({
                 fileId: file.fileId,
@@ -115,16 +128,23 @@ export function VisionTakeoffPanel({
           setCandidates(merged);
           setTotalPages(total);
           // Default selection: positives (capped). If none, fallback up to PAGE_CAP.
-          const defaults = positives.length > 0
-            ? positives.slice(0, PAGE_CAP).map(keyOf)
-            : fallbacks.slice(0, PAGE_CAP).map(keyOf);
+          const defaults =
+            positives.length > 0
+              ? positives.slice(0, PAGE_CAP).map(keyOf)
+              : fallbacks.slice(0, PAGE_CAP).map(keyOf);
           setSelectedKeys(new Set(defaults));
         }
       } catch {
-        if (!cancelled) { setCandidates([]); setTotalPages(0); setSelectedKeys(new Set()); }
+        if (!cancelled) {
+          setCandidates([]);
+          setTotalPages(0);
+          setSelectedKeys(new Set());
+        }
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [flattenedFiles]);
 
   // Load calibration status for all candidates whenever the candidate list changes.
@@ -188,11 +208,15 @@ export function VisionTakeoffPanel({
   }
 
   async function run() {
-    setBusy(true); setError(null); setResult(null);
+    setBusy(true);
+    setError(null);
+    setResult(null);
     try {
       const list = selectedCandidates;
       if (list.length === 0) {
-        throw new Error("Vision Takeoff could not identify a floorplan page. Select the working plan manually or use manual measurement.");
+        throw new Error(
+          "Vision Takeoff could not identify a floorplan page. Select the working plan manually or use manual measurement.",
+        );
       }
       if (list.length > PAGE_CAP) {
         throw new Error(`Maximum ${PAGE_CAP} pages per Vision Takeoff run.`);
@@ -201,9 +225,14 @@ export function VisionTakeoffPanel({
       const specificationText = await loadSpecificationText();
 
       const pageInputs: Array<{
-        fileId: string; fileName: string; pageNumber: number;
-        storageBucket: string; storagePath: string;
-        clientPageType: string; widthPx: number; heightPx: number;
+        fileId: string;
+        fileName: string;
+        pageNumber: number;
+        storageBucket: string;
+        storagePath: string;
+        clientPageType: string;
+        widthPx: number;
+        heightPx: number;
       }> = [];
 
       for (const cand of list) {
@@ -216,12 +245,18 @@ export function VisionTakeoffPanel({
           pageNumber: cand.pageNumber,
           pageType: cand.clientPageType,
         });
-        setStatus(`Rendered p${cand.pageNumber}: ${rendered.widthPx}×${rendered.heightPx}px${rendered.cached ? " (cached)" : ""}`);
+        setStatus(
+          `Rendered p${cand.pageNumber}: ${rendered.widthPx}×${rendered.heightPx}px${rendered.cached ? " (cached)" : ""}`,
+        );
         pageInputs.push({
-          fileId: cand.fileId, fileName: cand.fileName, pageNumber: cand.pageNumber,
-          storageBucket: rendered.bucket, storagePath: rendered.storagePath,
+          fileId: cand.fileId,
+          fileName: cand.fileName,
+          pageNumber: cand.pageNumber,
+          storageBucket: rendered.bucket,
+          storagePath: rendered.storagePath,
           clientPageType: cand.clientPageType,
-          widthPx: rendered.widthPx, heightPx: rendered.heightPx,
+          widthPx: rendered.widthPx,
+          heightPx: rendered.heightPx,
         });
       }
 
@@ -233,11 +268,15 @@ export function VisionTakeoffPanel({
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
       if (!accessToken) {
-        throw new Error("Your session has expired. Please sign in again before running Vision Takeoff.");
+        throw new Error(
+          "Your session has expired. Please sign in again before running Vision Takeoff.",
+        );
       }
 
       setStatus(`Calling vision model on ${pageInputs.length} rendered pages…`);
-      const response = await runFn({ data: { jobId, pages: pageInputs, specificationText, accessToken } });
+      const response = await runFn({
+        data: { jobId, pages: pageInputs, specificationText, accessToken },
+      });
 
       // Structured error: server function returned { ok: false, error: {...} }.
       // Use setError directly (not throw) so operation and technical are preserved.
@@ -259,9 +298,17 @@ export function VisionTakeoffPanel({
         (response as { kind?: string }).kind !== "vision_takeoff"
       ) {
         let technical: string | undefined;
-        try { technical = JSON.stringify(response).slice(0, 300); } catch { technical = String(response); }
+        try {
+          technical = JSON.stringify(response).slice(0, 300);
+        } catch {
+          technical = String(response);
+        }
         console.error("[VisionTakeoff] Unexpected server response shape:", technical);
-        setError({ operation: "unknown", message: "Vision Takeoff could not complete. Unexpected server response.", technical });
+        setError({
+          operation: "unknown",
+          message: "Vision Takeoff could not complete. Unexpected server response.",
+          technical,
+        });
         setStatus(null);
         return;
       }
@@ -287,7 +334,9 @@ export function VisionTakeoffPanel({
         <div className="flex-1 min-w-0">
           <div className="text-[12.5px] font-semibold tracking-tight">Vision Takeoff</div>
           <div className="mt-0.5 text-[11.5px] text-muted-foreground">
-            Renders flattened plan pages as images and asks a vision-capable model to extract draft quantities, openings, and wall lengths. All results are draft and require human review before approval or pricing.
+            Renders flattened plan pages as images and asks a vision-capable model to extract draft
+            quantities, openings, and wall lengths. All results are draft and require human review
+            before approval or pricing.
           </div>
 
           {candidates !== null && (
@@ -295,7 +344,10 @@ export function VisionTakeoffPanel({
               <div className="mt-2 text-[11px] text-muted-foreground">
                 Pages selected for Vision Takeoff: {selectedCount} of {PAGE_CAP}
                 {totalPages > 0 && (
-                  <> · {totalPages} plan page{totalPages === 1 ? "" : "s"} scanned</>
+                  <>
+                    {" "}
+                    · {totalPages} plan page{totalPages === 1 ? "" : "s"} scanned
+                  </>
                 )}
                 {noCandidates && (
                   <> — no plan pages available. Upload a plan file or use manual measurement.</>
@@ -309,7 +361,8 @@ export function VisionTakeoffPanel({
               {totalCandidates > 0 && (
                 <div className="mt-2 rounded-md border border-border bg-card">
                   <div className="px-3 py-2 text-[11px] text-muted-foreground border-b border-border">
-                    Select the plan pages Jennian IQ should review. Floorplan or dimension floorplan pages work best.
+                    Select the plan pages Jennian IQ should review. Floorplan or dimension floorplan
+                    pages work best.
                   </div>
                   <div className="max-h-56 overflow-auto">
                     <table className="w-full text-[11px]">
@@ -338,18 +391,35 @@ export function VisionTakeoffPanel({
                                   disabled={busy}
                                 />
                               </td>
-                              <td className="px-2 py-1.5 truncate max-w-[160px]" title={c.fileName}>{c.fileName}</td>
+                              <td className="px-2 py-1.5 truncate max-w-[160px]" title={c.fileName}>
+                                {c.fileName}
+                              </td>
                               <td className="px-2 py-1.5 tabular-nums">{c.pageNumber}</td>
                               <td className="px-2 py-1.5">{c.clientPageType}</td>
                               <td className="px-2 py-1.5">{c.confidence}</td>
                               <td className="px-2 py-1.5">
                                 {calibrationMap[k] != null ? (
-                                  <span title={`${calibrationMap[k]?.toFixed(2)} px/mm`} className="text-emerald-600">✓</span>
+                                  <span
+                                    title={`${calibrationMap[k]?.toFixed(2)} px/mm`}
+                                    className="text-emerald-600"
+                                  >
+                                    ✓
+                                  </span>
                                 ) : (
-                                  <span title="No calibration — measurements will be inferred only" className="text-amber-500">⚠</span>
+                                  <span
+                                    title="No calibration — measurements will be inferred only"
+                                    className="text-amber-500"
+                                  >
+                                    ⚠
+                                  </span>
                                 )}
                               </td>
-                              <td className="px-2 py-1.5 text-muted-foreground truncate max-w-[200px]" title={c.reason}>{c.reason}</td>
+                              <td
+                                className="px-2 py-1.5 text-muted-foreground truncate max-w-[200px]"
+                                title={c.reason}
+                              >
+                                {c.reason}
+                              </td>
                             </tr>
                           );
                         })}
@@ -361,15 +431,17 @@ export function VisionTakeoffPanel({
             </>
           )}
 
-          {selectedCandidates.length > 0 && selectedCandidates.some((c) => calibrationMap[keyOf(c)] == null) && (
-            <div className="mt-2 flex items-start gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-              <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" />
-              <span>
-                Some selected pages have no calibration. AI values will be marked <strong>Inferred</strong> — not measurement-grade.
-                Calibrate in the <strong>Plan Canvas</strong> (Review tab) first for confirmed geometry.
-              </span>
-            </div>
-          )}
+          {selectedCandidates.length > 0 &&
+            selectedCandidates.some((c) => calibrationMap[keyOf(c)] == null) && (
+              <div className="mt-2 flex items-start gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                <span>
+                  Some selected pages have no calibration. AI values will be marked{" "}
+                  <strong>Inferred</strong> — not measurement-grade. Calibrate in the{" "}
+                  <strong>Plan Canvas</strong> (Review tab) first for confirmed geometry.
+                </span>
+              </div>
+            )}
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
@@ -378,14 +450,16 @@ export function VisionTakeoffPanel({
               disabled={busy || candidates === null || selectedCount === 0 || overCap}
               className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ScanEye className="h-3 w-3" />}
+              {busy ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <ScanEye className="h-3 w-3" />
+              )}
               {busy ? "Running Vision Takeoff…" : "Run Vision Takeoff"}
             </button>
           </div>
 
-          {status && (
-            <div className="mt-2 text-[11px] text-muted-foreground">{status}</div>
-          )}
+          {status && <div className="mt-2 text-[11px] text-muted-foreground">{status}</div>}
           {error && (
             <div className="mt-2 inline-flex items-start gap-1.5 text-[11px] text-destructive">
               <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" />
@@ -395,7 +469,9 @@ export function VisionTakeoffPanel({
                   <span className="block text-muted-foreground">Operation: {error.operation}</span>
                 )}
                 {error.technical && error.operation !== "client_error" && (
-                  <span className="block text-muted-foreground break-all">{error.technical.slice(0, 240)}</span>
+                  <span className="block text-muted-foreground break-all">
+                    {error.technical.slice(0, 240)}
+                  </span>
                 )}
               </span>
             </div>
@@ -404,9 +480,18 @@ export function VisionTakeoffPanel({
           {result && (
             <>
               <div className="mt-3 grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-border rounded-md overflow-hidden">
-                <Card label="Working Plan Reviewed" value={result.workingPlanReviewed ? "Yes" : "No"} />
-                <Card label="Pages Sent" value={`${result.pagesSentToVision}/${result.pagesRendered}`} />
-                <Card label="Area / Perimeter Values" value={String(result.areaPerimeterValuesFound)} />
+                <Card
+                  label="Working Plan Reviewed"
+                  value={result.workingPlanReviewed ? "Yes" : "No"}
+                />
+                <Card
+                  label="Pages Sent"
+                  value={`${result.pagesSentToVision}/${result.pagesRendered}`}
+                />
+                <Card
+                  label="Area / Perimeter Values"
+                  value={String(result.areaPerimeterValuesFound)}
+                />
                 <Card label="Window Items" value={String(result.windowItemsFound)} />
                 <Card label="Door Items" value={String(result.doorItemsFound)} />
                 <Card label="Wall Lengths" value={String(result.wallLengthsFound)} />
@@ -415,27 +500,36 @@ export function VisionTakeoffPanel({
               </div>
               <div className="mt-2 text-[11px] text-amber-700 inline-flex items-start gap-1.5">
                 <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                <span>Vision takeoff creates draft quantities for review. Confirm before pricing or procurement.</span>
+                <span>
+                  Vision takeoff creates draft quantities for review. Confirm before pricing or
+                  procurement.
+                </span>
               </div>
               {(result.errors?.length ?? 0) === 0 && result.pagesProcessed > 0 && (
                 <div className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-emerald-700">
                   <CheckCircle2 className="h-3 w-3" />
-                  Vision review complete on {result.pagesProcessed} {result.pagesProcessed === 1 ? "page" : "pages"}.
+                  Vision review complete on {result.pagesProcessed}{" "}
+                  {result.pagesProcessed === 1 ? "page" : "pages"}.
                 </div>
               )}
               {result.pagesProcessed === 0 && (
                 <div className="mt-1 text-[11px] text-muted-foreground">
-                  Vision review could not extract reliable quantities from this drawing. Use manual measurement tools or upload a clearer plan.
+                  Vision review could not extract reliable quantities from this drawing. Use manual
+                  measurement tools or upload a clearer plan.
                 </div>
               )}
               {(result.warnings?.length ?? 0) > 0 && (
                 <ul className="mt-2 text-[11px] text-amber-700 space-y-0.5 max-h-40 overflow-auto">
-                  {result.warnings!.slice(0, 8).map((w, i) => <li key={i}>• {w}</li>)}
+                  {result.warnings!.slice(0, 8).map((w, i) => (
+                    <li key={i}>• {w}</li>
+                  ))}
                 </ul>
               )}
               {(result.errors?.length ?? 0) > 0 && (
                 <ul className="mt-2 text-[11px] text-destructive space-y-0.5 max-h-40 overflow-auto">
-                  {result.errors!.slice(0, 8).map((e, i) => <li key={i}>• {e}</li>)}
+                  {result.errors!.slice(0, 8).map((e, i) => (
+                    <li key={i}>• {e}</li>
+                  ))}
                 </ul>
               )}
             </>

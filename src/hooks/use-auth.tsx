@@ -33,15 +33,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active || authEventSeen) return;
-      setSession(data.session);
-      setLoading(false);
-    }).catch(() => {
-      if (!active) return;
-      setSession(null);
-      setLoading(false);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!active || authEventSeen) return;
+        setSession(data.session);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setSession(null);
+        setLoading(false);
+      });
 
     return () => {
       active = false;

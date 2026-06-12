@@ -9,11 +9,11 @@ import type { SitePlanData } from "../takeoff/extract-site-plan";
 // Mock extraction result matching the Russell St site plan
 const russellStMock: SitePlanData = {
   concreteAreas: [
-    { label: "Driveway",  areaM2: 80 },
-    { label: "Path",      areaM2: 132 },
-    { label: "",          areaM2: 13 },
-    { label: "",          areaM2: 17 },
-    { label: "",          areaM2: 1 },
+    { label: "Driveway", areaM2: 80 },
+    { label: "Path", areaM2: 132 },
+    { label: "", areaM2: 13 },
+    { label: "", areaM2: 17 },
+    { label: "", areaM2: 1 },
   ],
   totalConcreteM2: 243,
   drivewayConcretM2: 80,
@@ -62,10 +62,10 @@ describe("SitePlanData structure", () => {
     const mockWithAreas: SitePlanData = {
       concreteAreas: [
         { label: "Driveway", areaM2: 80 },
-        { label: "Path",     areaM2: 132 },
-        { label: "",         areaM2: 13 },
-        { label: "",         areaM2: 17 },
-        { label: "",         areaM2: 1 },
+        { label: "Path", areaM2: 132 },
+        { label: "", areaM2: 13 },
+        { label: "", areaM2: 17 },
+        { label: "", areaM2: 1 },
       ],
       totalConcreteM2: 0, // will be recalculated
       drivewayConcretM2: null,

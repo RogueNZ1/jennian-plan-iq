@@ -1,7 +1,17 @@
 export type RoomType =
-  | "bedroom" | "master_bedroom" | "bathroom" | "ensuite"
-  | "kitchen" | "living" | "dining" | "laundry" | "garage"
-  | "alfresco" | "hallway" | "study" | "other";
+  | "bedroom"
+  | "master_bedroom"
+  | "bathroom"
+  | "ensuite"
+  | "kitchen"
+  | "living"
+  | "dining"
+  | "laundry"
+  | "garage"
+  | "alfresco"
+  | "hallway"
+  | "study"
+  | "other";
 
 export type RoomSpec = {
   name: string;
@@ -23,7 +33,8 @@ export type ElectricalSchedule = {
 };
 
 function downlightsForRoom(room: RoomSpec): number {
-  if (room.type === "bathroom" || room.type === "ensuite") return Math.max(2, Math.ceil(room.area_m2 / 3));
+  if (room.type === "bathroom" || room.type === "ensuite")
+    return Math.max(2, Math.ceil(room.area_m2 / 3));
   if (room.type === "laundry") return Math.max(1, Math.ceil(room.area_m2 / 4));
   if (room.type === "garage") return Math.max(2, Math.ceil(room.area_m2 / 5));
   if (room.type === "hallway") return Math.max(1, Math.ceil(room.area_m2 / 4));
@@ -37,7 +48,12 @@ export function generateElectricalSchedule(rooms: RoomSpec[]): ElectricalSchedul
     const label = room.name;
 
     // Downlights
-    items.push({ code: "DL", description: "LED Downlight", quantity: downlightsForRoom(room), room: label });
+    items.push({
+      code: "DL",
+      description: "LED Downlight",
+      quantity: downlightsForRoom(room),
+      room: label,
+    });
 
     // Switches
     const switches = room.area_m2 > 20 ? 2 : 1;
@@ -47,8 +63,18 @@ export function generateElectricalSchedule(rooms: RoomSpec[]): ElectricalSchedul
       items.push({ code: "2002", description: "Double GPO", quantity: 3, room: label });
     } else if (room.type === "living" || room.type === "dining") {
       items.push({ code: "2002", description: "Double GPO", quantity: 4, room: label });
-      items.push({ code: "2134", description: "Double GPO (Entertainment)", quantity: 1, room: label });
-      items.push({ code: "7430", description: "TV Outlet (CAT6 + Coax)", quantity: 1, room: label });
+      items.push({
+        code: "2134",
+        description: "Double GPO (Entertainment)",
+        quantity: 1,
+        room: label,
+      });
+      items.push({
+        code: "7430",
+        description: "TV Outlet (CAT6 + Coax)",
+        quantity: 1,
+        room: label,
+      });
     } else if (room.type === "study") {
       items.push({ code: "2002", description: "Double GPO", quantity: 2, room: label });
       items.push({ code: "5731", description: "CAT6 Data Outlet", quantity: 2, room: label });
@@ -58,30 +84,85 @@ export function generateElectricalSchedule(rooms: RoomSpec[]): ElectricalSchedul
 
     if (room.type === "kitchen") {
       items.push({ code: "2002", description: "Double GPO (Bench)", quantity: 4, room: label });
-      items.push({ code: "2010", description: "Fridge Outlet (Dedicated 10A)", quantity: 1, room: label });
-      items.push({ code: "2012", description: "Dishwasher Outlet (Dedicated)", quantity: 1, room: label });
-      items.push({ code: "2016", description: "Microwave Outlet (Dedicated)", quantity: 1, room: label });
-      items.push({ code: "2018", description: "Rangehood Outlet (Dedicated)", quantity: 1, room: label });
-      items.push({ code: "2026", description: "Oven Outlet (20A Dedicated)", quantity: 1, room: label });
-      items.push({ code: "2032", description: "Hob Outlet (32A Dedicated)", quantity: 1, room: label });
+      items.push({
+        code: "2010",
+        description: "Fridge Outlet (Dedicated 10A)",
+        quantity: 1,
+        room: label,
+      });
+      items.push({
+        code: "2012",
+        description: "Dishwasher Outlet (Dedicated)",
+        quantity: 1,
+        room: label,
+      });
+      items.push({
+        code: "2016",
+        description: "Microwave Outlet (Dedicated)",
+        quantity: 1,
+        room: label,
+      });
+      items.push({
+        code: "2018",
+        description: "Rangehood Outlet (Dedicated)",
+        quantity: 1,
+        room: label,
+      });
+      items.push({
+        code: "2026",
+        description: "Oven Outlet (20A Dedicated)",
+        quantity: 1,
+        room: label,
+      });
+      items.push({
+        code: "2032",
+        description: "Hob Outlet (32A Dedicated)",
+        quantity: 1,
+        room: label,
+      });
       items.push({ code: "5731", description: "CAT6 Data Outlet", quantity: 1, room: label });
     }
 
     if (room.type === "laundry") {
       items.push({ code: "2002", description: "Double GPO", quantity: 1, room: label });
-      items.push({ code: "2020", description: "Washing Machine Outlet (Dedicated)", quantity: 1, room: label });
-      items.push({ code: "2022", description: "Dryer Outlet (Dedicated)", quantity: 1, room: label });
+      items.push({
+        code: "2020",
+        description: "Washing Machine Outlet (Dedicated)",
+        quantity: 1,
+        room: label,
+      });
+      items.push({
+        code: "2022",
+        description: "Dryer Outlet (Dedicated)",
+        quantity: 1,
+        room: label,
+      });
     }
 
     if (room.type === "bathroom" || room.type === "ensuite") {
-      items.push({ code: "2250", description: "Heated Towel Rail Outlet", quantity: 1, room: label });
+      items.push({
+        code: "2250",
+        description: "Heated Towel Rail Outlet",
+        quantity: 1,
+        room: label,
+      });
       items.push({ code: "2226", description: "Inline Exhaust Fan", quantity: 1, room: label });
     }
 
     if (room.type === "garage") {
       items.push({ code: "2002", description: "Double GPO", quantity: 2, room: label });
-      items.push({ code: "2008", description: "Garage Auto Door Opener Outlet", quantity: 1, room: label });
-      items.push({ code: "2150", description: "Weatherproof GPO (External)", quantity: 1, room: label });
+      items.push({
+        code: "2008",
+        description: "Garage Auto Door Opener Outlet",
+        quantity: 1,
+        room: label,
+      });
+      items.push({
+        code: "2150",
+        description: "Weatherproof GPO (External)",
+        quantity: 1,
+        room: label,
+      });
     }
   }
 
@@ -95,7 +176,11 @@ export function generateElectricalSchedule(rooms: RoomSpec[]): ElectricalSchedul
   // Whole-house items
   items.push({ code: "2100", description: "Hot Water Unit Outlet (16A Dedicated)", quantity: 1 });
   items.push({ code: "6153VC", description: "Vynco Switchboard", quantity: 1 });
-  items.push({ code: "2190D", description: "Smoke Detector (Interconnected)", quantity: Math.max(2, rooms.length) });
+  items.push({
+    code: "2190D",
+    description: "Smoke Detector (Interconnected)",
+    quantity: Math.max(2, rooms.length),
+  });
   items.push({ code: "6124.1", description: "Earthing Electrode", quantity: 1 });
 
   return { items, rooms, generatedAt: new Date().toISOString() };
@@ -119,7 +204,11 @@ export type RoomCounts = {
 export function buildRoomSpecsFromCounts(counts: RoomCounts): RoomSpec[] {
   const rooms: RoomSpec[] = [];
   for (let i = 0; i < counts.masterBedrooms; i++) {
-    rooms.push({ name: i === 0 ? "Master Bedroom" : `Master Bedroom ${i + 1}`, type: "master_bedroom", area_m2: 18 });
+    rooms.push({
+      name: i === 0 ? "Master Bedroom" : `Master Bedroom ${i + 1}`,
+      type: "master_bedroom",
+      area_m2: 18,
+    });
   }
   for (let i = 0; i < counts.bedrooms; i++) {
     rooms.push({ name: `Bedroom ${i + 1}`, type: "bedroom", area_m2: 12 });

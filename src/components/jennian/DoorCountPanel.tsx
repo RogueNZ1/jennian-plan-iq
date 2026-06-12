@@ -40,7 +40,8 @@ export function DoorCountPanel({ jobId, aiEstimates, onConfirmed }: DoorCountPan
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  const aiTotal = aiEstimates.hinged + aiEstimates.cavitySlider + aiEstimates.doubleDoor + aiEstimates.barnSlider;
+  const aiTotal =
+    aiEstimates.hinged + aiEstimates.cavitySlider + aiEstimates.doubleDoor + aiEstimates.barnSlider;
 
   useEffect(() => {
     let cancelled = false;
@@ -63,7 +64,9 @@ export function DoorCountPanel({ jobId, aiEstimates, onConfirmed }: DoorCountPan
         }
         setLoaded(true);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [jobId]);
 
   function adjust(key: keyof DoorCounts, delta: number) {
@@ -148,7 +151,10 @@ export function DoorCountPanel({ jobId, aiEstimates, onConfirmed }: DoorCountPan
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               {LABELS.map(({ key, label }) => (
-                <div key={key} className="rounded-md border border-border bg-muted/30 p-3 flex flex-col gap-2">
+                <div
+                  key={key}
+                  className="rounded-md border border-border bg-muted/30 p-3 flex flex-col gap-2"
+                >
                   <div className="text-[11px] text-muted-foreground leading-tight">{label}</div>
                   <div className="flex items-center gap-2">
                     <button
@@ -179,9 +185,7 @@ export function DoorCountPanel({ jobId, aiEstimates, onConfirmed }: DoorCountPan
               <div className="text-[12px] text-muted-foreground">
                 Total: <span className="font-semibold text-foreground">{total}</span>
                 {aiTotal > 0 && total !== aiTotal && (
-                  <span className="ml-2 text-amber-600">
-                    (AI estimated {aiTotal})
-                  </span>
+                  <span className="ml-2 text-amber-600">(AI estimated {aiTotal})</span>
                 )}
               </div>
               {!isConfirmed && (

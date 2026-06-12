@@ -4,13 +4,27 @@ import { StatusBadge } from "@/components/jennian/StatusBadge";
 import { PlanThumbnail } from "@/components/jennian/PlanThumbnail";
 import { PlanViewer } from "@/components/jennian/PlanViewer";
 import { listJobs, type Job } from "@/lib/jennian-data";
-import { Upload, FileSpreadsheet, ClipboardCheck, Eye, AlertTriangle, Trash2, X } from "lucide-react";
+import {
+  Upload,
+  FileSpreadsheet,
+  ClipboardCheck,
+  Eye,
+  AlertTriangle,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useRoles } from "@/hooks/use-roles";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
@@ -26,7 +40,9 @@ function JobsPage() {
   const { isOwner } = useRoles();
 
   useEffect(() => {
-    listJobs().then(setJobs).finally(() => setLoading(false));
+    listJobs()
+      .then(setJobs)
+      .finally(() => setLoading(false));
   }, []);
 
   const { duplicateIds, duplicateCount } = useMemo(() => {
@@ -83,8 +99,12 @@ function JobsPage() {
           title="Jobs"
           subtitle="All jobs across the workspace."
           actions={
-            <Link to="/upload" className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 shadow-sm">
-              <Upload className="h-4 w-4" />Upload New Plan
+            <Link
+              to="/upload"
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 shadow-sm"
+            >
+              <Upload className="h-4 w-4" />
+              Upload New Plan
             </Link>
           }
         />
@@ -97,7 +117,8 @@ function JobsPage() {
           >
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <span className="flex-1">
-              {duplicateCount} duplicate job{duplicateCount !== 1 ? "s" : ""} detected — review and delete
+              {duplicateCount} duplicate job{duplicateCount !== 1 ? "s" : ""} detected — review and
+              delete
             </span>
             {showDuplicatesOnly ? (
               <span className="inline-flex items-center gap-1 text-xs font-medium">
@@ -134,7 +155,10 @@ function JobsPage() {
                 {displayJobs.map((j) => {
                   const isDuplicate = duplicateIds.has(j.id);
                   return (
-                    <tr key={j.id} className="border-t border-border hover:bg-muted/25 transition-colors">
+                    <tr
+                      key={j.id}
+                      className="border-t border-border hover:bg-muted/25 transition-colors"
+                    >
                       <td className="pl-6 py-3">
                         <button
                           type="button"
@@ -142,7 +166,11 @@ function JobsPage() {
                           aria-label={`Open plan for ${j.job_number}`}
                           className="block"
                         >
-                          <PlanThumbnail storagePath={j.plan_thumbnail_url} size="sm" className="hover:border-primary/40 cursor-pointer transition-colors" />
+                          <PlanThumbnail
+                            storagePath={j.plan_thumbnail_url}
+                            size="sm"
+                            className="hover:border-primary/40 cursor-pointer transition-colors"
+                          />
                         </button>
                       </td>
                       <td className="px-2 py-3 font-medium">
@@ -157,9 +185,15 @@ function JobsPage() {
                       </td>
                       <td className="px-4 py-3">{j.client_name}</td>
                       <td className="px-4 py-3 text-muted-foreground">{j.address}</td>
-                      <td className="px-4 py-3 text-muted-foreground text-xs">{j.template ?? "—"}</td>
-                      <td className="px-4 py-3"><StatusBadge status={j.status} /></td>
-                      <td className="px-4 py-3 text-muted-foreground tabular-nums">{new Date(j.created_at).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">
+                        {j.template ?? "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={j.status} />
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground tabular-nums">
+                        {new Date(j.created_at).toLocaleDateString()}
+                      </td>
                       <td className="pr-6 py-3">
                         <div className="flex items-center justify-end gap-1">
                           <button
@@ -214,13 +248,19 @@ function JobsPage() {
         onClose={() => setViewer(null)}
       />
 
-      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}>
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(v) => {
+          if (!v) setDeleteTarget(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this job?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete <strong>{deleteTarget?.job_number}</strong> ({deleteTarget?.client_name}) and all
-              related quantities, openings, module items, and takeoff data. This cannot be undone.
+              This will permanently delete <strong>{deleteTarget?.job_number}</strong> (
+              {deleteTarget?.client_name}) and all related quantities, openings, module items, and
+              takeoff data. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

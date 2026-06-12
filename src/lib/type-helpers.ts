@@ -11,13 +11,7 @@
  * (instead of imported) so this module has ZERO dependencies on
  * `@/integrations/supabase/*` and remains a pure, side-effect-free utility.
  */
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[];
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 /** Cast a plain object/array into the database's `Json` column type. */
 export function toJson<T>(val: T): Json {
