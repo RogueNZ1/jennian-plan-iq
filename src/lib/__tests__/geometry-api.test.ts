@@ -52,7 +52,9 @@ describe("measurePlanGeometry — failure contract", () => {
   it("HTTP 403 also names the auth fix", async () => {
     fetchMock.mockResolvedValue(new Response("forbidden", { status: 403 }));
     expect(await measurePlanGeometry(blob)).toBeNull();
-    expect(warnSpy.mock.calls.map((c: unknown[]) => String(c[0])).join("\n")).toContain("GEOMETRY_API_KEY");
+    expect(warnSpy.mock.calls.map((c: unknown[]) => String(c[0])).join("\n")).toContain(
+      "GEOMETRY_API_KEY",
+    );
   });
 
   it("HTTP 500 → null with a status-bearing warning (no auth hint)", async () => {
@@ -66,7 +68,9 @@ describe("measurePlanGeometry — failure contract", () => {
   it("network throw → null, reason logged, never propagates", async () => {
     fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
     await expect(measurePlanGeometry(blob)).resolves.toBeNull();
-    expect(warnSpy.mock.calls.map((c: unknown[]) => String(c[0])).join("\n")).toContain("network/parse");
+    expect(warnSpy.mock.calls.map((c: unknown[]) => String(c[0])).join("\n")).toContain(
+      "network/parse",
+    );
   });
 
   it("success:false body → null with a warning (engine-side rejection is not silent)", async () => {
@@ -77,7 +81,9 @@ describe("measurePlanGeometry — failure contract", () => {
       }),
     );
     expect(await measurePlanGeometry(blob)).toBeNull();
-    expect(warnSpy.mock.calls.map((c: unknown[]) => String(c[0])).join("\n")).toContain("success:false");
+    expect(warnSpy.mock.calls.map((c: unknown[]) => String(c[0])).join("\n")).toContain(
+      "success:false",
+    );
   });
 
   it("malformed JSON → null (parse failure is a failure, not a crash)", async () => {
