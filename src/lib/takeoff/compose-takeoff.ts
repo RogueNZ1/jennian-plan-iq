@@ -323,7 +323,16 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       composedGarageDoorSize,
       composedGarageDoorSize !== t.garage_door_size ? "vector" : garageChanged ? "vector" : "vision",
       reconConf(reconStatusOf("garage_door_width")),
-      flagsFor(reconFlag("garage_door_width")),
+      flagsFor(
+        reconFlag("garage_door_width"),
+        // Coherence (12 Jun, JM-0031 live audit): the generic reconciliation sentence reads
+        // as if the raw vector WIDTH won, but when the sectional callout resolves the value
+        // the stored size comes from the callout label. Additive — never rewrites the base
+        // sentence (golden fixtures pin it byte-for-byte).
+        composedGarageDoorSize !== t.garage_door_size && reconFlag("garage_door_width")
+          ? `Resolved value "${composedGarageDoorSize}" taken from the plan's sectional door callout (not the raw vector width).`
+          : null,
+      ),
     ),
     external_wall_area_m2: fv(composedExtWallAreaM2, "derived", null, extWallFlags),
     total_area_m2: fv(t.total_area_m2, "derived"),
