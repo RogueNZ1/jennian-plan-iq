@@ -100,6 +100,13 @@ export type EnrichedTakeoff = {
    */
   door_counts_auto?: { singles: number; doubles: number; cavitySliders: number; barn: number } | null;
   door_flags?: Array<Record<string, unknown>> | null;
+  /**
+   * Pipeline safety (12 Jun): present ONLY when the geometry layer failed for this run —
+   * the silent catch→null fallback hid a dead geometry service for two days. Absence of
+   * this field means geometry participated (or the run predates the flag). Optional so
+   * old payloads round-trip unchanged.
+   */
+  geometry_status?: FieldValue<string>;
 };
 
 /** Build a FieldValue with sensible defaults. */

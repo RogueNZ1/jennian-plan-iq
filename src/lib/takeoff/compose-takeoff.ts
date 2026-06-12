@@ -345,6 +345,22 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
           door_flags: doorEngine.flags as unknown as Array<Record<string, unknown>>,
         }
       : {}),
+    // Pipeline safety (12 Jun): a geometry-less run must be LOUD, never silent — the
+    // catch→null fallback hid a dead geometry service for two days while takeoffs ran
+    // vision-only with no warning. Conditional spread: geometry-present runs stay
+    // byte-identical; absence on older stored payloads simply reads as pre-flag era.
+    ...(geoResult
+      ? {}
+      : {
+          geometry_status: fv(
+            "unavailable",
+            "flagged-unknown",
+            "low",
+            flagsFor(
+              "GEOMETRY LAYER UNAVAILABLE — deterministic measurement and cross-checks did not run; every value on this takeoff is vision-only. Investigate /api/geometry (health AND auth) before relying on or pricing from this takeoff.",
+            ),
+          ),
+        }),
   };
 
   return { enriched, reconciliation, pageReconcile, scheduleSafeguard };
