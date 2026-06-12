@@ -4,7 +4,7 @@ import type { LatestTakeoffRun } from "@/lib/takeoff/run";
 import { normalizeSummary, isEmptyRun } from "@/lib/takeoff/summary";
 import {
   FileSearch, Ruler, ListChecks, Layers, AlertCircle, ClipboardCheck, Eye,
-  AlertTriangle, FileWarning, ChevronDown, ChevronRight, ScanEye, CheckCircle2,
+  AlertTriangle, FileWarning, ChevronDown, ChevronRight, ScanEye, CheckCircle2, Printer,
 } from "lucide-react";
 import { useRoles } from "@/hooks/use-roles";
 import { TakeoffDiagnosticsPanel } from "./TakeoffDiagnostics";
@@ -392,6 +392,10 @@ export function TakeoffSummary({
       </div>
 
       <div className="px-5 py-3 border-t border-border flex flex-wrap items-center gap-2">
+        <Link to="/jobs/$jobId/verification" params={{ jobId }}
+          className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-2.5 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/10">
+          <Printer className="h-3 w-3" /> Verification Printout
+        </Link>
         <Link to="/review" search={{ job: jobId }}
           className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent">
           <ClipboardCheck className="h-3 w-3" /> Review IQ Core

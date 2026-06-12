@@ -15,7 +15,7 @@ import {
 import {
   Ruler, Zap, Droplets, PaintRoller, Hammer, Square, Mountain,
   AlertTriangle, ShoppingCart, ClipboardCheck, Eye, FileSpreadsheet, FileText, ArrowRight, History,
-  Wand2, RefreshCw, Package, Trash2, CheckCircle2,
+  Wand2, RefreshCw, Package, Trash2, CheckCircle2, Printer,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -556,6 +556,13 @@ function JobDetail() {
               })}
             </div>
             <div className="px-5 py-3 border-t border-border flex items-center justify-end gap-2">
+              <Link
+                to="/jobs/$jobId/verification"
+                params={{ jobId }}
+                className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/5 px-2.5 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/10"
+              >
+                <Printer className="h-3 w-3" /> Verification Printout
+              </Link>
               <Link
                 to="/review"
                 search={{ job: jobId }}

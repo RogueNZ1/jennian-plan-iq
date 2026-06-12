@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   FileSpreadsheet, Ruler, Mountain, Square, Zap, Droplets,
-  Hammer, PaintRoller, DoorOpen, ArrowLeft, AlertTriangle, ClipboardCopy } from "lucide-react";
+  Hammer, PaintRoller, DoorOpen, ArrowLeft, AlertTriangle, ClipboardCopy, Printer } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
@@ -146,6 +146,13 @@ function QuickExport() {
                 className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
               >
                 <ArrowLeft className="h-4 w-4" /> Back to Job
+              </Link>
+              <Link
+                to="/jobs/$jobId/verification"
+                params={{ jobId }}
+                className="inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2 text-sm font-semibold text-primary hover:bg-primary/10"
+              >
+                <Printer className="h-4 w-4" /> Verification Printout
               </Link>
               <button
                 type="button"

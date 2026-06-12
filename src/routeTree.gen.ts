@@ -25,6 +25,7 @@ import { Route as JobsIndexRouteImport } from './routes/jobs.index'
 import { Route as ModulesModuleIdRouteImport } from './routes/modules.$moduleId'
 import { Route as JobsJobIdRouteImport } from './routes/jobs.$jobId'
 import { Route as AuthSetPasswordRouteImport } from './routes/auth.set-password'
+import { Route as JobsJobIdVerificationRouteImport } from './routes/jobs.$jobId_.verification'
 import { Route as JobsJobIdExportRouteImport } from './routes/jobs.$jobId_.export'
 
 const UsersRoute = UsersRouteImport.update({
@@ -107,6 +108,11 @@ const AuthSetPasswordRoute = AuthSetPasswordRouteImport.update({
   path: '/auth/set-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JobsJobIdVerificationRoute = JobsJobIdVerificationRouteImport.update({
+  id: '/$jobId_/verification',
+  path: '/$jobId/verification',
+  getParentRoute: () => JobsRoute,
+} as any)
 const JobsJobIdExportRoute = JobsJobIdExportRouteImport.update({
   id: '/$jobId_/export',
   path: '/$jobId/export',
@@ -131,6 +137,7 @@ export interface FileRoutesByFullPath {
   '/jobs/': typeof JobsIndexRoute
   '/modules/': typeof ModulesIndexRoute
   '/jobs/$jobId/export': typeof JobsJobIdExportRoute
+  '/jobs/$jobId/verification': typeof JobsJobIdVerificationRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -148,6 +155,7 @@ export interface FileRoutesByTo {
   '/jobs': typeof JobsIndexRoute
   '/modules': typeof ModulesIndexRoute
   '/jobs/$jobId/export': typeof JobsJobIdExportRoute
+  '/jobs/$jobId/verification': typeof JobsJobIdVerificationRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -168,6 +176,7 @@ export interface FileRoutesById {
   '/jobs/': typeof JobsIndexRoute
   '/modules/': typeof ModulesIndexRoute
   '/jobs/$jobId_/export': typeof JobsJobIdExportRoute
+  '/jobs/$jobId_/verification': typeof JobsJobIdVerificationRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -189,6 +198,7 @@ export interface FileRouteTypes {
     | '/jobs/'
     | '/modules/'
     | '/jobs/$jobId/export'
+    | '/jobs/$jobId/verification'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -206,6 +216,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/modules'
     | '/jobs/$jobId/export'
+    | '/jobs/$jobId/verification'
   id:
     | '__root__'
     | '/'
@@ -225,6 +236,7 @@ export interface FileRouteTypes {
     | '/jobs/'
     | '/modules/'
     | '/jobs/$jobId_/export'
+    | '/jobs/$jobId_/verification'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -356,6 +368,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthSetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/jobs/$jobId_/verification': {
+      id: '/jobs/$jobId_/verification'
+      path: '/$jobId/verification'
+      fullPath: '/jobs/$jobId/verification'
+      preLoaderRoute: typeof JobsJobIdVerificationRouteImport
+      parentRoute: typeof JobsRoute
+    }
     '/jobs/$jobId_/export': {
       id: '/jobs/$jobId_/export'
       path: '/$jobId/export'
@@ -370,12 +389,14 @@ interface JobsRouteChildren {
   JobsJobIdRoute: typeof JobsJobIdRoute
   JobsIndexRoute: typeof JobsIndexRoute
   JobsJobIdExportRoute: typeof JobsJobIdExportRoute
+  JobsJobIdVerificationRoute: typeof JobsJobIdVerificationRoute
 }
 
 const JobsRouteChildren: JobsRouteChildren = {
   JobsJobIdRoute: JobsJobIdRoute,
   JobsIndexRoute: JobsIndexRoute,
   JobsJobIdExportRoute: JobsJobIdExportRoute,
+  JobsJobIdVerificationRoute: JobsJobIdVerificationRoute,
 }
 
 const JobsRouteWithChildren = JobsRoute._addFileChildren(JobsRouteChildren)
