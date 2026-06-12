@@ -1,0 +1,16 @@
+# Dependency watch (post-audit, 13 Jun 2026). Weekly PRs, gated by the four-gate
+# pipeline (tsc → eslint → vitest → gitleaks). Watches npm deps (SheetJS CVE watch
+# lives here — escalate the moment .xlsx uploads ever land) and the pinned actions.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
