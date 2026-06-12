@@ -167,7 +167,9 @@ describe("buildVerificationModel", () => {
 
     const internal = m.measures.find((r) => r.label.startsWith("Internal walls"))!;
     expect(internal.flagged).toBe(true);
-    expect(internal.source).toBe("GEO");
+    // Suppressed identically to the export (P2 ribbon-trace pending): never the raw number.
+    expect(internal.value).toBe("—");
+    expect(internal.label).toContain("measure manually");
 
     const ceiling = m.measures.find((r) => r.label === "Ceiling height")!;
     expect(ceiling.source).toBe("AST");
