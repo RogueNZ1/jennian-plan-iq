@@ -20,6 +20,7 @@
  * invent nothing; absence of a label means absence from the output.
  */
 import type { TextLabel } from "../doors/door-engine";
+import type { WindowsByRoom } from "./takeoff-types";
 
 export type PlanRoom = {
   name: string;
@@ -147,4 +148,129 @@ export function parsePlanText(labels: TextLabel[]): PlanText {
     windowCodes: parseWindowCodes(labels, rooms),
     titleAreas: parseTitleAreas(labels),
   };
+}
+
+// ── Window auto-routing + correction (13 Jun 2026, "flags aren't fixes") ────────
+//
+// Every printed window code sits beside its window; every room label sits in its
+// room. Nearest-room assignment is GEOMETRY, not guesswork — and it manufactures
+// the per-room window map the job's missing schedule would have carried. Vision
+// is then corrected against it: rooms added (the missing Bed 3), dims fixed (the
+// Ensuite 1.8 hallucination), phantom quantities collapsed (Master qty 2 → the
+// one printed code). Every change is recorded verbatim for the flag rail —
+// corrections are LOUD, never silent.
+
+export type RoutedWindow = { roomName: string; heightMm: number; widthMm: number };
+
+/** Cupboards never carry window codes; excluding them stops a hall-side code
+ * snapping to a 700-deep linen label that happens to sit near a wall. */
+const NON_WINDOW_ROOMS = /^(HWC|LINEN|STORE|WIR|ROBE|PANTRY|ENTRY)\b/i;
+
+export function routeWindowCodes(pt: PlanText): RoutedWindow[] {
+  const rooms = pt.rooms.filter((r) => !NON_WINDOW_ROOMS.test(r.name));
+  if (rooms.length === 0) return [];
+  return pt.windowCodes.map((c) => {
+    let best = rooms[0],
+      bestD = Infinity;
+    for (const r of rooms) {
+      const d = Math.hypot(r.x - c.x, r.y - c.y);
+      if (d < bestD) {
+        best = r;
+        bestD = d;
+      }
+    }
+    return { roomName: best.name, heightMm: c.heightMm, widthMm: c.widthMm };
+  });
+}
+
+const canonRoom = (raw: string): string => {
+  const n = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (n.includes("MASTER")) return "BED1";
+  const bed = n.match(/BED(?:ROOM)?(\d)/);
+  if (bed) return `BED${bed[1]}`;
+  if (/^(WC|TOILET)/.test(n)) return "WC";
+  if (/^BATH/.test(n)) return "BATH";
+  if (/^FAMILY|LIVING/.test(n)) return "FAMILY";
+  return n;
+};
+
+const titleCase = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/\b[a-z]/g, (c) => c.toUpperCase())
+    .trim();
+
+export type WindowCorrection = { room: string; change: string };
+
+/** Pure: returns the corrected map + a verbatim change log. Vision entries with no
+ * printed code are left untouched (the mismatch flag covers them); agreement is
+ * silent; disagreement and absence are corrected loudly. */
+export function correctWindowsByRoom(
+  visionMap: WindowsByRoom | null | undefined,
+  pt: PlanText,
+): { windowsByRoom: WindowsByRoom | null; changes: WindowCorrection[] } {
+  const routed = routeWindowCodes(pt);
+  if (routed.length === 0) return { windowsByRoom: visionMap ?? null, changes: [] };
+
+  // group routed codes per room; same dims stack as qty, differing dims keep first
+  // (single-slot map shape) and note the extra for the manual block downstream.
+  const groups = new Map<
+    string,
+    { name: string; heightMm: number; widthMm: number; qty: number; extra: RoutedWindow[] }
+  >();
+  for (const r of routed) {
+    const key = canonRoom(r.roomName);
+    const g = groups.get(key);
+    if (!g)
+      groups.set(key, {
+        name: r.roomName,
+        heightMm: r.heightMm,
+        widthMm: r.widthMm,
+        qty: 1,
+        extra: [],
+      });
+    else if (g.heightMm === r.heightMm && g.widthMm === r.widthMm) g.qty += 1;
+    else g.extra.push(r);
+  }
+
+  const out: WindowsByRoom = { ...(visionMap ?? {}) };
+  const changes: WindowCorrection[] = [];
+  const visionKeyByCanon = new Map<string, string>();
+  for (const k of Object.keys(out)) visionKeyByCanon.set(canonRoom(k), k);
+
+  for (const [canon, g] of groups) {
+    const h = g.heightMm / 1000,
+      w = g.widthMm / 1000;
+    const vKey = visionKeyByCanon.get(canon);
+    if (!vKey) {
+      const key = titleCase(g.name);
+      out[key] = { qty: g.qty, height_m: h, width_m: w };
+      changes.push({
+        room: key,
+        change: `⚑ FIXED — ${key} window ADDED from the plan's printed code ${g.heightMm}x${g.widthMm} (qty ${g.qty}); vision had no window for this room.`,
+      });
+      continue;
+    }
+    const v = out[vKey];
+    const dimsAgree =
+      v?.height_m != null &&
+      v?.width_m != null &&
+      Math.abs(v.height_m - h) < 0.05 &&
+      Math.abs(v.width_m - w) < 0.05;
+    const qtyAgrees = (v?.qty ?? 0) === g.qty;
+    if (dimsAgree && qtyAgrees) continue;
+    out[vKey] = { ...v, qty: g.qty, height_m: h, width_m: w };
+    changes.push({
+      room: vKey,
+      change:
+        `⚑ FIXED — ${vKey} window corrected from the plan's printed code: now qty ${g.qty} @ ${h}×${w}` +
+        ` (vision read qty ${v?.qty ?? 0} @ ${v?.height_m ?? "?"}×${v?.width_m ?? "?"}).`,
+    });
+    for (const ex of g.extra)
+      changes.push({
+        room: vKey,
+        change: `⚑ ${vKey} has an ADDITIONAL printed code ${ex.heightMm}x${ex.widthMm} beyond the slot — enter manually.`,
+      });
+  }
+  return { windowsByRoom: out, changes };
 }

@@ -34,6 +34,7 @@ import {
   type ScheduleSafeguardResult,
 } from "./vector-annotations";
 import { aggregateWindows, applyWindowAggregate } from "./aggregate-windows";
+import { correctWindowsByRoom } from "./plan-text";
 import {
   deriveOpenings,
   deriveOpeningTotals,
@@ -155,55 +156,6 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       "⚑ vision's garage area equals a title-block stat — likely a title-block grab; confirm against the plan.",
     );
   }
-  // Window-code cross-check: a routed window whose printed-size twin doesn't exist
-  // on the plan is a vision dim error (Ensuite 1.8 vs the printed 1 100x600).
-  const codes = planText?.windowCodes ?? [];
-  const codeMismatch: string[] = [];
-  if (
-    codes.length > 0 &&
-    (visionTakeoff as { windows_by_room?: Record<string, { height_m?: number; width_m?: number }> })
-      .windows_by_room
-  ) {
-    const wbr = (
-      visionTakeoff as { windows_by_room: Record<string, { height_m?: number; width_m?: number }> }
-    ).windows_by_room;
-    for (const [room, w] of Object.entries(wbr)) {
-      if (w?.height_m == null || w?.width_m == null) continue;
-      const h = Math.round(w.height_m * 1000),
-        wd = Math.round(w.width_m * 1000);
-      if (!codes.some((c) => c.heightMm === h && c.widthMm === wd))
-        codeMismatch.push(
-          `⚑ ${room} window ${w.height_m}×${w.width_m} matches NO printed joinery code on the plan — verify dims.`,
-        );
-    }
-  }
-  // Bedroom-without-window: a BED room printed on the plan with no routed window
-  // (the missing Bed 3). Garage/store/wir excluded — only habitable bedrooms.
-  const bedNoWindow: string[] = [];
-  if (planText) {
-    // Canonicalise bedroom identity: MASTER (any spelling) ≡ BED1; "BED 3"/"BEDROOM3" ≡ BED3.
-    const bedCanon = (raw: string): string | null => {
-      const n = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
-      if (n.includes("MASTER")) return "BED1";
-      const m = n.match(/BED(?:ROOM)?(\d)/);
-      return m ? `BED${m[1]}` : null;
-    };
-    const wbrBeds = Object.keys(
-      (visionTakeoff as { windows_by_room?: Record<string, unknown> }).windows_by_room ?? {},
-    )
-      .map(bedCanon)
-      .filter((k): k is string => k != null);
-    for (const r of planText.rooms) {
-      const canon = bedCanon(r.name);
-      if (!canon) continue;
-      const matched = wbrBeds.includes(canon);
-      if (!matched)
-        bedNoWindow.push(
-          `⚑ ${r.name} is printed on the plan (${r.widthMm}×${r.depthMm}) but has NO routed window — bedrooms require natural light; check the takeoff.`,
-        );
-    }
-  }
-
   // ── flags, tracked per-field as they are generated ──────────────────────────────
   // Phase 3 — page divergence: geometry measured a different page than we pinned.
   const pageReconcile = reconcileGeometryPage(geometryPageIndex, geoResult?.page_used);
@@ -250,9 +202,65 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   const scheduleSafeguard = safeguardScheduleHeights(scheduleRaw, vectorAnnotations);
   const schedule = scheduleSafeguard.schedule;
 
-  const windowAggregate = aggregateWindows(schedule, mergedVec.windows_by_room);
-  const notesBeforeAgg = mergedVec.notes ?? "";
-  let mergedWithWindows = applyWindowAggregate(mergedVec, windowAggregate);
+  // Plan-text window auto-correction (13 Jun 2026, "flags aren't fixes"): on a
+  // schedule-less job, the printed codes ARE the schedule the job never had --
+  // spatially routed to their rooms and corrected INTO windows_by_room before
+  // aggregation, so counts, openings, glazing and the QS slots all flow from
+  // corrected routing. A real schedule still outranks everything. Every change
+  // is logged verbatim onto the field's flags -- fixes are loud, never silent.
+  let windowChanges: Array<{ room: string; change: string }> = [];
+  let mergedVecW = mergedVec;
+  if (!schedule?.windows?.length && planText) {
+    const corrected = correctWindowsByRoom(mergedVec.windows_by_room, planText);
+    if (corrected.changes.length > 0) {
+      windowChanges = corrected.changes;
+      mergedVecW = { ...mergedVec, windows_by_room: corrected.windowsByRoom };
+    }
+  }
+
+  const windowAggregate = aggregateWindows(schedule, mergedVecW.windows_by_room);
+  // Post-correction checks (13 Jun 2026): mismatch + bedroom alarms judge the
+  // CORRECTED map — a fixed window must never be re-flagged as broken.
+  const codeMismatch: string[] = [];
+  const correctedWbr = (mergedVecW.windows_by_room ?? {}) as Record<
+    string,
+    { qty?: number; height_m?: number; width_m?: number }
+  >;
+  const codes = planText?.windowCodes ?? [];
+  if (codes.length > 0) {
+    for (const [room, w] of Object.entries(correctedWbr)) {
+      if (w?.height_m == null || w?.width_m == null) continue;
+      const h = Math.round(w.height_m * 1000),
+        wd = Math.round(w.width_m * 1000);
+      if (!codes.some((c) => c.heightMm === h && c.widthMm === wd))
+        codeMismatch.push(
+          `⚑ ${room} window ${w.height_m}×${w.width_m} matches NO printed joinery code on the plan — verify dims.`,
+        );
+    }
+  }
+  const bedNoWindow: string[] = [];
+  if (planText) {
+    const bedCanon = (raw: string): string | null => {
+      const n = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (n.includes("MASTER")) return "BED1";
+      const m = n.match(/BED(?:ROOM)?(\d)/);
+      return m ? `BED${m[1]}` : null;
+    };
+    const wbrBeds = Object.keys(correctedWbr)
+      .map(bedCanon)
+      .filter((k): k is string => k != null);
+    for (const r of planText.rooms) {
+      const canon = bedCanon(r.name);
+      if (!canon) continue;
+      if (!wbrBeds.includes(canon))
+        bedNoWindow.push(
+          `⚑ ${r.name} is printed on the plan (${r.widthMm}×${r.depthMm}) but has NO routed window — bedrooms require natural light; check the takeoff.`,
+        );
+    }
+  }
+
+  const notesBeforeAgg = mergedVecW.notes ?? "";
+  let mergedWithWindows = applyWindowAggregate(mergedVecW, windowAggregate);
   // The ext-wall (in)complete / overshoot note, if the aggregate added one → ext-wall field.
   const extWallFlags = noteDelta(notesBeforeAgg, mergedWithWindows.notes ?? "");
 
@@ -362,7 +370,12 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     : windowAggregate.source === "schedule"
       ? "schedule"
       : "vision";
-  const windowsBySrc: FieldSource = windowAggregate.source === "schedule" ? "schedule" : "vision";
+  const windowsBySrc: FieldSource =
+    windowAggregate.source === "schedule"
+      ? "schedule"
+      : windowChanges.length > 0
+        ? "vector"
+        : "vision";
 
   const enriched: EnrichedTakeoff = {
     floor_area_m2: fv(
@@ -418,6 +431,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
         entranceNote,
         safeguardNote,
         reconFlag("entrance_door_width"),
+        ...windowChanges.map((c) => c.change),
         ...codeMismatch,
         ...bedNoWindow,
       ),

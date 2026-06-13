@@ -102,3 +102,30 @@ describe("plan-text — Alexandra (no false rooms from a different plan style)",
     }
   }, 60_000);
 });
+
+describe("window auto-routing — West Street against Haydon's hand-verified workbook", () => {
+  it("routes every printed code to its room exactly as the QS ground truth", async () => {
+    const { routeWindowCodes } = await import("../../src/lib/takeoff/plan-text");
+    const pt = await extract(resolve(__dirname, "../doors/plans/west-street.pdf"));
+    const routed = routeWindowCodes(pt);
+    const find = (h: number, w: number) =>
+      routed
+        .filter((r) => r.heightMm === h && r.widthMm === w)
+        .map((r) => r.roomName.toUpperCase());
+    console.log(
+      "[routing]",
+      routed.map((r) => `${r.roomName}:${r.heightMm}x${r.widthMm}`).join(" | "),
+    );
+    // his workbook rows 41-72, verified against the plan
+    expect(find(1300, 1500).sort()).toEqual(["BED2", "BED3"]);
+    expect(find(1100, 600).some((n) => n.startsWith("WC"))).toBe(true);
+    expect(find(1100, 600).some((n) => n.startsWith("ENSUITE"))).toBe(true);
+    expect(find(1100, 1200)[0]).toContain("BATH");
+    const big = find(1300, 1800);
+    expect(big.some((n) => n.includes("MASTER"))).toBe(true);
+    // the living-side pair: open-plan boundaries are fuzzy between KITCHEN/DINING/LOUNGE —
+    // all are real QS slots and the glazing total is identical either way.
+    expect(big.filter((n) => /KITCHEN|DINING|LOUNGE|FAMILY/.test(n))).toHaveLength(2);
+    expect(routed).toHaveLength(8);
+  }, 60_000);
+});
