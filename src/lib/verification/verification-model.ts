@@ -277,18 +277,27 @@ export function buildVerificationModel(
       "m²",
       e?.external_wall_area_m2,
     ),
-    // Internal walls: the export REFUSES to write this number (live audit: 7 lm vs ~50+
-    // real; ⚑ UNVERIFIED until P2 ribbon-trace) — so the printout must not show it either.
-    // Same-composer doctrine: paper never shows a number the sheet refuses to carry.
-    // Remove this suppression when P2 lands.
-    {
-      label: "Internal walls — measure manually (P2 ribbon-trace pending)",
-      value: "—",
-      unit: "",
-      source: null,
-      confidence: null,
-      flagged: true,
-    },
+    // Internal walls: the export still refuses to write this number, and the
+    // printout matches. P2 ribbon-trace v1 (13 Jun 2026) now produces a
+    // VERIFY-grade value — shown WITH its bias warning when present; the bare
+    // measure-manually line remains for pre-v1 runs.
+    e?.internal_wall_lm?.source === "vector" && typeof e.internal_wall_lm.value === "number"
+      ? {
+          label: "Internal walls — ribbon-trace v1 (verify; ~+25% joinery bias; not exported)",
+          value: String(e.internal_wall_lm.value),
+          unit: "lm",
+          source: "VEC" as const,
+          confidence: "mid" as const,
+          flagged: true,
+        }
+      : {
+          label: "Internal walls — measure manually (P2 ribbon-trace pending)",
+          value: "—",
+          unit: "",
+          source: null,
+          confidence: null,
+          flagged: true,
+        },
     measure("Roof area", e?.roof_area_m2?.value ?? null, "m²", e?.roof_area_m2),
     measure("Gable span (envelope short side)", data.gableSpanM, "m", e?.gable_span_m),
     measure("Stud height", data.studHeightMm, "mm", null, 0),

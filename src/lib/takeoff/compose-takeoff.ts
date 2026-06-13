@@ -72,6 +72,7 @@ export type ComposeTakeoffInput = {
     | (import("../doors/door-engine").DoorEngineResult & {
         pageMeta?: import("../doors/run-doors").DoorPageMeta;
         planText?: import("./plan-text").PlanText;
+        wallTrace?: import("./wall-trace").WallTrace;
       })
     | null;
 };
@@ -396,12 +397,18 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       measuredSrc(m?.perimeter_m != null),
       normConf(geoResult?.confidence?.perimeter),
     ),
-    internal_wall_lm: fv(
-      t.internal_wall_lm,
-      measuredSrc(m?.internal_wall_length_m != null),
-      normConf(m?.internal_wall_confidence),
-      roomFlags,
-    ),
+    internal_wall_lm:
+      doorEngine?.wallTrace != null && doorEngine.wallTrace.internalWallLm > 10
+        ? fv(doorEngine.wallTrace.internalWallLm, "vector", "mid", [
+            `⚑ ribbon-trace v1 — deterministic from the plan's wall pairs (${doorEngine.wallTrace.ribbonCount} ribbons); known ~+25% joinery bias, VERIFY before pricing. Not exported.`,
+            ...roomFlags,
+          ])
+        : fv(
+            t.internal_wall_lm,
+            measuredSrc(m?.internal_wall_length_m != null),
+            normConf(m?.internal_wall_confidence),
+            roomFlags,
+          ),
     // Gable span candidate = geometry envelope's SHORT side. Measured (not guessed);
     // the rectangular-envelope assumption is flagged at the consumer (cladding adapter).
     gable_span_m: fv(

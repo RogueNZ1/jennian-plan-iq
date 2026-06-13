@@ -11,6 +11,7 @@
 import { detectInteriorDoors, DEFAULT_CONFIG, type DoorEngineResult } from "./door-engine";
 import { extractPageGeometry } from "./pdf-adapter";
 import { parsePlanText, type PlanText } from "../takeoff/plan-text";
+import { traceInteriorWalls, type WallTrace } from "../takeoff/wall-trace";
 
 /**
  * Which page the engine ran on, in the adapter's coordinate contract — persisted with the
@@ -36,7 +37,10 @@ export async function runDoorEngine(
   pdfData: ArrayBuffer | Uint8Array,
   pageNumber: number, // 1-based floor-plan page
   scaleText: string | null | undefined,
-): Promise<(DoorEngineResult & { pageMeta?: DoorPageMeta; planText?: PlanText }) | null> {
+): Promise<
+  | (DoorEngineResult & { pageMeta?: DoorPageMeta; planText?: PlanText; wallTrace?: WallTrace })
+  | null
+> {
   try {
     const scale = scaleDenominator(scaleText);
     if (!scale) return null; // no usable scale → no door pass (fail-safe)
@@ -71,11 +75,20 @@ export async function runDoorEngine(
       // Plan-text pass (13 Jun 2026) — same labels, zero extra extraction cost.
       // Deterministic room footprints, printed window codes, title-block areas.
       const planText = parsePlanText(geom.labels);
+      // Ribbon-trace v1 (P2): interior wall lm from stud-spaced segment pairs,
+      // room-anchored component, label-sided interior test. Documented ~+25%
+      // joinery bias — VERIFY-grade; the QS export suppression remains.
+      const wallTrace = traceInteriorWalls(
+        geom.segments,
+        scale,
+        planText.rooms.map((r) => ({ x: r.x, y: r.y })),
+      );
       // Overlay meta — additive: callers that only read counts/flags are untouched.
       const view = (page as { view?: number[] }).view ?? [0, 0, geom.width, geom.height];
       return {
         ...result,
         planText,
+        wallTrace,
         pageMeta: {
           pageNumber,
           view: [...view],
