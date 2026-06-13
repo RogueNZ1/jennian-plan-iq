@@ -130,4 +130,47 @@ describe("Convergence — composeTakeoff baseline (cached vision, frozen, offlin
     expect(viaRunTs.enriched).toEqual(composed.enriched);
     expect(viaRunTs.pageReconcile.agreed).toBe(true);
   });
+
+  it("does not let a contradicted geometry floor-area candidate overwrite vision/title-block area", () => {
+    const poisonedGeometry: GeometryApiResult = {
+      ...geometry,
+      measurements: {
+        ...geometry.measurements,
+        floor_area_m2: 60.4,
+        perimeter_m: 60.4,
+      },
+      confidence: {
+        ...geometry.confidence,
+        floor_area: "medium",
+        notes: [
+          "floor_area_m2: geometry=175.37, printed=60.4, diff=190.3%",
+          ...geometry.confidence.notes,
+        ],
+      },
+      ocr_raw: {
+        ...geometry.ocr_raw,
+        living_area_m2: 60.4,
+        perimeter_m: 60.4,
+      },
+    };
+    const visionWithPrintedArea: TakeoffData = {
+      ...visionTakeoff,
+      floor_area_m2: 170.8,
+    };
+
+    const result = composeTakeoff({
+      visionTakeoff: visionWithPrintedArea,
+      geometry: poisonedGeometry,
+      schedule: null,
+      geometryPageIndex: 0,
+    }).enriched;
+
+    expect(result.floor_area_m2.value).toBe(170.8);
+    expect(result.floor_area_m2.source).toBe("vision");
+    expect(result.floor_area_m2.confidence).toBe("mid");
+    expect(result.floor_area_m2.discrepancy_flags.join(" ")).toContain(
+      "rejected geometry candidate 60.4",
+    );
+    expect(result.notes).toContain("rejected geometry candidate 60.4");
+  });
 });

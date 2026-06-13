@@ -112,6 +112,85 @@ function noteDelta(before: string, after: string): string[] {
   return before === after ? [] : [after];
 }
 
+type FloorAreaDecision = {
+  value: number | null;
+  source: FieldSource;
+  confidence: FieldConfidence;
+  flags: string[];
+};
+
+function near(a: number | null | undefined, b: number | null | undefined, tolerance = 0.05) {
+  return a != null && b != null && Math.abs(a - b) <= tolerance;
+}
+
+/**
+ * Geometry is usually the best area source, but not when its own diagnostics prove the
+ * floor-area candidate is contaminated. Harrison exposed the failure mode: OCR labelled
+ * the printed perimeter (60.4) as living area, the API returned 60.4 as floor_area_m2,
+ * and the old seam blindly overwrote the correct vision/title-block area.
+ */
+function selectFloorArea(
+  visionTakeoff: TakeoffData,
+  geoResult: GeometryApiResult | null,
+  pageFlag: string | null,
+): FloorAreaDecision {
+  const geoValue = geoResult?.measurements?.floor_area_m2 ?? null;
+  const visionValue = visionTakeoff.floor_area_m2 ?? null;
+  const geoConfidence = normConf(geoResult?.confidence?.floor_area);
+  const notes = geoResult?.confidence?.notes ?? [];
+
+  if (geoValue == null) {
+    return {
+      value: visionValue,
+      source: "vision",
+      confidence: null,
+      flags: pageFlag ? [pageFlag] : [],
+    };
+  }
+
+  const floorMismatchNote = notes.find((n) => /^floor_area_m2:/i.test(n));
+  const floorLooksLikePerimeter =
+    near(geoValue, geoResult?.measurements?.perimeter_m) ||
+    near(geoResult?.ocr_raw?.living_area_m2, geoResult?.measurements?.perimeter_m);
+  const materialVisionDisagreement =
+    visionValue != null &&
+    Math.abs(geoValue - visionValue) > Math.max(2, Math.abs(visionValue) * 0.02);
+
+  const geometryContradicted =
+    !!floorMismatchNote ||
+    floorLooksLikePerimeter ||
+    geoConfidence === "low" ||
+    (geoConfidence === "mid" && materialVisionDisagreement);
+
+  if (geometryContradicted && visionValue != null) {
+    const reasons = [
+      floorMismatchNote,
+      floorLooksLikePerimeter
+        ? `geometry floor-area candidate ${geoValue} matches/looks like the perimeter`
+        : null,
+      materialVisionDisagreement
+        ? `vision/title-block floor area ${visionValue} differs materially from geometry ${geoValue}`
+        : null,
+    ].filter((x): x is string => !!x);
+    return {
+      value: visionValue,
+      source: "vision",
+      confidence: "mid",
+      flags: [
+        ...(pageFlag ? [pageFlag] : []),
+        `Floor area: rejected geometry candidate ${geoValue}; ${reasons.join("; ")}. Using vision/title-block candidate ${visionValue}.`,
+      ],
+    };
+  }
+
+  return {
+    value: geoValue,
+    source: "geometry",
+    confidence: geoConfidence,
+    flags: pageFlag ? [pageFlag] : [],
+  };
+}
+
 /**
  * Pure compose. Mirrors the `/upload` seam exactly (geometry overrides → vector garage →
  * head-datum safeguard → window aggregate → vector openings → asserted entrance → F-022),
@@ -161,6 +240,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   // Phase 3 — page divergence: geometry measured a different page than we pinned.
   const pageReconcile = reconcileGeometryPage(geometryPageIndex, geoResult?.page_used);
   const pageFlag = !pageReconcile.agreed && pageReconcile.note ? pageReconcile.note : null;
+  const floorAreaDecision = selectFloorArea(visionTakeoff, geoResult, pageFlag);
 
   // Internal-wall confidence note (geometry rooms vs AI room labels).
   const roomFlags: string[] = [];
@@ -177,11 +257,13 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   // Same order the seam has always used: page note first, then the room note(s).
   const internalWallNotes = [pageFlag, ...roomFlags].filter(Boolean) as string[];
 
-  // ── the value seam (unchanged behaviour) ────────────────────────────────────────
-  // Geometry overrides AI for measurement fields — geometry API is more accurate.
+  // ── the value seam ──────────────────────────────────────────────────────────────
+  // Geometry usually wins for measured fields, but floor area is candidate-selected:
+  // geometry cannot override when its own diagnostics show a contaminated area read.
+  const floorAreaNotes = floorAreaDecision.flags.filter((f) => f !== pageFlag);
   const merged: TakeoffData = {
     ...visionTakeoff,
-    ...(m?.floor_area_m2 != null ? { floor_area_m2: m.floor_area_m2 } : {}),
+    floor_area_m2: floorAreaDecision.value,
     ...(m?.perimeter_m != null ? { external_wall_lm: m.perimeter_m } : {}),
     ...(m?.internal_wall_length_m != null
       ? { internal_wall_lm: m.internal_wall_length_m }
@@ -189,8 +271,12 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     ...(m?.garage_area_m2 != null ? { garage_area_m2: m.garage_area_m2 } : {}),
     ...(m?.alfresco_area_m2 != null ? { alfresco_area_m2: m.alfresco_area_m2 } : {}),
     ...(m?.stud_height_mm != null ? { ceiling_height_m: m.stud_height_mm / 1000 } : {}),
-    ...(internalWallNotes.length > 0
-      ? { notes: [visionTakeoff.notes, ...internalWallNotes].filter(Boolean).join(" ") }
+    ...(internalWallNotes.length > 0 || floorAreaNotes.length > 0
+      ? {
+          notes: [visionTakeoff.notes, ...internalWallNotes, ...floorAreaNotes]
+            .filter(Boolean)
+            .join(" "),
+        }
       : {}),
   };
 
@@ -381,9 +467,9 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   const enriched: EnrichedTakeoff = {
     floor_area_m2: fv(
       t.floor_area_m2,
-      measuredSrc(m?.floor_area_m2 != null),
-      normConf(geoResult?.confidence?.floor_area),
-      flagsFor(pageFlag),
+      floorAreaDecision.source,
+      floorAreaDecision.confidence,
+      floorAreaDecision.flags,
     ),
     garage_area_m2: fv(
       garageOverride && planGarage ? planGarage.areaM2 : t.garage_area_m2,
