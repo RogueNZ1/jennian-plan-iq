@@ -205,6 +205,78 @@ function UploadPage() {
     };
   }
 
+  function resetPlanRunState() {
+    disposePageAnalyses(pageAnalyses);
+    setPageAnalyses([]);
+    setSelectedIndex(null);
+    setAutoCertainty(null);
+    setConfirmed(false);
+    setHighResBlob(null);
+    setScaleResult(null);
+    setPlanIssues(null);
+    setErrorsAcknowledged(false);
+    setTakeoffData(null);
+    setEditedTakeoff(null);
+    setComposedResult(null);
+    setPlanContext(null);
+    setGeometryResult(null);
+    setElevationData(null);
+    setSitePlanData(null);
+    setCrossRefResult(null);
+    setStep("form");
+  }
+
+  async function acceptPlanSet(files: File[]) {
+    const accepted = files.filter((f) => {
+      const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+      if (!isPdf) {
+        toast.error(`${f.name} is not a PDF.`);
+        return false;
+      }
+      if (f.size > MAX_BYTES) {
+        toast.error(`"${f.name}" exceeds the 50 MB limit. Please compress or split the PDF.`);
+        return false;
+      }
+      return true;
+    });
+    if (accepted.length === 0) return;
+
+    resetPlanRunState();
+    setAdditionalPdfs([]);
+
+    const classified = await Promise.all(
+      accepted.map(async (file) => ({
+        file,
+        sheetType: await classifyPdfFile(file),
+      })),
+    );
+    const primary = classified.find((p) => p.sheetType === "floor_plan") ?? classified[0];
+    if (!primary) return;
+
+    setPlanFile(primary.file);
+    const supporting = classified
+      .filter((p) => p.file !== primary.file)
+      .map<AdditionalPdf>((p) => ({
+        id: `${p.file.name}-${p.file.size}-${p.file.lastModified}`,
+        file: p.file,
+        sheetType: p.sheetType,
+        classifying: false,
+      }))
+      .slice(0, 5);
+    setAdditionalPdfs(supporting);
+
+    if (classified.length > 1) {
+      toast.success(
+        `Loaded ${classified.length} PDFs. Using ${primary.file.name} as the floor plan and routing ${supporting.length} supporting PDF${supporting.length === 1 ? "" : "s"}.`,
+      );
+    } else if (primary.sheetType !== "floor_plan") {
+      toast.warning(
+        "Loaded the PDF. I could not confidently classify it as a floor plan, so please confirm the right page in the next step.",
+        { duration: 8000 },
+      );
+    }
+  }
+
   async function startPlanReviewSelection() {
     if (!planFile) {
       toast.error("Please upload a plan PDF.");
@@ -689,15 +761,22 @@ function UploadPage() {
       if (!blob) throw new Error("No plan image available.");
       const b64 = await blobToBase64(blob);
 
-      // Prepare elevation/site plan images if additional PDFs are present
+      // Prepare elevation/site plan images from either routed supporting PDFs or
+      // classified pages inside a single combined plan set PDF.
       const elevFile = additionalPdfs.find((p) => p.sheetType === "elevations");
       const siteFile = additionalPdfs.find((p) => p.sheetType === "site_plan");
+      const elevationPage = pageAnalyses.find((p) => p.pageType === "elevations");
+      const sitePage = pageAnalyses.find((p) => p.pageType === "site_plan");
       const elevBlobP = elevFile
         ? renderPageForAnalysis(elevFile.file, 1).catch(() => null)
-        : Promise.resolve(null);
+        : planFile && elevationPage
+          ? renderPageForAnalysis(planFile, elevationPage.pageNumber).catch(() => null)
+          : Promise.resolve(null);
       const siteBlobP = siteFile
         ? renderPageForAnalysis(siteFile.file, 1).catch(() => null)
-        : Promise.resolve(null);
+        : planFile && sitePage
+          ? renderPageForAnalysis(planFile, sitePage.pageNumber).catch(() => null)
+          : Promise.resolve(null);
 
       // Phase 2b — locate the Door & Window Schedule page within the SAME plan PDF
       // (page selection already classified every page). The schedule is the canonical
@@ -1846,10 +1925,16 @@ function UploadPage() {
           {/* Dropzones */}
           <div className="space-y-4">
             <Dropzone
-              label="Plan PDF"
-              sub="Architectural drawings"
+              label="Plan Set PDFs"
+              sub="Drop floor plans, elevations, site plans and schedules together"
               file={planFile}
-              onFile={acceptFile(setPlanFile)}
+              onFile={(f) => {
+                resetPlanRunState();
+                setAdditionalPdfs([]);
+                setPlanFile(f);
+              }}
+              onFiles={acceptPlanSet}
+              multiple
               previewUrl={planPreviewUrl}
             />
             <Dropzone
@@ -1865,6 +1950,7 @@ function UploadPage() {
             pdfs={additionalPdfs}
             onChange={setAdditionalPdfs}
             maxBytes={MAX_BYTES}
+            allowAdd={false}
           />
 
           <div className="rounded-lg border border-border bg-card p-6 space-y-4">
@@ -2179,12 +2265,16 @@ function Dropzone({
   sub,
   file,
   onFile,
+  onFiles,
+  multiple = false,
   previewUrl,
 }: {
   label: string;
   sub: string;
   file: File | null;
   onFile: (f: File | null) => void;
+  onFiles?: (files: File[]) => void | Promise<void>;
+  multiple?: boolean;
   previewUrl?: string | null;
 }) {
   const [isDragging, setIsDragging] = useState(false);
@@ -2203,20 +2293,29 @@ function Dropzone({
     onFile(f);
   }
 
+  function acceptFiles(files: File[]) {
+    const pdfs = files.filter(isPdf);
+    if (pdfs.length !== files.length || pdfs.length === 0) {
+      toast.error("Only PDF files are supported for plan/specification upload.");
+      if (pdfs.length === 0) return;
+    }
+    if (multiple && onFiles) {
+      void onFiles(pdfs);
+      return;
+    }
+    const next = pdfs[0];
+    if (!next) return;
+    if (file && file.name === next.name && file.size === next.size) return;
+    acceptFile(next);
+  }
+
   function handleDrop(e: React.DragEvent<HTMLElement>) {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
     const dropped = Array.from(e.dataTransfer?.files ?? []);
     if (dropped.length === 0) return;
-    const pdfs = dropped.filter(isPdf);
-    if (pdfs.length !== dropped.length || pdfs.length === 0) {
-      toast.error("Only PDF files are supported for plan/specification upload.");
-      if (pdfs.length === 0) return;
-    }
-    const next = pdfs[0];
-    if (file && file.name === next.name && file.size === next.size) return;
-    acceptFile(next);
+    acceptFiles(dropped);
   }
 
   function handleDragOver(e: React.DragEvent<HTMLElement>) {
@@ -2269,10 +2368,10 @@ function Dropzone({
                 <input
                   type="file"
                   accept="application/pdf"
+                  multiple={multiple}
                   className="sr-only"
                   onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) acceptFile(f);
+                    acceptFiles(Array.from(e.target.files ?? []));
                   }}
                 />
               </label>
@@ -2315,15 +2414,15 @@ function Dropzone({
       <div className="mt-3 text-sm font-medium relative">{label}</div>
       <div className="text-xs text-muted-foreground mt-0.5 relative">{sub}</div>
       <div className="mt-4 inline-flex items-center gap-2 text-xs text-primary font-medium relative">
-        <FileText className="h-3.5 w-3.5" /> Choose file or drag &amp; drop
+        <FileText className="h-3.5 w-3.5" /> Choose {multiple ? "files" : "file"} or drag &amp; drop
       </div>
       <input
         type="file"
         accept="application/pdf"
+        multiple={multiple}
         className="sr-only"
         onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) acceptFile(f);
+          acceptFiles(Array.from(e.target.files ?? []));
         }}
       />
     </label>
@@ -2367,10 +2466,12 @@ function AdditionalPdfsZone({
   pdfs,
   onChange,
   maxBytes,
+  allowAdd = true,
 }: {
   pdfs: AdditionalPdf[];
   onChange: React.Dispatch<React.SetStateAction<AdditionalPdf[]>>;
   maxBytes: number;
+  allowAdd?: boolean;
 }) {
   const [isDragging, setIsDragging] = useState(false);
 
@@ -2419,6 +2520,8 @@ function AdditionalPdfsZone({
     setIsDragging(false);
     addFiles(Array.from(e.dataTransfer?.files ?? []));
   }
+
+  if (pdfs.length === 0 && !allowAdd) return null;
 
   if (pdfs.length === 0) {
     return (
@@ -2469,7 +2572,7 @@ function AdditionalPdfsZone({
   return (
     <div>
       <div className="text-xs font-medium text-muted-foreground mb-2">
-        Elevation & Site Plan PDFs
+        {allowAdd ? "Elevation & Site Plan PDFs" : "Auto-detected supporting PDFs"}
       </div>
       <div className="space-y-2">
         {pdfs.map((pdf) => (
@@ -2520,7 +2623,7 @@ function AdditionalPdfsZone({
             </button>
           </div>
         ))}
-        {pdfs.length < 5 && (
+        {allowAdd && pdfs.length < 5 && (
           <label className="flex items-center gap-2 text-xs text-primary font-medium cursor-pointer hover:underline">
             <UploadCloud className="h-3.5 w-3.5" /> Add another PDF
             <input
