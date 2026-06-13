@@ -1,0 +1,346 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.6 [39m[90m/home/runner/work/jennian-plan-iq/jennian-plan-iq[39m
+
+[90mstdout[2m | tests/live/discovery.test.ts[2m > [22m[2mLIVE DISCOVERY (report-only)[2m > [22m[2mgolden jobs + takeoff_json room structure
+[22m[39m[disc] 'beddis': 1 job(s) [ [32m'JM-0005/Bed…'[39m ]
+
+[90mstdout[2m | tests/live/discovery.test.ts[2m > [22m[2mLIVE DISCOVERY (report-only)[2m > [22m[2mgolden jobs + takeoff_json room structure
+[22m[39m[disc] beddis takeoff_json keys: alfresco_area_m2,bathroom_count,ceiling_height_m,door_breakdown,ensuite_count,external_door_count,external_wall_area_m2,external_wall_lm,floor_area_m2,foundation_type,garage_area_m2,garage_door_size,glazed_sqm,internal_door_count,internal_wall_lm,kitchen_count,laundry_count,notes,openings,roof_area_m2,total_area_m2,total_opening_sqm,window_count,windows_by_room,windows_schedule
+
+[90mstdout[2m | tests/live/diag-tonights-run.test.ts[2m > [22m[2mDIAG — tonight's run, full provenance[2m > [22m[2mdump the newest run end to end
+[22m[39m[diag] last 3 runs:
+  2026-06-13T00:20:22.123594+00:00 · 502a1fe9 · running · payload:NULL
+  2026-06-12T23:51:29.195999+00:00 · 6f8265c9 · running · payload:NULL
+  2026-06-12T22:35:39.848+00:00 · 2e7c15c4 · completed · payload:yes
+
+[90mstdout[2m | tests/live/discovery.test.ts[2m > [22m[2mLIVE DISCOVERY (report-only)[2m > [22m[2mgolden jobs + takeoff_json room structure
+[22m[39m[disc] 'harrison': 0 job(s) []
+
+[90mstdout[2m | tests/live/diag-tonights-run.test.ts[2m > [22m[2mDIAG — tonight's run, full provenance[2m > [22m[2mdump the newest run end to end
+[22m[39m[diag] ===== JM-0032 (CRA…) run 2e7c15c4 =====
+--- MEASURES (value · source · confidence · flags) ---
+  floor: 139.4 ·geometry·high
+  garage: 46.7 ·vision·-
+  alfresco: 0.9 ·vision·-
+  total: 140.3 ·derived·-
+  ext-wall-lm: 56.2 ·geometry·high
+  ext-wall-m2: 99.29 ·derived·-
+  INT-WALL-LM: 7 ·geometry·mid
+  roof: 160.31 ·vision·-
+  gable-span: 9.41 ·geometry·-
+  ceiling: 2.4 ·geometry·-
+  foundation: null ·vision·-
+  window-count: 9 ·vision·-
+  ext-doors: null ·vision·-
+  int-doors: 10 ·vision·-
+  garage-door: "3×2.1" ·vector·low ⚑[reconciliation: garage_door_width disagreed across paths — vision read 4000mm, the deterministic vector layer read 1870mm (53% apart). The vector value was preferred; confirm garage door width against the plan. | Resolved value "3×2.1" taken from the plan's sectional door callout (not the raw vector width).]
+  geometry-status: <absent>
+--- DOOR ENGINE ---
+  counts_auto: {"barn":0,"doubles":5,"singles":9,"cavitySliders":2}
+  hits: [33m16[39m · flags: [33m0[39m
+  page: {"view":[0,0,1191,842],"width":1191,"height":842,"scaleText":"1:100 @ A3","pageNumber":1}
+    hinged 810mm @(575,471) confirmed
+    hinged 810mm @(598,476) confirmed
+    hinged 810mm @(773,475) confirmed
+    hinged 710mm @(838,471) confirmed
+    hinged 760mm @(713,479) confirmed
+    hinged 760mm @(686,511) confirmed
+    hinged 810mm @(879,501) confirmed
+    hinged 810mm @(832,430) confirmed
+    hinged 810mm @(702,442) confirmed
+    double 1420mm @(644,418) confirmed
+    double 1620mm @(772,445) confirmed
+    double 1318mm @(950,611) confirmed
+    double 1500mm @(594,264) confirmed
+    double 1655mm @(726,563) confirmed
+    cavity 900mm @(756,516) confirmed · no swing arc — slider
+    cavity 900mm @(878,439) confirmed · no swing arc — slider
+--- WINDOWS ---
+  by_room: {"Wc":{"qty":1,"width_m":0.6,"height_m":1.1},"Bed 2":{"qty":1,"width_m":1.5,"height_m":1.3},"Garage":{"qty":1,"width_m":1.5,"height_m":1.3},"Lounge":{"qty":1,"width_m":1.8,"height_m":1.3},"Ensuite":{"qty":1,"width_m":0.6,"height_m":1.8},"Kitchen":{"qty":1,"width_m":1.8,"height_m":1.3},"Bathroom":{"qty":1,"width_m":1.2,"height_m":1.1},"Bed 1 (Master)":{"qty":2,"width_m":1.5,"height_m":1.3}}
+  schedule: 
+  openings: [33m14[39m · glazed_sqm: [33m29.29[39m · total_opening_sqm: [33m35.59[39m
+    window Garage 1.5x1.3 glazed:true clad:∅ src:vision conf:medium
+    window Kitchen 1.8x1.3 glazed:true clad:∅ src:vision conf:medium
+    window Lounge 1.8x1.3 glazed:true clad:∅ src:vision conf:medium
+    window Bed 1 (Master) 1.5x1.3 glazed:true clad:∅ src:vision conf:medium
+    window Bed 1 (Master) 1.5x1.3 glazed:true clad:∅ src:vision conf:medium
+    window Ensuite 0.6x1.8 glazed:true clad:∅ src:vision conf:medium
+    window Bed 2 1.5x1.3 glazed:true clad:∅ src:vision conf:medium
+    window Wc 0.6x1.1 glazed:true clad:∅ src:vision conf:medium
+    window Bathroom 1.2x1.1 glazed:true clad:∅ src:vision conf:medium
+    sectional_door Garage 3x2.1 glazed:false clad:∅ src:callout conf:medium ⚑["height assumed standard 2.1m — confirm against the elevation/joinery schedule"]
+    pa_door Garage 1.03x2.1 glazed:true clad:∅ src:callout conf:medium ⚑["height assumed standard 2.1m — confirm against the elevation/joinery schedule"]
+    garage_window Garage 2x2.1 glazed:true clad:∅ src:callout conf:medium ⚑["height assumed standard 2.1m — confirm against the elevation/joinery schedule"]
+    slider Lounge 2.4x2.1 glazed:true clad:∅ src:callout conf:medium ⚑["height assumed standard 2.1m — confirm against the elevation/joinery schedule"]
+    entrance Entry 1.12x2.1 glazed:true clad:∅ src:callout conf:medium ⚑["height assumed standard 2.1m — confirm against the elevation/joinery schedule"]
+--- ROOMS (geometry footprints) ---
+    : 3.7 x 3.3
+--- QS EXPORT HEADLINES ---
+
+[90mstdout[2m | tests/live/live-validation.test.ts[2m > [22m[2mLIVE — JM-0020 export faithfulness
+[22m[39m[live] JM-0020 enriched takeoff loaded: [33mtrue[39m openings: [33m14[39m
+
+[90mstdout[2m | tests/live/discovery.test.ts[2m > [22m[2mLIVE DISCOVERY (report-only)[2m > [22m[2mgolden jobs + takeoff_json room structure
+[22m[39m[disc] 'young': 3 job(s) [ [32m'JM-0004/You…'[39m, [32m'JM-0014/Cha…'[39m, [32m'JM-0006/You…'[39m ]
+
+[90mstdout[2m | tests/live/discovery.test.ts[2m > [22m[2mLIVE DISCOVERY (report-only)[2m > [22m[2mgolden jobs + takeoff_json room structure
+[22m[39m[disc] young takeoff_json keys: alfresco_area_m2,bathroom_count,ceiling_height_m,door_breakdown,ensuite_count,external_door_count,external_wall_area_m2,external_wall_lm,floor_area_m2,foundation_type,garage_area_m2,garage_door_size,glazed_sqm,internal_door_count,internal_wall_lm,kitchen_count,laundry_count,notes,openings,roof_area_m2,total_area_m2,total_opening_sqm,window_count,windows_by_room,windows_schedule
+
+[90mstdout[2m | tests/live/diag-tonights-run.test.ts[2m > [22m[2mDIAG — tonight's run, full provenance[2m > [22m[2mdump the newest run end to end
+[22m[39m  source:enriched · floor:139.4 · perim:56.2 · intWall:7 · geomStatus:ok
+  doors → src:engine std:9 dbl:5 cav:2 barn:0 hint:10
+  window rows: []
+  windowsByRoom slots: {"garageWindow":{"cladding":"","qty":2,"height":1.3,"width":1.5},"kitchen":{"cladding":"","qty":1,"height":1.3,"width":1.8},"lounge":{"cladding":"","qty":2,"height":1.3,"width":1.8},"bed1":{"cladding":"","qty":2,"height":1.3,"width":1.5},"ensuite":{"cladding":"","qty":1,"height":1.8,"width":0.6},"bed2":{"cladding":"","qty":1,"height":1.3,"width":1.5},"toilet":{"cladding":"","qty":1,"height":1.1,"width":0.6},"bathroom":{"cladding":"","qty":1,"height":1.1,"width":1.2},"garageDoor1":{"cladding":"","qty":1,"height":2.1,"width":3}}
+  garage doors → 48std:0 48ins:0 27std:0 27ins:0 24std:0 24ins:0
+  reviewFlags: [{"field":"Windows by room","flags":["entrance door: height assumed standard 2.1m — confirm against the plan; width assumed 1.0m — confirm against plan; counted in the opening area."]},{"field":"Garage door","flags":["reconciliation: garage_door_width disagreed across paths — vision read 4000mm, the deterministic vector layer read 1870mm (53% apart). The vector value was preferred; confirm garage door width against the plan.","Resolved value \"3×2.1\" taken from the plan's sectional door callout (not the raw vector width)."]}]
+--- PLAN-TEXT (13 Jun additions) ---
+  <absent — pre-plan-text run>
+--- INTERNAL WALLS (ribbon v1) ---
+   int-wall: 7 ·geometry·mid
+--- WINDOWS_BY_ROOM FLAGS (auto-fix log) ---
+   entrance door: height assumed standard 2.1m — confirm against the plan; width assumed 1.0m — confirm against plan; counted in the opening area.
+--- GARAGE FLAGS ---
+--- ANOMALY HEURISTICS ---
+  ⚠ INT walls (7lm) < half EXT (56.2lm) — known ribbon-trace gap
+  ⚠ engine doors (16) vs vision (10) differ by >2
+  ⚠ by-room slot qty total (11) ≠ window_count (9) — routing loss
+--- ACTUAL DROP-IN SHEET CELLS (the paste truth) ---
+
+[90mstdout[2m | tests/live/diag-tonights-run.test.ts[2m > [22m[2mDIAG — tonight's run, full provenance[2m > [22m[2mdump the newest run end to end
+[22m[39m  row 32: A="Windows by Room" B="Qty" C="Height (m)" D="Width (m)"
+  row 33: A="Bed 1" B=2 C=1.3 D=1.5
+  row 34: A="Ensuite" B=1 C=1.8 D=0.6
+  row 35: A="Bed 2" B=1 C=1.3 D=1.5
+  row 36: A="Bed 3" B=0 C=0 D=0
+  row 37: A="Bed 4" B=0 C=0 D=0
+  row 38: A="Bathroom" B=1 C=1.1 D=1.2
+  row 39: A="Kitchen" B=1 C=1.3 D=1.8
+  row 40: A="Family / Living" B=0 C=0 D=0
+  row 41: A="Dining" B=0 C=0 D=0
+  row 42: A="Lounge" B=1 C=1.3 D=1.8
+  row 43: A="Garage Windows" B=1 C=1.3 D=1.5
+  row 44: A="Garage Door 1" B=1 C=2.1 D=3
+  row 45: A="Entrance" B=1 C=2.1 D=1.12
+  row 47: A="MANUAL ENTRIES — no IQ feed; enter directly on '5. Data Input House':" B="·" C="·" D="·"
+  row 48: A="• ⚑ 1 of 11 windows have NO IQ slot — listed below with dims; enter on Data Input House before pricing" B="·" C="·" D="·"
+  row 49: A="• Laundry/PA door 2.1H × 1.03W → Data Input House row 70" B="·" C="·" D="·"
+  row 50: A="• Lounge: 1 more @ 2.1H × 2.4W → Data Input House overflow row 63" B="·" C="·" D="·"
+  B24 (sectional size): "3x2.1"
+  doors B27-30: 9, 2, 5, 0
+  manual row 51: A="• Garage Windows: 1 more @ 2.1H × 2W → Data Input House overflow row 66" B="·" C="·" D="·"
+  manual row 52: A="• Lounge QTY is manual in the QS (D62) — dims auto-fill, enter the count" B="·" C="·" D="·"
+  manual row 53: A="• ⚑ UNPLACED — Toilet: 1 window(s) @ 1.1H × 0.6W → Data Input House row 51" B="·" C="·" D="·"
+  manual row 55: A="CLADDING (ENGINE) — provable terms; flags need a human:" B="·" C="·" D="·"
+  manual row 56: A="• Wall (perimeter × stud): 134.88 m²" B="·" C="·" D="·"
+  manual row 57: A="• Gables: 0 m²" B="·" C="·" D="·"
+  manual row 58: A="• Less openings: 35.6 m²" B="·" C="·" D="·"
+  manual row 59: A="• NET CLADDING: 99.28 m²" B="·" C="·" D="·"
+  manual row 60: A="⚑ gable count not extracted — net assumes no gables, VERIFY on elevations" B="·" C="·" D="·"
+  manual row 61: A="⚑ no cladding type extracted — area computed but unassigned" B="·" C="·" D="·"
+[diag] done
+
+ [32m✓[39m tests/live/diag-tonights-run.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2430[2mms[22m[39m
+     [33m[2m✓[22m[39m dump the newest run end to end [33m 2429[2mms[22m[39m
+[90mstdout[2m | tests/live/discovery.test.ts[2m > [22m[2mLIVE DISCOVERY (report-only)[2m > [22m[2mgolden jobs + takeoff_json room structure
+[22m[39m[disc] 'neil': 0 job(s) []
+
+[90mstdout[2m | tests/live/live-validation.test.ts[2m > [22m[2mLIVE — JM-0020 export faithfulness
+[22m[39m[live] takeoffSource: enriched
+[live] lounge canonical: [ [32m'window 1.3x1.8'[39m, [32m'slider 2.1x2.4'[39m ]
+[live] IQ lounge row 42: [33m1[39m [33m1.3[39m [33m1.8[39m
+[live] IQ garage row 44 + B24: [33m1[39m [33m2.1[39m [33m3[39m | 3x2.1
+[live] IQ doors B27-30: [ [33m6[39m, [33m0[39m, [33m2[39m, [33m0[39m ]
+[live] rooms persisted: [33m0[39m 
+[live] specifications answered: [33m16[39m | header row 100: SPECIFICATIONS (CODED) — QS re | heating B108: [33m2[39m
+
+[90mstdout[2m | tests/live/discovery.test.ts[2m > [22m[2mLIVE DISCOVERY (report-only)[2m > [22m[2mgolden jobs + takeoff_json room structure
+[22m[39m[disc] 'russell': 0 job(s) []
+
+[90mstdout[2m | tests/live/diagnose-openings.test.ts[2m > [22m[2mLATEST RUN AUDIT (global)[2m > [22m[2mnewest takeoff run anywhere — geometry participation + key values
+[22m[39m[audit] ===== JM-0032 run 502a1fe9 =====
+[audit] started: 2026-06-13T00:20:22.123594+00:00 | status: running | err: [1mnull[22m
+[audit] floor_area_m2 = [90mundefined[39m
+[audit] external_wall_lm = [90mundefined[39m
+[audit] internal_wall_lm = [90mundefined[39m
+[audit] window_count = [90mundefined[39m
+[audit] garage_door_size = [90mundefined[39m
+[audit] roof_area_m2 = [90mundefined[39m
+[audit] internal_door_count = [90mundefined[39m
+[audit] fields carrying discrepancy flags: [33m0[39m
+
+[90mstdout[2m | tests/live/diagnose-openings.test.ts[2m > [22m[2mLATEST RUN AUDIT (global)[2m > [22m[2mnewest takeoff run anywhere — geometry participation + key values
+[22m[39m[audit] ===== JM-0032 run 6f8265c9 =====
+[audit] started: 2026-06-12T23:51:29.195999+00:00 | status: running | err: [1mnull[22m
+[audit] floor_area_m2 = [90mundefined[39m
+[audit] external_wall_lm = [90mundefined[39m
+[audit] internal_wall_lm = [90mundefined[39m
+[audit] window_count = [90mundefined[39m
+[audit] garage_door_size = [90mundefined[39m
+[audit] roof_area_m2 = [90mundefined[39m
+[audit] internal_door_count = [90mundefined[39m
+[audit] fields carrying discrepancy flags: [33m0[39m
+
+[90mstdout[2m | tests/live/live-validation.test.ts[2m > [22m[2mLIVE — Beddis export faithfulness (export === stored canonical)[2m > [22m[2mevery stored canonical opening is rendered, none invented (the claim MY code owns)
+[22m[39m[live] lookup '%26001%' matched 0 jobs: []
+
+[90mstdout[2m | tests/live/diagnose-openings.test.ts[2m > [22m[2mLIVE DIAG openings (report-only)[2m > [22m[2mJM-0027 / JM-0029 vs control JM-0020 — window pipeline state
+[22m[39m[diag] ===== JM-0027 (J-B…) =====
+[diag] JM-0027 job cols: id,job_number,client_name,address,template,status,uploaded_at,created_by,created_at,updated_at,plan_type,plan_thumbnail_url,working_plan_file_id,electrical_plan_url,smw_enabled,confidence_score,plan_context,elevation_data,site_plan_data,cross_reference_data,working_plan_page_number,specifications
+[diag] JM-0027 takeoff_json: NULL
+
+[90mstdout[2m | tests/live/discovery.test.ts[2m > [22m[2mLIVE DISCOVERY (report-only)[2m > [22m[2mjobs.specifications column provisioned?
+[22m[39m[disc] jobs.specifications: PRESENT — sample: null
+
+[90mstdout[2m | tests/live/diagnose-openings.test.ts[2m > [22m[2mLIVE DIAG openings (report-only)[2m > [22m[2mJM-0027 / JM-0029 vs control JM-0020 — window pipeline state
+[22m[39m[diag] JM-0027 run cols: id,job_id,started_by,started_at,completed_at,status,working_file_id,working_page_number,working_page_type,classification_confidence,classification_reason,scale_text,calibration_id,summary,error_message,created_at,updated_at,takeoff_json
+[diag] JM-0027 run.started_at= 2026-06-11T19:48:08.547+00:00
+[diag] JM-0027 run.completed_at= 2026-06-11T19:48:08.547+00:00
+[diag] JM-0027 run.started_by= a222987e-d3fc-439e-bf2a-de014b5cc5ce
+[diag] JM-0027 run.status= completed
+[diag] JM-0027 run.error_message= null
+[diag] JM-0027 RUN tj keys: notes,openings,glazed_sqm,gable_span_m,roof_area_m2,window_count,ensuite_count,floor_area_m2,kitchen_count,laundry_count,total_area_m2,bathroom_count,door_breakdown,garage_area_m2,foundation_type,windows_by_room,alfresco_area_m2,ceiling_height_m,external_wall_lm,garage_door_size,internal_wall_lm,windows_schedule,total_opening_sqm,external_door_count,internal_door_count,external_wall_area_m2
+[diag] JM-0027 RUNtj.window_count= {"value":13,"source":"vision","confidence":null,"discrepancy_flags":[]}
+[diag] JM-0027 RUNtj.garage_door_size= {"value":"6100","source":"vision","confidence":null,"discrepancy_flags":[]}
+[diag] JM-0027 RUNtj.floor_area_m2= {"value":199,"source":"vision","confidence":null,"discrepancy_flags":[]}
+[diag] JM-0027 RUNtj.external_wall_lm= {"value":80,"source":"vision","confidence":null,"discrepancy_flags":[]}
+[diag] JM-0027 RUNtj.internal_door_count= {"value":8,"source":"vision","confidence":null,"discrepancy_flags":[]}
+
+[90mstdout[2m | tests/live/discovery.test.ts[2m > [22m[2mLIVE DISCOVERY (report-only)[2m > [22m[2mstorage buckets + workbook objects
+[22m[39m[disc] buckets: [
+  [32m'job-files(private)'[39m,
+  [32m'plan_pdfs(private)'[39m,
+  [32m'specification_pdfs(private)'[39m,
+  [32m'exports(private)'[39m
+]
+
+[90mstdout[2m | tests/live/diagnose-openings.test.ts[2m > [22m[2mLIVE DIAG openings (report-only)[2m > [22m[2mJM-0027 / JM-0029 vs control JM-0020 — window pipeline state
+[22m[39m[diag] ===== JM-0029 (Chr…) =====
+[diag] JM-0029 job cols: id,job_number,client_name,address,template,status,uploaded_at,created_by,created_at,updated_at,plan_type,plan_thumbnail_url,working_plan_file_id,electrical_plan_url,smw_enabled,confidence_score,plan_context,elevation_data,site_plan_data,cross_reference_data,working_plan_page_number,specifications
+[diag] JM-0029 takeoff_json: NULL
+
+[90mstdout[2m | tests/live/discovery.test.ts[2m > [22m[2mLIVE DISCOVERY (report-only)[2m > [22m[2mstorage buckets + workbook objects
+[22m[39m[disc] job-files: 2 root entries, folders:[a222987e-d3fc-439e-bf2a-de014b5cc5ce,bench], workbooks:[]
+
+[90mstdout[2m | tests/live/diagnose-openings.test.ts[2m > [22m[2mLIVE DIAG openings (report-only)[2m > [22m[2mJM-0027 / JM-0029 vs control JM-0020 — window pipeline state
+[22m[39m[diag] JM-0029 run cols: id,job_id,started_by,started_at,completed_at,status,working_file_id,working_page_number,working_page_type,classification_confidence,classification_reason,scale_text,calibration_id,summary,error_message,created_at,updated_at,takeoff_json
+[diag] JM-0029 run.started_at= 2026-06-11T20:50:55.428+00:00
+[diag] JM-0029 run.completed_at= 2026-06-11T20:50:55.428+00:00
+[diag] JM-0029 run.started_by= a222987e-d3fc-439e-bf2a-de014b5cc5ce
+[diag] JM-0029 run.status= completed
+[diag] JM-0029 run.error_message= null
+[diag] JM-0029 RUN tj keys: notes,openings,glazed_sqm,gable_span_m,roof_area_m2,window_count,ensuite_count,floor_area_m2,kitchen_count,laundry_count,total_area_m2,bathroom_count,door_breakdown,garage_area_m2,foundation_type,windows_by_room,alfresco_area_m2,ceiling_height_m,external_wall_lm,garage_door_size,internal_wall_lm,windows_schedule,total_opening_sqm,external_door_count,internal_door_count,external_wall_area_m2
+[diag] JM-0029 RUNtj.window_count= {"value":2,"source":"vision","confidence":null,"discrepancy_flags":[]}
+[diag] JM-0029 RUNtj.garage_door_size= {"value":"6 000","source":"vision","confidence":null,"discrepancy_flags":[]}
+[diag] JM-0029 RUNtj.floor_area_m2= {"value":203.7,"source":"vision","confidence":null,"discrepancy_flags":[]}
+[diag] JM-0029 RUNtj.external_wall_lm= {"value":74.4,"source":"vision","confidence":null,"discrepancy_flags":[]}
+[diag] JM-0029 RUNtj.internal_door_count= {"value":10,"source":"vision","confidence":null,"discrepancy_flags":[]}
+
+[90mstdout[2m | tests/live/diagnose-openings.test.ts[2m > [22m[2mLIVE DIAG openings (report-only)[2m > [22m[2mJM-0027 / JM-0029 vs control JM-0020 — window pipeline state
+[22m[39m[diag] ===== JM-0020 (ful…) =====
+[diag] JM-0020 job cols: id,job_number,client_name,address,template,status,uploaded_at,created_by,created_at,updated_at,plan_type,plan_thumbnail_url,working_plan_file_id,electrical_plan_url,smw_enabled,confidence_score,plan_context,elevation_data,site_plan_data,cross_reference_data,working_plan_page_number,specifications
+[diag] JM-0020 takeoff_json: NULL
+
+[90mstdout[2m | tests/live/discovery.test.ts[2m > [22m[2mLIVE DISCOVERY (report-only)[2m > [22m[2mstorage buckets + workbook objects
+[22m[39m[disc] plan_pdfs: 1 root entries, folders:[vision], workbooks:[]
+
+[90mstdout[2m | tests/live/live-validation.test.ts[2m > [22m[2mLIVE — Beddis export faithfulness (export === stored canonical)[2m > [22m[2mevery stored canonical opening is rendered, none invented (the claim MY code owns)
+[22m[39m[live] Beddis routable: [33m6[39m → slots: [33m6[39m overflow: [33m0[39m toilet: [33m0[39m
+[live] Beddis sectionals: [33m1[39m → B24: 2.7x2.1 row44 qty: [33m1[39m
+[live][report] bed1 row33: [33m1[39m [33m0.4[39m [33m1.3[39m (QS ground truth: 2 windows, first 2.1h × 1.6w — mismatch ⇒ stored extraction is stale, re-run the takeoff)
+
+[90mstdout[2m | tests/live/diagnose-openings.test.ts[2m > [22m[2mLIVE DIAG openings (report-only)[2m > [22m[2mJM-0027 / JM-0029 vs control JM-0020 — window pipeline state
+[22m[39m[diag] JM-0020 run cols: id,job_id,started_by,started_at,completed_at,status,working_file_id,working_page_number,working_page_type,classification_confidence,classification_reason,scale_text,calibration_id,summary,error_message,created_at,updated_at,takeoff_json
+[diag] JM-0020 run.started_at= 2026-06-10T18:45:20.440503+00:00
+[diag] JM-0020 run.completed_at= 2026-06-10T18:45:34.681+00:00
+[diag] JM-0020 run.started_by= a222987e-d3fc-439e-bf2a-de014b5cc5ce
+[diag] JM-0020 run.status= completed
+[diag] JM-0020 run.error_message= null
+[diag] JM-0020 run.takeoff_json: NULL
+[diag] JM-0020 run cols: id,job_id,started_by,started_at,completed_at,status,working_file_id,working_page_number,working_page_type,classification_confidence,classification_reason,scale_text,calibration_id,summary,error_message,created_at,updated_at,takeoff_json
+[diag] JM-0020 run.started_at= 2026-06-10T18:38:00.326573+00:00
+[diag] JM-0020 run.completed_at= 2026-06-10T18:38:13.748+00:00
+[diag] JM-0020 run.started_by= a222987e-d3fc-439e-bf2a-de014b5cc5ce
+[diag] JM-0020 run.status= completed
+[diag] JM-0020 run.error_message= null
+[diag] JM-0020 RUN tj keys: notes,openings,glazed_sqm,roof_area_m2,window_count,ensuite_count,floor_area_m2,kitchen_count,laundry_count,total_area_m2,bathroom_count,door_breakdown,garage_area_m2,foundation_type,windows_by_room,alfresco_area_m2,ceiling_height_m,external_wall_lm,garage_door_size,internal_wall_lm,windows_schedule,total_opening_sqm,external_door_count,internal_door_count,external_wall_area_m2
+[diag] JM-0020 RUNtj.window_count= {"value":9,"source":"vision","confidence":null,"discrepancy_flags":[]}
+[diag] JM-0020 RUNtj.garage_door_size= {"value":"3×2.1","source":"vector","confidence":"low","discrepancy_flags":["reconciliation: garage_door_width disagreed across paths — vision read 4000mm, the deterministic vector layer read 1870mm (53% apart). The vector value was preferred; confirm garage door width against the plan."]}
+[diag] JM-0020 RUNtj.floor_area_m2= {"value":139.4,"source":"geometry","confidence":"high","discrepancy_flags":[]}
+[diag] JM-0020 RUNtj.external_wall_lm= {"value":56.2,"source":"geometry","confidence":"high","discrepancy_flags":[]}
+[diag] JM-0020 RUNtj.internal_door_count= {"value":10,"source":"vision","confidence":null,"discrepancy_flags":[]}
+[diag] JM-0020 run cols: id,job_id,started_by,started_at,completed_at,status,working_file_id,working_page_number,working_page_type,classification_confidence,classification_reason,scale_text,calibration_id,summary,error_message,created_at,updated_at,takeoff_json
+[diag] JM-0020 run.started_at= 2026-06-10T02:19:22.626458+00:00
+[diag] JM-0020 run.completed_at= 2026-06-10T02:19:32.696+00:00
+[diag] JM-0020 run.started_by= a222987e-d3fc-439e-bf2a-de014b5cc5ce
+[diag] JM-0020 run.status= completed
+[diag] JM-0020 run.error_message= null
+[diag] JM-0020 RUN tj keys: notes,openings,glazed_sqm,roof_area_m2,window_count,ensuite_count,floor_area_m2,kitchen_count,laundry_count,total_area_m2,bathroom_count,door_breakdown,garage_area_m2,foundation_type,windows_by_room,alfresco_area_m2,ceiling_height_m,external_wall_lm,garage_door_size,internal_wall_lm,windows_schedule,total_opening_sqm,external_door_count,internal_door_count,external_wall_area_m2
+[diag] JM-0020 RUNtj.window_count= {"value":9,"source":"vision","confidence":null,"discrepancy_flags":[]}
+[diag] JM-0020 RUNtj.garage_door_size= {"value":"3×2.1","source":"vector","confidence":"low","discrepancy_flags":["reconciliation: garage_door_width disagreed across paths — vision read 4000mm, the deterministic vector layer read 1870mm (53% apart). The vector value was preferred; confirm garage door width against the plan."]}
+[diag] JM-0020 RUNtj.floor_area_m2= {"value":139.4,"source":"geometry","confidence":"high","discrepancy_flags":[]}
+[diag] JM-0020 RUNtj.external_wall_lm= {"value":56.2,"source":"geometry","confidence":"high","discrepancy_flags":[]}
+[diag] JM-0020 RUNtj.internal_door_count= {"value":9,"source":"vision","confidence":null,"discrepancy_flags":[]}
+
+ [32m✓[39m tests/live/diagnose-openings.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2637[2mms[22m[39m
+     [33m[2m✓[22m[39m newest takeoff run anywhere — geometry participation + key values [33m 828[2mms[22m[39m
+     [33m[2m✓[22m[39m JM-0027 / JM-0029 vs control JM-0020 — window pipeline state [33m 1807[2mms[22m[39m
+[90mstdout[2m | tests/live/live-validation.test.ts[2m > [22m[2mLIVE — §5.5 internal doors reach the export[2m > [22m[2ma job with schedule-entered internal doors and no confirmed count → intDoorStandard > 0
+[22m[39m[live] jobs with schedule internal doors: [33m0[39m
+
+ [32m✓[39m tests/live/live-validation.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 5448[2mms[22m[39m
+     [33m[2m✓[22m[39m every stored canonical opening is rendered, none invented (the claim MY code owns) [33m 2414[2mms[22m[39m
+[90mstdout[2m | tests/live/discovery.test.ts[2m > [22m[2mLIVE DISCOVERY (report-only)[2m > [22m[2mstorage buckets + workbook objects
+[22m[39m[disc] specification_pdfs: 0 root entries, folders:[], workbooks:[]
+
+[90mstdout[2m | tests/live/discovery.test.ts[2m > [22m[2mLIVE DISCOVERY (report-only)[2m > [22m[2mstorage buckets + workbook objects
+[22m[39m[disc] exports: 0 root entries, folders:[], workbooks:[]
+
+ [32m✓[39m tests/live/discovery.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 6212[2mms[22m[39m
+     [33m[2m✓[22m[39m golden jobs + takeoff_json room structure [33m 3521[2mms[22m[39m
+     [33m[2m✓[22m[39m jobs.specifications column provisioned? [33m 640[2mms[22m[39m
+     [33m[2m✓[22m[39m storage buckets + workbook objects [33m 2049[2mms[22m[39m
+[90mstdout[2m | tests/live/invites.live.test.ts[2m > [22m[2mLIVE invite policy ground truth[2m > [22m[2mhaydon.christian@jennian.co.nz is the sole owner-role holder
+[22m[39m[invites] auth users: 5
+
+[90mstdout[2m | tests/live/invites.live.test.ts[2m > [22m[2mLIVE invite policy ground truth[2m > [22m[2mhaydon.christian@jennian.co.nz is the sole owner-role holder
+[22m[39m[invites] owner-role holders (1): haydon.christian@jennian.co.nz
+[invites] role tally: {"owner":1,"estimator":2}
+
+[90mstdout[2m | tests/live/verification-model.live.test.ts[2m > [22m[2mLIVE — verification model on JM-0020 (same-composer doctrine)[2m > [22m[2mbuilds without throwing and carries the job identity
+[22m[39m[live] header: JM-0020 · enriched
+
+[90mstdout[2m | tests/live/verification-model.live.test.ts[2m > [22m[2mLIVE — verification model on JM-0020 (same-composer doctrine)[2m > [22m[2mintegrityAlerts is EMPTY — export and takeoff agree on the real job
+[22m[39m[live] integrityAlerts: []
+
+[90mstdout[2m | tests/live/verification-model.live.test.ts[2m > [22m[2mLIVE — verification model on JM-0020 (same-composer doctrine)[2m > [22m[2mkey measures carry real values (floor area present, not '—')
+[22m[39m[live] floor area: 139.4 m² · GEO
+
+[90mstdout[2m | tests/live/verification-model.live.test.ts[2m > [22m[2mLIVE — verification model on JM-0020 (same-composer doctrine)[2m > [22m[2mplanOverlay degrades honestly: marker count matches persisted hits exactly
+[22m[39m[live] overlay markers: [33m0[39m · summary: {
+  confirmed: [33m0[39m,
+  flagged: [33m0[39m,
+  byType: { hinged: [33m0[39m, double: [33m0[39m, cavity: [33m0[39m }
+} · page: [1mnull[22m
+
+[90mstdout[2m | tests/live/verification-model.live.test.ts[2m > [22m[2mLIVE — verification model on JM-0020 (same-composer doctrine)[2m > [22m[2mspecs render with labels, never raw codes
+[22m[39m[live] specs answered: [33m16[39m of [33m16[39m
+
+ [32m✓[39m tests/live/verification-model.live.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 1889[2mms[22m[39m
+[90mstdout[2m | tests/live/invites.live.test.ts[2m > [22m[2mLIVE invite policy ground truth[2m > [22m[2mpending invitation queue (report)
+[22m[39m[invites] invitation rows (latest 6):
+[invites]   eri…@jennian.co.nz role=estimator branch=Manawatū status=invited updated=2026-06-11
+[invites]   eri…@jennian.co.nz role=estimator branch=Manawatū status=invited updated=2026-06-11
+[invites]   eri…@jennian.co.nz role=estimator branch=Manawatū status=cancelled updated=2026-06-11
+[invites]   eri…@jennian.co.nz role=estimator branch=Manawatū status=invited updated=2026-06-02
+[invites]   eri…@jennian.co.nz role=estimator branch=Manawatū status=invited updated=2026-05-24
+[invites]   eri…@jennian.co.nz role=estimator branch=Palmerston North status=cancelled updated=2026-05-17
+
+ [32m✓[39m tests/live/invites.live.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2210[2mms[22m[39m
+     [33m[2m✓[22m[39m haydon.christian@jennian.co.nz is the sole owner-role holder [33m 1561[2mms[22m[39m
+     [33m[2m✓[22m[39m pending invitation queue (report) [33m 647[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m6 passed[39m[22m[90m (6)[39m
+[2m      Tests [22m [1m[32m18 passed[39m[22m[90m (18)[39m
+[2m   Start at [22m 01:48:04
+[2m   Duration [22m 8.58s[2m (transform 650ms, setup 0ms, import 1.68s, tests 20.83s, environment 1ms)[22m
+
