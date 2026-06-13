@@ -128,6 +128,36 @@ describe.skipIf(!LIVE)("DIAG — tonight's run, full provenance", () => {
     );
     console.log("  reviewFlags:", JSON.stringify(q.reviewFlags ?? []));
 
+    console.log("--- PLAN-TEXT (13 Jun additions) ---");
+    const ptx = (
+      e as {
+        plan_text?: {
+          rooms: Array<{ name: string; widthMm: number; depthMm: number; areaM2: number }>;
+          windowCodes: Array<{ heightMm: number; widthMm: number }>;
+          titleAreas: Record<string, number>;
+        };
+      }
+    ).plan_text;
+    if (!ptx) console.log("  <absent — pre-plan-text run>");
+    else {
+      console.log(
+        "  rooms:",
+        ptx.rooms.length,
+        "·",
+        ptx.rooms
+          .map((r) => `${r.name} ${r.widthMm}x${r.depthMm}`)
+          .join(" | ")
+          .slice(0, 600),
+      );
+      console.log("  codes:", ptx.windowCodes.map((c) => `${c.heightMm}x${c.widthMm}`).join(" "));
+      console.log("  titleAreas:", JSON.stringify(ptx.titleAreas));
+    }
+    console.log("--- INTERNAL WALLS (ribbon v1) ---");
+    console.log("  ", fvLine("int-wall", e.internal_wall_lm));
+    console.log("--- WINDOWS_BY_ROOM FLAGS (auto-fix log) ---");
+    for (const f of e.windows_by_room?.discrepancy_flags ?? []) console.log("  ", f.slice(0, 220));
+    console.log("--- GARAGE FLAGS ---");
+    for (const f of e.garage_area_m2?.discrepancy_flags ?? []) console.log("  ", f.slice(0, 220));
     console.log("--- ANOMALY HEURISTICS ---");
     const intW = e.internal_wall_lm?.value as number | null;
     const extW = e.external_wall_lm?.value as number | null;
