@@ -213,8 +213,9 @@ const titleCase = (s: string) =>
 export type WindowCorrection = { room: string; change: string };
 
 /** Pure: returns the corrected map + a verbatim change log. Vision entries with no
- * printed code are left untouched (the mismatch flag covers them); agreement is
- * silent; disagreement and absence are corrected loudly. */
+ * printed code are left untouched for named rooms (the mismatch flag covers them);
+ * unanchored Unknown-room vision windows are dropped loudly; agreement is silent;
+ * disagreement and absence are corrected loudly. */
 export function correctWindowsByRoom(
   visionMap: WindowsByRoom | null | undefined,
   pt: PlanText,
@@ -282,5 +283,26 @@ export function correctWindowsByRoom(
         change: `⚑ ${vKey} has an ADDITIONAL printed code ${ex.heightMm}x${ex.widthMm} beyond the slot — enter manually.`,
       });
   }
+
+  for (const [room, w] of Object.entries(out)) {
+    const canon = canonRoom(room);
+    const h = w?.height_m != null ? Math.round(w.height_m * 1000) : null;
+    const wd = w?.width_m != null ? Math.round(w.width_m * 1000) : null;
+    const matchesPrintedCode =
+      h != null && wd != null && pt.windowCodes.some((c) => c.heightMm === h && c.widthMm === wd);
+    if (
+      (canon === "UNKNOWN" || canon === "UNIDENTIFIED" || canon === "OTHER") &&
+      h != null &&
+      wd != null &&
+      !matchesPrintedCode
+    ) {
+      delete out[room];
+      changes.push({
+        room,
+        change: `⚑ DROPPED — ${room} window ${h}x${wd} had no room anchor and matches NO printed joinery code on the plan; excluded from glazing/openings.`,
+      });
+    }
+  }
+
   return { windowsByRoom: out, changes };
 }

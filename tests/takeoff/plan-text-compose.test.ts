@@ -96,6 +96,27 @@ describe("plan-text cross-checks at compose", () => {
     expect(all).not.toContain("NO routed window");
   });
 
+  it("unanchored Unknown vision window is dropped when it matches no printed code", () => {
+    const withUnknown = {
+      ...baseVision,
+      windows_by_room: {
+        ...baseVision.windows_by_room,
+        Unknown: { qty: 1, height_m: 0.6, width_m: 0.9 },
+      },
+    } as unknown as TakeoffData;
+    const e = composeTakeoff({
+      visionTakeoff: withUnknown,
+      geometry: null,
+      schedule: null,
+      geometryPageIndex: undefined,
+      doorEngine,
+    }).enriched;
+
+    expect(e.windows_by_room.value?.Unknown).toBeUndefined();
+    expect(e.openings?.some((o) => o.room === "Unknown")).toBe(false);
+    expect(e.windows_by_room.discrepancy_flags.join(" | ")).toContain("DROPPED");
+  });
+
   it("Master matches Bed 1 routing — no false bedroom flag for the master", () => {
     const de2 = {
       ...(doorEngine as Record<string, unknown>),
