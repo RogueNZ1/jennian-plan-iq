@@ -2556,24 +2556,41 @@ function ElevationSummaryCard({
 
       {/* Window cross-reference */}
       {crossRef && (
-        <div
-          className={`rounded-md border px-3 py-2 flex items-center gap-2 text-[11px] ${
-            crossRef.windowCountMatch
-              ? "border-emerald-500/30 bg-emerald-50/5 text-emerald-600"
-              : "border-amber-500/30 bg-amber-50/5 text-amber-600"
-          }`}
-        >
-          {crossRef.windowCountMatch ? (
-            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-          ) : (
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          )}
-          {crossRef.windowCountMatch
-            ? `${crossRef.windowCountElevations} windows verified across ${Object.keys(elevation?.windowCountPerFace ?? {}).length} elevations`
-            : `Window mismatch — floor plan: ${crossRef.windowCountFloorPlan}, elevations: ${crossRef.windowCountElevations}`}
+        <div className="space-y-2">
+          <div
+            className={`rounded-md border px-3 py-2 flex items-center gap-2 text-[11px] ${
+              crossRef.windowCountMatch
+                ? "border-emerald-500/30 bg-emerald-50/5 text-emerald-600"
+                : "border-amber-500/30 bg-amber-50/5 text-amber-600"
+            }`}
+          >
+            {crossRef.windowCountMatch ? (
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            )}
+            {crossRef.windowCountMatch
+              ? `${crossRef.windowCountElevations} windows verified across ${Object.keys(elevation?.windowCountPerFace ?? {}).length} elevations`
+              : `Window mismatch - floor plan: ${crossRef.windowCountFloorPlan}, elevations: ${crossRef.windowCountElevations}`}
+          </div>
+          <div
+            className={`rounded-md border px-3 py-2 flex items-center gap-2 text-[11px] ${
+              crossRef.externalGlazedOpeningMatch
+                ? "border-emerald-500/30 bg-emerald-50/5 text-emerald-600"
+                : "border-amber-500/30 bg-amber-50/5 text-amber-600"
+            }`}
+          >
+            {crossRef.externalGlazedOpeningMatch ? (
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            )}
+            {crossRef.externalGlazedOpeningMatch
+              ? `${crossRef.externalGlazedOpeningCountElevations} external glazed openings verified`
+              : `External opening mismatch - floor plan: ${crossRef.externalGlazedOpeningCountFloorPlan}, elevations: ${crossRef.externalGlazedOpeningCountElevations}`}
+          </div>
         </div>
       )}
-
       {/* Cladding & Roof */}
       {elevation && (
         <div className="grid grid-cols-2 gap-2 text-[11.5px]">

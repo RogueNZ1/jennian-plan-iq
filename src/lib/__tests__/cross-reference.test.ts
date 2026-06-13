@@ -81,6 +81,7 @@ describe("crossReference", () => {
     expect(result.externalGlazedOpeningCountFloorPlan).toBe(10);
     expect(result.externalGlazedOpeningCountElevations).toBe(10);
     expect(result.externalGlazedOpeningMatch).toBe(true);
+    expect(result.elevationOpeningLedgerSource).toBe("summary_counts");
     expect(result.warnings.some((w) => /mismatch/i.test(w))).toBe(false);
   });
 
@@ -160,6 +161,136 @@ describe("crossReference", () => {
     expect(result.externalGlazedOpeningCountElevations).toBe(3);
     expect(result.externalGlazedOpeningMatch).toBe(true);
     expect(result.warnings.some((w) => /External glazed opening mismatch/i.test(w))).toBe(false);
+  });
+
+  it("prefers the per-opening elevation ledger over summary counts when present", () => {
+    const floorPlan: TakeoffData = {
+      ...baseTakeoff,
+      window_count: 1,
+      external_door_count: null,
+      openings: [
+        {
+          type: "window",
+          room: "Bed 1",
+          height_m: 1.3,
+          width_m: 1.5,
+          glazed: true,
+          cladding: null,
+          area_m2: 1.95,
+          source: "vision",
+          confidence: "high",
+        },
+        {
+          type: "pa_door",
+          room: "Laundry",
+          height_m: 2.1,
+          width_m: 0.86,
+          glazed: true,
+          cladding: null,
+          area_m2: 1.81,
+          source: "vision",
+          confidence: "medium",
+        },
+        {
+          type: "sectional_door",
+          room: "Garage",
+          height_m: 2.1,
+          width_m: 4.8,
+          glazed: false,
+          cladding: null,
+          area_m2: 10.08,
+          source: "vision",
+          confidence: "medium",
+        },
+      ],
+    };
+    const elevations: ElevationData = {
+      ...elevationsMatch,
+      // Deliberately stale summary. The per-opening ledger is the source of truth.
+      windowCountPerFace: { North: 9 },
+      externalDoorCount: 9,
+      garageDoorsPresent: true,
+      elevationOpenings: [
+        {
+          face: "North",
+          type: "window",
+          label: "W01",
+          widthMm: 1500,
+          heightMm: 1300,
+          quantity: 1,
+          cladding: "brick",
+          confidence: "high",
+          notes: [],
+        },
+        {
+          face: "North",
+          type: "external_door",
+          label: "D01",
+          widthMm: 860,
+          heightMm: 2100,
+          quantity: 1,
+          cladding: "brick",
+          confidence: "high",
+          notes: [],
+        },
+        {
+          face: "North",
+          type: "garage_door",
+          label: null,
+          widthMm: 4800,
+          heightMm: 2100,
+          quantity: 1,
+          cladding: "brick",
+          confidence: "medium",
+          notes: [],
+        },
+      ],
+    };
+
+    const result = crossReference(floorPlan, elevations, sitePlan);
+    expect(result.elevationOpeningLedgerSource).toBe("candidate_ledger");
+    expect(result.windowCountElevations).toBe(1);
+    expect(result.externalGlazedOpeningCountElevations).toBe(2);
+    expect(result.elevationGarageDoorCount).toBe(1);
+    expect(result.elevationOpeningAreaM2).toBe(13.84);
+    expect(result.externalGlazedOpeningMatch).toBe(true);
+    expect(result.warnings.some((w) => /ledger disagrees with elevation summary/i.test(w))).toBe(
+      true,
+    );
+  });
+
+  it("continues with warnings when elevation openings are visible but untyped or undimensioned", () => {
+    const result = crossReference(
+      { ...baseTakeoff, window_count: 0, external_door_count: 1 },
+      {
+        ...elevationsMatch,
+        windowCountPerFace: {},
+        externalDoorCount: 0,
+        elevationOpenings: [
+          {
+            face: "South",
+            type: "unknown",
+            label: null,
+            widthMm: null,
+            heightMm: null,
+            quantity: 1,
+            cladding: null,
+            confidence: "low",
+            notes: [],
+          },
+        ],
+      },
+      sitePlan,
+    );
+
+    expect(result.elevationOpeningLedgerSource).toBe("candidate_ledger");
+    expect(result.externalGlazedOpeningCountElevations).toBe(1);
+    expect(result.elevationUnknownOpeningCount).toBe(1);
+    expect(result.elevationUndimensionedOpeningCount).toBe(1);
+    expect(result.elevationOpeningAreaM2).toBeNull();
+    expect(result.externalGlazedOpeningMatch).toBe(true);
+    expect(result.warnings.some((w) => /not typed confidently/i.test(w))).toBe(true);
+    expect(result.warnings.some((w) => /no readable dimensions/i.test(w))).toBe(true);
   });
 
   it("flags elevation/floor-plan external glazed opening mismatches", () => {

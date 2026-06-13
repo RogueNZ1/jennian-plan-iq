@@ -43,6 +43,64 @@ describe("ElevationData structure", () => {
     expect(data.facesPresent).toHaveLength(4);
   });
 
+  it("carries a per-face external opening ledger for QS reconciliation", () => {
+    const data: ElevationData = {
+      claddingTypes: ["brick"],
+      claddingTypeCode: 1,
+      roofType: "Metal tiles",
+      roofPitchDegrees: 25,
+      wallHeightMm: 2400,
+      studHeightMm: null,
+      facesPresent: ["North"],
+      windowCountPerFace: { North: 1 },
+      externalDoorCount: 1,
+      gableEndCount: 0,
+      garageDoorsPresent: true,
+      elevationOpenings: [
+        {
+          face: "North",
+          type: "window",
+          label: "W01",
+          widthMm: 1500,
+          heightMm: 1300,
+          quantity: 1,
+          cladding: "brick",
+          confidence: "high",
+          notes: [],
+        },
+        {
+          face: "North",
+          type: "external_door",
+          label: "D01",
+          widthMm: 860,
+          heightMm: 2100,
+          quantity: 1,
+          cladding: "brick",
+          confidence: "high",
+          notes: [],
+        },
+        {
+          face: "North",
+          type: "garage_door",
+          label: null,
+          widthMm: 4800,
+          heightMm: 2100,
+          quantity: 1,
+          cladding: "brick",
+          confidence: "medium",
+          notes: ["sectional door opening"],
+        },
+      ],
+    };
+
+    expect(data.elevationOpenings).toHaveLength(3);
+    expect(data.elevationOpenings?.map((opening) => opening.type)).toEqual([
+      "window",
+      "external_door",
+      "garage_door",
+    ]);
+  });
+
   it("claddingTypeCode=1 for brick-only", () => {
     const data: ElevationData = {
       claddingTypes: ["70 series clay brick veneer"],

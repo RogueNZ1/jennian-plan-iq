@@ -1,11 +1,13 @@
 /**
- * Stage 5 — Cross-reference: elevations vs floor plan.
- * Pure function — no AI, no I/O.
+ * Stage 5 - Cross-reference: elevations vs floor plan.
+ * Pure function - no AI, no I/O.
  */
 import type { TakeoffData } from "./concept.functions";
-import type { ElevationData } from "./extract-elevations";
+import type { ElevationData, ElevationOpeningCandidate } from "./extract-elevations";
 import type { SitePlanData } from "./extract-site-plan";
 import { isQsGlazedOpening } from "./derive-fields";
+
+export type ElevationOpeningLedgerSource = "candidate_ledger" | "summary_counts" | "none";
 
 export interface CrossReferenceResult {
   windowCountMatch: boolean;
@@ -17,12 +19,108 @@ export interface CrossReferenceResult {
   externalGlazedOpeningCountElevations: number;
   externalGlazedOpeningDiscrepancy: number;
   externalGlazedOpeningMatch: boolean;
+  /** Whether elevation counts came from the new per-opening ledger or old summary totals. */
+  elevationOpeningLedgerSource: ElevationOpeningLedgerSource;
+  elevationOpeningCandidateCount: number;
+  elevationGarageDoorCount: number;
+  elevationUnknownOpeningCount: number;
+  elevationUndimensionedOpeningCount: number;
+  elevationOpeningAreaM2: number | null;
   claddingTypeCode: number | null;
   roofType: string | null;
   roofPitchDegrees: number | null;
   studHeightMm: number | null;
   studHeightSource: "elevation" | "floor_plan" | "builder_default";
   warnings: string[];
+}
+
+type ElevationOpeningStats = {
+  source: ElevationOpeningLedgerSource;
+  candidateCount: number;
+  windowCount: number;
+  externalGlazedCount: number;
+  garageDoorCount: number;
+  unknownCount: number;
+  undimensionedCount: number;
+  areaM2: number | null;
+};
+
+function qty(opening: ElevationOpeningCandidate): number {
+  return Number.isFinite(opening.quantity) && opening.quantity > 0
+    ? Math.round(opening.quantity)
+    : 1;
+}
+
+function areaM2(opening: ElevationOpeningCandidate): number | null {
+  if (opening.widthMm == null || opening.heightMm == null) return null;
+  return (opening.widthMm * opening.heightMm) / 1_000_000;
+}
+
+function readElevationOpeningStats(elevations: ElevationData | null): ElevationOpeningStats {
+  if (!elevations) {
+    return {
+      source: "none",
+      candidateCount: 0,
+      windowCount: 0,
+      externalGlazedCount: 0,
+      garageDoorCount: 0,
+      unknownCount: 0,
+      undimensionedCount: 0,
+      areaM2: null,
+    };
+  }
+
+  const candidates = elevations.elevationOpenings ?? [];
+  if (candidates.length === 0) {
+    const windowCount = Object.values(elevations.windowCountPerFace).reduce((s, n) => s + n, 0);
+    return {
+      source: "summary_counts",
+      candidateCount: 0,
+      windowCount,
+      externalGlazedCount: windowCount + elevations.externalDoorCount,
+      garageDoorCount: elevations.garageDoorsPresent ? 1 : 0,
+      unknownCount: 0,
+      undimensionedCount: 0,
+      areaM2: null,
+    };
+  }
+
+  let windowCount = 0;
+  let externalGlazedCount = 0;
+  let garageDoorCount = 0;
+  let unknownCount = 0;
+  let undimensionedCount = 0;
+  let area = 0;
+  let hasArea = false;
+
+  for (const candidate of candidates) {
+    const count = qty(candidate);
+    if (candidate.type === "window" || candidate.type === "slider") windowCount += count;
+    if (candidate.type === "garage_door") {
+      garageDoorCount += count;
+    } else {
+      externalGlazedCount += count;
+    }
+    if (candidate.type === "unknown") unknownCount += count;
+    const openingArea = areaM2(candidate);
+    if (openingArea == null) {
+      undimensionedCount += count;
+    } else {
+      area += openingArea * count;
+      hasArea = true;
+    }
+  }
+
+  return {
+    source: "candidate_ledger",
+    candidateCount: candidates.reduce((s, opening) => s + qty(opening), 0),
+    windowCount,
+    externalGlazedCount,
+    garageDoorCount,
+    unknownCount,
+    undimensionedCount,
+    areaM2: hasArea ? Math.round(area * 100) / 100 : null,
+  };
 }
 
 export function crossReference(
@@ -32,11 +130,11 @@ export function crossReference(
 ): CrossReferenceResult {
   const warnings: string[] = [];
 
+  const elevationStats = readElevationOpeningStats(elevations);
+
   // Window count cross-check
   const fpCount = floorPlan.window_count ?? 0;
-  const elCount = elevations
-    ? Object.values(elevations.windowCountPerFace).reduce((s, n) => s + n, 0)
-    : 0;
+  const elCount = elevationStats.windowCount;
   const discrepancy = Math.abs(fpCount - elCount);
   const windowCountMatch = elevations !== null && discrepancy <= 2;
 
@@ -46,19 +144,48 @@ export function crossReference(
     floorPlan.openings && floorPlan.openings.length > 0
       ? floorPlan.openings.filter((o) => isQsGlazedOpening(o.type)).length
       : (floorPlan.window_count ?? 0) + (floorPlan.external_door_count ?? 0);
-  const elExternalGlazedCount = elevations ? elCount + elevations.externalDoorCount : 0;
+  const elExternalGlazedCount = elevationStats.externalGlazedCount;
   const externalGlazedDiscrepancy = Math.abs(fpExternalGlazedCount - elExternalGlazedCount);
   const externalGlazedMatch = elevations !== null && externalGlazedDiscrepancy <= 2;
 
   if (elevations && discrepancy > 2) {
     warnings.push(
-      `Window count mismatch — floor plan shows ${fpCount}, elevations show ${elCount}. Check plan carefully.`,
+      `Window count mismatch - floor plan shows ${fpCount}, elevations show ${elCount}. Check plan carefully.`,
     );
   }
   if (elevations && externalGlazedDiscrepancy > 2) {
     warnings.push(
-      `External glazed opening mismatch — floor plan ledger shows ${fpExternalGlazedCount}, elevations show ${elExternalGlazedCount} (windows plus external doors; sectional garage doors excluded). Check elevations against the floor plan.`,
+      `External glazed opening mismatch - floor plan ledger shows ${fpExternalGlazedCount}, elevations show ${elExternalGlazedCount} (windows plus external doors; sectional garage doors excluded). Check elevations against the floor plan.`,
     );
+  }
+  if (
+    elevations &&
+    elevationStats.source === "candidate_ledger" &&
+    elevationStats.unknownCount > 0
+  ) {
+    warnings.push(
+      `${elevationStats.unknownCount} elevation opening(s) were visible but not typed confidently. Treat them as external glazed openings until verified.`,
+    );
+  }
+  if (
+    elevations &&
+    elevationStats.source === "candidate_ledger" &&
+    elevationStats.undimensionedCount > 0
+  ) {
+    warnings.push(
+      `${elevationStats.undimensionedCount} elevation opening(s) have no readable dimensions. Count cross-check can continue, but opening area needs plan/schedule confirmation.`,
+    );
+  }
+  if (elevations && elevationStats.source === "candidate_ledger") {
+    const summaryWindowCount = Object.values(elevations.windowCountPerFace).reduce(
+      (s, n) => s + n,
+      0,
+    );
+    if (Math.abs(summaryWindowCount - elevationStats.windowCount) > 1) {
+      warnings.push(
+        `Elevation opening ledger disagrees with elevation summary - ledger windows ${elevationStats.windowCount}, summary windows ${summaryWindowCount}. Use the per-opening ledger for review.`,
+      );
+    }
   }
   if (!elevations) {
     warnings.push("Upload elevation PDF to auto-detect cladding type and verify window count.");
@@ -85,6 +212,12 @@ export function crossReference(
     externalGlazedOpeningCountElevations: elExternalGlazedCount,
     externalGlazedOpeningDiscrepancy: externalGlazedDiscrepancy,
     externalGlazedOpeningMatch: externalGlazedMatch,
+    elevationOpeningLedgerSource: elevationStats.source,
+    elevationOpeningCandidateCount: elevationStats.candidateCount,
+    elevationGarageDoorCount: elevationStats.garageDoorCount,
+    elevationUnknownOpeningCount: elevationStats.unknownCount,
+    elevationUndimensionedOpeningCount: elevationStats.undimensionedCount,
+    elevationOpeningAreaM2: elevationStats.areaM2,
     claddingTypeCode: elevations?.claddingTypeCode ?? null,
     roofType: elevations?.roofType ?? null,
     roofPitchDegrees: elevations?.roofPitchDegrees ?? null,
