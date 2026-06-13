@@ -142,6 +142,16 @@ export function parseTitleAreas(labels: TextLabel[]): PlanTitleAreas {
 }
 
 export function parsePlanText(labels: TextLabel[]): PlanText {
+  // Density guard (13 Jun 2026, prelim-set hang): a full working drawing can
+  // carry tens of thousands of text labels (every dimension is one). The room
+  // pairing below is candidates × labels; past the cap we skip — vision +
+  // flags carry the takeoff, the run COMPLETES.
+  if (labels.length > 25000) {
+    console.warn(
+      `[plan-text] ${labels.length} labels exceeds the density cap — plan-text pass skipped.`,
+    );
+    return { rooms: [], windowCodes: [], titleAreas: {} };
+  }
   const rooms = parseRoomDims(labels);
   return {
     rooms,

@@ -64,24 +64,52 @@ export function traceInteriorWalls(
     }
   }
 
+  // Density caps — belt AND braces with the sweep. A trace that cannot finish
+  // fast must not run at all: the takeoff's wall number degrades to the honest
+  // pre-v1 state (suppressed / measure manually), the run COMPLETES.
+  const AXIAL_CAP = 30000;
+  if (axials.length > AXIAL_CAP) {
+    console.warn(
+      `[wall-trace] ${axials.length} axial segments exceeds the v1 density cap (${AXIAL_CAP}) — trace skipped, internal walls fall back to suppressed.`,
+    );
+    return { internalWallLm: 0, ribbonCount: 0, ribbons: [] };
+  }
+
   // EXCLUSIVE nearest-partner pairing: each face marries exactly once, to the
   // partner with the best overlap at the closest spacing. Combinatorial pairing
   // (every face × every face) measured 833 lm on West Street; exclusivity is the
   // difference between a wall and a moiré pattern.
+  //
+  // PERF (13 Jun 2026, the prelim-set hang): candidate generation is a SWEEP —
+  // axials sorted by offset per orientation, each compared only inside its
+  // pairHi window. O(n²) on a full working drawing (bracing + hatching +
+  // dimension forests = tens of thousands of axials) locked the browser solid
+  // and left two runs stuck at 'running' with NULL payloads. Never again: sweep
+  // + a hard density cap that SKIPS the trace (fail-safe null) instead of
+  // hanging the takeoff.
   type Cand = { i: number; j: number; gap: number; lo: number; hi: number; overlap: number };
   const cands: Cand[] = [];
-  for (let i = 0; i < axials.length; i++) {
-    for (let j = i + 1; j < axials.length; j++) {
-      const a = axials[i],
-        b = axials[j];
-      if (a.vertical !== b.vertical) continue;
-      const gap = Math.abs(a.offset - b.offset);
-      if (gap < pairLo || gap > pairHi) continue;
+  const order = axials.map((_, i) => i).sort((p, q) => axials[p].offset - axials[q].offset);
+  for (let oi = 0; oi < order.length; oi++) {
+    const i = order[oi];
+    const a = axials[i];
+    for (let oj = oi + 1; oj < order.length; oj++) {
+      const j = order[oj];
+      const b = axials[j];
+      const gap = b.offset - a.offset; // sorted → non-negative
+      if (gap > pairHi) break; // sweep window closed
+      if (a.vertical !== b.vertical || gap < pairLo) continue;
       const lo = Math.max(a.lo, b.lo),
         hi = Math.min(a.hi, b.hi);
       if (hi - lo < minLen) continue;
       cands.push({ i, j, gap, lo, hi, overlap: hi - lo });
     }
+  }
+  const CAND_CAP = 120000;
+  const PIECE_CAP = 4000;
+  if (cands.length > CAND_CAP) {
+    console.warn(`[wall-trace] ${cands.length} pair candidates exceeds cap — trace skipped.`);
+    return { internalWallLm: 0, ribbonCount: 0, ribbons: [] };
   }
   cands.sort((p, q) => q.overlap - p.overlap || p.gap - q.gap);
   const taken = new Set<number>();
@@ -97,6 +125,13 @@ export function traceInteriorWalls(
       lo: c.lo,
       hi: c.hi,
     });
+  }
+
+  if (pieces.length > PIECE_CAP) {
+    console.warn(
+      `[wall-trace] ${pieces.length} ribbon pieces exceeds cap — trace skipped (the merge and component passes are quadratic).`,
+    );
+    return { internalWallLm: 0, ribbonCount: 0, ribbons: [] };
   }
 
   // merge pieces on the same centerline (offset within half a wall) — overlapping
