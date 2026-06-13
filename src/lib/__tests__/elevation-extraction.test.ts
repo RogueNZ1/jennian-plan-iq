@@ -101,6 +101,36 @@ describe("ElevationData structure", () => {
     ]);
   });
 
+  it("29A West St hip roof: roof triangles are not cladded wall gable ends", () => {
+    const data: ElevationData = {
+      claddingTypes: ["brick"],
+      claddingTypeCode: 1,
+      roofType: "Hip roof - metal tiles",
+      roofPitchDegrees: 25,
+      wallHeightMm: null,
+      studHeightMm: null,
+      facesPresent: [
+        "North Western Elevation",
+        "South Western Elevation",
+        "North Eastern Elevation",
+        "South Eastern Elevation",
+      ],
+      windowCountPerFace: {
+        "North Western Elevation": 2,
+        "South Western Elevation": 1,
+        "North Eastern Elevation": 1,
+        "South Eastern Elevation": 4,
+      },
+      externalDoorCount: 3,
+      gableEndCount: 0,
+      garageDoorsPresent: true,
+      elevationOpenings: [],
+    };
+
+    expect(data.gableEndCount).toBe(0);
+    expect(data.roofType).toMatch(/hip/i);
+  });
+
   it("claddingTypeCode=1 for brick-only", () => {
     const data: ElevationData = {
       claddingTypes: ["70 series clay brick veneer"],

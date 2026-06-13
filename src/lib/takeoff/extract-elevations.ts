@@ -59,11 +59,12 @@ Extract the following:
      3 = mixed (at least one brick face AND at least one non-brick face)
      null = could not determine
 
-2. ROOF - Look for roof type and pitch annotation.
+2. ROOF - Look for roof type/form and pitch annotation.
    Examples: "ROOF 25 deg METAL TILES", "Pressed metal Gerard Shake",
    "Longrun Corrugate Colorsteel endura 0.4 BMT roofing @ 25 deg pitch",
    "Metal tiles @ 25 deg", "Corrugated iron @ 12 deg".
-   Return type string (e.g. "Metal tiles") and pitch in degrees as a number.
+   Return type string (e.g. "Hip roof - metal tiles", "Gable roof - longrun")
+   and pitch in degrees as a number.
 
 3. WALL HEIGHT - Look for any dimension showing wall height or stud height.
    Examples: "2400 STUD", "2570 STUD", "2.4m wall height".
@@ -93,7 +94,10 @@ Extract the following:
 7. EXTERNAL DOORS - Count external door openings visible across all elevations.
    Do not count garage door openings here.
 
-8. GABLE ENDS - Count how many gable end triangles are visible across all elevations.
+8. GABLE ENDS - Count only cladded vertical wall gable triangles below the roof line.
+   Do NOT count triangular roof/hip planes, roof silhouettes, ridge triangles, or hip roof
+   faces as gable ends. If the elevations show a hip roof with rectangular walls below the
+   eaves and no triangular wall cladding, return gableEndCount: 0.
 
 9. GARAGE DOORS - Are any garage door openings visible? true or false.
 

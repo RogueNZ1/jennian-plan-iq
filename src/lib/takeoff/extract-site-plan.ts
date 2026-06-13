@@ -1,5 +1,5 @@
 /**
- * Stage 4 — Site plan extraction.
+ * Stage 4 - Site plan extraction.
  * Reads concrete/paving areas, driveway area, total coverage, and perimeter
  * from a site plan sheet.
  */
@@ -24,25 +24,32 @@ You are reading a site plan for a New Zealand residential dwelling.
 
 Extract the following:
 
-1. CONCRETE AREAS — Find all areas labelled with "m2 Concrete", "m² Concrete", or similar.
-   Examples: "80m2 Concrete", "132m2 Concrete", "13m2 Concrete", "17m² conc".
-   For each area found return the numeric value and any nearby label text.
-   Label text examples: "Driveway", "Patio", "Path", "Entry", "Terrace", or empty string if no label.
-   The area value is in m² (square metres).
+1. CONCRETE / PAVED AREAS - Find all paved/concrete areas labelled with "m2 Concrete",
+   "m2 conc", "drive", "driveway", "path", "patio", "terrace", "entry", or similar.
+   Examples: "80m2 Concrete", "132m2 Concrete", "13m2 Concrete", "17m2 conc",
+   "DRIVE 117m2", "Driveway 80m2".
+   For each area found return the numeric value and nearby label text.
+   Label text examples: "Driveway", "Drive", "Patio", "Path", "Entry", "Terrace",
+   or empty string if no label.
+   The area value is in square metres.
+   Do NOT include lot/section areas, gross/net site areas, total/coverage area, cladding
+   area, porch area, outdoor-space circles, yard/private-open-space labels, fencing
+   lengths, landscaping/lawn areas, or boundary dimensions as concrete.
 
-2. TOTAL CONCRETE — Sum of all concrete areas found (in m²).
+2. TOTAL CONCRETE - Sum of all concrete/paved areas found.
    If you cannot find individual areas, look for a "TOTAL CONCRETE" or "Total Conc" summary line.
 
-3. DRIVEWAY CONCRETE — The concrete area specifically labelled as driveway or access.
-   Return null if no driveway is specifically identified.
+3. DRIVEWAY CONCRETE - The concrete/paved area specifically labelled as driveway, drive,
+   access, or vehicle crossing. Return null if no driveway is specifically identified.
 
-4. PATIO/PATHS CONCRETE — The concrete area for paths, patio, alfresco slab, or terrace.
-   If multiple patio/path areas exist, sum them. Return null if none identified.
+4. PATIO/PATHS CONCRETE - The concrete/paved area for paths, patio, alfresco slab,
+   entry paving, or terrace. If multiple patio/path areas exist, sum them. Return null if none
+   identified.
 
-5. COVERAGE AREA — Look for a box or table on the site plan with a "COVERAGE AREA" row.
-   This is typically in m². Return null if not found.
+5. COVERAGE AREA - Look for a box or table on the site plan with a "COVERAGE AREA" row.
+   This is typically in square metres. Return null if not found.
 
-6. PERIMETER — Look for a "PERIMETER" value in any summary box or table on the site plan.
+6. PERIMETER - Look for a "PERIMETER" value in any summary box or table on the site plan.
    This is the external perimeter of the house footprint in metres. Return null if not found.
 
 Return exactly this JSON structure:
@@ -55,7 +62,7 @@ Return exactly this JSON structure:
   "perimeterM": number | null
 }
 
-If no concrete areas are found at all, return totalConcreteM2: 0 and an empty concreteAreas array.`;
+If no concrete or paved areas are found at all, return totalConcreteM2: 0 and an empty concreteAreas array.`;
 
 function extractJson(text: string): string {
   let cleaned = text.replace(/```(?:json|JSON)?/g, "").trim();
@@ -98,7 +105,7 @@ export const extractSitePlanFn = createServerFn({ method: "POST" })
             content: [
               {
                 type: "text",
-                text: "This is a site plan for a New Zealand residential dwelling. Extract all concrete areas with their labels, driveway and patio areas, total coverage area, and perimeter as JSON.",
+                text: "This is a site plan for a New Zealand residential dwelling. Extract concrete/paved areas with their labels, driveway and patio/path areas, total coverage area, and perimeter as JSON.",
               },
               {
                 type: "image",
@@ -140,21 +147,29 @@ export const extractSitePlanFn = createServerFn({ method: "POST" })
       .filter((a) => typeof a === "object" && a !== null)
       .map((a) => ({
         label: typeof a.label === "string" ? a.label : "",
-        areaM2: typeof a.areaM2 === "number" ? a.areaM2 : 0,
+        areaM2: typeof a.areaM2 === "number" ? parsedNumber(a.areaM2) : 0,
       }));
 
     const totalConcreteM2 =
       typeof parsed.totalConcreteM2 === "number"
-        ? parsed.totalConcreteM2
+        ? parsedNumber(parsed.totalConcreteM2)
         : areas.reduce((s, a) => s + a.areaM2, 0);
 
     return {
       concreteAreas: areas,
       totalConcreteM2,
       drivewayConcretM2:
-        typeof parsed.drivewayConcretM2 === "number" ? parsed.drivewayConcretM2 : null,
-      patioConcreteM2: typeof parsed.patioConcreteM2 === "number" ? parsed.patioConcreteM2 : null,
-      totalCoverageM2: typeof parsed.totalCoverageM2 === "number" ? parsed.totalCoverageM2 : null,
-      perimeterM: typeof parsed.perimeterM === "number" ? parsed.perimeterM : null,
+        typeof parsed.drivewayConcretM2 === "number"
+          ? parsedNumber(parsed.drivewayConcretM2)
+          : null,
+      patioConcreteM2:
+        typeof parsed.patioConcreteM2 === "number" ? parsedNumber(parsed.patioConcreteM2) : null,
+      totalCoverageM2:
+        typeof parsed.totalCoverageM2 === "number" ? parsedNumber(parsed.totalCoverageM2) : null,
+      perimeterM: typeof parsed.perimeterM === "number" ? parsedNumber(parsed.perimeterM) : null,
     };
   });
+
+function parsedNumber(value: number): number {
+  return Number.isFinite(value) ? value : 0;
+}

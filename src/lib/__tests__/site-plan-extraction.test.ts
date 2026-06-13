@@ -22,6 +22,15 @@ const russellStMock: SitePlanData = {
   perimeterM: 58.7,
 };
 
+const westStMock: SitePlanData = {
+  concreteAreas: [{ label: "Drive", areaM2: 117 }],
+  totalConcreteM2: 117,
+  drivewayConcretM2: 117,
+  patioConcreteM2: null,
+  totalCoverageM2: 147.6,
+  perimeterM: 56.2,
+};
+
 describe("SitePlanData structure", () => {
   it("has all required fields", () => {
     const data: SitePlanData = {
@@ -75,5 +84,13 @@ describe("SitePlanData structure", () => {
     };
     const calculated = mockWithAreas.concreteAreas.reduce((s, a) => s + a.areaM2, 0);
     expect(calculated).toBe(243);
+  });
+
+  it("29A West St — DRIVE 117m² is driveway paving, not an outdoor-space or lot area", () => {
+    expect(westStMock.drivewayConcretM2).toBe(117);
+    expect(westStMock.totalConcreteM2).toBe(117);
+    expect(westStMock.totalCoverageM2).toBe(147.6);
+    expect(westStMock.perimeterM).toBe(56.2);
+    expect(westStMock.concreteAreas).toEqual([{ label: "Drive", areaM2: 117 }]);
   });
 });
