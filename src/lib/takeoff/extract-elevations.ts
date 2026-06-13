@@ -83,6 +83,9 @@ Extract the following:
    opening as an item in elevationOpenings.
    - Include windows, sliders/stackers, ranch sliders, entry doors, PA doors, laundry doors,
      garage windows, and garage doors.
+   - Count one physical framed wall opening as one item. Do NOT count individual panes,
+     mullions, rails, brick/course lines, roof planes, shadows, or separate panels inside a
+     garage door as separate openings.
    - Set type to "garage_door" ONLY for the solid sectional/roller garage door opening.
    - Everything else in an external wall is a QS glazed opening.
    - Copy visible W/D labels where present (for example W01, D03); otherwise label=null.

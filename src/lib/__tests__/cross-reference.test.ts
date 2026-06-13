@@ -290,7 +290,37 @@ describe("crossReference", () => {
     expect(result.elevationOpeningAreaM2).toBeNull();
     expect(result.externalGlazedOpeningMatch).toBe(true);
     expect(result.warnings.some((w) => /not typed confidently/i.test(w))).toBe(true);
-    expect(result.warnings.some((w) => /no readable dimensions/i.test(w))).toBe(true);
+    expect(result.warnings.some((w) => /low-confidence/i.test(w))).toBe(true);
+    expect(result.warnings.some((w) => /source of truth/i.test(w))).toBe(true);
+  });
+
+  it("does not let a dirty elevation ledger accuse confirmed floor-plan counts", () => {
+    const result = crossReference(
+      { ...baseTakeoff, window_count: 9, external_door_count: 2 },
+      {
+        ...elevationsMatch,
+        windowCountPerFace: { North: 7, South: 7 },
+        externalDoorCount: 2,
+        elevationOpenings: Array.from({ length: 17 }, (_, i) => ({
+          face: i < 9 ? "North" : "South",
+          type: i < 14 ? ("window" as const) : ("external_door" as const),
+          label: null,
+          widthMm: null,
+          heightMm: null,
+          quantity: 1,
+          cladding: null,
+          confidence: "low" as const,
+          notes: ["undimensioned visual candidate"],
+        })),
+      },
+      sitePlan,
+    );
+
+    expect(result.windowCountMatch).toBe(false);
+    expect(result.externalGlazedOpeningMatch).toBe(false);
+    expect(result.warnings.some((w) => /Window count mismatch/i.test(w))).toBe(false);
+    expect(result.warnings.some((w) => /External glazed opening mismatch/i.test(w))).toBe(false);
+    expect(result.warnings.some((w) => /low-confidence/i.test(w))).toBe(true);
   });
 
   it("flags elevation/floor-plan external glazed opening mismatches", () => {

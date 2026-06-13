@@ -43,6 +43,7 @@ type ElevationOpeningStats = {
   unknownCount: number;
   undimensionedCount: number;
   areaM2: number | null;
+  lowTrust: boolean;
 };
 
 function qty(opening: ElevationOpeningCandidate): number {
@@ -67,6 +68,7 @@ function readElevationOpeningStats(elevations: ElevationData | null): ElevationO
       unknownCount: 0,
       undimensionedCount: 0,
       areaM2: null,
+      lowTrust: false,
     };
   }
 
@@ -82,6 +84,7 @@ function readElevationOpeningStats(elevations: ElevationData | null): ElevationO
       unknownCount: 0,
       undimensionedCount: 0,
       areaM2: null,
+      lowTrust: false,
     };
   }
 
@@ -120,6 +123,10 @@ function readElevationOpeningStats(elevations: ElevationData | null): ElevationO
     unknownCount,
     undimensionedCount,
     areaM2: hasArea ? Math.round(area * 100) / 100 : null,
+    lowTrust:
+      candidates.length > 0 &&
+      (undimensionedCount / candidates.reduce((s, opening) => s + qty(opening), 0) >= 0.5 ||
+        unknownCount > 0),
   };
 }
 
@@ -137,6 +144,7 @@ export function crossReference(
   const elCount = elevationStats.windowCount;
   const discrepancy = Math.abs(fpCount - elCount);
   const windowCountMatch = elevations !== null && discrepancy <= 2;
+  const elevationCountsLowTrust = elevations !== null && elevationStats.lowTrust;
 
   // QS external-glazing cross-check. Elevations see external doors as wall openings;
   // the floor-plan ledger should too. Sectional garage doors are the single exception.
@@ -148,12 +156,16 @@ export function crossReference(
   const externalGlazedDiscrepancy = Math.abs(fpExternalGlazedCount - elExternalGlazedCount);
   const externalGlazedMatch = elevations !== null && externalGlazedDiscrepancy <= 2;
 
-  if (elevations && discrepancy > 2) {
+  if (elevations && elevationCountsLowTrust) {
+    warnings.push(
+      `Elevation opening ledger is low-confidence (${elevationStats.undimensionedCount} of ${elevationStats.candidateCount} opening(s) have no readable dimensions). Floor-plan/window-code evidence remains the source of truth until the elevation openings can be read cleanly.`,
+    );
+  } else if (elevations && discrepancy > 2) {
     warnings.push(
       `Window count mismatch - floor plan shows ${fpCount}, elevations show ${elCount}. Check plan carefully.`,
     );
   }
-  if (elevations && externalGlazedDiscrepancy > 2) {
+  if (elevations && !elevationCountsLowTrust && externalGlazedDiscrepancy > 2) {
     warnings.push(
       `External glazed opening mismatch - floor plan ledger shows ${fpExternalGlazedCount}, elevations show ${elExternalGlazedCount} (windows plus external doors; sectional garage doors excluded). Check elevations against the floor plan.`,
     );
@@ -170,7 +182,8 @@ export function crossReference(
   if (
     elevations &&
     elevationStats.source === "candidate_ledger" &&
-    elevationStats.undimensionedCount > 0
+    elevationStats.undimensionedCount > 0 &&
+    !elevationStats.lowTrust
   ) {
     warnings.push(
       `${elevationStats.undimensionedCount} elevation opening(s) have no readable dimensions. Count cross-check can continue, but opening area needs plan/schedule confirmation.`,

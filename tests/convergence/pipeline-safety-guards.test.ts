@@ -90,6 +90,65 @@ describe("geometry_status flag at the compose seam", () => {
     });
     expect("geometry_status" in out.enriched).toBe(false);
   });
+
+  it("sectional garage callout confirms garage size and clears width-conflict flags", () => {
+    const geometry = {
+      success: true,
+      page_used: 0,
+      total_pages: 1,
+      scale: { string: "1:100", factor: 100, source: "text", pixels_per_mm: null },
+      confidence: { floor_area: "high", perimeter: "high", notes: [] },
+      ocr_raw: {
+        living_area_m2: 139.4,
+        perimeter_m: 56.2,
+        garage_area_m2: null,
+        alfresco_area_m2: null,
+        stud_height_mm: 2400,
+      },
+      measurements: {
+        floor_area_m2: 139.4,
+        perimeter_m: 56.2,
+        external_wall_length_m: 56.2,
+        internal_wall_length_m: 7,
+        internal_wall_confidence: "medium",
+        garage_area_m2: null,
+        alfresco_area_m2: null,
+        stud_height_mm: 2400,
+        bounding_box_m: null,
+        room_count: 4,
+        main_room_count: 4,
+        rooms: [],
+      },
+      vector_annotations: {
+        vector_usable: true,
+        garage: { width_mm: 1870, height_mm: 2100, raw: "1870", page: 0, distance_px: 20 },
+        schedule: null,
+        openings: null,
+        entrance: null,
+        symbol_openings: [
+          {
+            type: "sectional_door",
+            width_mm: 3000,
+            width_source: "callout",
+            label_dist_mm: 1000,
+            height_mm: 2100,
+            page: 0,
+          },
+        ],
+      },
+    } as never;
+
+    const out = composeTakeoff({
+      visionTakeoff: { ...minimalVision, garage_door_size: "4.0×2.1" },
+      geometry,
+      schedule: null,
+      geometryPageIndex: 0,
+    }).enriched;
+
+    expect(out.garage_door_size.value).toBe("3×2.1");
+    expect(out.garage_door_size.confidence).toBe("high");
+    expect(out.garage_door_size.discrepancy_flags.join(" ")).not.toContain("garage_door_width");
+  });
 });
 
 function base(over: Partial<QSExportData> = {}): QSExportData {
