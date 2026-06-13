@@ -40,6 +40,7 @@ import {
   deriveOpeningTotals,
   foldSymbolOpenings,
   foldScheduleEntrance,
+  normaliseOpeningsForQs,
   computeExternalWallAreaM2,
 } from "./derive-fields";
 import {
@@ -425,9 +426,10 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   const hasSymbolOpenings = !!(
     vectorAnnotations?.symbol_openings && vectorAnnotations.symbol_openings.length > 0
   );
-  const composedOpenings = hasSymbolOpenings
+  const rawComposedOpenings = hasSymbolOpenings
     ? folded.openings
     : foldScheduleEntrance(folded.openings, vectorAnnotations?.entrance);
+  const composedOpenings = normaliseOpeningsForQs(rawComposedOpenings);
   const composedGarageDoorSize = folded.garage_door_size;
   const composedOpeningTotals = deriveOpeningTotals(composedOpenings);
   // Re-derive the external wall AREA from the now-richer opening total (perimeter × stud −

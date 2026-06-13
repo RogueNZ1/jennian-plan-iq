@@ -19,6 +19,31 @@ import { classifyGarageDoorAnnotation } from "./classify";
 import { round2 } from "./utils";
 
 /**
+ * QS glazing doctrine: every external-wall opening counts as glazing except the
+ * solid sectional/roller garage door. This is intentionally type-based, not
+ * caller-trust-based, so a stale `glazed:false` on a PA door/entry/slider cannot
+ * understate glazing or external-wall deductions.
+ */
+export function isQsGlazedOpening(type: OpeningType): boolean {
+  return type !== "sectional_door";
+}
+
+export function normaliseOpeningForQs(opening: Opening): Opening {
+  const glazed = isQsGlazedOpening(opening.type);
+  return opening.glazed === glazed ? opening : { ...opening, glazed };
+}
+
+export function normaliseOpeningsForQs(openings: Opening[]): Opening[] {
+  let changed = false;
+  const normalised = openings.map((opening) => {
+    const next = normaliseOpeningForQs(opening);
+    if (next !== opening) changed = true;
+    return next;
+  });
+  return changed ? normalised : openings;
+}
+
+/**
  * Last-resort fallback width (metres) for an opening whose plan width could not be read.
  * Opening widths vary, so this is a coarse standard — it fires ONLY when no real width
  * exists (null/≤0) and NEVER overwrites an extracted/measured width (gaps only). Every
@@ -274,7 +299,6 @@ export function resolveOpeningHeightM(extractedHeightMm?: number | null): {
 
 function symbolToOpening(s: VectorSymbolOpening): Opening {
   const width_m = round2(s.width_mm / 1000) ?? 0;
-  const glazed = s.type !== "sectional_door";
   const flags: string[] = [];
   // Every symbol type — including garage_window, which was previously pinned to an
   // unresolved 0 height — resolves through the shared height resolver: an extracted
@@ -290,7 +314,7 @@ function symbolToOpening(s: VectorSymbolOpening): Opening {
     room: normRoomLabel(s.room_label) ?? SYMBOL_ROOM[s.type],
     height_m,
     width_m,
-    glazed,
+    glazed: isQsGlazedOpening(s.type),
     cladding: null,
     area_m2: round2(height_m * width_m) ?? 0,
     source: "callout",
@@ -412,7 +436,9 @@ export function deriveOpeningTotals(openings: Opening[]): {
   const WINDOW_TYPES = new Set<Opening["type"]>(["window", "slider", "garage_window"]);
   const window_count = openings.filter((o) => WINDOW_TYPES.has(o.type)).length || null;
   const total_opening_sqm = round2(openings.reduce((s, o) => s + o.area_m2, 0));
-  const glazed_sqm = round2(openings.filter((o) => o.glazed).reduce((s, o) => s + o.area_m2, 0));
+  const glazed_sqm = round2(
+    openings.filter((o) => isQsGlazedOpening(o.type)).reduce((s, o) => s + o.area_m2, 0),
+  );
   return { window_count, total_opening_sqm, glazed_sqm };
 }
 

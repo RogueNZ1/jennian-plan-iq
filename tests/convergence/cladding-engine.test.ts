@@ -35,6 +35,7 @@ describe("cladding engine — hand-calculated synthetic bench", () => {
     const r = computeCladding(HOUSE);
     expect(r.wallRectAreaM2).toBe(124.8);
     expect(r.gableAreaM2).toBe(23.32);
+    expect(r.openingDeductionM2).toBe(21.9);
     expect(r.glazingDeductionM2).toBe(21.9);
     expect(r.netCladdingAreaM2).toBe(126.22);
     expect(r.perCladding).toEqual([{ type: "Brick Veneer", areaM2: 126.22 }]);
@@ -86,6 +87,7 @@ describe("cladding engine — fail-safe: missing inputs flag, never guess", () =
       ...HOUSE,
       openings: [...HOUSE.openings, { height_m: 0, width_m: 1.2 }],
     });
+    expect(r.openingDeductionM2).toBe(21.9);
     expect(r.glazingDeductionM2).toBe(21.9);
   });
 });

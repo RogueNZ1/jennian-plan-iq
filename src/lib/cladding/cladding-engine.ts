@@ -44,6 +44,8 @@ export type CladdingResult = {
   /** Total gable triangle area; 0 when no gables; null when gables exist but inputs are missing. */
   gableAreaM2: number | null;
   /** Σ opening areas. */
+  openingDeductionM2: number;
+  /** @deprecated Use openingDeductionM2. Kept for existing sheet/tests during migration. */
   glazingDeductionM2: number;
   /** rect + gables − glazing; null whenever any required term is null. */
   netCladdingAreaM2: number | null;
@@ -94,14 +96,14 @@ export function computeCladding(input: CladdingInput): CladdingResult {
   }
 
   // Glazing deduction — every opening is a hole in the cladding.
-  const glazing = r2(
+  const openingDeduction = r2(
     input.openings.reduce(
       (s, o) => s + (o.height_m > 0 && o.width_m > 0 ? o.height_m * o.width_m : 0),
       0,
     ),
   );
 
-  const net = wallRect != null && gable != null ? r2(wallRect + gable - glazing) : null;
+  const net = wallRect != null && gable != null ? r2(wallRect + gable - openingDeduction) : null;
   if (net != null && net <= 0) flags.push("net cladding area is non-positive — inputs need review");
 
   // Per-type split.
@@ -121,7 +123,8 @@ export function computeCladding(input: CladdingInput): CladdingResult {
   return {
     wallRectAreaM2: wallRect,
     gableAreaM2: gable,
-    glazingDeductionM2: glazing,
+    openingDeductionM2: openingDeduction,
+    glazingDeductionM2: openingDeduction,
     netCladdingAreaM2: net,
     perCladding,
     flags,

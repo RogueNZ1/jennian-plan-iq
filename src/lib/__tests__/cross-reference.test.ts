@@ -6,6 +6,7 @@ import { crossReference } from "../takeoff/cross-reference";
 import type { TakeoffData } from "../takeoff/concept.functions";
 import type { ElevationData } from "../takeoff/extract-elevations";
 import type { SitePlanData } from "../takeoff/extract-site-plan";
+import type { Opening } from "../takeoff/takeoff-types";
 
 const baseTakeoff: TakeoffData = {
   floor_area_m2: 135,
@@ -77,6 +78,9 @@ describe("crossReference", () => {
     expect(result.windowCountElevations).toBe(8);
     expect(result.windowCountMatch).toBe(true);
     expect(result.windowCountDiscrepancy).toBe(0);
+    expect(result.externalGlazedOpeningCountFloorPlan).toBe(10);
+    expect(result.externalGlazedOpeningCountElevations).toBe(10);
+    expect(result.externalGlazedOpeningMatch).toBe(true);
     expect(result.warnings.some((w) => /mismatch/i.test(w))).toBe(false);
   });
 
@@ -89,6 +93,85 @@ describe("crossReference", () => {
     expect(result.warnings.some((w) => /mismatch/i.test(w))).toBe(true);
     expect(result.warnings[0]).toMatch(/floor plan shows 8/i);
     expect(result.warnings[0]).toMatch(/elevations show 11/i);
+  });
+
+  it("cross-checks QS external glazed openings: windows plus external doors, sectional excluded", () => {
+    const openings: Opening[] = [
+      {
+        type: "window",
+        room: "Bed 1",
+        height_m: 1,
+        width_m: 1,
+        glazed: true,
+        cladding: null,
+        area_m2: 1,
+        source: "vision",
+        confidence: "high",
+      },
+      {
+        type: "pa_door",
+        room: "Laundry",
+        height_m: 2.1,
+        width_m: 0.86,
+        glazed: false, // stale caller value; type rule still counts it as QS glazing
+        cladding: null,
+        area_m2: 1.81,
+        source: "vision",
+        confidence: "medium",
+      },
+      {
+        type: "entrance",
+        room: "Entry",
+        height_m: 2.1,
+        width_m: 1,
+        glazed: true,
+        cladding: null,
+        area_m2: 2.1,
+        source: "asserted",
+        confidence: "low",
+      },
+      {
+        type: "sectional_door",
+        room: "Garage",
+        height_m: 2.1,
+        width_m: 4.8,
+        glazed: true, // stale caller value; sectional is still excluded from QS glazing
+        cladding: null,
+        area_m2: 10.08,
+        source: "vision",
+        confidence: "medium",
+      },
+    ];
+    const floorPlan: TakeoffData = {
+      ...baseTakeoff,
+      window_count: 1,
+      external_door_count: null,
+      openings,
+    };
+    const elevations: ElevationData = {
+      ...elevationsMatch,
+      windowCountPerFace: { North: 1 },
+      externalDoorCount: 2,
+      garageDoorsPresent: true,
+    };
+
+    const result = crossReference(floorPlan, elevations, sitePlan);
+    expect(result.externalGlazedOpeningCountFloorPlan).toBe(3);
+    expect(result.externalGlazedOpeningCountElevations).toBe(3);
+    expect(result.externalGlazedOpeningMatch).toBe(true);
+    expect(result.warnings.some((w) => /External glazed opening mismatch/i.test(w))).toBe(false);
+  });
+
+  it("flags elevation/floor-plan external glazed opening mismatches", () => {
+    const result = crossReference(
+      { ...baseTakeoff, window_count: 8, external_door_count: 0 },
+      { ...elevationsMatch, externalDoorCount: 4 },
+      sitePlan,
+    );
+    expect(result.externalGlazedOpeningCountFloorPlan).toBe(8);
+    expect(result.externalGlazedOpeningCountElevations).toBe(12);
+    expect(result.externalGlazedOpeningMatch).toBe(false);
+    expect(result.warnings.some((w) => /External glazed opening mismatch/i.test(w))).toBe(true);
   });
 
   it("warns to upload elevations when none provided", () => {

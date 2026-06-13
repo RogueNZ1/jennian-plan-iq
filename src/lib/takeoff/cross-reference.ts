@@ -5,12 +5,18 @@
 import type { TakeoffData } from "./concept.functions";
 import type { ElevationData } from "./extract-elevations";
 import type { SitePlanData } from "./extract-site-plan";
+import { isQsGlazedOpening } from "./derive-fields";
 
 export interface CrossReferenceResult {
   windowCountMatch: boolean;
   windowCountFloorPlan: number;
   windowCountElevations: number;
   windowCountDiscrepancy: number;
+  /** QS external-glazing count: windows + external glazed doors, excluding sectional garage doors. */
+  externalGlazedOpeningCountFloorPlan: number;
+  externalGlazedOpeningCountElevations: number;
+  externalGlazedOpeningDiscrepancy: number;
+  externalGlazedOpeningMatch: boolean;
   claddingTypeCode: number | null;
   roofType: string | null;
   roofPitchDegrees: number | null;
@@ -34,9 +40,24 @@ export function crossReference(
   const discrepancy = Math.abs(fpCount - elCount);
   const windowCountMatch = elevations !== null && discrepancy <= 2;
 
+  // QS external-glazing cross-check. Elevations see external doors as wall openings;
+  // the floor-plan ledger should too. Sectional garage doors are the single exception.
+  const fpExternalGlazedCount =
+    floorPlan.openings && floorPlan.openings.length > 0
+      ? floorPlan.openings.filter((o) => isQsGlazedOpening(o.type)).length
+      : (floorPlan.window_count ?? 0) + (floorPlan.external_door_count ?? 0);
+  const elExternalGlazedCount = elevations ? elCount + elevations.externalDoorCount : 0;
+  const externalGlazedDiscrepancy = Math.abs(fpExternalGlazedCount - elExternalGlazedCount);
+  const externalGlazedMatch = elevations !== null && externalGlazedDiscrepancy <= 2;
+
   if (elevations && discrepancy > 2) {
     warnings.push(
       `Window count mismatch — floor plan shows ${fpCount}, elevations show ${elCount}. Check plan carefully.`,
+    );
+  }
+  if (elevations && externalGlazedDiscrepancy > 2) {
+    warnings.push(
+      `External glazed opening mismatch — floor plan ledger shows ${fpExternalGlazedCount}, elevations show ${elExternalGlazedCount} (windows plus external doors; sectional garage doors excluded). Check elevations against the floor plan.`,
     );
   }
   if (!elevations) {
@@ -60,6 +81,10 @@ export function crossReference(
     windowCountFloorPlan: fpCount,
     windowCountElevations: elCount,
     windowCountDiscrepancy: discrepancy,
+    externalGlazedOpeningCountFloorPlan: fpExternalGlazedCount,
+    externalGlazedOpeningCountElevations: elExternalGlazedCount,
+    externalGlazedOpeningDiscrepancy: externalGlazedDiscrepancy,
+    externalGlazedOpeningMatch: externalGlazedMatch,
     claddingTypeCode: elevations?.claddingTypeCode ?? null,
     roofType: elevations?.roofType ?? null,
     roofPitchDegrees: elevations?.roofPitchDegrees ?? null,

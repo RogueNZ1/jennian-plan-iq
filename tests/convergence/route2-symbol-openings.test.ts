@@ -6,7 +6,13 @@
  * schedule/datum jobs (Beddis/Harrison) are a strict no-op → byte-unchanged.
  */
 import { describe, it, expect } from "vitest";
-import { foldSymbolOpenings, deriveOpeningTotals } from "../../src/lib/takeoff/derive-fields";
+import {
+  foldSymbolOpenings,
+  deriveOpeningTotals,
+  isQsGlazedOpening,
+  normaliseOpeningsForQs,
+  resolveOpeningHeightM,
+} from "../../src/lib/takeoff/derive-fields";
 import type { Opening } from "../../src/lib/takeoff/takeoff-types";
 import type { VectorSymbolOpening, VectorEntrance } from "../../src/lib/takeoff/geometry-api";
 
@@ -146,9 +152,37 @@ describe("Route 2 — foldSymbolOpenings", () => {
   });
 });
 
-// ── Phase 2 — resolveOpeningHeightM (symbol path height resolver) ────────────
-import { resolveOpeningHeightM } from "../../src/lib/takeoff/derive-fields";
+describe("QS glazing rule - every external opening except sectional garage door", () => {
+  it("is type-based, not caller-trust-based", () => {
+    expect(isQsGlazedOpening("window")).toBe(true);
+    expect(isQsGlazedOpening("slider")).toBe(true);
+    expect(isQsGlazedOpening("garage_window")).toBe(true);
+    expect(isQsGlazedOpening("pa_door")).toBe(true);
+    expect(isQsGlazedOpening("entrance")).toBe(true);
+    expect(isQsGlazedOpening("sectional_door")).toBe(false);
+  });
 
+  it("normalises stale opening flags before export/persistence", () => {
+    const stale: Opening[] = [
+      { ...win("Entry", 2.1, 1), type: "entrance", glazed: false },
+      { ...win("Laundry", 2.1, 0.86), type: "pa_door", glazed: false },
+      { ...win("Garage", 2.1, 4.8), type: "sectional_door", glazed: true },
+    ];
+
+    const fixed = normaliseOpeningsForQs(stale);
+    expect(fixed.map((o) => [o.type, o.glazed])).toEqual([
+      ["entrance", true],
+      ["pa_door", true],
+      ["sectional_door", false],
+    ]);
+
+    const totals = deriveOpeningTotals(stale);
+    expect(totals.glazed_sqm).toBe(3.91); // entrance 2.10 + PA 1.81; sectional excluded
+    expect(totals.total_opening_sqm).toBe(13.99); // all three openings are wall holes
+  });
+});
+
+// ── Phase 2 — resolveOpeningHeightM (symbol path height resolver) ────────────
 describe("Phase 2 — resolveOpeningHeightM", () => {
   it("unresolved (no extracted height) → asserted standard 2.1m, FLAGGED — never 0", () => {
     const r = resolveOpeningHeightM(undefined);

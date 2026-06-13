@@ -26,7 +26,10 @@ export type Opening = {
   room: string | null;
   height_m: number;
   width_m: number;
-  /** Whether the opening is glazed. False only for the solid sectional/roller garage door. */
+  /**
+   * QS glazing rule: every external-wall opening is treated as glazed except the
+   * solid sectional/roller garage door. Keep this in sync with isQsGlazedOpening().
+   */
   glazed: boolean;
   /** Cladding the opening sits in (Rockcote/Oblique/brick/…), or null when not yet routed. */
   cladding: string | null;
