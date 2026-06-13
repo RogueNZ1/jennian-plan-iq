@@ -368,7 +368,10 @@ export function buildVerificationModel(
       ? (DOORS_SOURCE_LABELS[data.doorsSource] ?? data.doorsSource)
       : "⚑ NO SOURCE — counts are unbacked zeros, do not price",
     visionHint: data.intDoorVisionHint ?? null,
-    externalCount: fmtNum(e?.external_door_count?.value ?? null, 0),
+    externalCount: fmtNum(
+      e?.external_door_count?.value ?? data.elevationSummary?.externalDoorCount ?? null,
+      0,
+    ),
     garage,
     garageDoorSize: fmtStr(e?.garage_door_size?.value ?? null),
     hardware,

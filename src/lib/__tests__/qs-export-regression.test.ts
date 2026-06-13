@@ -53,6 +53,54 @@ const mockJob = {
   city: "Palmerston North",
   email: null,
   phone: null,
+  elevation_data: {
+    claddingTypes: ["CLADDING 1 brick"],
+    claddingTypeCode: 1,
+    roofType: "Hip roof - metal tiles",
+    roofPitchDegrees: 25,
+    wallHeightMm: 2400,
+    studHeightMm: 2400,
+    facesPresent: ["NORTH WESTERN", "SOUTH WESTERN", "NORTH EASTERN", "SOUTH EASTERN"],
+    windowCountPerFace: {
+      "NORTH WESTERN": 2,
+      "SOUTH WESTERN": 1,
+      "NORTH EASTERN": 1,
+      "SOUTH EASTERN": 4,
+    },
+    externalDoorCount: 3,
+    gableEndCount: 0,
+    garageDoorsPresent: true,
+  },
+  site_plan_data: {
+    concreteAreas: [{ label: "DRIVE", areaM2: 117 }],
+    totalConcreteM2: 117,
+    drivewayConcretM2: 117,
+    patioConcreteM2: null,
+    totalCoverageM2: 147.6,
+    perimeterM: 56.2,
+  },
+  cross_reference_data: {
+    windowCountMatch: true,
+    windowCountFloorPlan: 8,
+    windowCountElevations: 8,
+    windowCountDiscrepancy: 0,
+    externalGlazedOpeningCountFloorPlan: 11,
+    externalGlazedOpeningCountElevations: 11,
+    externalGlazedOpeningDiscrepancy: 0,
+    externalGlazedOpeningMatch: true,
+    elevationOpeningLedgerSource: "candidate_ledger",
+    elevationOpeningCandidateCount: 12,
+    elevationGarageDoorCount: 1,
+    elevationUnknownOpeningCount: 0,
+    elevationUndimensionedOpeningCount: 0,
+    elevationOpeningAreaM2: 34.33,
+    claddingTypeCode: 1,
+    roofType: "Hip roof - metal tiles",
+    roofPitchDegrees: 25,
+    studHeightMm: 2400,
+    studHeightSource: "elevation",
+    warnings: [],
+  },
 };
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -307,5 +355,23 @@ describe("buildQSExportData", () => {
     expect(Array.isArray(data.windows)).toBe(true);
     expect(Array.isArray(data.garageDoors)).toBe(true);
     expect(data.windows.length).toBe(0);
+  });
+
+  it("hydrates saved elevation and site plan data into the export/verification model", async () => {
+    const data = await buildQSExportData("job-1");
+
+    expect(data.claddingType1).toBe("CLADDING 1 brick");
+    expect(data.claddingTypeCode).toBe(1);
+    expect(data.roofPitch).toBe("25°");
+    expect(data.drivewayM2).toBe(117);
+    expect(data.elevationSummary).toMatchObject({
+      roofType: "Hip roof - metal tiles",
+      roofPitchDegrees: 25,
+      externalDoorCount: 3,
+      gableEndCount: 0,
+      drivewayConcretM2: 117,
+      totalConcreteM2: 117,
+      windowCountMatch: true,
+    });
   });
 });

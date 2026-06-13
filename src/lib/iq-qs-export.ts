@@ -14,6 +14,9 @@ import type { MarkupDoorType } from "@/lib/takeoff/types";
 import { normaliseRoomName } from "@/lib/takeoff/classify";
 import { round2 } from "@/lib/takeoff/utils";
 import { fieldFlags, type EnrichedTakeoff } from "@/lib/takeoff/enriched-takeoff";
+import type { CrossReferenceResult } from "@/lib/takeoff/cross-reference";
+import type { ElevationData } from "@/lib/takeoff/extract-elevations";
+import type { SitePlanData } from "@/lib/takeoff/extract-site-plan";
 import { computeCladding } from "./cladding/cladding-engine";
 import {
   SPECS,
@@ -255,6 +258,53 @@ export async function loadEnrichedTakeoffJson(jobId: string): Promise<EnrichedTa
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
+function savedElevationData(value: unknown): ElevationData | null {
+  if (!isRecord(value)) return null;
+  return value as unknown as ElevationData;
+}
+
+function savedSitePlanData(value: unknown): SitePlanData | null {
+  if (!isRecord(value)) return null;
+  return value as unknown as SitePlanData;
+}
+
+function savedCrossReferenceData(value: unknown): CrossReferenceResult | null {
+  if (!isRecord(value)) return null;
+  return value as unknown as CrossReferenceResult;
+}
+
+function firstCladdingType(elevation: ElevationData | null): string | null {
+  if (!Array.isArray(elevation?.claddingTypes)) return null;
+  return elevation.claddingTypes.find((c) => c.trim() !== "") ?? null;
+}
+
+function roofPitchText(elevation: ElevationData | null): string | null {
+  return elevation?.roofPitchDegrees != null ? `${elevation.roofPitchDegrees}°` : null;
+}
+
+function buildElevationSummary(
+  elevation: ElevationData | null,
+  sitePlan: SitePlanData | null,
+  crossRef: CrossReferenceResult | null,
+): QSExportData["elevationSummary"] {
+  if (!elevation && !sitePlan && !crossRef) return null;
+  return {
+    roofType: elevation?.roofType ?? crossRef?.roofType ?? null,
+    roofPitchDegrees: elevation?.roofPitchDegrees ?? crossRef?.roofPitchDegrees ?? null,
+    externalDoorCount: elevation?.externalDoorCount ?? 0,
+    gableEndCount: elevation?.gableEndCount ?? 0,
+    drivewayConcretM2: sitePlan?.drivewayConcretM2 ?? null,
+    patioConcreteM2: sitePlan?.patioConcreteM2 ?? null,
+    totalConcreteM2: sitePlan?.totalConcreteM2 ?? null,
+    windowCountMatch: crossRef?.windowCountMatch ?? null,
+    windowCountWarning: crossRef?.warnings?.length ? crossRef.warnings.join(" ") : null,
+  };
+}
+
 /**
  * Stage 2b — derive the fixed-slot windowsByRoom from the flat openings[] list.
  *
@@ -391,6 +441,12 @@ export async function buildQSExportData(
   if (doorCountsRes.error)
     throw new Error(`Failed to load door counts: ${doorCountsRes.error.message}`);
   const job = jobRes.data;
+  const elevationData = savedElevationData((job as Record<string, unknown>).elevation_data);
+  const sitePlanData = savedSitePlanData((job as Record<string, unknown>).site_plan_data);
+  const crossReferenceData = savedCrossReferenceData(
+    (job as Record<string, unknown>).cross_reference_data,
+  );
+  const elevationSummary = buildElevationSummary(elevationData, sitePlanData, crossReferenceData);
   const moduleItemsBase: ModuleItemRow[] = itemsRes.data ?? [];
 
   // Merge extracted_quantities rows as synthetic module_items when module_items is empty.
@@ -575,8 +631,13 @@ export async function buildQSExportData(
   }
 
   // Concrete / exterior areas
-  const pathsPatioM2 = getNum("paths") ?? getNum("patio") ?? getNum("concrete paths");
-  const drivewayM2 = getNum("driveway");
+  const pathsPatioM2 =
+    getNum("paths") ??
+    getNum("patio") ??
+    getNum("concrete paths") ??
+    sitePlanData?.patioConcreteM2 ??
+    null;
+  const drivewayM2 = getNum("driveway") ?? sitePlanData?.drivewayConcretM2 ?? null;
 
   // Windows by room — match opening_schedule window openings by room_name keywords
   function matchWindowOpening(
@@ -840,11 +901,17 @@ export async function buildQSExportData(
     alfrescoAreaM2: getNum("alfresco") ?? getNum("porch") ?? getNum("deck"),
     internalWallLm: getNum("internal wall length"),
     gableSpanM: null, // no module label carries the envelope — enriched path only
-    roofPitch: getVal("roof pitch"),
+    roofPitch: getVal("roof pitch") ?? roofPitchText(elevationData),
     ridgeType: getVal("ridge type") ?? getVal("ridge"),
     underlay: getVal("underlay"),
-    claddingType1: getVal("cladding type 1") ?? getVal("exterior cladding type 1"),
+    claddingType1:
+      getVal("cladding type 1") ??
+      getVal("exterior cladding type 1") ??
+      firstCladdingType(elevationData),
     claddingType2: getVal("cladding type 2") ?? getVal("exterior cladding type 2"),
+    claddingTypeCode:
+      elevationData?.claddingTypeCode ?? crossReferenceData?.claddingTypeCode ?? null,
+    elevationSummary,
     windows: windows.slice(0, 10),
     garageDoors: garageDoors.slice(0, 6),
     interiorDoors: interiorDoors.slice(0, 8),

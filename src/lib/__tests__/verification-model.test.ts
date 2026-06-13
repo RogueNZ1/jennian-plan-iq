@@ -219,6 +219,28 @@ describe("buildVerificationModel", () => {
     expect(m.doors.garageDoorSize).toBe("4.8 × 2.1");
   });
 
+  it("doors: external door count can fall back to saved elevation extraction", () => {
+    const m = buildVerificationModel(
+      makeData({
+        elevationSummary: {
+          roofType: "Hip roof - metal tiles",
+          roofPitchDegrees: 25,
+          externalDoorCount: 3,
+          gableEndCount: 0,
+          drivewayConcretM2: 117,
+          patioConcreteM2: null,
+          totalConcreteM2: 117,
+          windowCountMatch: true,
+          windowCountWarning: null,
+        },
+      }),
+      makeEnriched({ external_door_count: undefined }),
+      RUN,
+    );
+
+    expect(m.doors.externalCount).toBe("3");
+  });
+
   it("doors with NO source print the fail-safe warning, never a quiet zero", () => {
     const m = buildVerificationModel(makeData({ doorsSource: null }), makeEnriched(), RUN);
     expect(m.doors.sourceLabel).toContain("⚑ NO SOURCE");
