@@ -4,28 +4,22 @@
   "page": 1,
   "scaleText": "1:100 @ A3",
   "expected": {
-    "singles": 9,
+    "singles": 11,
     "doubles": 2,
     "cavitySliders": 2,
     "barn": 0,
     "flags": 0
   },
-  "knownGap": {
-    "singlesTruth": 11,
-    "missed": [
-      { "type": "hinged", "widthMm": 810, "label": "Bed 3 door" },
-      { "type": "hinged", "widthMm": 760, "label": "WIR door" }
-    ],
-    "note": "Engine silently misses these two (no arc pairing fired, zero flags). Bench locks the engine at 9 so it cannot regress further; fixing the misses will fail this bench and force expected.singles -> 11."
-  },
   "doors": [
     { "type": "hinged", "widthMm": 810, "near": [575, 471], "label": "garage access" },
     { "type": "hinged", "widthMm": 810, "near": [598, 476], "label": "bed 2" },
+    { "type": "hinged", "widthMm": 810, "near": [730, 445], "label": "Bed 3 door" },
     { "type": "hinged", "widthMm": 810, "near": [773, 475], "label": "master" },
     { "type": "hinged", "widthMm": 710, "near": [838, 471], "label": "store" },
     { "type": "hinged", "widthMm": 760, "near": [713, 479], "label": "bath" },
     { "type": "hinged", "widthMm": 760, "near": [686, 511], "label": "wc" },
     { "type": "hinged", "widthMm": 810, "near": [879, 501], "label": "ensuite" },
+    { "type": "hinged", "widthMm": 760, "near": [887, 518], "label": "WIR door" },
     { "type": "hinged", "widthMm": 810, "near": [832, 430], "label": "hall to lounge" },
     { "type": "hinged", "widthMm": 810, "near": [702, 442], "label": "hwc cupboard" },
     { "type": "double", "widthMm": 1420, "near": [644, 418], "label": "bed 3 robe" },
@@ -34,8 +28,20 @@
     { "type": "cavity", "widthMm": 900, "near": [878, 439], "label": "store/ensuite cavity" }
   ],
   "rejectedFalsePositives": [
-    { "widthMm": 1655, "at": [726, 563], "why": "Pacific bath caption — fixture label, killed by isAnnotationContext caption rule" },
-    { "widthMm": 1318, "at": [950, 611], "why": "dimension-chain number flanked by 90s — killed by isAnnotationContext chain rule" },
-    { "widthMm": 1500, "at": [594, 264], "why": "dimension-chain number flanked by 90s — killed by isAnnotationContext chain rule" }
+    {
+      "widthMm": 1655,
+      "at": [726, 563],
+      "why": "Pacific bath caption — fixture label, killed by isAnnotationContext caption rule"
+    },
+    {
+      "widthMm": 1318,
+      "at": [950, 611],
+      "why": "dimension-chain number flanked by 90s — killed by isAnnotationContext chain rule"
+    },
+    {
+      "widthMm": 1500,
+      "at": [594, 264],
+      "why": "dimension-chain number flanked by 90s — killed by isAnnotationContext chain rule"
+    }
   ]
 }

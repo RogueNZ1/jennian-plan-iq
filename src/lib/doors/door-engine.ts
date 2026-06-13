@@ -479,6 +479,7 @@ export function detectInteriorDoors(
   const doubles: DoorHit[] = [];
   const cavity: DoorHit[] = [];
   const flags: DoorHit[] = [];
+  const acceptedLabels = new Set<WidthLabel>();
 
   for (const wl of widthLabels) {
     const side = isInterior(wl.x, wl.y, wl.vertical);
@@ -518,6 +519,7 @@ export function detectInteriorDoors(
           confidence: side === "interior" ? "confirmed" : "flag",
           note: side === "ambiguous" ? "interior/exterior ambiguous — verify" : undefined,
         };
+        acceptedLabels.add(wl);
         (hit.confidence === "confirmed" ? hinged : flags).push(hit);
       } else if (!best) {
         // single width, no arc → cavity slider candidate, but only with real
@@ -541,6 +543,7 @@ export function detectInteriorDoors(
               ? "no swing arc; verify slider vs opening"
               : "no swing arc — slider",
         };
+        acceptedLabels.add(wl);
         (hit.confidence === "confirmed" ? cavity : flags).push(hit);
       }
     } else {
@@ -559,8 +562,50 @@ export function detectInteriorDoors(
         confidence: side === "interior" ? "confirmed" : "flag",
         note: side === "ambiguous" ? "interior/exterior ambiguous — verify" : undefined,
       };
+      acceptedLabels.add(wl);
       (hit.confidence === "confirmed" ? doubles : flags).push(hit);
     }
+  }
+
+  // Second-pass hinged recovery: West Street exposes paired interior door labels whose
+  // wall-opening evidence is real but whose arc association is too close to a neighbouring
+  // accepted door for the strict first pass. Do not widen the first pass: that created
+  // phantom sliders. Instead, recover only unmatched single labels with real stub+leaf
+  // evidence and a nearby radius-compatible arc.
+  for (const wl of widthLabels) {
+    if (acceptedLabels.has(wl) || wl.kind !== "single") continue;
+    const side = isInterior(wl.x, wl.y, wl.vertical);
+    if (side === "exterior") continue;
+    if (isAnnotationContext(geom.labels, wl, mmToPt(wl.mm, cfg.scale))) continue;
+    const ev = openingEvidence(geom.segments, wl.x, wl.y, wl.vertical, mmToPt(wl.mm, cfg.scale));
+    if (!ev.stub || !ev.leaf) continue;
+
+    const nominalR = mmToPt(wl.mm, cfg.scale);
+    const best = arcs
+      .map((a) => ({ arc: a, d: dist(a.x, a.y, wl.x, wl.y), radiusDiff: Math.abs(a.r - nominalR) }))
+      .filter((a) => a.d < 28 && a.radiusDiff < 2.2)
+      .sort((a, b) => a.d - b.d)[0];
+    if (!best) continue;
+
+    const tooCloseToExisting = hinged.some(
+      (h) => h.widthMm === wl.mm && dist(h.x, h.y, wl.x, wl.y) < 11,
+    );
+    if (tooCloseToExisting) continue;
+
+    const hit: DoorHit = {
+      type: "hinged",
+      widthMm: wl.mm,
+      x: wl.x,
+      y: wl.y,
+      arcMm: Math.round(ptToMm(best.arc.r, cfg.scale)),
+      confidence: side === "interior" ? "confirmed" : "flag",
+      note:
+        side === "ambiguous"
+          ? "recovered from wall-opening evidence; interior/exterior ambiguous — verify"
+          : "recovered from wall-opening evidence",
+    };
+    (hit.confidence === "confirmed" ? hinged : flags).push(hit);
+    acceptedLabels.add(wl);
   }
 
   return {
