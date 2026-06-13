@@ -77,6 +77,12 @@ type AdditionalPdf = {
   classifying: boolean;
 };
 
+type ClassifiedPlanPdf = {
+  file: File;
+  sheetType: AdditionalPdfSheetType;
+  filenameType: AdditionalPdfSheetType;
+};
+
 const CONCEPT_STEPS: { key: Step; label: string }[] = [
   { key: "form", label: "Upload" },
   { key: "select", label: "Select page" },
@@ -247,10 +253,10 @@ function UploadPage() {
     const classified = await Promise.all(
       accepted.map(async (file) => ({
         file,
-        sheetType: await classifyPdfFile(file),
+        ...mergePdfClassifications(file.name, await classifyPdfFile(file)),
       })),
     );
-    const primary = classified.find((p) => p.sheetType === "floor_plan") ?? classified[0];
+    const primary = pickPrimaryPlanPdf(classified);
     if (!primary) return;
 
     setPlanFile(primary.file);
@@ -295,11 +301,36 @@ function UploadPage() {
     setAnalyzing(true);
     setAnalyzeProgress({ done: 0, total: 0 });
     try {
-      const pages = await analyzePdfPages(planFile, {
+      let activePlanFile = planFile;
+      let pages = await analyzePdfPages(activePlanFile, {
         onProgress: (done, total) => setAnalyzeProgress({ done, total }),
       });
+      let pick = pickPrimaryFloorplan(pages);
+
+      if (!pick) {
+        const routedFloorplan = additionalPdfs.find((p) => p.sheetType === "floor_plan");
+        if (routedFloorplan) {
+          disposePageAnalyses(pages);
+          activePlanFile = routedFloorplan.file;
+          setPlanFile(routedFloorplan.file);
+          setAdditionalPdfs((prev) => [
+            ...prev.filter((p) => p.id !== routedFloorplan.id),
+            {
+              id: `${planFile.name}-${planFile.size}-${planFile.lastModified}`,
+              file: planFile,
+              sheetType: classifyPdfFilename(planFile.name),
+              classifying: false,
+            },
+          ]);
+          pages = await analyzePdfPages(activePlanFile, {
+            onProgress: (done, total) => setAnalyzeProgress({ done, total }),
+          });
+          pick = pickPrimaryFloorplan(pages);
+          toast.info(`Using ${routedFloorplan.file.name} as the floor plan.`);
+        }
+      }
+
       setPageAnalyses(pages);
-      const pick = pickPrimaryFloorplan(pages);
       if (pick) {
         setSelectedIndex(pick.index);
         setAutoCertainty(pick.certainty);
@@ -2434,7 +2465,7 @@ function Dropzone({
 const SHEET_TYPE_LABELS: Record<AdditionalPdfSheetType, string> = {
   elevations: "Elevations",
   site_plan: "Site Plan",
-  floor_plan: "Floor Plan (use primary slot)",
+  floor_plan: "Floor Plan",
   unknown: "Unknown",
 };
 const SHEET_TYPE_COLORS: Record<AdditionalPdfSheetType, string> = {
@@ -2444,10 +2475,57 @@ const SHEET_TYPE_COLORS: Record<AdditionalPdfSheetType, string> = {
   unknown: "bg-muted text-muted-foreground border-border",
 };
 
+function classifyPdfFilename(name: string): AdditionalPdfSheetType {
+  const n = name.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+
+  if (
+    /\bfloor\s*plan\b/.test(n) ||
+    /\bfloorplan\b/.test(n) ||
+    /\bdimensioned?\s+plan\b/.test(n) ||
+    /\bground\s+floor\b/.test(n) ||
+    /\bfirst\s+floor\b/.test(n)
+  ) {
+    return "floor_plan";
+  }
+  if (/\belevations?\b/.test(n) || /\belevs?\b/.test(n)) return "elevations";
+  if (/\bsite\s*plan\b/.test(n) || /\bsiteplan\b/.test(n) || /\blocality\b/.test(n)) {
+    return "site_plan";
+  }
+  return "unknown";
+}
+
+function mergePdfClassifications(
+  name: string,
+  pageType: AdditionalPdfSheetType,
+): Pick<ClassifiedPlanPdf, "sheetType" | "filenameType"> {
+  const filenameType = classifyPdfFilename(name);
+  return {
+    filenameType,
+    sheetType: filenameType !== "unknown" ? filenameType : pageType,
+  };
+}
+
+function primaryPlanPdfScore(pdf: ClassifiedPlanPdf): number {
+  if (pdf.filenameType === "floor_plan") return 400;
+  if (pdf.sheetType === "floor_plan") return 300;
+  if (pdf.sheetType === "unknown") return 10;
+  if (pdf.sheetType === "site_plan") return -100;
+  if (pdf.sheetType === "elevations") return -200;
+  return -250;
+}
+
+function pickPrimaryPlanPdf(pdfs: ClassifiedPlanPdf[]): ClassifiedPlanPdf | null {
+  if (pdfs.length === 0) return null;
+  return [...pdfs].sort((a, b) => primaryPlanPdfScore(b) - primaryPlanPdfScore(a))[0] ?? null;
+}
+
 async function classifyPdfFile(file: File): Promise<AdditionalPdfSheetType> {
   try {
-    const pages = await analyzePdfPages(file, { maxPages: 3, maxWidth: 80, quality: 0.5 });
+    const pages = await analyzePdfPages(file, { maxPages: 8, maxWidth: 80, quality: 0.5 });
     disposePageAnalyses(pages);
+    if (pages.some((p) => p.pageType === "floor_plan" || p.pageType === "dimension_floor_plan")) {
+      return "floor_plan";
+    }
     const counts: Partial<Record<string, number>> = {};
     for (const p of pages) {
       counts[p.pageType] = (counts[p.pageType] ?? 0) + 1;
