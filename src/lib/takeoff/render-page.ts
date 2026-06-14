@@ -39,7 +39,8 @@ const FLOORPLAN_MAX_PX = 7000;
 const CACHE_MIN_FLOORPLAN_PX = 4000;
 
 const ELEVATION_SCALE = 2.5;
-const UNKNOWN_SCALE = 4.5; // flattened / unclassified could be a detailed plan
+const UNKNOWN_SCALE = 3.8; // flattened / unclassified could be a detailed plan
+const CACHE_MAX_UNKNOWN_PX = 5400; // keep Anthropic fallback images below the 10 MB limit
 const DEFAULT_SCALE = 3.0;
 /** Reuse a cached non-floorplan render only if it is this wide or better. */
 const CACHE_MIN_DEFAULT_PX = 2000;
@@ -63,6 +64,10 @@ function isUnknownType(pageType: string | null | undefined): boolean {
 
 function cacheMinWidthFor(pageType: string | null | undefined): number {
   return isFloorplanType(pageType) ? CACHE_MIN_FLOORPLAN_PX : CACHE_MIN_DEFAULT_PX;
+}
+
+function cacheMaxWidthFor(pageType: string | null | undefined): number | null {
+  return isUnknownType(pageType) ? CACHE_MAX_UNKNOWN_PX : null;
 }
 
 /**
@@ -170,7 +175,9 @@ export async function renderAndUploadPlanPage(args: {
 
   // Reuse cached render if it already meets the resolution bar for this type.
   const cacheMin = cacheMinWidthFor(args.pageType);
-  if (existing && (existing.render_resolution as number) >= cacheMin) {
+  const cacheMax = cacheMaxWidthFor(args.pageType);
+  const existingWidth = existing?.render_resolution as number | undefined;
+  if (existing && existingWidth != null && existingWidth >= cacheMin && (!cacheMax || existingWidth <= cacheMax)) {
     return {
       pageId: existing.id as string,
       jobId: args.jobId,
