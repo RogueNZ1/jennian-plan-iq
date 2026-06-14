@@ -13,7 +13,7 @@ export type VisualOpeningPromotion = {
 const ASSUMED_DOOR_HEIGHT_M = 2.1;
 const ASSUMED_DOOR_WIDTH_M = 1.0;
 const GARAGE_DOOR_MIN_HEIGHT_M = 2.0;
-const GARAGE_DOOR_MAX_HEIGHT_M = 2.6;
+const GARAGE_DOOR_MAX_HEIGHT_M = 2.4;
 const GARAGE_DOOR_MIN_WIDTH_M = 2.4;
 const GARAGE_DOOR_MAX_WIDTH_M = 5.4;
 

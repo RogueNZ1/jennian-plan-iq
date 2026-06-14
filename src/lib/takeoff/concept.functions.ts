@@ -502,6 +502,9 @@ READING:
 - The label format is HEIGHT x WIDTH in mm unless noted otherwise.
 - Convert readable labels to metres: 2110x700 => height_m 2.11, width_m 0.7.
 - If a size label is not readable, set height_m and width_m to null and add a flag.
+- For the sectional/roller garage door, read the label physically attached to the driveway-side garage opening.
+- Do NOT use nearby level/height markers, wall heights, roof notes, cladding dimensions, or room dimensions as the garage-door size.
+- If multiple labels are near the garage, the real garage-door label is the one spanning the garage opening on the external wall, not the garage room size.
 
 POSITION:
 For every opening, return approximate x and y coordinates of the opening centre on the supplied image.

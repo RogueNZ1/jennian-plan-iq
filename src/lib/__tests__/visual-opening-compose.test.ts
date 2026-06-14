@@ -76,7 +76,7 @@ const visualAudit: VisualOpeningAudit = {
 };
 
 describe("composeTakeoff visual opening promotion", () => {
-  it("uses Visual QS as the canonical external opening set when present", () => {
+  it("uses Visual QS for openings but preserves the canonical sectional when visual garage is rejected", () => {
     const enriched = composeTakeoff({
       visionTakeoff: baseVision,
       geometry: null,
@@ -87,8 +87,11 @@ describe("composeTakeoff visual opening promotion", () => {
 
     expect(enriched.openings?.map((o) => o.type)).toEqual(["window", "pa_door", "sectional_door"]);
     expect(enriched.openings?.map((o) => o.glazed)).toEqual([true, true, false]);
-    expect(enriched.garage_door_size.value).toBe("2.8×2.52");
-    expect(enriched.total_opening_sqm).toBe(10.26);
+    expect(enriched.garage_door_size.value).toBe("2.7×2.1");
+    expect(enriched.total_opening_sqm).toBe(8.87);
     expect(enriched.windows_by_room.discrepancy_flags.join(" ")).toContain("Visual QS promoted");
+    expect(enriched.windows_by_room.discrepancy_flags.join(" ")).toContain(
+      "outside the garage-door plausibility band",
+    );
   });
 });

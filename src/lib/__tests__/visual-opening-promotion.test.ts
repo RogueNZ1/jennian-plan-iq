@@ -36,7 +36,7 @@ describe("visual-opening-promotion", () => {
         item({ id: "O1", type: "window", room: "Bed 2", height_m: 1.1, width_m: 1 }),
         item({ id: "O2", type: "external_door", room: "Entry", height_m: null, width_m: null }),
         item({ id: "O3", type: "pa_door", room: "Laundry", height_m: null, width_m: null }),
-        item({ id: "O4", type: "garage_door", room: "Garage", height_m: 2.52, width_m: 2.8 }),
+        item({ id: "O4", type: "garage_door", room: "Garage", height_m: 2.11, width_m: 2.8 }),
       ]),
     );
 
@@ -46,7 +46,7 @@ describe("visual-opening-promotion", () => {
       ["pa_door", true],
       ["sectional_door", false],
     ]);
-    expect(promoted?.garageDoorSize).toBe("2.8×2.52");
+    expect(promoted?.garageDoorSize).toBe("2.8×2.11");
     expect(promoted?.openings[1]).toMatchObject({
       height_m: 2.1,
       width_m: 1,
@@ -106,5 +106,22 @@ describe("visual-opening-promotion", () => {
     expect(promoted?.openings.map((o) => o.type)).toEqual(["window"]);
     expect(promoted?.garageDoorSize).toBeNull();
     expect(promoted?.flags.join(" ")).toContain("outside the garage-door plausibility band");
+  });
+
+  it("rejects JM-0041's 2800x2520 visual misread as too tall for a garage door", () => {
+    const promoted = promoteVisualOpenings(
+      audit([
+        item({
+          id: "O7",
+          type: "garage_door",
+          room: "Garage",
+          label: "2800x2520",
+          height_m: 2.52,
+          width_m: 2.8,
+        }),
+      ]),
+    );
+
+    expect(promoted).toBeNull();
   });
 });
