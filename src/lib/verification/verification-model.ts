@@ -135,7 +135,6 @@ export type VerificationModel = {
     source: QSExportData["doorsSource"];
     sourceLabel: string;
     visionHint: number | null;
-    externalCount: string; // formatted (may be "—")
     garage: CountRow[];
     garageDoorSize: string;
     hardware: CountRow[]; // hatch, attic stair, letterbox, washing line
@@ -413,10 +412,6 @@ export function buildVerificationModel(
       ? (DOORS_SOURCE_LABELS[data.doorsSource] ?? data.doorsSource)
       : "⚑ NO SOURCE — counts are unbacked zeros, do not price",
     visionHint: data.intDoorVisionHint ?? null,
-    externalCount: fmtNum(
-      e?.external_door_count?.value ?? data.elevationSummary?.externalDoorCount ?? null,
-      0,
-    ),
     garage,
     garageDoorSize: fmtStr(e?.garage_door_size?.value ?? null),
     hardware,
@@ -445,7 +440,6 @@ export function buildVerificationModel(
     ? [
         measure("Roof type (elevations)", el.roofType, "", null),
         measure("Roof pitch (elevations)", el.roofPitchDegrees, "°", null, 1),
-        measure("External doors (elevations)", el.externalDoorCount, "", null, 0),
         measure("Gable ends", el.gableEndCount, "", null, 0),
         measure("Driveway concrete", el.drivewayConcretM2 ?? data.drivewayM2, "m²", null),
         measure("Paths / patio concrete", el.patioConcreteM2 ?? data.pathsPatioM2, "m²", null),

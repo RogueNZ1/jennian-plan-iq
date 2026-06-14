@@ -250,7 +250,6 @@ export function fieldFlags(e: EnrichedTakeoff): Array<{ field: string; flags: st
     ["Internal wall (lm)", e.internal_wall_lm],
     ["Roof area", e.roof_area_m2],
     ["Window count", e.window_count],
-    ["External doors", e.external_door_count],
     ["Internal doors", e.internal_door_count],
     ["Bathrooms", e.bathroom_count],
     ["Ensuites", e.ensuite_count],

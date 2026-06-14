@@ -1846,8 +1846,6 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
     if (ev.roofType) lbl("D200", ev.roofType, { font: {} });
     lbl("A201", "Roof pitch (degrees)");
     if (ev.roofPitchDegrees != null) val("D201", ev.roofPitchDegrees);
-    lbl("A202", "External door count (from elevations)");
-    if (ev.externalDoorCount > 0) val("D202", ev.externalDoorCount);
     lbl("A203", "Gable end count");
     if (ev.gableEndCount > 0) val("D203", ev.gableEndCount);
     lbl("A205", "Driveway concrete (m²)");

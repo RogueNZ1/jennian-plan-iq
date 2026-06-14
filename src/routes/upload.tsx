@@ -1014,7 +1014,6 @@ function UploadPage() {
       ["Internal wall length", n(t.internal_wall_lm), "lm", ""],
       ["Roof area", n(t.roof_area_m2), "m²", ""],
       ["Windows", n(t.window_count), "count", ""],
-      ["External doors", n(t.external_door_count), "count", ""],
       ["Internal doors", n(t.internal_door_count), "count", ""],
       ["Bathrooms", n(t.bathroom_count), "count", ""],
       ["Ensuites", n(t.ensuite_count), "count", ""],
@@ -1278,8 +1277,6 @@ function UploadPage() {
       if (elevationData?.roofType) wsQS["D200"] = { v: elevationData.roofType, t: "s", s: {} };
       qlbl("A201", "Roof pitch (degrees)");
       if (elevationData?.roofPitchDegrees != null) qval("D201", elevationData.roofPitchDegrees);
-      qlbl("A202", "External door count (from elevations)");
-      if (elevationData?.externalDoorCount) qval("D202", elevationData.externalDoorCount);
       qlbl("A203", "Gable end count");
       if (elevationData?.gableEndCount) qval("D203", elevationData.gableEndCount);
       qlbl("A205", "Driveway concrete (m²)");
@@ -2143,7 +2140,6 @@ const TAKEOFF_ROWS: { key: keyof TakeoffData; label: string; unit: string }[] = 
   { key: "internal_wall_lm", label: "Internal wall", unit: "lm" },
   { key: "roof_area_m2", label: "Roof area", unit: "m²" },
   { key: "window_count", label: "Windows", unit: "count" },
-  { key: "external_door_count", label: "External doors", unit: "count" },
   { key: "internal_door_count", label: "Internal doors", unit: "count" },
   { key: "bathroom_count", label: "Bathrooms", unit: "count" },
   { key: "ensuite_count", label: "Ensuites", unit: "count" },

@@ -73,12 +73,12 @@ function resolveOpeningWidthM(widthM: number | null | undefined): {
  * Windows: the Door & Window Schedule list is the canonical source when present
  * (Σ height × width); otherwise the floor-plan callouts (Σ qty × height × width).
  * Garage door: recovered from the classified size label/annotation.
- * External doors (entrance, ranchsliders read as doors, etc.): summed when a caller
- * supplies dimensioned openings via `externalDoors`.
+ * External-wall door openings (entry/PA/sliders etc.): summed into the same opening
+ * total when a caller supplies dimensions via `externalDoors`.
  *
- * NOTE on completeness: the QS opening total also folds in the entrance + any other
- * external doors. This function now sums them WHEN a caller provides them
- * (`externalDoors`); if a job does not extract external doors as dimensioned openings
+ * NOTE on completeness: the QS opening total also folds in entry/PA/sliding openings.
+ * This function sums them WHEN a caller provides them (`externalDoors`); if a job does
+ * not extract those door openings as dimensioned external-wall openings
  * (e.g. a Door & Window Schedule that lists windows only), they are simply absent and
  * the derived ext-wall area is a known slight OVERSHOOT — the caller should
  * confidence-flag that omission rather than fabricate a figure. This field is only as
@@ -112,9 +112,8 @@ export function computeOpeningAreaM2(args: {
     }
   }
 
-  // External doors (when a caller extracts them with dimensions). Kept separate from
-  // the window sources above so a schedule job that lists windows only still adds its
-  // doors when another pass supplies them — never fabricated here.
+  // External-wall door openings (when another pass extracts dimensions). They are
+  // added to glazing/opening area here, never surfaced as a separate QS line.
   if (args.externalDoors && args.externalDoors.length > 0) {
     for (const d of args.externalDoors) {
       if (d.height_m != null && d.width_m != null && d.height_m > 0 && d.width_m > 0) {
