@@ -95,6 +95,24 @@ const ICONS: Record<string, typeof Ruler> = {
   "iq-procurement": ShoppingCart,
 };
 
+const PDF_TEXT_PROBE_TIMEOUT_MS = 8000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error("PDF text probe timed out")), ms);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
+}
+
 function JobDetail() {
   const { jobId } = Route.useParams();
   const navigate = useNavigate();
@@ -416,16 +434,22 @@ function JobDetail() {
       let planTextLen = 0;
       for (const f of planFiles) {
         try {
-          const ex = await extractFile({
-            fileId: f.id as string,
-            fileName: f.file_name as string,
-            fileType: "plan",
-            storagePath: f.storage_url as string,
-            maxPages: 4,
-          });
+          const ex = await withTimeout(
+            extractFile({
+              fileId: f.id as string,
+              fileName: f.file_name as string,
+              fileType: "plan",
+              storagePath: f.storage_url as string,
+              maxPages: 4,
+            }),
+            PDF_TEXT_PROBE_TIMEOUT_MS,
+          );
           planTextLen += ex.pages.reduce((s, p) => s + (p.text?.trim().length ?? 0), 0);
-        } catch {
-          /* ignore */
+        } catch (error) {
+          console.warn("[takeoff] PDF text probe failed; falling through to visual takeoff", {
+            fileName: f.file_name,
+            error,
+          });
         }
       }
       if (planTextLen < 40) {
