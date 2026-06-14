@@ -1451,15 +1451,23 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
             });
           }
           await persistRunSummary("running");
-          if (
-            Date.now() - startedAtMs > VISION_SOFT_RETURN_AFTER_OPENINGS_MS &&
-            pageOutcome.openingsInserted + pageOutcome.openingsRefreshed > 0
-          ) {
+          const usefulRowsSaved =
+            pageOutcome.openingsInserted +
+              pageOutcome.openingsRefreshed +
+              pageOutcome.quantitiesInserted +
+              pageOutcome.quantitiesRefreshed >
+            0;
+          const shouldReturnAfterOpenings =
+            usefulRowsSaved &&
+            (data.pages.length === 1 || Date.now() - startedAtMs > VISION_SOFT_RETURN_AFTER_OPENINGS_MS);
+          if (shouldReturnAfterOpenings) {
             summary.pagesProcessed++;
             summary.processedPages++;
             summary.reviewRequiredItems += pageOutcome.reviewRequiredCount;
             const softTimeoutWarning =
-              "Vision returned early after saving quantities and openings to avoid a request timeout. Measurements and module drafts were not completed.";
+              data.pages.length === 1
+                ? "Vision saved quantities and openings; measurements and module drafts were deferred to keep the run responsive."
+                : "Vision returned early after saving quantities and openings to avoid a request timeout. Measurements and module drafts were not completed.";
             if (!summary.warnings.includes(softTimeoutWarning)) {
               summary.warnings.push(softTimeoutWarning);
             }
