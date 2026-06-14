@@ -44,11 +44,56 @@ describe("door engine — width bands (the 920 cap is load-bearing)", () => {
     expect(widths([lbl("3600")])).toEqual([]);
   });
 
+  it("parses 2x810 as one double opening and suppresses the orphan 810 token", () => {
+    expect(widths([lbl("2x810", 100, 100), lbl("810", 101, 118)])).toEqual(["double:1620"]);
+  });
+
   it("empty geometry → zero counts, zero flags, no throw", () => {
     const geom: PageGeometry = { width: 842, height: 595, segments: [], labels: [], polylines: [] };
     const r = detectInteriorDoors(geom, cfg);
     expect(r.counts).toEqual({ singles: 0, doubles: 0, cavitySliders: 0, barn: 0 });
     expect(r.flags).toEqual([]);
+  });
+
+  it("does not turn no-arc single-leaf openings into phantom cavity sliders", () => {
+    const geom: PageGeometry = {
+      width: 842,
+      height: 595,
+      labels: [lbl("810", 100, 100)],
+      segments: [{ x0: 90, y0: 100, x1: 110, y1: 100 }],
+      polylines: [],
+    };
+    const r = detectInteriorDoors(geom, cfg, () => "interior");
+    expect(r.counts).toEqual({ singles: 1, doubles: 0, cavitySliders: 0, barn: 0 });
+    expect(r.hinged[0]?.note).toContain("swing arc not vector-recovered");
+  });
+
+  it("drops fixture-context and external-opening labels from internal doors", () => {
+    const baseSegments = [{ x0: 90, y0: 100, x1: 110, y1: 100 }];
+    const fixture = detectInteriorDoors(
+      {
+        width: 842,
+        height: 595,
+        labels: [lbl("810", 100, 100), lbl("Slateforma", 106, 106)],
+        segments: baseSegments,
+        polylines: [],
+      },
+      cfg,
+      () => "interior",
+    );
+    const external = detectInteriorDoors(
+      {
+        width: 842,
+        height: 595,
+        labels: [lbl("860", 100, 100), lbl("W101", 108, 106), lbl("2110x960", 106, 112)],
+        segments: baseSegments,
+        polylines: [],
+      },
+      cfg,
+      () => "interior",
+    );
+    expect(fixture.counts.singles).toBe(0);
+    expect(external.counts.singles).toBe(0);
   });
 });
 

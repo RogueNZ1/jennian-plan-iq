@@ -169,6 +169,29 @@ export async function extractPageGeometry(page: PdfPage): Promise<PageGeometry> 
     if (poly.length === 0) poly.push(a);
     poly.push(b);
   };
+  const emitCurve = (
+    ax: number,
+    ay: number,
+    bx: number,
+    by: number,
+    cx: number,
+    cy: number,
+    dx: number,
+    dy: number,
+  ) => {
+    const STEPS = 12;
+    let px = ax,
+      py = ay;
+    for (let step = 1; step <= STEPS; step++) {
+      const t = step / STEPS;
+      const mt = 1 - t;
+      const nx = mt * mt * mt * ax + 3 * mt * mt * t * bx + 3 * mt * t * t * cx + t * t * t * dx;
+      const ny = mt * mt * mt * ay + 3 * mt * mt * t * by + 3 * mt * t * t * cy + t * t * t * dy;
+      emitLine(px, py, nx, ny);
+      px = nx;
+      py = ny;
+    }
+  };
 
   for (let i = 0; i < ol.fnArray.length; i++) {
     const fn = ol.fnArray[i];
@@ -194,14 +217,31 @@ export async function extractPageGeometry(page: PdfPage): Promise<PageGeometry> 
           cx = nx;
           cy = ny;
         } else if (op === OPS.curveTo) {
-          k += 4;
-          cx = co[k++];
-          cy = co[k++];
-        } // beziers irrelevant here (Qt emits polylines)
-        else if (op === OPS.curveTo2 || op === OPS.curveTo3) {
-          k += 2;
-          cx = co[k++];
-          cy = co[k++];
+          const x1 = co[k++],
+            y1 = co[k++],
+            x2 = co[k++],
+            y2 = co[k++],
+            x3 = co[k++],
+            y3 = co[k++];
+          emitCurve(cx, cy, x1, y1, x2, y2, x3, y3);
+          cx = x3;
+          cy = y3;
+        } else if (op === OPS.curveTo2) {
+          const x2 = co[k++],
+            y2 = co[k++],
+            x3 = co[k++],
+            y3 = co[k++];
+          emitCurve(cx, cy, cx, cy, x2, y2, x3, y3);
+          cx = x3;
+          cy = y3;
+        } else if (op === OPS.curveTo3) {
+          const x1 = co[k++],
+            y1 = co[k++],
+            x3 = co[k++],
+            y3 = co[k++];
+          emitCurve(cx, cy, x1, y1, x3, y3, x3, y3);
+          cx = x3;
+          cy = y3;
         } else if (op === OPS.rectangle) {
           k += 4;
         } // walls/fills — not arc material

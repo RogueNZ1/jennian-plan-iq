@@ -200,6 +200,7 @@ type WidthLabel = {
   y: number;
   vertical: boolean;
   kind: "single" | "double";
+  source?: "plain" | "multiplier";
 };
 
 /**
@@ -210,14 +211,40 @@ type WidthLabel = {
  */
 export function extractWidthLabels(labels: TextLabel[], cfg: DoorEngineConfig): WidthLabel[] {
   const out: WidthLabel[] = [];
+  const multiplied: Array<{ leafMm: number; x: number; y: number }> = [];
   for (const l of labels) {
     const t = l.text.replace(/\u00a0/g, " ").trim();
+    const multi = /^(\d)\s*x\s*(\d{3,4})$/i.exec(t);
+    if (multi) {
+      const count = Number(multi[1]);
+      const leafMm = Number(multi[2]);
+      const totalMm = count * leafMm;
+      if (
+        count >= 2 &&
+        leafMm >= cfg.leafMinMm &&
+        leafMm <= cfg.leafMaxMm &&
+        totalMm >= cfg.doubleMinMm &&
+        totalMm <= cfg.doubleMaxMm
+      ) {
+        multiplied.push({ leafMm, x: l.x, y: l.y });
+        out.push({
+          mm: totalMm,
+          x: l.x,
+          y: l.y,
+          vertical: l.vertical,
+          kind: "double",
+          source: "multiplier",
+        });
+      }
+      continue;
+    }
     if (!/^\d[\d ]{1,5}$/.test(t)) continue; // digits and thousands-spaces only
     const mm = parseInt(t.replace(/ /g, ""), 10);
+    if (multiplied.some((m) => m.leafMm === mm && dist(m.x, m.y, l.x, l.y) < 30)) continue;
     if (mm >= cfg.leafMinMm && mm <= cfg.leafMaxMm) {
-      out.push({ mm, x: l.x, y: l.y, vertical: l.vertical, kind: "single" });
+      out.push({ mm, x: l.x, y: l.y, vertical: l.vertical, kind: "single", source: "plain" });
     } else if (mm >= cfg.doubleMinMm && mm <= cfg.doubleMaxMm) {
-      out.push({ mm, x: l.x, y: l.y, vertical: l.vertical, kind: "double" });
+      out.push({ mm, x: l.x, y: l.y, vertical: l.vertical, kind: "double", source: "plain" });
     }
   }
   return out;
@@ -402,6 +429,28 @@ export function isAnnotationContext(
   return smallLeft && smallRight; // chained between wall-thickness dims
 }
 
+function isFixtureContext(labels: TextLabel[], wl: { x: number; y: number }): boolean {
+  return labels.some((l) => {
+    const t = l.text.trim();
+    if (
+      !/(slate\s*forma|slate|forma|htr|under\s*tile|heating|vanity|basin|shower|tub|sink)/i.test(t)
+    ) {
+      return false;
+    }
+    return dist(l.x, l.y, wl.x, wl.y) < 30;
+  });
+}
+
+function isExternalOpeningContext(labels: TextLabel[], wl: { x: number; y: number }): boolean {
+  return labels.some((l) => {
+    const t = l.text.replace(/\s+/g, "").trim();
+    if (!/^W\d{1,3}[a-z]?$/i.test(t) && !/\b(?:DP)?2[01]\d{2}x(?:7|8|9|10|11)\d{2}\b/i.test(t)) {
+      return false;
+    }
+    return dist(l.x, l.y, wl.x, wl.y) < 38;
+  });
+}
+
 export function openingEvidence(
   segments: Segment[],
   x: number,
@@ -471,6 +520,11 @@ export function detectInteriorDoors(
   const widthLabels = extractWidthLabels(geom.labels, cfg);
   const arcs = recoverArcs(geom.polylines, cfg);
   const isInterior = interiorTest ?? envelopeInteriorTest(geom.segments, geom);
+  const arcPairingHealthy = widthLabels.some((wl) => {
+    if (wl.kind !== "single") return false;
+    const nominalR = mmToPt(wl.mm, cfg.scale);
+    return arcs.some((a) => dist(a.x, a.y, wl.x, wl.y) < 30 && Math.abs(a.r - nominalR) < 4.5);
+  });
 
   const PAIR_DIST = 30; // pt — label sits beside its swing on Jennian plans
   const usedArcs = new Set<Arc>();
@@ -522,6 +576,9 @@ export function detectInteriorDoors(
         acceptedLabels.add(wl);
         (hit.confidence === "confirmed" ? hinged : flags).push(hit);
       } else if (!best) {
+        if (isAnnotationContext(geom.labels, wl, mmToPt(wl.mm, cfg.scale))) continue;
+        if (isFixtureContext(geom.labels, wl)) continue;
+        if (isExternalOpeningContext(geom.labels, wl)) continue;
         // single width, no arc → cavity slider candidate, but only with real
         // opening evidence — interior annotations have neither stub nor leaf.
         const ev = openingEvidence(
@@ -532,6 +589,22 @@ export function detectInteriorDoors(
           mmToPt(wl.mm, cfg.scale),
         );
         if (!ev.stub || !ev.leaf) continue;
+        if (!arcPairingHealthy) {
+          const hit: DoorHit = {
+            type: "hinged",
+            widthMm: wl.mm,
+            x: wl.x,
+            y: wl.y,
+            confidence: side === "interior" ? "confirmed" : "flag",
+            note:
+              side === "ambiguous"
+                ? "single-leaf opening; swing arc not vector-recovered — verify"
+                : "single-leaf opening; swing arc not vector-recovered",
+          };
+          acceptedLabels.add(wl);
+          (hit.confidence === "confirmed" ? hinged : flags).push(hit);
+          continue;
+        }
         const hit: DoorHit = {
           type: "cavity",
           widthMm: wl.mm,
@@ -553,7 +626,11 @@ export function detectInteriorDoors(
       if (!ev.stub) continue;
       // West Street lesson: bath captions and dimension-chain numbers can carry
       // stub-like geometry. Their LABEL context betrays them — see isAnnotationContext.
-      if (isAnnotationContext(geom.labels, wl, mmToPt(wl.mm, cfg.scale))) continue;
+      if (
+        wl.source !== "multiplier" &&
+        isAnnotationContext(geom.labels, wl, mmToPt(wl.mm, cfg.scale))
+      )
+        continue;
       const hit: DoorHit = {
         type: "double",
         widthMm: wl.mm,
@@ -577,6 +654,8 @@ export function detectInteriorDoors(
     const side = isInterior(wl.x, wl.y, wl.vertical);
     if (side === "exterior") continue;
     if (isAnnotationContext(geom.labels, wl, mmToPt(wl.mm, cfg.scale))) continue;
+    if (isFixtureContext(geom.labels, wl)) continue;
+    if (isExternalOpeningContext(geom.labels, wl)) continue;
     const ev = openingEvidence(geom.segments, wl.x, wl.y, wl.vertical, mmToPt(wl.mm, cfg.scale));
     if (!ev.stub || !ev.leaf) continue;
 
