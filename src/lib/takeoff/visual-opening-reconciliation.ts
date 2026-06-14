@@ -3,7 +3,7 @@ import type { VisualOpeningAudit } from "./visual-opening-audit";
 
 export type VisualOpeningReconciliationIssue = {
   severity: "error" | "warning";
-  field: "windows_by_room" | "external_door_count" | "garage_door_size";
+  field: "windows_by_room" | "garage_door_size";
   message: string;
   visual: string;
   composed: string;
@@ -17,8 +17,6 @@ export type VisualOpeningReconciliation = {
   summary: {
     visualQsGlazedOpenings: number;
     composedGlazedOpenings: number;
-    visualExternalDoors: number;
-    composedExternalDoors: number | null;
     visualGarageDoors: number;
     composedGarageDoorSize: string | null;
   };
@@ -27,11 +25,8 @@ export type VisualOpeningReconciliation = {
 type Args = {
   audit: VisualOpeningAudit | null | undefined;
   openings: readonly Opening[] | null | undefined;
-  externalDoorCount: number | null | undefined;
   garageDoorSize: string | null | undefined;
 };
-
-const EXTERNAL_DOOR_TYPES = new Set(["external_door", "pa_door"]);
 
 function fmtCount(n: number | null | undefined): string {
   return n == null ? "—" : String(n);
@@ -81,9 +76,6 @@ export function reconcileVisualOpenings(args: Args): VisualOpeningReconciliation
   const visualOpenings = audit.openings;
   const visualQsGlazedOpenings = audit.summary.qsGlazedOpenings;
   const composedGlazedOpenings = (args.openings ?? []).filter((o) => o.glazed).length;
-  const visualExternalDoorItems = visualOpenings.filter((o) => EXTERNAL_DOOR_TYPES.has(o.type));
-  const visualExternalDoors = visualExternalDoorItems.length;
-  const composedExternalDoors = args.externalDoorCount ?? null;
   const visualGarageItems = visualOpenings.filter((o) => o.type === "garage_door");
 
   const issues: VisualOpeningReconciliationIssue[] = [];
@@ -100,17 +92,6 @@ export function reconcileVisualOpenings(args: Args): VisualOpeningReconciliation
         openingIds: visualOpenings.filter((o) => o.type !== "garage_door").map((o) => o.id),
       });
     }
-  }
-
-  if (visualExternalDoors > 0 && (composedExternalDoors ?? 0) !== visualExternalDoors) {
-    issues.push({
-      severity: "error",
-      field: "external_door_count",
-      message: `Visual QS found ${visualExternalDoors} external hinged/PA door opening${visualExternalDoors === 1 ? "" : "s"}, but the takeoff external-door count is ${fmtCount(composedExternalDoors)}.`,
-      visual: fmtCount(visualExternalDoors),
-      composed: fmtCount(composedExternalDoors),
-      openingIds: visualExternalDoorItems.map((o) => o.id),
-    });
   }
 
   const visualGarage = visualGarageItems[0] ?? null;
@@ -159,8 +140,6 @@ export function reconcileVisualOpenings(args: Args): VisualOpeningReconciliation
     summary: {
       visualQsGlazedOpenings,
       composedGlazedOpenings,
-      visualExternalDoors,
-      composedExternalDoors,
       visualGarageDoors: visualGarageItems.length,
       composedGarageDoorSize: args.garageDoorSize ?? null,
     },

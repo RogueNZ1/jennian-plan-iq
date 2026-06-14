@@ -403,11 +403,6 @@ function VerificationPrintout() {
               <table className="vtable">
                 <tbody>
                   <tr>
-                    <td className="vlabel">External doors</td>
-                    <td className="vvalue">{m.doors.externalCount}</td>
-                    <td className="vsrc" />
-                  </tr>
-                  <tr>
                     <td className="vlabel">Garage door size</td>
                     <td className="vvalue">{m.doors.garageDoorSize}</td>
                     <td className="vsrc" />

@@ -468,7 +468,6 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   const visualOpeningReconciliation = reconcileVisualOpenings({
     audit: visualOpeningAudit,
     openings: composedOpenings,
-    externalDoorCount: t.external_door_count,
     garageDoorSize: composedGarageDoorSize,
   });
   const reconFlag = (field: string): string | null =>
@@ -536,12 +535,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       reconConf(reconStatusOf("window_count")),
       flagsFor(reconFlag("window_count")),
     ),
-    external_door_count: fv(
-      t.external_door_count,
-      "vision",
-      null,
-      visualReconciliationFlags(visualOpeningReconciliation, "external_door_count"),
-    ),
+    external_door_count: fv(t.external_door_count, "vision"),
     internal_door_count: fv(t.internal_door_count, "vision"),
     bathroom_count: fv(t.bathroom_count, "vision"),
     ensuite_count: fv(t.ensuite_count, "vision"),

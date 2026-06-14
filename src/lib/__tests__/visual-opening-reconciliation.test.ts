@@ -61,7 +61,6 @@ describe("visual-opening-reconciliation", () => {
     const report = reconcileVisualOpenings({
       audit: audit([vo("O1", "window", 1, 1), vo("O2", "garage_door", 2.1, 2.7)]),
       openings: [opening("window"), opening("sectional_door", false)],
-      externalDoorCount: 0,
       garageDoorSize: "2.7×2.1",
     });
 
@@ -69,7 +68,7 @@ describe("visual-opening-reconciliation", () => {
     expect(report?.issues).toEqual([]);
   });
 
-  it("flags visual QS count, external-door and garage-door disagreements", () => {
+  it("flags visual QS opening-count and garage-door disagreements", () => {
     const report = reconcileVisualOpenings({
       audit: audit([
         vo("O1", "window", 1, 1),
@@ -78,18 +77,13 @@ describe("visual-opening-reconciliation", () => {
         vo("O4", "garage_door", 2.52, 2.8),
       ]),
       openings: [opening("window"), opening("sectional_door", false)],
-      externalDoorCount: 0,
       garageDoorSize: "2.7×2.1",
     });
 
     expect(report?.status).toBe("review");
-    expect(report?.issues.map((i) => i.field)).toEqual([
-      "windows_by_room",
-      "external_door_count",
-      "garage_door_size",
-    ]);
-    expect(visualReconciliationFlags(report, "external_door_count").join(" ")).toContain(
-      "Visual QS found 2 external",
+    expect(report?.issues.map((i) => i.field)).toEqual(["windows_by_room", "garage_door_size"]);
+    expect(visualReconciliationFlags(report, "windows_by_room").join(" ")).toContain(
+      "Visual QS found 3 QS-glazed",
     );
   });
 });
