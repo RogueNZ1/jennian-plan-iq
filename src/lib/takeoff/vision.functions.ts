@@ -32,6 +32,7 @@ import type {
   VisionConfidence,
   VisionTakeoffError,
 } from "./vision-types";
+import { classifyVisionWindowOpening } from "./vision-openings";
 
 // ---- Zod schema mirroring VisionPageResult — used for runtime validation ----
 // This is intentionally separate from the JSON schema in VISION_TOOL so that
@@ -152,6 +153,7 @@ Strict rules:
     Porch Area, Garage Area, External Perimeter, Internal Wall Length.
 - For INTERNAL WALLS: do NOT attempt to sum total internal wall length yourself — vision models cannot reliably total many short segments. Instead, identify EACH individual internal wall segment visible on the floor plan and list its length in metres in the "internal_wall_segments_m" arrays (in both base_geometry and wall_lengths). The server will sum them. If you cannot identify individual segments, return an empty array and set internal_wall_length_m to null.
 - NZ WINDOW ANNOTATIONS: Window size labels on NZ residential plans are always HEIGHT × WIDTH in millimetres (e.g. "2150x600" = height 2150mm, width 600mm). The first number is always height; the second is always width. Read annotation text directly — do not measure pixel dimensions for window sizes.
+- QS OPENING RULE: Everything on an external wall is treated as glazing EXCEPT the garage door. Do not put the garage/sectional/roller door in the windows array. Put it in doors with type "garage". A normal small garage-room window remains a window.
 - Return structured JSON only via the tool call. No prose.`;
 
 const VISION_TOOL = {
@@ -1417,17 +1419,18 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
           };
 
           for (const w of parsed.windows ?? []) {
-            if (w.width_mm == null) continue;
+            const classified = classifyVisionWindowOpening(w);
+            if (!classified) continue;
             await upsertOpening({
-              opening_type: normalizeOpeningType(null, "window"),
-              width_mm: w.width_mm,
-              height_mm: w.height_mm,
+              opening_type: classified.openingType,
+              width_mm: classified.widthMm,
+              height_mm: classified.heightMm,
               room: w.room,
-              confidence: confToDbConfidence(w.confidence),
+              confidence: classified.confidence,
               source_evidence: `${evidenceTag} — ${w.source_evidence || w.label}`,
-              notes: w.label || null,
-              counterKey: "windowItemsFound",
-              logLabel: `Window ${w.width_mm}×${w.height_mm ?? "?"}`,
+              notes: classified.notes,
+              counterKey: classified.counterKey,
+              logLabel: classified.logLabel,
             });
           }
           const usefulRowsAfterWindows =
