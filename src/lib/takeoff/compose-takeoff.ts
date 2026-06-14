@@ -163,6 +163,10 @@ function selectFloorArea(
   }
 
   const floorMismatchNote = notes.find((n) => /^floor_area_m2:/i.test(n));
+  const mismatchGeometryValue = floorMismatchNote?.match(/\bgeometry=([0-9]+(?:\.[0-9]+)?)/i);
+  const rejectedGeometryCandidate = mismatchGeometryValue
+    ? Number(mismatchGeometryValue[1])
+    : geoValue;
   const floorLooksLikePerimeter =
     near(geoValue, geoResult?.measurements?.perimeter_m) ||
     near(geoResult?.ocr_raw?.living_area_m2, geoResult?.measurements?.perimeter_m);
@@ -192,7 +196,7 @@ function selectFloorArea(
       confidence: "mid",
       flags: [
         ...(pageFlag ? [pageFlag] : []),
-        `Floor area: rejected geometry candidate ${geoValue}; ${reasons.join("; ")}. Using vision/title-block candidate ${visionValue}.`,
+        `Floor area: rejected geometry candidate ${rejectedGeometryCandidate}; ${reasons.join("; ")}. Using vision/title-block candidate ${visionValue}.`,
       ],
     };
   }

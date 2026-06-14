@@ -169,8 +169,8 @@ describe("Convergence — composeTakeoff baseline (cached vision, frozen, offlin
     expect(result.floor_area_m2.source).toBe("vision");
     expect(result.floor_area_m2.confidence).toBe("mid");
     expect(result.floor_area_m2.discrepancy_flags.join(" ")).toContain(
-      "rejected geometry candidate 60.4",
+      "rejected geometry candidate 175.37",
     );
-    expect(result.notes).toContain("rejected geometry candidate 60.4");
+    expect(result.notes).toContain("rejected geometry candidate 175.37");
   });
 });

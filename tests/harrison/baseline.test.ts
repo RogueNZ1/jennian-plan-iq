@@ -442,7 +442,7 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     expect(cmp.floor_area_m2.value).toBeGreaterThan(160);
     expect(cmp.floor_area_m2.source).toBe("vision");
     expect(cmp.floor_area_m2.discrepancy_flags.join(" ")).toContain(
-      "rejected geometry candidate 60.4",
+      "rejected geometry candidate 175.37",
     );
     expect(cmp.external_wall_lm.source).toBe("geometry");
     // Window count is the vector-preferred floor-plan W-code count.

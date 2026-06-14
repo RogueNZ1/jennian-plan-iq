@@ -32,7 +32,7 @@
  *     is missing, the field is "uncheckable" and never flagged → today's behaviour.
  */
 import type { VectorAnnotations } from "./geometry-api";
-import { parseDimsMm } from "./classify";
+import { classifyGarageDoorAnnotation, parseDimsMm } from "./classify";
 
 /**
  * The PROPORTIONAL material-disagreement threshold: two values for the same field
@@ -69,6 +69,9 @@ export interface ReconciliationReport {
   /** The flags joined for appending to takeoff.notes; "" when nothing disagreed. */
   note: string;
 }
+
+const GARAGE_HEIGHT_MIN_MM = 2000;
+const GARAGE_HEIGHT_MAX_MM = 2400;
 
 /** Relative difference of two numbers; 0 when both are 0. */
 function relativeDifference(a: number, b: number): number {
@@ -123,6 +126,38 @@ export function garageWidthMm(garageSize: string | null | undefined): number | n
   return Math.max(...dims);
 }
 
+function isLikelyGarageDoorHeight(value: number | null | undefined): boolean {
+  return value != null && value >= GARAGE_HEIGHT_MIN_MM && value <= GARAGE_HEIGHT_MAX_MM;
+}
+
+function reconcileGarageDoorWidth(
+  visionGarageSize: string | null | undefined,
+  vectorGarage: VectorAnnotations["garage"],
+): FieldReconciliation {
+  const visionWidth = garageWidthMm(visionGarageSize);
+  const vectorWidth = vectorGarage?.width_mm ?? null;
+  const visionIsPlausibleGarage = !!classifyGarageDoorAnnotation(visionGarageSize ?? "");
+
+  if (
+    visionIsPlausibleGarage &&
+    visionWidth != null &&
+    vectorWidth != null &&
+    isLikelyGarageDoorHeight(vectorWidth) &&
+    vectorWidth < visionWidth
+  ) {
+    return {
+      field: "garage_door_width",
+      visionValue: visionWidth,
+      vectorValue: vectorWidth,
+      relDiff: null,
+      status: "uncheckable",
+      flag: null,
+    };
+  }
+
+  return reconcileScalar("garage_door_width", visionWidth, vectorWidth, "mm");
+}
+
 /** The deterministic vector window count: a schedule's W-codes win, else the openings'. */
 function vectorWindowCount(vector: VectorAnnotations): number | null {
   const sched = vector.schedule?.window_count;
@@ -160,14 +195,7 @@ export function reconcileVectorVision(
   const fields: FieldReconciliation[] = [];
 
   if (vector?.vector_usable) {
-    fields.push(
-      reconcileScalar(
-        "garage_door_width",
-        garageWidthMm(visionGarageSize),
-        vector.garage?.width_mm ?? null,
-        "mm",
-      ),
-    );
+    fields.push(reconcileGarageDoorWidth(visionGarageSize, vector.garage ?? null));
     fields.push(
       reconcileScalar(
         "window_count",

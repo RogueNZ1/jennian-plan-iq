@@ -64,6 +64,13 @@ function sizeCloseUnordered(
   return direct || swapped;
 }
 
+function plausibleGarageDoorSize(size: { a: number; b: number } | null): boolean {
+  if (!size) return false;
+  const height = Math.min(size.a, size.b);
+  const width = Math.max(size.a, size.b);
+  return height >= 2.0 && height <= 2.4 && width >= 2.4 && width <= 5.4;
+}
+
 function fmtSize(size: { a: number; b: number } | null): string {
   if (!size) return "—";
   return `${Math.round(size.a * 1000)}×${Math.round(size.b * 1000)}`;
@@ -97,6 +104,7 @@ export function reconcileVisualOpenings(args: Args): VisualOpeningReconciliation
   const visualGarage = visualGarageItems[0] ?? null;
   const visualGarageSize = visualGarage ? visualSizeM(visualGarage) : null;
   const composedGarageSize = parseSizeM(args.garageDoorSize);
+  const visualGaragePlausible = plausibleGarageDoorSize(visualGarageSize);
   if (visualGarage && !composedGarageSize) {
     issues.push({
       severity: "error",
@@ -107,11 +115,16 @@ export function reconcileVisualOpenings(args: Args): VisualOpeningReconciliation
       composed: args.garageDoorSize ?? "—",
       openingIds: [visualGarage.id],
     });
-  } else if (
-    visualGarageSize &&
-    composedGarageSize &&
-    !sizeCloseUnordered(visualGarageSize, composedGarageSize)
-  ) {
+  } else if (visualGarageSize && composedGarageSize && !visualGaragePlausible) {
+    issues.push({
+      severity: "warning",
+      field: "garage_door_size",
+      message: `Visual QS garage door read ${fmtSize(visualGarageSize)} is outside the garage-door plausibility band; keeping composed garage door size ${fmtSize(composedGarageSize)}.`,
+      visual: fmtSize(visualGarageSize),
+      composed: fmtSize(composedGarageSize),
+      openingIds: [visualGarage.id],
+    });
+  } else if (visualGarageSize && composedGarageSize && !sizeCloseUnordered(visualGarageSize, composedGarageSize)) {
     issues.push({
       severity: "error",
       field: "garage_door_size",

@@ -82,6 +82,12 @@ describe("visual-opening-reconciliation", () => {
 
     expect(report?.status).toBe("review");
     expect(report?.issues.map((i) => i.field)).toEqual(["windows_by_room", "garage_door_size"]);
+    expect(report?.issues.find((i) => i.field === "garage_door_size")).toMatchObject({
+      severity: "warning",
+    });
+    expect(visualReconciliationFlags(report, "garage_door_size").join(" ")).toContain(
+      "outside the garage-door plausibility band",
+    );
     expect(visualReconciliationFlags(report, "windows_by_room").join(" ")).toContain(
       "Visual QS found 3 QS-glazed",
     );

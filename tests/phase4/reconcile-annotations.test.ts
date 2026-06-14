@@ -131,6 +131,18 @@ describe("reconcileVectorVision", () => {
     expect(r.fields.find((f) => f.field === "window_count")!.status).toBe("agree");
   });
 
+  it("does not call a 2100-ish vector read a width conflict when vision has a plausible garage size", () => {
+    const v = usableVector({
+      garage: garage(2110, 2100),
+      openings: { window_count: 17, widths_raw: ["2,110"], datum_mm: 2100, page: 1 },
+    });
+    const r = reconcileVectorVision("2.7Ã—2.1", 17, v);
+    const gd = r.fields.find((f) => f.field === "garage_door_width")!;
+    expect(gd.status).toBe("uncheckable");
+    expect(gd.flag).toBeNull();
+    expect(r.note).not.toContain("garage_door_width");
+  });
+
   it("flags a materially divergent window count", () => {
     const v = usableVector({
       garage: garage(4800),
