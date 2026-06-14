@@ -347,6 +347,7 @@ const VISION_TOOL = {
 };
 
 const PAGE_CAP = 6;
+const AUDIT_FLUSH_TIMEOUT_MS = 1500;
 const MIN_RESOLUTION_PX = 4000;
 
 // Minimal module definitions kept in sync with IQ_MODULES in src/lib/iq-modules.ts.
@@ -525,6 +526,8 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
       const audit = (e: AuditEntry) => auditQueue.push(e);
       const flushAudit = async () => {
         if (auditQueue.length === 0) return;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), AUDIT_FLUSH_TIMEOUT_MS);
         try {
           await supabase.from("module_audit_logs").insert(
             auditQueue.map((a) => ({
@@ -538,9 +541,11 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
               new_value: a.new_value ?? null,
               notes: a.notes ?? null,
             })),
-          );
+          ).abortSignal(controller.signal);
         } catch {
           /* never let audit failure mask the takeoff result */
+        } finally {
+          clearTimeout(timer);
         }
         auditQueue.length = 0;
       };
@@ -923,11 +928,32 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
           else if (cs === "medium") summary.confidenceCounts.medium++;
           else summary.confidenceCounts.low++;
 
-          const isFloorplan = FLOORPLAN_VISION_TYPES.has(parsed.page_type);
+          const clientPageType = (p.clientPageType ?? "").toLowerCase();
+          const flattenedFallbackPage =
+            !clientPageType ||
+            clientPageType.includes("unknown") ||
+            clientPageType.includes("fallback") ||
+            clientPageType.includes("floor");
+          const hasFloorplanOnlyEvidence =
+            (parsed.rooms?.length ?? 0) > 0 ||
+            (parsed.base_geometry.internal_wall_segments_m?.length ?? 0) > 0 ||
+            parsed.base_geometry.external_perimeter_m != null ||
+            parsed.area_box.area_over_frame_m2 != null ||
+            (parsed.doors ?? []).some((d) => d.type === "internal" || d.type === "robe");
+
+          const isFloorplan =
+            FLOORPLAN_VISION_TYPES.has(parsed.page_type) ||
+            (flattenedFallbackPage && hasFloorplanOnlyEvidence);
 
           // workingPlanReviewed only if working file's page was floorplan-classified.
           if (workingPlanFileId && p.fileId === workingPlanFileId && isFloorplan) {
             summary.workingPlanReviewed = true;
+          }
+          if (!FLOORPLAN_VISION_TYPES.has(parsed.page_type) && isFloorplan) {
+            const note =
+              `Vision returned page_type "${parsed.page_type}" but flattened floorplan evidence was found; geometry writes allowed.`;
+            pageOutcome.warnings.push(note);
+            summary.warnings.push(`${p.fileName} p${p.pageNumber}: ${note}`);
           }
 
           const evidenceTag = `Rendered plan page ${p.pageNumber} (${p.fileName})`;
@@ -1588,7 +1614,6 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
         action: summary.errorCount > 0 ? "vision_takeoff_failed" : "vision_takeoff_completed",
         notes: `Processed ${summary.pagesProcessed}/${summary.pagesRendered}. Quantities ${summary.visionQuantitiesCreated}, openings ${summary.visionOpeningsCreated}, measurements ${summary.visionMeasurementsCreated}, module drafts ${summary.visionModuleItemsCreated}.`,
       });
-      await flushAudit();
 
       // Persist a takeoff_runs row tagged as Vision Takeoff so the UI can pick it up.
       await supabase.from("takeoff_runs").insert({
@@ -1599,6 +1624,7 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
         completed_at: new Date().toISOString(),
         error_message: summary.errors.length > 0 ? summary.errors.slice(0, 5).join(" | ") : null,
       });
+      await flushAudit();
 
       return summary;
     } catch (topErr: unknown) {
