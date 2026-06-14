@@ -1,0 +1,30 @@
+2026-06-14 12:00:45  INFO      === Jennian 007 run started ===
+2026-06-14 12:00:45  INFO      Step 1/2 — Scraping all sources
+2026-06-14 12:00:45  ERROR     Scraper failed — continuing to brief generation
+Traceback (most recent call last):
+  File "/home/runner/work/jennian-plan-iq/jennian-plan-iq/jennian-007-scraper/run_brief.py", line 44, in main
+    from scraper import run_all_scrapers
+  File "/home/runner/work/jennian-plan-iq/jennian-plan-iq/jennian-007-scraper/scraper.py", line 18, in <module>
+    supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_KEY"))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/supabase/_sync/client.py", line 299, in create_client
+    return SyncClient(
+           ^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/supabase/_sync/client.py", line 63, in __init__
+    raise SupabaseException("Invalid API key")
+supabase._sync.client.SupabaseException: Invalid API key
+2026-06-14 12:00:45  INFO      Step 2/2 — Generating and sending brief
+2026-06-14 12:00:45  ERROR     Brief generation failed
+Traceback (most recent call last):
+  File "/home/runner/work/jennian-plan-iq/jennian-plan-iq/jennian-007-scraper/run_brief.py", line 53, in main
+    from generate_brief import get_todays_data, generate_brief, save_brief, send_email
+  File "/home/runner/work/jennian-plan-iq/jennian-plan-iq/jennian-007-scraper/generate_brief.py", line 10, in <module>
+    supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_KEY"))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/supabase/_sync/client.py", line 299, in create_client
+    return SyncClient(
+           ^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/supabase/_sync/client.py", line 63, in __init__
+    raise SupabaseException("Invalid API key")
+supabase._sync.client.SupabaseException: Invalid API key
+2026-06-14 12:00:45  INFO      === Done in 0.4s ===
