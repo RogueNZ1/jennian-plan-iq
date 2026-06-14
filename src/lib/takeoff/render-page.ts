@@ -40,7 +40,8 @@ const CACHE_MIN_FLOORPLAN_PX = 4000;
 
 const ELEVATION_SCALE = 2.5;
 const UNKNOWN_SCALE = 3.8; // flattened / unclassified could be a detailed plan
-const CACHE_MAX_UNKNOWN_PX = 5400; // keep Anthropic fallback images below the 10 MB limit
+const UNKNOWN_MAX_PX = 5000; // keep Anthropic fallback images below the 10 MB limit
+const CACHE_MAX_UNKNOWN_PX = UNKNOWN_MAX_PX;
 const DEFAULT_SCALE = 3.0;
 /** Reuse a cached non-floorplan render only if it is this wide or better. */
 const CACHE_MIN_DEFAULT_PX = 2000;
@@ -85,7 +86,7 @@ export function computeRenderScale(
     return Math.min(FLOORPLAN_SCALE, capScale);
   }
   if (isElevationType(pageType)) return ELEVATION_SCALE;
-  if (isUnknownType(pageType)) return Math.min(UNKNOWN_SCALE, FLOORPLAN_MAX_PX / baseWidthPx);
+  if (isUnknownType(pageType)) return Math.min(UNKNOWN_SCALE, UNKNOWN_MAX_PX / baseWidthPx);
   return DEFAULT_SCALE;
 }
 
