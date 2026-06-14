@@ -348,6 +348,7 @@ const VISION_TOOL = {
 
 const PAGE_CAP = 6;
 const AUDIT_FLUSH_TIMEOUT_MS = 1500;
+const VISION_SOFT_RETURN_AFTER_OPENINGS_MS = 65_000;
 const MIN_RESOLUTION_PX = 4000;
 
 // Minimal module definitions kept in sync with IQ_MODULES in src/lib/iq-modules.ts.
@@ -673,6 +674,7 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
     }
 
     try {
+      const startedAtMs = Date.now();
       const summary: VisionRunSummary = {
         kind: "vision_takeoff",
         ranAt: new Date().toISOString(),
@@ -715,7 +717,11 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
             summary: toJson({ kind: "vision_takeoff", vision: summary }),
             completed_at: status === "running" ? null : new Date().toISOString(),
             error_message:
-              summary.errors.length > 0 ? summary.errors.slice(0, 5).join(" | ") : null,
+              summary.errors.length > 0
+                ? summary.errors.slice(0, 5).join(" | ")
+                : status === "completed_with_warnings" && summary.warnings.length > 0
+                  ? summary.warnings.slice(0, 3).join(" | ")
+                  : null,
           })
           .eq("id", takeoffRunId);
       };
@@ -1445,6 +1451,35 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
             });
           }
           await persistRunSummary("running");
+          if (
+            Date.now() - startedAtMs > VISION_SOFT_RETURN_AFTER_OPENINGS_MS &&
+            pageOutcome.openingsInserted + pageOutcome.openingsRefreshed > 0
+          ) {
+            summary.pagesProcessed++;
+            summary.processedPages++;
+            summary.reviewRequiredItems += pageOutcome.reviewRequiredCount;
+            const softTimeoutWarning =
+              "Vision returned early after saving quantities and openings to avoid a request timeout. Measurements and module drafts were not completed.";
+            if (!summary.warnings.includes(softTimeoutWarning)) {
+              summary.warnings.push(softTimeoutWarning);
+            }
+            for (const w of parsed.warnings ?? []) {
+              summary.warnings.push(`${p.fileName} p${p.pageNumber}: ${w}`);
+            }
+            summary.pages.push(pageOutcome);
+            summary.warningCount = summary.warnings.length;
+            summary.errorCount = summary.errors.length;
+            summary.pagesSkipped = summary.pagesRendered - summary.pagesSentToVision;
+            audit({
+              job_id: data.jobId,
+              user_id: userId,
+              action: "vision_takeoff_completed_with_warnings",
+              notes: `Returned early after openings. Quantities ${summary.visionQuantitiesCreated}, openings ${summary.visionOpeningsCreated}.`,
+            });
+            await persistRunSummary("completed_with_warnings");
+            await flushAudit();
+            return summary;
+          }
 
           // ----- plan_measurements (deduped) -----
           if (isFloorplan) {
