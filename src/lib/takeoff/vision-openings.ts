@@ -1,5 +1,5 @@
 import { classifyGarageDoorAnnotation } from "./classify";
-import type { VisionConfidence, VisionWindow } from "./vision-types";
+import type { VisionConfidence, VisionDoor, VisionWindow } from "./vision-types";
 
 type DbConfidence = "high" | "mid" | "low";
 
@@ -11,6 +11,11 @@ export type VisionOpeningClassification = {
   notes: string | null;
   counterKey: "windowItemsFound" | "doorItemsFound";
   logLabel: string;
+};
+
+export type VisionDoorOpeningClassification = VisionOpeningClassification & {
+  room: string | null;
+  sourceEvidence: string;
 };
 
 function confToDbConfidence(c: VisionConfidence | null | undefined): DbConfidence {
@@ -78,4 +83,43 @@ export function classifyVisionWindowOpening(w: VisionWindow): VisionOpeningClass
     counterKey: "windowItemsFound",
     logLabel: `Window ${w.width_mm}x${w.height_mm ?? "?"}`,
   };
+}
+
+export function classifyVisionDoorOpening(d: VisionDoor): VisionDoorOpeningClassification | null {
+  if (d.width_mm == null) return null;
+
+  if (d.type === "garage") {
+    const dimensionText =
+      d.height_mm != null ? `${d.height_mm} x ${d.width_mm}` : String(d.width_mm);
+    const garageDoor = classifyGarageDoorAnnotation(dimensionText);
+    const widthMm = garageDoor?.widthMm ?? d.width_mm;
+    const heightMm = garageDoor?.heightMm ?? d.height_mm;
+    return {
+      openingType: "garage_door",
+      widthMm,
+      heightMm,
+      room: d.room ?? "Garage",
+      confidence: confToDbConfidence(d.confidence),
+      sourceEvidence: d.source_evidence || "garage door",
+      notes: "garage door",
+      counterKey: "doorItemsFound",
+      logLabel: `Garage door ${widthMm}x${heightMm ?? "?"}`,
+    };
+  }
+
+  if (d.type === "external" || d.type === "sliding") {
+    return {
+      openingType: "window",
+      widthMm: d.width_mm,
+      heightMm: d.height_mm,
+      room: d.room,
+      confidence: confToDbConfidence(d.confidence),
+      sourceEvidence: d.source_evidence || `${d.type} door`,
+      notes: `${d.type} door treated as glazing`,
+      counterKey: "windowItemsFound",
+      logLabel: `External glazing ${d.width_mm}x${d.height_mm ?? "?"}`,
+    };
+  }
+
+  return null;
 }

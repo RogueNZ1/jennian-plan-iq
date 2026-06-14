@@ -32,7 +32,8 @@ import type {
   VisionConfidence,
   VisionTakeoffError,
 } from "./vision-types";
-import { classifyVisionWindowOpening } from "./vision-openings";
+import { classifyVisionDoorOpening, classifyVisionWindowOpening } from "./vision-openings";
+import { mergeVisionSummaryCounts, VISION_RECOVERED_ROWS_WARNING } from "./vision-summary";
 
 // ---- Zod schema mirroring VisionPageResult — used for runtime validation ----
 // This is intentionally separate from the JSON schema in VISION_TOOL so that
@@ -388,19 +389,6 @@ function buf2b64(buf: ArrayBuffer): string {
   return Buffer.from(buf).toString("base64");
 }
 
-/** Map free-text/model door types to fixed opening_schedule vocabulary. */
-function normalizeOpeningType(raw: string | null | undefined, kind: "window" | "door"): string {
-  const t = (raw ?? "").trim().toLowerCase();
-  if (kind === "window") return "window";
-  if (t === "internal" || t === "internal door") return "internal_door";
-  if (t === "external" || t === "external door") return "external_door";
-  if (t === "sliding" || t === "slider" || t === "sliding door") return "sliding_door";
-  if (t === "garage" || t === "garage door") return "garage_door";
-  if (t === "robe" || t === "robe opening") return "robe_opening";
-  if (t === "bifold" || t === "bi-fold") return "bifold";
-  return "unknown_opening";
-}
-
 const InputSchema = z.object({
   jobId: z.string().uuid(),
   pages: z
@@ -430,48 +418,6 @@ const ReconcileInputSchema = z.object({
   jobId: z.string().uuid(),
   accessToken: z.string().min(1),
 });
-
-function mergeVisionSummaryCounts(
-  summary: VisionRunSummary,
-  counts: {
-    pages: number;
-    quantities: number;
-    openings: number;
-    windows: number;
-    measurements: number;
-    moduleItems: number;
-  },
-): VisionRunSummary {
-  const rowCount = counts.quantities + counts.openings + counts.measurements + counts.moduleItems;
-  const warnings = [...(summary.warnings ?? [])];
-  const timeoutWarning =
-    "Vision request timed out after saving partial results. Review extracted rows before pricing.";
-  if (rowCount > 0 && !warnings.includes(timeoutWarning)) warnings.push(timeoutWarning);
-  const doorCount = Math.max(0, counts.openings - counts.windows);
-  return {
-    ...summary,
-    pagesRendered: Math.max(summary.pagesRendered, counts.pages),
-    pagesSentToVision: Math.max(summary.pagesSentToVision, counts.pages > 0 ? 1 : 0),
-    pagesProcessed: Math.max(summary.pagesProcessed, rowCount > 0 ? 1 : 0),
-    processedPages: Math.max(summary.processedPages, rowCount > 0 ? 1 : 0),
-    workingPlanReviewed: summary.workingPlanReviewed || rowCount > 0,
-    areaPerimeterValuesFound: Math.max(summary.areaPerimeterValuesFound, counts.quantities),
-    windowItemsFound: Math.max(summary.windowItemsFound, counts.windows),
-    doorItemsFound: Math.max(summary.doorItemsFound, doorCount),
-    wallLengthsFound: Math.max(summary.wallLengthsFound, counts.measurements),
-    moduleDraftItemsCreated: Math.max(summary.moduleDraftItemsCreated, counts.moduleItems),
-    visionQuantitiesCreated: Math.max(summary.visionQuantitiesCreated, counts.quantities),
-    visionMeasurementsCreated: Math.max(summary.visionMeasurementsCreated, counts.measurements),
-    visionOpeningsCreated: Math.max(summary.visionOpeningsCreated, counts.openings),
-    visionModuleItemsCreated: Math.max(summary.visionModuleItemsCreated, counts.moduleItems),
-    reviewRequiredItems: Math.max(
-      summary.reviewRequiredItems,
-      counts.quantities + counts.openings + counts.measurements + counts.moduleItems,
-    ),
-    warnings,
-    warningCount: warnings.length,
-  };
-}
 
 type AuditEntry = {
   job_id: string;
@@ -584,14 +530,19 @@ export const reconcileVisionTakeoffRun = createServerFn({ method: "POST" })
         .eq("data_source", "Vision Takeoff"),
     ]);
 
-    const merged = mergeVisionSummaryCounts(vision, {
-      pages: pages.count ?? 0,
-      quantities: quantities.count ?? 0,
-      openings: openings.count ?? 0,
-      windows: windows.count ?? 0,
-      measurements: measurements.count ?? 0,
-      moduleItems: moduleItems.count ?? 0,
-    });
+    const recoveredFromInterruptedRun = current.status === "running";
+    const merged = mergeVisionSummaryCounts(
+      vision,
+      {
+        pages: pages.count ?? 0,
+        quantities: quantities.count ?? 0,
+        openings: openings.count ?? 0,
+        windows: windows.count ?? 0,
+        measurements: measurements.count ?? 0,
+        moduleItems: moduleItems.count ?? 0,
+      },
+      { recoveredFromInterruptedRun },
+    );
     const rowCount =
       merged.areaPerimeterValuesFound +
       merged.windowItemsFound +
@@ -612,9 +563,11 @@ export const reconcileVisionTakeoffRun = createServerFn({ method: "POST" })
         summary: toJson({ kind: "vision_takeoff", vision: merged }),
         completed_at: status === "running" ? null : new Date().toISOString(),
         error_message:
-          status === "completed_with_warnings"
-            ? "Vision request timed out after saving partial results."
-            : null,
+          status === "completed_with_warnings" && merged.errors.length > 0
+            ? merged.errors.slice(0, 5).join(" | ")
+            : status === "completed_with_warnings" && recoveredFromInterruptedRun
+              ? VISION_RECOVERED_ROWS_WARNING
+              : null,
       })
       .eq("id", current.id);
 
@@ -1433,18 +1386,19 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
               logLabel: classified.logLabel,
             });
           }
-          for (const d2 of (parsed.doors ?? []).filter((door) => door.type === "garage")) {
-            if (d2.width_mm == null) continue;
+          for (const d2 of parsed.doors ?? []) {
+            const classified = classifyVisionDoorOpening(d2);
+            if (!classified) continue;
             await upsertOpening({
-              opening_type: "garage_door",
-              width_mm: d2.width_mm,
-              height_mm: d2.height_mm,
-              room: d2.room ?? "Garage",
-              confidence: confToDbConfidence(d2.confidence),
-              source_evidence: `${evidenceTag} — ${d2.source_evidence || "garage door"}`,
-              notes: "garage door",
-              counterKey: "doorItemsFound",
-              logLabel: `garage_door ${d2.width_mm}x${d2.height_mm ?? "?"}`,
+              opening_type: classified.openingType,
+              width_mm: classified.widthMm,
+              height_mm: classified.heightMm,
+              room: classified.room,
+              confidence: classified.confidence,
+              source_evidence: `${evidenceTag} — ${classified.sourceEvidence}`,
+              notes: classified.notes,
+              counterKey: classified.counterKey,
+              logLabel: classified.logLabel,
             });
           }
           const usefulRowsAfterWindows =
@@ -1478,26 +1432,6 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
             await persistRunSummary("completed_with_warnings");
             await flushAudit();
             return summary;
-          }
-          // external_door rows are written to opening_schedule for review visibility but are
-          // deliberately excluded from the QS windows_by_room export (matchWindowOpening filters
-          // to opening_type === "window" only). This is intentional — QS prices external doors
-          // separately via external_door_count, not through the window schedule cells.
-          for (const d2 of parsed.doors ?? []) {
-            if (d2.width_mm == null) continue;
-            const opening_type = normalizeOpeningType(d2.type, "door");
-            const isUnknown = opening_type === "unknown_opening";
-            await upsertOpening({
-              opening_type,
-              width_mm: d2.width_mm,
-              height_mm: d2.height_mm,
-              room: d2.room,
-              confidence: isUnknown ? "low" : confToDbConfidence(d2.confidence),
-              source_evidence: `${evidenceTag} — ${d2.source_evidence || `${d2.type} door`}`,
-              notes: null,
-              counterKey: "doorItemsFound",
-              logLabel: `${opening_type} ${d2.width_mm}×${d2.height_mm ?? "?"}`,
-            });
           }
           await persistRunSummary("running");
           const usefulRowsSaved =
