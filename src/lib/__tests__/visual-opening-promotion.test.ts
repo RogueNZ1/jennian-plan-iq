@@ -64,4 +64,47 @@ describe("visual-opening-promotion", () => {
     expect(promoted?.openings[0]).toMatchObject({ height_m: 2.5, width_m: 3.95 });
     expect(promoted?.flags.join(" ")).toContain("dimensions swapped");
   });
+
+  it("uses the printed garage label before visual dimensions", () => {
+    const promoted = promoteVisualOpenings(
+      audit([
+        item({
+          id: "O8",
+          type: "garage_door",
+          room: "Garage",
+          label: "2110x2700",
+          height_m: 2.8,
+          width_m: 5.7,
+        }),
+      ]),
+    );
+
+    expect(promoted?.openings[0]).toMatchObject({
+      type: "sectional_door",
+      width_m: 2.7,
+      height_m: 2.11,
+      glazed: false,
+    });
+    expect(promoted?.garageDoorSize).toBe("2.7×2.11");
+  });
+
+  it("rejects elevation/level reads as garage doors", () => {
+    const promoted = promoteVisualOpenings(
+      audit([
+        item({
+          id: "O8",
+          type: "garage_door",
+          room: "Garage",
+          label: "2800x5700",
+          height_m: 2.8,
+          width_m: 5.7,
+        }),
+        item({ id: "O9", type: "window", room: "Garage", height_m: 1.1, width_m: 1.3 }),
+      ]),
+    );
+
+    expect(promoted?.openings.map((o) => o.type)).toEqual(["window"]);
+    expect(promoted?.garageDoorSize).toBeNull();
+    expect(promoted?.flags.join(" ")).toContain("outside the garage-door plausibility band");
+  });
 });

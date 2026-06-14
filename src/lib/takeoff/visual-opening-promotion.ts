@@ -1,5 +1,6 @@
 import type { Opening, OpeningType } from "./takeoff-types";
 import type { VisualOpeningAudit, VisualOpeningAuditItem } from "./visual-opening-audit";
+import { parseDimsMm } from "./classify";
 import { isQsGlazedOpening } from "./derive-fields";
 import { round2 } from "./utils";
 
@@ -11,6 +12,10 @@ export type VisualOpeningPromotion = {
 
 const ASSUMED_DOOR_HEIGHT_M = 2.1;
 const ASSUMED_DOOR_WIDTH_M = 1.0;
+const GARAGE_DOOR_MIN_HEIGHT_M = 2.0;
+const GARAGE_DOOR_MAX_HEIGHT_M = 2.6;
+const GARAGE_DOOR_MIN_WIDTH_M = 2.4;
+const GARAGE_DOOR_MAX_WIDTH_M = 5.4;
 
 function isDoorish(type: VisualOpeningAuditItem["type"]): boolean {
   return type === "external_door" || type === "pa_door";
@@ -39,10 +44,40 @@ function normaliseVisualDims(item: VisualOpeningAuditItem): {
   height_m: number;
   width_m: number;
   flags: string[];
+  promote: boolean;
 } {
   const flags: string[] = [];
   let h = item.height_m;
   let w = item.width_m;
+
+  if (item.type === "garage_door") {
+    const labelDims = item.label ? parseDimsMm(item.label) : [];
+    if (labelDims.length >= 2) {
+      h = Math.min(labelDims[0], labelDims[1]) / 1000;
+      w = Math.max(labelDims[0], labelDims[1]) / 1000;
+    } else if (h != null && w != null && h > 0 && w > 0 && h > w) {
+      [h, w] = [w, h];
+    }
+
+    if (h == null || w == null || h <= 0 || w <= 0) {
+      flags.push(`${item.id}: visual garage door size unreadable; not promoted.`);
+      return { height_m: 0, width_m: 0, flags, promote: false };
+    }
+
+    if (
+      h < GARAGE_DOOR_MIN_HEIGHT_M ||
+      h > GARAGE_DOOR_MAX_HEIGHT_M ||
+      w < GARAGE_DOOR_MIN_WIDTH_M ||
+      w > GARAGE_DOOR_MAX_WIDTH_M
+    ) {
+      flags.push(
+        `${item.id}: visual garage door size ${round2(w)}m x ${round2(h)}m is outside the garage-door plausibility band; ignored so it cannot overwrite the floor-plan callout.`,
+      );
+      return { height_m: 0, width_m: 0, flags, promote: false };
+    }
+
+    return { height_m: round2(h) ?? h, width_m: round2(w) ?? w, flags, promote: true };
+  }
 
   if ((h == null || w == null || h <= 0 || w <= 0) && isDoorish(item.type)) {
     h = ASSUMED_DOOR_HEIGHT_M;
@@ -56,12 +91,7 @@ function normaliseVisualDims(item: VisualOpeningAuditItem): {
     flags.push(
       `${item.id}: visual opening size unreadable; carried with 0m² area until confirmed.`,
     );
-    return { height_m: 0, width_m: 0, flags };
-  }
-
-  // Garage doors are width-governed for QS; use the larger side as width.
-  if (item.type === "garage_door" && h > w) {
-    [h, w] = [w, h];
+    return { height_m: 0, width_m: 0, flags, promote: true };
   }
 
   // Plausibility guard: sliders/windows are not 3m+ high. If one side is a normal
@@ -77,7 +107,7 @@ function normaliseVisualDims(item: VisualOpeningAuditItem): {
     );
   }
 
-  return { height_m: round2(h) ?? h, width_m: round2(w) ?? w, flags };
+  return { height_m: round2(h) ?? h, width_m: round2(w) ?? w, flags, promote: true };
 }
 
 function confidence(item: VisualOpeningAuditItem): Opening["confidence"] {
@@ -102,6 +132,7 @@ export function promoteVisualOpenings(
 
     const dims = normaliseVisualDims(item);
     flags.push(...dims.flags);
+    if (!dims.promote) continue;
     const area_m2 = round2(dims.height_m * dims.width_m) ?? 0;
     const opening: Opening = {
       type,

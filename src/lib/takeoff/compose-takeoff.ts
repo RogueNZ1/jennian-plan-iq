@@ -450,8 +450,17 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     ? folded.openings
     : foldScheduleEntrance(folded.openings, vectorAnnotations?.entrance);
   const visualPromotion = promoteVisualOpenings(visualOpeningAudit);
+  const visualPromotedOpenings = visualPromotion?.openings.length
+    ? visualPromotion.openings
+    : null;
+  const visualHasSectional = visualPromotedOpenings?.some((o) => o.type === "sectional_door");
+  const rawSectionals = rawComposedOpenings.filter((o) => o.type === "sectional_door");
   const composedOpenings = normaliseOpeningsForQs(
-    visualPromotion?.openings.length ? visualPromotion.openings : rawComposedOpenings,
+    visualPromotedOpenings
+      ? visualHasSectional
+        ? visualPromotedOpenings
+        : [...visualPromotedOpenings, ...rawSectionals]
+      : rawComposedOpenings,
   );
   const composedGarageDoorSize = visualPromotion?.garageDoorSize ?? folded.garage_door_size;
   const garageDoorConfirmedFromSectionalCallout =
