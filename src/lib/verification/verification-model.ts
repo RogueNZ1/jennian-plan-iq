@@ -14,6 +14,7 @@
 
 import type { QSExportData } from "@/lib/iq-qs-export";
 import type { EnrichedTakeoff, FieldValue } from "@/lib/takeoff/enriched-takeoff";
+import type { Opening } from "@/lib/takeoff/takeoff-types";
 import type { VisualOpeningAuditSummary } from "@/lib/takeoff/visual-opening-audit";
 import type { VisualOpeningReconciliation } from "@/lib/takeoff/visual-opening-reconciliation";
 import {
@@ -80,6 +81,17 @@ export type RoomWindowRow = {
   width: number;
 };
 
+export type OpeningVerificationRow = {
+  id: string;
+  type: string;
+  room: string;
+  height: number;
+  width: number;
+  area: number;
+  source: string;
+  flags: string[];
+};
+
 export type ScheduleRow = { id: string; height_m: number | null; width_m: number | null };
 
 export type CountRow = { label: string; qty: number };
@@ -104,11 +116,14 @@ export type VerificationModel = {
   geometryOffline: boolean;
   measures: MeasureRow[];
   windows: {
+    openings: OpeningVerificationRow[];
     byRoom: RoomWindowRow[];
     schedule: ScheduleRow[];
     qsRows: CountRow[]; // the joinery rows exactly as exported
     totals: {
       windowCount: number | null;
+      qsGlazedOpeningCount: number | null;
+      garageDoorCount: number | null;
       glazedSqm: number | null;
       totalOpeningSqm: number | null;
     };
@@ -238,6 +253,15 @@ const DOORS_SOURCE_LABELS: Record<string, string> = {
   schedule: "Door & Window Schedule",
 };
 
+const OPENING_TYPE_LABELS: Record<Opening["type"], string> = {
+  window: "Window",
+  slider: "Slider",
+  garage_window: "Garage window",
+  sectional_door: "Garage door",
+  pa_door: "PA / laundry door",
+  entrance: "Entrance door",
+};
+
 /* ------------------------------------------------------------------ builder */
 
 export function buildVerificationModel(
@@ -314,6 +338,19 @@ export function buildVerificationModel(
   ];
 
   /* windows -------------------------------------------------------- */
+  const canonicalOpenings = (data.openings ?? []).filter((o) => o.glazed);
+  const garageDoorOpenings = (data.openings ?? []).filter((o) => o.type === "sectional_door");
+  const openingRows: OpeningVerificationRow[] = canonicalOpenings.map((o, index) => ({
+    id: `O${index + 1}`,
+    type: OPENING_TYPE_LABELS[o.type] ?? o.type,
+    room: fmtStr(o.room),
+    height: o.height_m,
+    width: o.width_m,
+    area: o.area_m2,
+    source: SOURCE_MAP[o.source] ?? o.source.toUpperCase(),
+    flags: o.flags ?? [],
+  }));
+
   const byRoom: RoomWindowRow[] = Object.entries(data.windowsByRoom ?? {})
     .filter(([, v]) => v && v.qty > 0)
     .map(([key, v]) => ({
@@ -493,6 +530,7 @@ export function buildVerificationModel(
     const exportWindowQty = (data.windows ?? []).reduce((s, w) => s + (w.qty || 0), 0);
     if (
       e.window_count.value != null &&
+      !data.openings?.length &&
       exportWindowQty > 0 &&
       e.window_count.value !== exportWindowQty
     ) {
@@ -507,11 +545,20 @@ export function buildVerificationModel(
     geometryOffline,
     measures,
     windows: {
+      openings: openingRows,
       byRoom,
       schedule,
       qsRows,
       totals: {
         windowCount: e?.window_count?.value ?? null,
+        qsGlazedOpeningCount:
+          canonicalOpenings.length > 0
+            ? canonicalOpenings.length
+            : (e?.visual_opening_audit?.summary?.qsGlazedOpenings ?? null),
+        garageDoorCount:
+          garageDoorOpenings.length > 0
+            ? garageDoorOpenings.length
+            : (e?.visual_opening_audit?.summary?.garageDoors ?? null),
         glazedSqm: e?.glazed_sqm ?? null,
         totalOpeningSqm: e?.total_opening_sqm ?? null,
       },

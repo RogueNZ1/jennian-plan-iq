@@ -190,7 +190,9 @@ describe("buildDropInSheet — window slots (rows 33-45, B=Qty C=HEIGHT D=WIDTH)
 
   it("PA/laundry door has no IQ feed — manual block, target row 70", () => {
     const ws = buildDropInSheet(base({ openings: [op("pa_door", "Laundry", 2.0, 0.86)] }));
+    expect(cellVal(ws, "B15")).toBe(1);
     expect(manualBlock(ws)).toMatch(/Laundry\/PA door 2H × 0\.86W.*row 70/);
+    expect(manualBlock(ws)).toMatch(/1 of 1 QS openings require manual\/overflow entry/);
   });
 
   it("every unused slot row is explicitly zeroed (stale paste residue dies)", () => {

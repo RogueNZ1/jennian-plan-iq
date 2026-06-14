@@ -458,6 +458,10 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     !visualPromotion && composedGarageDoorSize !== t.garage_door_size;
   const garageDoorConfirmedFromVisual = !!visualPromotion?.garageDoorSize;
   const composedOpeningTotals = deriveOpeningTotals(composedOpenings);
+  const visualWindowCount =
+    visualPromotion && composedOpeningTotals.window_count != null
+      ? composedOpeningTotals.window_count
+      : null;
   // Re-derive the external wall AREA from the now-richer opening total (perimeter × stud −
   // Σ opening area) whenever the opening set grew — the route-2 symbol fold OR the schedule
   // entry fold above — so external_wall_area_m2 and glazed_sqm move together by the same
@@ -536,10 +540,10 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     ),
     roof_area_m2: fv(t.roof_area_m2, "vision"),
     window_count: fv(
-      t.window_count,
-      windowCountSrc,
-      reconConf(reconStatusOf("window_count")),
-      flagsFor(reconFlag("window_count")),
+      visualWindowCount ?? t.window_count,
+      visualWindowCount != null ? "vision" : windowCountSrc,
+      visualWindowCount != null ? "high" : reconConf(reconStatusOf("window_count")),
+      flagsFor(visualWindowCount != null ? null : reconFlag("window_count")),
     ),
     external_door_count: fv(t.external_door_count, "vision"),
     internal_door_count: fv(t.internal_door_count, "vision"),
@@ -556,16 +560,20 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       t.windows_by_room,
       windowsBySrc,
       null,
-      flagsFor(
-        entranceNote,
-        safeguardNote,
-        reconFlag("entrance_door_width"),
-        ...windowChanges.map((c) => c.change),
-        ...codeMismatch,
-        ...bedNoWindow,
-        ...(visualPromotion?.flags ?? []),
-        ...visualReconciliationFlags(visualOpeningReconciliation, "windows_by_room"),
-      ),
+      visualPromotion
+        ? flagsFor(
+            ...visualPromotion.flags,
+            ...visualReconciliationFlags(visualOpeningReconciliation, "windows_by_room"),
+          )
+        : flagsFor(
+            entranceNote,
+            safeguardNote,
+            reconFlag("entrance_door_width"),
+            ...windowChanges.map((c) => c.change),
+            ...codeMismatch,
+            ...bedNoWindow,
+            ...visualReconciliationFlags(visualOpeningReconciliation, "windows_by_room"),
+          ),
     ),
     windows_schedule: fv(t.windows_schedule ?? null, schedule ? "schedule" : "vision"),
     door_breakdown: fv(t.door_breakdown, "vision"),

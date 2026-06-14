@@ -198,7 +198,82 @@ describe("buildVerificationModel", () => {
       { label: "Awning 1200×1000", qty: 6 },
       { label: "Slider 2400×2000", qty: 2 },
     ]);
-    expect(m.windows.totals).toEqual({ windowCount: 8, glazedSqm: 18.4, totalOpeningSqm: 24.1 });
+    expect(m.windows.totals).toMatchObject({
+      windowCount: 8,
+      qsGlazedOpeningCount: null,
+      garageDoorCount: null,
+      glazedSqm: 18.4,
+      totalOpeningSqm: 24.1,
+    });
+  });
+
+  it("windows: canonical openings print as flat QS opening rows when present", () => {
+    const m = buildVerificationModel(
+      makeData({
+        openings: [
+          {
+            type: "window",
+            room: "Bed 1",
+            height_m: 1,
+            width_m: 0.6,
+            glazed: true,
+            cladding: null,
+            area_m2: 0.6,
+            source: "vision",
+            confidence: "high",
+          },
+          {
+            type: "pa_door",
+            room: "Laundry",
+            height_m: 2.1,
+            width_m: 1,
+            glazed: true,
+            cladding: null,
+            area_m2: 2.1,
+            source: "asserted",
+            flags: ["confirm size"],
+            confidence: "medium",
+          },
+          {
+            type: "sectional_door",
+            room: "Garage",
+            height_m: 2.52,
+            width_m: 2.8,
+            glazed: false,
+            cladding: null,
+            area_m2: 7.06,
+            source: "vision",
+            confidence: "high",
+          },
+        ],
+      }),
+      makeEnriched(),
+      RUN,
+    );
+    expect(m.windows.openings).toEqual([
+      {
+        id: "O1",
+        type: "Window",
+        room: "Bed 1",
+        height: 1,
+        width: 0.6,
+        area: 0.6,
+        source: "VIS",
+        flags: [],
+      },
+      {
+        id: "O2",
+        type: "PA / laundry door",
+        room: "Laundry",
+        height: 2.1,
+        width: 1,
+        area: 2.1,
+        source: "AST",
+        flags: ["confirm size"],
+      },
+    ]);
+    expect(m.windows.totals.qsGlazedOpeningCount).toBe(2);
+    expect(m.windows.totals.garageDoorCount).toBe(1);
   });
 
   it("surfaces ⚑ UNPLACED window flags from the enriched fields", () => {

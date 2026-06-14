@@ -305,8 +305,39 @@ function VerificationPrintout() {
           )}
           <div className="vcols">
             <div>
-              <h3>Per-room (as the QS sheet receives it)</h3>
-              {m.windows.byRoom.length === 0 ? (
+              <h3>
+                {m.windows.openings.length > 0
+                  ? "Canonical QS openings"
+                  : "Per-room (as the QS sheet receives it)"}
+              </h3>
+              {m.windows.openings.length > 0 ? (
+                <table className="vtable">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Type</th>
+                      <th>Room</th>
+                      <th>H (m)</th>
+                      <th>W (m)</th>
+                      <th>Area</th>
+                      <th>Source</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {m.windows.openings.map((r) => (
+                      <tr key={r.id}>
+                        <td className="vlabel">{r.id}</td>
+                        <td>{r.type}</td>
+                        <td>{r.room}</td>
+                        <td className="vvalue">{r.height}</td>
+                        <td className="vvalue">{r.width}</td>
+                        <td className="vvalue">{r.area}</td>
+                        <td>{[r.source, ...r.flags].filter(Boolean).join(" · ")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : m.windows.byRoom.length === 0 ? (
                 <p className="vempty">No per-room window rows.</p>
               ) : (
                 <table className="vtable">
@@ -359,9 +390,17 @@ function VerificationPrintout() {
               )}
               <div className="vtotals">
                 <div>
-                  <span>Window count</span>
-                  {m.windows.totals.windowCount ?? "—"}
+                  <span>
+                    {m.windows.totals.qsGlazedOpeningCount != null ? "QS openings" : "Window count"}
+                  </span>
+                  {m.windows.totals.qsGlazedOpeningCount ?? m.windows.totals.windowCount ?? "—"}
                 </div>
+                {m.windows.totals.garageDoorCount != null && (
+                  <div>
+                    <span>Garage doors</span>
+                    {m.windows.totals.garageDoorCount}
+                  </div>
+                )}
                 <div>
                   <span>Glazed</span>
                   {m.windows.totals.glazedSqm ?? "—"} m²

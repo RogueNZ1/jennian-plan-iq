@@ -1516,14 +1516,29 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
 
   // window count meta (B15) = everything in slots + manual-noted toilet lines stay manual
   const slotWindowTotal = Object.entries(slotGroups)
-    .filter(([k]) => !["entrance", "garageDoor1"].includes(k))
-    .reduce((s, [, gs]) => s + gs.reduce((a, g) => a + g.qty, 0), 0);
+    .filter(([k]) => k !== "garageDoor1")
+    .reduce((s, [, gs]) => s + (gs[0]?.qty ?? 0), 0);
   const unplacedWindowTotal = unplaced.reduce((s, u) => s + u.qty, 0);
-  const trueWindowTotal = slotWindowTotal + unplacedWindowTotal;
+  const trueWindowTotal =
+    data.openings && data.openings.length > 0
+      ? data.openings.filter((o) => o.glazed).length
+      : slotWindowTotal + unplacedWindowTotal;
+  const manualOrOverflowWindowTotal = Math.max(
+    0,
+    trueWindowTotal - slotWindowTotal - unplacedWindowTotal,
+  );
   put("A15", "Windows");
   put("B15", trueWindowTotal);
+  if (unplacedWindowTotal > 0 || manualOrOverflowWindowTotal > 0) {
+    const reviewTotal = unplacedWindowTotal + manualOrOverflowWindowTotal;
+    put("C15", `${slotWindowTotal} in rows 33-45 + ${reviewTotal} manual/overflow below`);
+    if (manualOrOverflowWindowTotal > 0) {
+      manual.unshift(
+        `⚑ ${manualOrOverflowWindowTotal} of ${trueWindowTotal} QS openings require manual/overflow entry — listed below with dims; enter on Data Input House before pricing`,
+      );
+    }
+  }
   if (unplacedWindowTotal > 0) {
-    put("C15", `${slotWindowTotal} in rows 33-45 + ${unplacedWindowTotal} flagged below`);
     manual.unshift(
       `⚑ ${unplacedWindowTotal} of ${trueWindowTotal} windows have NO IQ slot — listed below with dims; enter on Data Input House before pricing`,
     );
