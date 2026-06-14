@@ -61,6 +61,19 @@ describe("geometry_status flag at the compose seam", () => {
     expect((gs?.discrepancy_flags ?? []).join(" ")).toContain("GEOMETRY LAYER UNAVAILABLE");
   });
 
+  it("missing foundation defaults to TC1 instead of raising an unknown/error value", () => {
+    const out = composeTakeoff({
+      visionTakeoff: { ...minimalVision, foundation_type: null },
+      geometry: null,
+      schedule: null,
+      geometryPageIndex: undefined,
+    });
+
+    expect(out.enriched.foundation_type.value).toBe("TC1");
+    expect(out.enriched.foundation_type.source).toBe("asserted");
+    expect(out.enriched.foundation_type.discrepancy_flags).toEqual([]);
+  });
+
   it("geometry-present runs stay byte-identical: field absent", () => {
     const geometry = {
       success: true,

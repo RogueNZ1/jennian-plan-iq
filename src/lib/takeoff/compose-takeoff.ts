@@ -127,6 +127,11 @@ function near(a: number | null | undefined, b: number | null | undefined, tolera
   return a != null && b != null && Math.abs(a - b) <= tolerance;
 }
 
+function foundationOrDefault(v: string | null | undefined): string {
+  const cleaned = typeof v === "string" ? v.trim() : "";
+  return cleaned || "TC1";
+}
+
 /**
  * Geometry is usually the best area source, but not when its own diagnostics prove the
  * floor-area candidate is contaminated. Harrison exposed the failure mode: OCR labelled
@@ -528,7 +533,10 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     laundry_count: fv(t.laundry_count, "vision"),
     kitchen_count: fv(t.kitchen_count, "vision"),
     ceiling_height_m: fv(t.ceiling_height_m, measuredSrc(m?.stud_height_mm != null)),
-    foundation_type: fv(t.foundation_type, "vision"),
+    foundation_type: fv(
+      foundationOrDefault(t.foundation_type),
+      t.foundation_type && t.foundation_type.trim() ? "vision" : "asserted",
+    ),
     windows_by_room: fv(
       t.windows_by_room,
       windowsBySrc,

@@ -14,7 +14,7 @@
   "laundry_count": null,
   "kitchen_count": 1,
   "ceiling_height_m": 2.4,
-  "foundation_type": null,
+  "foundation_type": "TC1",
   "windows_by_room": {
     "Bed 1 (Master)": {
       "qty": 2,
