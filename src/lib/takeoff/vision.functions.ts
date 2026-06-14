@@ -770,6 +770,7 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
               )}`,
               userText,
               dataUrl.split(",")[1] ?? dataUrl,
+              "image/png",
             );
             argStr = JSON.stringify(safeParseJson<unknown>(raw));
           }

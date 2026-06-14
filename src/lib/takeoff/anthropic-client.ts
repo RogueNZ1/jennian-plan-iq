@@ -16,6 +16,7 @@ export function getAnthropicApiKey(): string {
 const RETRYABLE_HTTP = new Set([429, 529]);
 const MAX_ATTEMPTS = 3; // 1 initial attempt + up to 2 retries
 const RETRY_BASE_MS = 500;
+type AnthropicImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 
 class TransientApiError extends Error {
   constructor(
@@ -34,12 +35,13 @@ export async function callVisionModel(
   systemPrompt: string,
   userText: string,
   imageBase64: string,
+  mediaType: AnthropicImageMediaType = "image/jpeg",
 ): Promise<string> {
   // Bounded retry (F-001 resilience): a transient 429/529 shouldn't kill a real
   // job. Retry up to MAX_ATTEMPTS with exponential backoff, then fail loud.
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      return await callVisionModelOnce(apiKey, systemPrompt, userText, imageBase64);
+      return await callVisionModelOnce(apiKey, systemPrompt, userText, imageBase64, mediaType);
     } catch (err) {
       if (!(err instanceof TransientApiError) || attempt === MAX_ATTEMPTS) throw err;
       const backoffMs = RETRY_BASE_MS * 2 ** (attempt - 1); // 500ms, then 1000ms
@@ -58,6 +60,7 @@ async function callVisionModelOnce(
   systemPrompt: string,
   userText: string,
   imageBase64: string,
+  mediaType: AnthropicImageMediaType,
 ): Promise<string> {
   const res = await fetch(ANTHROPIC_API, {
     method: "POST",
@@ -83,7 +86,7 @@ async function callVisionModelOnce(
               type: "image",
               source: {
                 type: "base64",
-                media_type: "image/jpeg",
+                media_type: mediaType,
                 data: imageBase64,
               },
             },
