@@ -60,6 +60,7 @@ import {
   reconcileVisualOpenings,
   visualReconciliationFlags,
 } from "./visual-opening-reconciliation";
+import { promoteVisualOpenings } from "./visual-opening-promotion";
 
 export type ComposeTakeoffInput = {
   /** The vision-extracted takeoff (already returned by extractConceptTakeoffs). */
@@ -448,9 +449,14 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   const rawComposedOpenings = hasSymbolOpenings
     ? folded.openings
     : foldScheduleEntrance(folded.openings, vectorAnnotations?.entrance);
-  const composedOpenings = normaliseOpeningsForQs(rawComposedOpenings);
-  const composedGarageDoorSize = folded.garage_door_size;
-  const garageDoorConfirmedFromSectionalCallout = composedGarageDoorSize !== t.garage_door_size;
+  const visualPromotion = promoteVisualOpenings(visualOpeningAudit);
+  const composedOpenings = normaliseOpeningsForQs(
+    visualPromotion?.openings.length ? visualPromotion.openings : rawComposedOpenings,
+  );
+  const composedGarageDoorSize = visualPromotion?.garageDoorSize ?? folded.garage_door_size;
+  const garageDoorConfirmedFromSectionalCallout =
+    !visualPromotion && composedGarageDoorSize !== t.garage_door_size;
+  const garageDoorConfirmedFromVisual = !!visualPromotion?.garageDoorSize;
   const composedOpeningTotals = deriveOpeningTotals(composedOpenings);
   // Re-derive the external wall AREA from the now-richer opening total (perimeter × stud −
   // Σ opening area) whenever the opening set grew — the route-2 symbol fold OR the schedule
@@ -557,6 +563,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
         ...windowChanges.map((c) => c.change),
         ...codeMismatch,
         ...bedNoWindow,
+        ...(visualPromotion?.flags ?? []),
         ...visualReconciliationFlags(visualOpeningReconciliation, "windows_by_room"),
       ),
     ),
@@ -566,12 +573,20 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       // Route 2 — the sectional callout reconciles the garage size (e.g. fixes a garbled vision
       // read); composedGarageDoorSize == t.garage_door_size when no sectional callout applied.
       composedGarageDoorSize,
-      garageDoorConfirmedFromSectionalCallout ? "vector" : garageChanged ? "vector" : "vision",
       garageDoorConfirmedFromSectionalCallout
+        ? "vector"
+        : garageDoorConfirmedFromVisual
+          ? "vision"
+          : garageChanged
+            ? "vector"
+            : "vision",
+      garageDoorConfirmedFromSectionalCallout || garageDoorConfirmedFromVisual
         ? "high"
         : reconConf(reconStatusOf("garage_door_width")),
       flagsFor(
-        garageDoorConfirmedFromSectionalCallout ? null : reconFlag("garage_door_width"),
+        garageDoorConfirmedFromSectionalCallout || garageDoorConfirmedFromVisual
+          ? null
+          : reconFlag("garage_door_width"),
         ...visualReconciliationFlags(visualOpeningReconciliation, "garage_door_size"),
       ),
     ),

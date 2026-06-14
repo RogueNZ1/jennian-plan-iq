@@ -337,7 +337,13 @@ const WINDOW_SLOT_SPECS: ReadonlyArray<{
   { key: "garageWindow", keywords: ["garage"] },
   { key: "entrance", keywords: ["entrance", "entry", "foyer", "hall"] },
 ];
-const WINDOW_TYPES = new Set<Opening["type"]>(["window", "slider", "garage_window"]);
+const WINDOW_TYPES = new Set<Opening["type"]>([
+  "window",
+  "slider",
+  "garage_window",
+  "entrance",
+  "pa_door",
+]);
 
 export function openingsToWindowsByRoom(openings: Opening[]): QSExportData["windowsByRoom"] {
   const slots: QSExportData["windowsByRoom"] = {};
