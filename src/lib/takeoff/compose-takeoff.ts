@@ -55,6 +55,7 @@ import {
   type FieldConfidence,
   type FieldSource,
 } from "./enriched-takeoff";
+import type { VisualOpeningAudit } from "./visual-opening-audit";
 
 export type ComposeTakeoffInput = {
   /** The vision-extracted takeoff (already returned by extractConceptTakeoffs). */
@@ -76,6 +77,8 @@ export type ComposeTakeoffInput = {
         wallTrace?: import("./wall-trace").WallTrace;
       })
     | null;
+  /** Visual QS external-opening audit; additive evidence, not value-driving yet. */
+  visualOpeningAudit?: VisualOpeningAudit | null;
 };
 
 export type ComposeTakeoffResult = {
@@ -199,7 +202,14 @@ function selectFloorArea(
  * gated on the per-window heights.
  */
 export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult {
-  const { visionTakeoff, geometry, schedule: scheduleRaw, geometryPageIndex, doorEngine } = input;
+  const {
+    visionTakeoff,
+    geometry,
+    schedule: scheduleRaw,
+    geometryPageIndex,
+    doorEngine,
+    visualOpeningAudit,
+  } = input;
 
   const geoResult = geometry ?? null;
   const m = geoResult?.measurements;
@@ -552,6 +562,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     openings: composedOpenings,
     total_opening_sqm: composedOpeningTotals.total_opening_sqm,
     glazed_sqm: composedOpeningTotals.glazed_sqm,
+    ...(visualOpeningAudit ? { visual_opening_audit: visualOpeningAudit } : {}),
     // Persist the geometry room footprints (labels + dims) — the crop-on-anomaly gate and
     // the crop localizer need them after the run. Conditional spread: payloads from
     // geometry-less runs stay byte-identical to today.

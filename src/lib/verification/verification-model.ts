@@ -14,6 +14,7 @@
 
 import type { QSExportData } from "@/lib/iq-qs-export";
 import type { EnrichedTakeoff, FieldValue } from "@/lib/takeoff/enriched-takeoff";
+import type { VisualOpeningAuditSummary } from "@/lib/takeoff/visual-opening-audit";
 import {
   SPEC_GROUPS,
   specsInGroup,
@@ -22,10 +23,12 @@ import {
 } from "@/lib/specs/spec-schema";
 import {
   buildDoorMarkers,
+  buildVisualOpeningMarkers,
   summariseMarkers,
   type DoorMarker,
   type DoorPagePersisted,
   type OverlaySummary,
+  type VisualOpeningMarker,
 } from "./plan-overlay";
 
 /* ------------------------------------------------------------------ NZT stamps */
@@ -135,6 +138,9 @@ export type VerificationModel = {
   /** Plan-overlay slice (13 Jun): door-engine hits + page identity for the rendered overlay. */
   planOverlay: {
     markers: DoorMarker[];
+    visualOpenings: VisualOpeningMarker[];
+    visualSummary: VisualOpeningAuditSummary | null;
+    visualWarnings: string[];
     page: DoorPagePersisted | null;
     summary: OverlaySummary;
   };
@@ -452,8 +458,12 @@ export function buildVerificationModel(
 
   /* plan overlay ----------------------------------------------------- */
   const overlayMarkers = buildDoorMarkers(e?.door_hits ?? null);
+  const visualOpenings = buildVisualOpeningMarkers(e?.visual_opening_audit?.openings ?? null);
   const planOverlay: VerificationModel["planOverlay"] = {
     markers: overlayMarkers,
+    visualOpenings,
+    visualSummary: e?.visual_opening_audit?.summary ?? null,
+    visualWarnings: e?.visual_opening_audit?.warnings ?? [],
     page: e?.door_page ?? null,
     summary: summariseMarkers(overlayMarkers),
   };

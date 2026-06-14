@@ -401,6 +401,7 @@ import { recognisePlan } from "./recognise-plan";
 import { extractAnnotations } from "./extract-annotations";
 import { classifyAnnotations } from "./classify-annotations";
 import { readWindowSchedule, type WindowScheduleData } from "./extract-window-schedule";
+import { normaliseVisualOpeningAudit, type VisualOpeningAudit } from "./visual-opening-audit";
 
 export type ConceptTakeoffResult = {
   takeoffData: TakeoffData;
@@ -435,6 +436,110 @@ export const extractWindowScheduleFn = createServerFn({ method: "POST" })
         err instanceof Error ? err.message : String(err),
       );
       return { windows: [] };
+    }
+  });
+
+/**
+ * Visual QS pass â€” audit-only first read of external-wall openings.
+ *
+ * This does NOT drive pricing/export yet. It gives the estimator a human-like overlay:
+ * walk the outside wall, number every visible opening, classify it, and record the printed
+ * size label if readable. Existing deterministic/vector/geometry passes remain the pricing
+ * path until this visual layer is benchmarked.
+ */
+export const extractVisualOpeningAuditFn = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => input as { imageBase64: string; pageNumber?: number | null })
+  .handler(async ({ data }): Promise<VisualOpeningAudit> => {
+    const apiKey = getApiKey();
+    const system = `Return ONLY valid JSON. No markdown, no prose.
+You are acting as a senior New Zealand residential Quantity Surveyor reading a FLOOR PLAN image by eye.
+
+TASK:
+Walk around the EXTERNAL WALL perimeter of the dwelling and identify every external-wall opening.
+This is an AUDIT pass. Do not invent hidden openings. Use what is visible on the floor plan.
+
+QS RULE:
+Every opening on an external wall is a QS opening / glazing item EXCEPT the sectional/roller garage door.
+Count windows, sliders, entry doors, PA doors, garage windows, and other external doors.
+Classify the sectional/roller garage door separately as "garage_door".
+
+IMPORTANT REJECTIONS:
+- Do NOT count room dimensions as windows.
+- Do NOT count WIR/WIC room sizes as windows.
+- Do NOT count internal doors.
+- Do NOT count furniture, beds, bathroom fixtures, cupboards, wardrobes, or roof-access boxes.
+- Do NOT split a single physical framed opening into multiple openings because of panes/mullions.
+- Do NOT count a garage label like "B85 Vehicle" as a garage door size.
+
+READING:
+- Prefer printed opening labels like "2110x700", "2110x2200", "1100x600".
+- The label format is HEIGHT x WIDTH in mm unless noted otherwise.
+- Convert readable labels to metres: 2110x700 => height_m 2.11, width_m 0.7.
+- If a size label is not readable, set height_m and width_m to null and add a flag.
+
+POSITION:
+For every opening, return approximate x and y coordinates of the opening centre on the supplied image.
+Use normalized image coordinates from 0 to 1, where x=0 is left edge, x=1 is right edge, y=0 is top edge, y=1 is bottom edge.
+
+RETURN EXACT JSON SHAPE:
+{
+  "pageNumber": <number or null>,
+  "openings": [
+    {
+      "id": "O1",
+      "type": "window" | "slider" | "external_door" | "garage_door" | "garage_window" | "pa_door" | "uncertain",
+      "room": "<nearest room name or null>",
+      "label": "<printed label such as 2110x700, or null>",
+      "height_m": <number or null>,
+      "width_m": <number or null>,
+      "x": <0..1 number>,
+      "y": <0..1 number>,
+      "confidence": "high" | "medium" | "low",
+      "evidence": "<short reason, e.g. 'printed 2110x700 on Bed 3 west wall'>",
+      "flags": ["<short issue>", "..."]
+    }
+  ],
+  "warnings": ["<whole-plan issue>", "..."]
+}
+
+Return openings in walk-around order around the outside perimeter, clockwise if possible.
+If no floor plan is visible, return openings=[] with a warning.
+Return ONLY the JSON object.`;
+
+    try {
+      const raw = await callVisionModel(
+        apiKey,
+        system,
+        `Run the Visual QS external-opening audit on this floor plan page. Page number: ${data.pageNumber ?? "unknown"}.`,
+        data.imageBase64,
+      );
+      if (!raw.trim()) {
+        return normaliseVisualOpeningAudit(
+          { openings: [], warnings: ["Visual QS audit returned an empty response."] },
+          data.pageNumber ?? null,
+        );
+      }
+      const parsed = safeParseJson<unknown>(raw);
+      if (!parsed) {
+        console.error("[extractVisualOpeningAuditFn] JSON parse failed. Raw:", raw.slice(0, 1000));
+        return normaliseVisualOpeningAudit(
+          { openings: [], warnings: ["Visual QS audit response could not be parsed."] },
+          data.pageNumber ?? null,
+        );
+      }
+      return normaliseVisualOpeningAudit(parsed, data.pageNumber ?? null);
+    } catch (err) {
+      console.error(
+        "[extractVisualOpeningAuditFn] failed:",
+        err instanceof Error ? err.message : String(err),
+      );
+      return normaliseVisualOpeningAudit(
+        {
+          openings: [],
+          warnings: [`Visual QS audit failed: ${err instanceof Error ? err.message : String(err)}`],
+        },
+        data.pageNumber ?? null,
+      );
     }
   });
 

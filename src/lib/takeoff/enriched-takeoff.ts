@@ -20,6 +20,7 @@ import type {
   ScheduleWindowEntry,
   Opening,
 } from "./takeoff-types";
+import type { VisualOpeningAudit } from "./visual-opening-audit";
 
 /** Where a field's value came from (the provenance we already track in the seam). */
 export type FieldSource =
@@ -84,6 +85,13 @@ export type EnrichedTakeoff = {
   openings?: Opening[] | null;
   total_opening_sqm?: number | null;
   glazed_sqm?: number | null;
+  /**
+   * Visual QS audit pass (additive, 14 Jun 2026): a human-like first read of every
+   * external-wall opening on the floor plan, including approximate image positions for
+   * the verification overlay. Audit-only for now: not projected into the bare takeoff
+   * and not used to write QS export cells until benchmarked.
+   */
+  visual_opening_audit?: VisualOpeningAudit | null;
   /**
    * Geometry room footprints (label + measured width/depth), persisted so they survive the
    * run: the crop-on-anomaly gate (missing-window detector) and the crop localizer's

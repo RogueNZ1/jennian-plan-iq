@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   adapterToUser,
   buildDoorMarkers,
+  buildVisualOpeningMarkers,
   isWindowCode,
   summariseMarkers,
 } from "../verification/plan-overlay";
@@ -75,6 +76,39 @@ describe("plan-overlay", () => {
       ]),
     );
     expect(s).toEqual({ confirmed: 3, flagged: 1, byType: { hinged: 2, double: 1, cavity: 1 } });
+  });
+
+  it("buildVisualOpeningMarkers preserves visual QS order and marker ids", () => {
+    const markers = buildVisualOpeningMarkers([
+      {
+        id: "O7",
+        type: "window",
+        room: "Bed 2",
+        label: "1300x1500",
+        height_m: 1.3,
+        width_m: 1.5,
+        x: 0.25,
+        y: 0.4,
+        confidence: "high",
+        evidence: "printed 1300x1500 on external wall",
+        flags: [],
+      },
+      {
+        id: "",
+        type: "garage_door",
+        room: "Garage",
+        label: null,
+        height_m: null,
+        width_m: null,
+        x: 0.75,
+        y: 0.8,
+        confidence: "medium",
+        evidence: "sectional door symbol",
+        flags: ["size unreadable"],
+      },
+    ]);
+    expect(markers.map((m) => m.markerLabel)).toEqual(["O7", "O2"]);
+    expect(markers[1]).toMatchObject({ type: "garage_door", x: 0.75, y: 0.8 });
   });
 });
 

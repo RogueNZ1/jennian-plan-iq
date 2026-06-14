@@ -426,12 +426,64 @@ function VerificationPrintout() {
         </Section>
 
         {/* 4 · plan overlay */}
-        <Section title="4 · Plan overlay — door hits & window codes">
+        <Section title="4 · Plan overlay — Visual QS, door hits & window codes">
           <VerificationPlanOverlay
             jobId={jobId}
             markers={m.planOverlay.markers}
+            visualOpenings={m.planOverlay.visualOpenings}
             page={m.planOverlay.page}
           />
+          {m.planOverlay.visualWarnings.length > 0 && (
+            <div className="vbanner vbanner-compact">
+              {m.planOverlay.visualWarnings.map((w) => (
+                <div key={w}>
+                  <strong>{w}</strong>
+                </div>
+              ))}
+            </div>
+          )}
+          {m.planOverlay.visualOpenings.length > 0 && (
+            <>
+              <div className="vsrcline" style={{ marginTop: 8 }}>
+                Visual QS external openings:{" "}
+                <strong>{m.planOverlay.visualSummary?.totalOpenings ?? "—"}</strong> total ·{" "}
+                <strong>{m.planOverlay.visualSummary?.qsGlazedOpenings ?? "—"}</strong> QS
+                glazed/opening items ·{" "}
+                <strong>{m.planOverlay.visualSummary?.garageDoors ?? "—"}</strong> garage door
+                excluded from glazing ·{" "}
+                <strong>{m.planOverlay.visualSummary?.uncertain ?? "—"}</strong> uncertain/low. Blue
+                = visual external opening; black = garage door exception.
+              </div>
+              <table className="vtable">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Type</th>
+                    <th>Room</th>
+                    <th>Size</th>
+                    <th>Conf.</th>
+                    <th>Evidence / flags</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {m.planOverlay.visualOpenings.map((o) => (
+                    <tr key={o.markerLabel}>
+                      <td className="vlabel">{o.markerLabel}</td>
+                      <td>{o.type}</td>
+                      <td>{o.room ?? "—"}</td>
+                      <td className="vvalue">
+                        {o.height_m != null && o.width_m != null
+                          ? `${Math.round(o.height_m * 1000)} × ${Math.round(o.width_m * 1000)}`
+                          : (o.label ?? "—")}
+                      </td>
+                      <td>{o.confidence}</td>
+                      <td>{[o.evidence, ...o.flags].filter(Boolean).join(" · ")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
           {m.planOverlay.markers.length > 0 && (
             <>
               <div className="vsrcline" style={{ marginTop: 8 }}>
@@ -662,6 +714,10 @@ const PRINT_CSS = `
 .vov-flag { fill:none; stroke:#b45309; stroke-width:3; stroke-dasharray:6 4; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
 .vov-label { fill:#dc2626; font:700 15px ui-sans-serif, system-ui, sans-serif; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
 .vov-wcode { fill:none; stroke:#16a34a; stroke-width:2.5; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-opening { fill:rgba(37,99,235,.10); stroke:#2563eb; stroke-width:3; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-opening-low { stroke-dasharray:7 4; }
+.vov-opening-garage { fill:rgba(17,24,39,.10); stroke:#111827; }
+.vov-opening-label { fill:#1d4ed8; font:800 15px ui-sans-serif, system-ui, sans-serif; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
 
 .vfoot { margin-top:20px; border-top:2px solid #111827; padding-top:8px; }
 .vlegend { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:9px; color:#6b7280; }

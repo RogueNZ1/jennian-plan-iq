@@ -42,6 +42,7 @@ import {
   extractScaleFactor,
   checkPlanIssues,
   extractConceptTakeoffs,
+  extractVisualOpeningAuditFn,
   extractWindowScheduleFn,
   type ScaleResult,
   type PlanIssue,
@@ -828,18 +829,27 @@ function UploadPage() {
       // ROLE, never a page literal; undefined when there is no pick → geometry self-selects.
       const geometryPageIndex = resolveGeometryPageIndex(selectedIndex, pageAnalyses);
 
-      // Run AI extraction and geometry measurement in parallel
-      const [result, geoResult, elevBlob, siteBlob, scheduleBlob] = await Promise.all([
-        extractConceptTakeoffs({
-          data: { imageBase64: b64, filename: planFile?.name ?? "plan.jpg" },
-        }) as Promise<ConceptTakeoffResult>,
-        planFile
-          ? measurePlanGeometry(planFile, planFile.name, geometryPageIndex).catch(() => null)
-          : Promise.resolve(null),
-        elevBlobP,
-        siteBlobP,
-        scheduleBlobP,
-      ]);
+      const visualOpeningAuditP = extractVisualOpeningAuditFn({
+        data: {
+          imageBase64: b64,
+          pageNumber: pageAnalyses[selectedIndex!]?.pageNumber ?? null,
+        },
+      }).catch(() => null);
+
+      // Run AI extraction, visual audit and geometry measurement in parallel
+      const [result, geoResult, elevBlob, siteBlob, scheduleBlob, visualOpeningAudit] =
+        await Promise.all([
+          extractConceptTakeoffs({
+            data: { imageBase64: b64, filename: planFile?.name ?? "plan.jpg" },
+          }) as Promise<ConceptTakeoffResult>,
+          planFile
+            ? measurePlanGeometry(planFile, planFile.name, geometryPageIndex).catch(() => null)
+            : Promise.resolve(null),
+          elevBlobP,
+          siteBlobP,
+          scheduleBlobP,
+          visualOpeningAuditP,
+        ]);
 
       setGeometryResult(geoResult);
       setPlanContext(result.planContext);
@@ -884,6 +894,7 @@ function UploadPage() {
         schedule: scheduleRaw,
         geometryPageIndex,
         doorEngine,
+        visualOpeningAudit,
       });
       // composeTakeoff now returns the ENRICHED per-field shape (Slice 2). Unwrap to the bare
       // TakeoffData the rest of /upload (state, cross-reference, exportToExcel) consumes —

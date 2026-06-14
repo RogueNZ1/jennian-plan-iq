@@ -13,6 +13,7 @@
  */
 
 import type { EnrichedTakeoff } from "@/lib/takeoff/enriched-takeoff";
+import type { VisualOpeningAuditItem } from "@/lib/takeoff/visual-opening-audit";
 
 export type DoorHitPersisted = NonNullable<EnrichedTakeoff["door_hits"]>[number];
 export type DoorPagePersisted = NonNullable<EnrichedTakeoff["door_page"]>;
@@ -90,6 +91,25 @@ export function summariseMarkers(markers: DoorMarker[]): OverlaySummary {
     s.byType[m.type]++;
   }
   return s;
+}
+
+export type VisualOpeningMarker = VisualOpeningAuditItem & {
+  /** Printed overlay marker label: O1, O2, ... */
+  markerLabel: string;
+};
+
+/**
+ * Visual QS openings already arrive in normalized rendered-image coordinates. Preserve
+ * the model's walk-around order and give each item a stable overlay label.
+ */
+export function buildVisualOpeningMarkers(
+  openings: VisualOpeningAuditItem[] | null | undefined,
+): VisualOpeningMarker[] {
+  if (!openings || openings.length === 0) return [];
+  return openings.map((o, index) => ({
+    ...o,
+    markerLabel: o.id || `O${index + 1}`,
+  }));
 }
 
 /* ------------------------------------------------------------------ text stitching */

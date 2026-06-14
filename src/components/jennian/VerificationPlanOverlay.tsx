@@ -23,9 +23,11 @@ import {
   type DoorMarker,
   type DoorPagePersisted,
   type RawTextItem,
+  type VisualOpeningMarker,
 } from "@/lib/verification/plan-overlay";
 
 type PlacedMarker = DoorMarker & { vx: number; vy: number };
+type PlacedVisualOpening = VisualOpeningMarker & { vx: number; vy: number };
 type PlacedWCode = { text: string; vx: number; vy: number };
 
 type OverlayState =
@@ -38,6 +40,7 @@ type OverlayState =
       width: number;
       height: number;
       markers: PlacedMarker[];
+      visualOpenings: PlacedVisualOpening[];
       wcodes: PlacedWCode[];
     };
 
@@ -46,10 +49,12 @@ const RENDER_MAX_WIDTH = 1500;
 export function VerificationPlanOverlay({
   jobId,
   markers,
+  visualOpenings,
   page,
 }: {
   jobId: string;
   markers: DoorMarker[];
+  visualOpenings: VisualOpeningMarker[];
   page: DoorPagePersisted | null;
 }) {
   const [state, setState] = useState<OverlayState>({ status: "loading" });
@@ -105,6 +110,11 @@ export function VerificationPlanOverlay({
                 return { ...m, vx, vy };
               })
             : [];
+          const placedVisualOpenings: PlacedVisualOpening[] = visualOpenings.map((o) => ({
+            ...o,
+            vx: o.x * canvas.width,
+            vy: o.y * canvas.height,
+          }));
 
           // 4 · W-codes: live from the page's own text (stitched — Qt plans split glyphs)
           const tc = await pdfPage.getTextContent();
@@ -128,6 +138,7 @@ export function VerificationPlanOverlay({
               width: canvas.width,
               height: canvas.height,
               markers: placed,
+              visualOpenings: placedVisualOpenings,
               wcodes,
             });
           }
@@ -146,7 +157,7 @@ export function VerificationPlanOverlay({
     return () => {
       active = false;
     };
-  }, [jobId, markers, page]);
+  }, [jobId, markers, visualOpenings, page]);
 
   if (state.status === "loading") {
     return <p className="vempty">Rendering plan overlay…</p>;
@@ -186,6 +197,25 @@ export function VerificationPlanOverlay({
                 className="vov-wcode"
                 rx={3}
               />
+            </g>
+          ))}
+          {state.visualOpenings.map((o) => (
+            <g key={`vo-${o.markerLabel}`}>
+              <circle
+                cx={o.vx}
+                cy={o.vy}
+                r={r + 2}
+                className={[
+                  "vov-opening",
+                  o.confidence === "low" ? "vov-opening-low" : "",
+                  o.type === "garage_door" ? "vov-opening-garage" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              />
+              <text x={o.vx + r + 5} y={o.vy + r + 4} className="vov-opening-label">
+                {o.markerLabel}
+              </text>
             </g>
           ))}
           {state.markers.map((m) => (
