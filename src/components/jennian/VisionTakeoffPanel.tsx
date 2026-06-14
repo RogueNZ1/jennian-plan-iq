@@ -3,7 +3,7 @@ import { ScanEye, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { renderAndUploadPlanPage } from "@/lib/takeoff/render-page";
-import { runVisionTakeoff } from "@/lib/takeoff/vision.functions";
+import { reconcileVisionTakeoffRun, runVisionTakeoff } from "@/lib/takeoff/vision.functions";
 import type { VisionRunSummary, VisionTakeoffError } from "@/lib/takeoff/vision-types";
 import { normaliseVisionError } from "@/lib/takeoff/vision-types";
 import { extractFile } from "@/lib/takeoff/pdf-text";
@@ -35,6 +35,7 @@ export function VisionTakeoffPanel({
   flattenedFiles: FlatFile[];
 }) {
   const runFn = useServerFn(runVisionTakeoff);
+  const reconcileFn = useServerFn(reconcileVisionTakeoffRun);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<{
@@ -281,6 +282,24 @@ export function VisionTakeoffPanel({
 
   async function recoverSavedVisionResult(): Promise<VisionRunSummary | null> {
     for (let i = 0; i < RECOVERY_ATTEMPTS; i++) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (accessToken) {
+        const reconciled = await reconcileFn({ data: { jobId, accessToken } });
+        if (
+          reconciled &&
+          typeof reconciled === "object" &&
+          "kind" in reconciled &&
+          reconciled.kind === "vision_takeoff" &&
+          (reconciled.windowItemsFound > 0 ||
+            reconciled.doorItemsFound > 0 ||
+            reconciled.wallLengthsFound > 0 ||
+            reconciled.moduleDraftItemsCreated > 0 ||
+            (reconciled.errors?.length ?? 0) > 0)
+        ) {
+          return reconciled;
+        }
+      }
       const saved = await loadLatestVisionSummary();
       if (
         saved &&

@@ -423,6 +423,53 @@ const InputSchema = z.object({
   accessToken: z.string().min(1),
 });
 
+const ReconcileInputSchema = z.object({
+  jobId: z.string().uuid(),
+  accessToken: z.string().min(1),
+});
+
+function mergeVisionSummaryCounts(
+  summary: VisionRunSummary,
+  counts: {
+    pages: number;
+    quantities: number;
+    openings: number;
+    windows: number;
+    measurements: number;
+    moduleItems: number;
+  },
+): VisionRunSummary {
+  const rowCount = counts.quantities + counts.openings + counts.measurements + counts.moduleItems;
+  const warnings = [...(summary.warnings ?? [])];
+  const timeoutWarning =
+    "Vision request timed out after saving partial results. Review extracted rows before pricing.";
+  if (rowCount > 0 && !warnings.includes(timeoutWarning)) warnings.push(timeoutWarning);
+  const doorCount = Math.max(0, counts.openings - counts.windows);
+  return {
+    ...summary,
+    pagesRendered: Math.max(summary.pagesRendered, counts.pages),
+    pagesSentToVision: Math.max(summary.pagesSentToVision, counts.pages > 0 ? 1 : 0),
+    pagesProcessed: Math.max(summary.pagesProcessed, rowCount > 0 ? 1 : 0),
+    processedPages: Math.max(summary.processedPages, rowCount > 0 ? 1 : 0),
+    workingPlanReviewed: summary.workingPlanReviewed || rowCount > 0,
+    areaPerimeterValuesFound: Math.max(summary.areaPerimeterValuesFound, counts.quantities),
+    windowItemsFound: Math.max(summary.windowItemsFound, counts.windows),
+    doorItemsFound: Math.max(summary.doorItemsFound, doorCount),
+    wallLengthsFound: Math.max(summary.wallLengthsFound, counts.measurements),
+    moduleDraftItemsCreated: Math.max(summary.moduleDraftItemsCreated, counts.moduleItems),
+    visionQuantitiesCreated: Math.max(summary.visionQuantitiesCreated, counts.quantities),
+    visionMeasurementsCreated: Math.max(summary.visionMeasurementsCreated, counts.measurements),
+    visionOpeningsCreated: Math.max(summary.visionOpeningsCreated, counts.openings),
+    visionModuleItemsCreated: Math.max(summary.visionModuleItemsCreated, counts.moduleItems),
+    reviewRequiredItems: Math.max(
+      summary.reviewRequiredItems,
+      counts.quantities + counts.openings + counts.measurements + counts.moduleItems,
+    ),
+    warnings,
+    warningCount: warnings.length,
+  };
+}
+
 type AuditEntry = {
   job_id: string;
   user_id: string | null;
@@ -434,6 +481,142 @@ type AuditEntry = {
   new_value?: string | null;
   notes?: string | null;
 };
+
+export const reconcileVisionTakeoffRun = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => ReconcileInputSchema.parse(input))
+  .handler(async ({ data }): Promise<VisionRunSummary | VisionTakeoffError> => {
+    const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+    const SUPABASE_PUBLISHABLE_KEY =
+      process.env.SUPABASE_PUBLISHABLE_KEY ??
+      process.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
+      process.env.SUPABASE_SERVICE_KEY ??
+      process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+      return {
+        ok: false,
+        error: {
+          operation: "auth_check",
+          message: "Server database connection is not configured. Contact support.",
+          technical: `Missing env: ${[!SUPABASE_URL && "SUPABASE_URL", !SUPABASE_PUBLISHABLE_KEY && "SUPABASE_PUBLISHABLE_KEY"].filter(Boolean).join(", ")}`,
+        },
+      };
+    }
+
+    const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+      global: { headers: { Authorization: `Bearer ${data.accessToken}` } },
+      auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+    });
+    const { data: claimsData, error: claimsErr } = await supabase.auth.getClaims(data.accessToken);
+    if (claimsErr || !claimsData?.claims?.sub) {
+      return {
+        ok: false,
+        error: {
+          operation: "auth_check",
+          message: "Your session has expired. Please sign in again.",
+          technical: claimsErr?.message ?? "Token validation failed: no sub claim",
+        },
+      };
+    }
+
+    const { data: runRows, error: runErr } = await supabase
+      .from("takeoff_runs")
+      .select("id, status, summary")
+      .eq("job_id", data.jobId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (runErr || !runRows?.[0]) {
+      return {
+        ok: false,
+        error: {
+          operation: "vision_reconcile",
+          message: "Vision Takeoff run could not be found.",
+          technical: runErr?.message ?? "No takeoff_runs row for job.",
+        },
+      };
+    }
+
+    const current = runRows[0] as { id: string; status: string; summary: unknown };
+    const currentSummary = current.summary as { vision?: VisionRunSummary } | null;
+    const vision = currentSummary?.vision;
+    if (!vision || vision.kind !== "vision_takeoff") {
+      return {
+        ok: false,
+        error: {
+          operation: "vision_reconcile",
+          message: "Latest takeoff run is not a Vision Takeoff run.",
+        },
+      };
+    }
+
+    const [pages, quantities, openings, windows, measurements, moduleItems] = await Promise.all([
+      supabase
+        .from("vision_takeoff_pages")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", data.jobId),
+      supabase
+        .from("extracted_quantities")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", data.jobId)
+        .eq("data_source", "Vision Takeoff"),
+      supabase
+        .from("opening_schedule")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", data.jobId)
+        .eq("source", "Vision Takeoff"),
+      supabase
+        .from("opening_schedule")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", data.jobId)
+        .eq("source", "Vision Takeoff")
+        .eq("opening_type", "window"),
+      supabase
+        .from("plan_measurements")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", data.jobId)
+        .eq("source", "Vision Takeoff"),
+      supabase
+        .from("module_items")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", data.jobId)
+        .eq("data_source", "Vision Takeoff"),
+    ]);
+
+    const merged = mergeVisionSummaryCounts(vision, {
+      pages: pages.count ?? 0,
+      quantities: quantities.count ?? 0,
+      openings: openings.count ?? 0,
+      windows: windows.count ?? 0,
+      measurements: measurements.count ?? 0,
+      moduleItems: moduleItems.count ?? 0,
+    });
+    const rowCount =
+      merged.areaPerimeterValuesFound +
+      merged.windowItemsFound +
+      merged.doorItemsFound +
+      merged.wallLengthsFound +
+      merged.moduleDraftItemsCreated;
+    const status =
+      current.status === "completed" || current.status === "completed_with_warnings"
+        ? current.status
+        : rowCount > 0
+          ? "completed_with_warnings"
+          : current.status;
+
+    await supabase
+      .from("takeoff_runs")
+      .update({
+        status,
+        summary: toJson({ kind: "vision_takeoff", vision: merged }),
+        completed_at: status === "running" ? null : new Date().toISOString(),
+        error_message:
+          status === "completed_with_warnings"
+            ? "Vision request timed out after saving partial results."
+            : null,
+      })
+      .eq("id", current.id);
+
+    return merged;
+  });
 
 export const runVisionTakeoff = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => InputSchema.parse(input))
