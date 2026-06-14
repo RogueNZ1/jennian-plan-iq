@@ -1430,6 +1430,38 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
               logLabel: `Window ${w.width_mm}×${w.height_mm ?? "?"}`,
             });
           }
+          const usefulRowsAfterWindows =
+            pageOutcome.openingsInserted +
+              pageOutcome.openingsRefreshed +
+              pageOutcome.quantitiesInserted +
+              pageOutcome.quantitiesRefreshed >
+            0;
+          if (usefulRowsAfterWindows) {
+            summary.pagesProcessed++;
+            summary.processedPages++;
+            summary.reviewRequiredItems += pageOutcome.reviewRequiredCount;
+            const firstPassWarning =
+              "Vision saved the first-pass quantities and glazing schedule; door extraction, derived measurements, and module drafts are deferred to follow-up passes.";
+            if (!summary.warnings.includes(firstPassWarning)) {
+              summary.warnings.push(firstPassWarning);
+            }
+            for (const warning of parsed.warnings ?? []) {
+              summary.warnings.push(`${p.fileName} p${p.pageNumber}: ${warning}`);
+            }
+            summary.pages.push(pageOutcome);
+            summary.warningCount = summary.warnings.length;
+            summary.errorCount = summary.errors.length;
+            summary.pagesSkipped = summary.pagesRendered - summary.pagesSentToVision;
+            audit({
+              job_id: data.jobId,
+              user_id: userId,
+              action: "vision_takeoff_completed_with_warnings",
+              notes: `Completed first pass after glazing. Quantities ${summary.visionQuantitiesCreated}, openings ${summary.visionOpeningsCreated}.`,
+            });
+            await persistRunSummary("completed_with_warnings");
+            await flushAudit();
+            return summary;
+          }
           // external_door rows are written to opening_schedule for review visibility but are
           // deliberately excluded from the QS windows_by_room export (matchWindowOpening filters
           // to opening_type === "window" only). This is intentional — QS prices external doors
