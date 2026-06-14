@@ -429,7 +429,21 @@ export function VisionTakeoffPanel({
         return;
       }
 
-      setResult(response as VisionRunSummary);
+      let finalResult = response as VisionRunSummary;
+      try {
+        const reconciled = await reconcileFn({ data: { jobId, accessToken } });
+        if (
+          reconciled &&
+          typeof reconciled === "object" &&
+          "kind" in reconciled &&
+          reconciled.kind === "vision_takeoff"
+        ) {
+          finalResult = reconciled;
+        }
+      } catch {
+        // The server response is still usable; reconciliation is a best-effort status repair.
+      }
+      setResult(finalResult);
       setStatus(null);
     } catch (e) {
       setStatus("Vision request timed out; checking saved takeoff resultsâ€¦");
