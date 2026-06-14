@@ -27,6 +27,7 @@
  * Browser-only — pdfjs-dist references DOM globals unavailable on the server.
  */
 import { supabase } from "@/integrations/supabase/client";
+import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 
 // ---- Resolution constants -----------------------------------------------
 
@@ -90,7 +91,7 @@ let _pdfjs: PdfJs | null = null;
 async function getPdfJs(): Promise<PdfJs> {
   if (_pdfjs) return _pdfjs;
   const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = "";
+  pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
   _pdfjs = pdfjs;
   return pdfjs;
 }
