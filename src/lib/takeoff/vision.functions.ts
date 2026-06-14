@@ -1460,6 +1460,14 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
           const shouldReturnAfterOpenings =
             usefulRowsSaved &&
             (data.pages.length === 1 || Date.now() - startedAtMs > VISION_SOFT_RETURN_AFTER_OPENINGS_MS);
+          const deferDerivedDrafts = usefulRowsSaved;
+          if (deferDerivedDrafts) {
+            const deferWarning =
+              "Vision saved quantities and openings; derived measurements and module drafts are deferred until the calibrated QS pass.";
+            if (!summary.warnings.includes(deferWarning)) {
+              summary.warnings.push(deferWarning);
+            }
+          }
           if (shouldReturnAfterOpenings) {
             summary.pagesProcessed++;
             summary.processedPages++;
@@ -1490,7 +1498,7 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
           }
 
           // ----- plan_measurements (deduped) -----
-          if (isFloorplan) {
+          if (isFloorplan && !deferDerivedDrafts) {
             const measurementInserts: Array<{
               measurement_type: string;
               label: string;
@@ -1616,7 +1624,7 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
           }
 
           // ----- module_items drafts -----
-          if (isFloorplan) {
+          if (isFloorplan && !deferDerivedDrafts) {
             type ModuleDraft = {
               moduleId: "iq-core" | "iq-framing" | "iq-linings" | "iq-cladding" | "iq-roofing";
               label: string;
@@ -1876,19 +1884,28 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
         action: summary.errorCount > 0 ? "vision_takeoff_failed" : "vision_takeoff_completed",
         notes: `Processed ${summary.pagesProcessed}/${summary.pagesRendered}. Quantities ${summary.visionQuantitiesCreated}, openings ${summary.visionOpeningsCreated}, measurements ${summary.visionMeasurementsCreated}, module drafts ${summary.visionModuleItemsCreated}.`,
       });
+      const finalStatus =
+        summary.errors.length > 0 || summary.warnings.length > 0
+          ? "completed_with_warnings"
+          : "completed";
 
       // Persist the final summary. The row is created at the start so a long
       // model read can still be recovered if the HTTP request times out.
       if (takeoffRunId) {
-        await persistRunSummary(summary.errors.length > 0 ? "completed_with_warnings" : "completed");
+        await persistRunSummary(finalStatus);
       } else {
         await supabase.from("takeoff_runs").insert({
           job_id: data.jobId,
           started_by: userId,
-          status: summary.errors.length > 0 ? "completed_with_warnings" : "completed",
+          status: finalStatus,
           summary: toJson({ kind: "vision_takeoff", vision: summary }),
           completed_at: new Date().toISOString(),
-          error_message: summary.errors.length > 0 ? summary.errors.slice(0, 5).join(" | ") : null,
+          error_message:
+            summary.errors.length > 0
+              ? summary.errors.slice(0, 5).join(" | ")
+              : summary.warnings.length > 0
+                ? summary.warnings.slice(0, 3).join(" | ")
+                : null,
         });
       }
       await flushAudit();
