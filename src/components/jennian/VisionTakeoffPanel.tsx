@@ -12,6 +12,8 @@ import { classifyPageWithType } from "@/lib/takeoff/classify";
 type FlatFile = { fileId: string; fileName: string; pageCount: number };
 
 const PAGE_CAP = 6;
+const RECOVERY_ATTEMPTS = 18;
+const RECOVERY_DELAY_MS = 2500;
 
 type PageCandidate = {
   fileId: string;
@@ -207,6 +209,41 @@ export function VisionTakeoffPanel({
     }
   }
 
+  const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+  async function loadLatestVisionSummary(): Promise<VisionRunSummary | null> {
+    const { data } = await supabase
+      .from("takeoff_runs")
+      .select("summary")
+      .eq("job_id", jobId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const summary = data?.summary as { vision?: VisionRunSummary } | null;
+    const vision = summary?.vision;
+    if (!vision || vision.kind !== "vision_takeoff") return null;
+    return vision;
+  }
+
+  async function recoverSavedVisionResult(): Promise<VisionRunSummary | null> {
+    for (let i = 0; i < RECOVERY_ATTEMPTS; i++) {
+      const saved = await loadLatestVisionSummary();
+      if (
+        saved &&
+        (saved.pagesProcessed > 0 ||
+          saved.areaPerimeterValuesFound > 0 ||
+          saved.windowItemsFound > 0 ||
+          saved.doorItemsFound > 0 ||
+          saved.wallLengthsFound > 0 ||
+          (saved.errors?.length ?? 0) > 0)
+      ) {
+        return saved;
+      }
+      await sleep(RECOVERY_DELAY_MS);
+    }
+    return null;
+  }
+
   async function run() {
     setBusy(true);
     setError(null);
@@ -304,6 +341,13 @@ export function VisionTakeoffPanel({
           technical = String(response);
         }
         console.error("[VisionTakeoff] Unexpected server response shape:", technical);
+        setStatus("Vision request timed out; checking saved takeoff resultsâ€¦");
+        const saved = await recoverSavedVisionResult();
+        if (saved) {
+          setResult(saved);
+          setStatus(null);
+          return;
+        }
         setError({
           operation: "unknown",
           message: "Vision Takeoff could not complete. Unexpected server response.",
@@ -316,6 +360,13 @@ export function VisionTakeoffPanel({
       setResult(response as VisionRunSummary);
       setStatus(null);
     } catch (e) {
+      setStatus("Vision request timed out; checking saved takeoff resultsâ€¦");
+      const saved = await recoverSavedVisionResult();
+      if (saved) {
+        setResult(saved);
+        setStatus(null);
+        return;
+      }
       // normaliseVisionError handles Error, Response, string, null, and unknown shapes.
       setError(normaliseVisionError(e));
       setStatus(null);

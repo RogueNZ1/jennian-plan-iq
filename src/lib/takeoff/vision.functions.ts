@@ -520,6 +520,40 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
         errors: [],
         pages: [],
       };
+      let takeoffRunId: string | null = null;
+      const persistRunSummary = async (
+        status: "running" | "completed" | "completed_with_warnings",
+      ) => {
+        if (!takeoffRunId) return;
+        await supabase
+          .from("takeoff_runs")
+          .update({
+            status,
+            summary: toJson({ kind: "vision_takeoff", vision: summary }),
+            completed_at: status === "running" ? null : new Date().toISOString(),
+            error_message:
+              summary.errors.length > 0 ? summary.errors.slice(0, 5).join(" | ") : null,
+          })
+          .eq("id", takeoffRunId);
+      };
+
+      const { data: takeoffRun, error: takeoffRunErr } = await supabase
+        .from("takeoff_runs")
+        .insert({
+          job_id: data.jobId,
+          started_by: userId,
+          status: "running",
+          summary: toJson({ kind: "vision_takeoff", vision: summary }),
+          completed_at: null,
+          error_message: null,
+        })
+        .select("id")
+        .single();
+      if (takeoffRunErr) {
+        summary.errors.push(`Vision run tracking failed: ${takeoffRunErr.message}`);
+      } else {
+        takeoffRunId = takeoffRun.id;
+      }
 
       // ---- Audit log helper (best-effort; never blocks the run) ----
       const auditQueue: AuditEntry[] = [];
@@ -1094,6 +1128,7 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
               }
             }
           }
+          await persistRunSummary("running");
 
           // ----- opening_schedule (windows + doors) -----
           const upsertOpening = async (args: {
@@ -1226,6 +1261,7 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
               logLabel: `${opening_type} ${d2.width_mm}×${d2.height_mm ?? "?"}`,
             });
           }
+          await persistRunSummary("running");
 
           // ----- plan_measurements (deduped) -----
           if (isFloorplan) {
@@ -1615,15 +1651,20 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
         notes: `Processed ${summary.pagesProcessed}/${summary.pagesRendered}. Quantities ${summary.visionQuantitiesCreated}, openings ${summary.visionOpeningsCreated}, measurements ${summary.visionMeasurementsCreated}, module drafts ${summary.visionModuleItemsCreated}.`,
       });
 
-      // Persist a takeoff_runs row tagged as Vision Takeoff so the UI can pick it up.
-      await supabase.from("takeoff_runs").insert({
-        job_id: data.jobId,
-        started_by: userId,
-        status: summary.errors.length > 0 ? "completed_with_warnings" : "completed",
-        summary: toJson({ kind: "vision_takeoff", vision: summary }),
-        completed_at: new Date().toISOString(),
-        error_message: summary.errors.length > 0 ? summary.errors.slice(0, 5).join(" | ") : null,
-      });
+      // Persist the final summary. The row is created at the start so a long
+      // model read can still be recovered if the HTTP request times out.
+      if (takeoffRunId) {
+        await persistRunSummary(summary.errors.length > 0 ? "completed_with_warnings" : "completed");
+      } else {
+        await supabase.from("takeoff_runs").insert({
+          job_id: data.jobId,
+          started_by: userId,
+          status: summary.errors.length > 0 ? "completed_with_warnings" : "completed",
+          summary: toJson({ kind: "vision_takeoff", vision: summary }),
+          completed_at: new Date().toISOString(),
+          error_message: summary.errors.length > 0 ? summary.errors.slice(0, 5).join(" | ") : null,
+        });
+      }
       await flushAudit();
 
       return summary;
