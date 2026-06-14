@@ -475,14 +475,15 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
     const userId: string = claimsData.claims.sub as string;
 
     const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
-    if (!LOVABLE_API_KEY) {
+    const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+    if (!LOVABLE_API_KEY && !ANTHROPIC_API_KEY) {
       return {
         ok: false,
         error: {
           operation: "vision_model_call",
           message: "Vision model credentials are not configured. Contact support.",
           technical:
-            "Expected server environment variable LOVABLE_API_KEY was not found. Add it as a Cloudflare Workers secret via the Lovable dashboard or wrangler secret put.",
+            "Expected server environment variable LOVABLE_API_KEY or ANTHROPIC_API_KEY was not found.",
         },
       };
     }
@@ -700,59 +701,78 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
             notes: `${p.fileName} p${p.pageNumber}`,
           });
 
-          const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              // !! DO NOT CHANGE THIS MODEL — GPT models do not work on this gateway.
-              // Gemini 2.5 Pro is the only model that reliably reads NZ architectural plans.
-              model: "google/gemini-2.5-pro",
-              messages: [
-                { role: "system", content: SYSTEM_PROMPT },
-                { role: "user", content: userMessageContent },
-              ],
-              tools: [VISION_TOOL],
-              tool_choice: { type: "function", function: { name: "submit_vision_takeoff" } },
-            }),
-          });
+          let argStr: string | undefined;
+          if (LOVABLE_API_KEY) {
+            const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${LOVABLE_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                // !! DO NOT CHANGE THIS MODEL — GPT models do not work on this gateway.
+                // Gemini 2.5 Pro is the only model that reliably reads NZ architectural plans.
+                model: "google/gemini-2.5-pro",
+                messages: [
+                  { role: "system", content: SYSTEM_PROMPT },
+                  { role: "user", content: userMessageContent },
+                ],
+                tools: [VISION_TOOL],
+                tool_choice: { type: "function", function: { name: "submit_vision_takeoff" } },
+              }),
+            });
 
-          if (aiRes.status === 429)
-            throw new Error("Vision model rate-limited (429). Try again shortly.");
-          if (aiRes.status === 402)
-            throw new Error("Lovable AI workspace credits exhausted (402). Contact support.");
-          if (aiRes.status === 401) {
-            const body = await aiRes.text().catch(() => "");
-            throw new Error(
-              `Vision Takeoff could not call the vision model. Check server AI credentials. ` +
-                `Technical: HTTP 401 from AI gateway (ai.gateway.lovable.dev). ` +
-                `Expected env: LOVABLE_API_KEY. ` +
-                `Response body: ${body.slice(0, 120) || "(empty)"}`,
+            if (aiRes.status === 429)
+              throw new Error("Vision model rate-limited (429). Try again shortly.");
+            if (aiRes.status === 402)
+              throw new Error("Lovable AI workspace credits exhausted (402). Contact support.");
+            if (aiRes.status === 401) {
+              const body = await aiRes.text().catch(() => "");
+              throw new Error(
+                `Vision Takeoff could not call the vision model. Check server AI credentials. ` +
+                  `Technical: HTTP 401 from AI gateway (ai.gateway.lovable.dev). ` +
+                  `Expected env: LOVABLE_API_KEY. ` +
+                  `Response body: ${body.slice(0, 120) || "(empty)"}`,
+              );
+            }
+            if (!aiRes.ok) {
+              const text = await aiRes.text().catch(() => "");
+              throw new Error(`Vision model error ${aiRes.status}: ${text.slice(0, 240)}`);
+            }
+            let aiJson: AiResponse;
+            try {
+              aiJson = (await aiRes.json()) as AiResponse;
+            } catch {
+              pageOutcome.status = "model_unreadable";
+              pageOutcome.errorMessage = "Vision model returned an unexpected response.";
+              summary.errors.push(
+                `${p.fileName} p${p.pageNumber}: vision_response_parse — Vision model returned an unexpected response. Technical: HTTP ${aiRes.status}, response body was not valid JSON.`,
+              );
+              summary.failedPages++;
+              summary.pages.push(pageOutcome);
+              continue;
+            }
+            argStr = aiJson.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
+          } else {
+            const { callVisionModel, safeParseJson } = await import("./anthropic-client");
+            const userText =
+              `Job: ${data.jobId}. File: ${p.fileName}. Page number: ${p.pageNumber}.` +
+              (p.clientPageType
+                ? `\nPre-classifier verdict (text-based): ${p.clientPageType}.`
+                : "") +
+              (data.specificationText
+                ? `\n\nProject specification text (for context only — DO NOT copy values you cannot see on this page; flag "as per plan" items as low confidence):\n${data.specificationText.slice(0, 4000)}`
+                : "");
+            const raw = await callVisionModel(
+              ANTHROPIC_API_KEY,
+              `${SYSTEM_PROMPT}\n\nReturn ONLY valid JSON matching this schema. Do not wrap it in markdown:\n${JSON.stringify(
+                VISION_TOOL.function.parameters,
+              )}`,
+              userText,
+              dataUrl.split(",")[1] ?? dataUrl,
             );
+            argStr = JSON.stringify(safeParseJson<unknown>(raw));
           }
-          if (!aiRes.ok) {
-            const text = await aiRes.text().catch(() => "");
-            throw new Error(`Vision model error ${aiRes.status}: ${text.slice(0, 240)}`);
-          }
-          // Defensively parse the AI gateway JSON — a non-JSON body or missing fields
-          // returns a structured failure rather than letting the page-level catch mask the cause.
-          let aiJson: AiResponse;
-          try {
-            aiJson = (await aiRes.json()) as AiResponse;
-          } catch {
-            pageOutcome.status = "model_unreadable";
-            pageOutcome.errorMessage = "Vision model returned an unexpected response.";
-            summary.errors.push(
-              `${p.fileName} p${p.pageNumber}: vision_response_parse — Vision model returned an unexpected response. Technical: HTTP ${aiRes.status}, response body was not valid JSON.`,
-            );
-            summary.failedPages++;
-            summary.pages.push(pageOutcome);
-            continue;
-          }
-
-          const argStr = aiJson.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
           if (!argStr) {
             // Summarise the response shape so the operator can diagnose gateway issues.
             let technical: string;
