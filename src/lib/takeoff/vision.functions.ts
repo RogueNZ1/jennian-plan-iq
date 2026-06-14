@@ -441,8 +441,9 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
     // useServerFn HTTP calls do not automatically include the Supabase Bearer
     // token from localStorage, so the panel passes it in the POST body and we
     // validate it here before any other operation.
-    const SUPABASE_URL = process.env.SUPABASE_URL;
-    const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
+    const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+    const SUPABASE_PUBLISHABLE_KEY =
+      process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
     if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
       return {
         ok: false,
