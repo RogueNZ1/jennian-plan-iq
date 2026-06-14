@@ -2,7 +2,7 @@
  * Phase B — Browser-side PDF page renderer for Vision Takeoff.
  *
  * Renders a single page of a plan PDF to a high-resolution PNG, uploads it
- * to the `plan_pdfs` storage bucket, and registers it in `vision_takeoff_pages`.
+ * to the `job-files` storage bucket, and registers it in `vision_takeoff_pages`.
  *
  * Resolution strategy
  * -------------------
@@ -156,7 +156,7 @@ export async function renderAndUploadPlanPage(args: {
   scale?: number;
 }): Promise<RenderedPage> {
   const sourceBucket = args.fileBucket ?? "job-files";
-  const targetBucket = "plan_pdfs";
+  const targetBucket = "job-files";
 
   const { data: userResp } = await supabase.auth.getUser();
   const userId = userResp.user?.id;
@@ -171,7 +171,7 @@ export async function renderAndUploadPlanPage(args: {
     .eq("page_number", args.pageNumber)
     .maybeSingle();
 
-  const storagePath = `vision/${args.jobId}/${args.fileId}/page-${args.pageNumber}.png`;
+  const storagePath = `${userId}/${args.jobId}/vision/${args.fileId}/page-${args.pageNumber}.png`;
 
   // Reuse cached render if it already meets the resolution bar for this type.
   const cacheMin = cacheMinWidthFor(args.pageType);
