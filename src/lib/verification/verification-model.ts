@@ -15,6 +15,7 @@
 import type { QSExportData } from "@/lib/iq-qs-export";
 import type { EnrichedTakeoff, FieldValue } from "@/lib/takeoff/enriched-takeoff";
 import type { VisualOpeningAuditSummary } from "@/lib/takeoff/visual-opening-audit";
+import type { VisualOpeningReconciliation } from "@/lib/takeoff/visual-opening-reconciliation";
 import {
   SPEC_GROUPS,
   specsInGroup,
@@ -141,6 +142,7 @@ export type VerificationModel = {
     visualOpenings: VisualOpeningMarker[];
     visualSummary: VisualOpeningAuditSummary | null;
     visualWarnings: string[];
+    visualReconciliation: VisualOpeningReconciliation | null;
     page: DoorPagePersisted | null;
     summary: OverlaySummary;
   };
@@ -464,6 +466,7 @@ export function buildVerificationModel(
     visualOpenings,
     visualSummary: e?.visual_opening_audit?.summary ?? null,
     visualWarnings: e?.visual_opening_audit?.warnings ?? [],
+    visualReconciliation: e?.visual_opening_reconciliation ?? null,
     page: e?.door_page ?? null,
     summary: summariseMarkers(overlayMarkers),
   };

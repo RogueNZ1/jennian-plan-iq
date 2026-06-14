@@ -21,6 +21,7 @@ import type {
   Opening,
 } from "./takeoff-types";
 import type { VisualOpeningAudit } from "./visual-opening-audit";
+import type { VisualOpeningReconciliation } from "./visual-opening-reconciliation";
 
 /** Where a field's value came from (the provenance we already track in the seam). */
 export type FieldSource =
@@ -92,6 +93,7 @@ export type EnrichedTakeoff = {
    * and not used to write QS export cells until benchmarked.
    */
   visual_opening_audit?: VisualOpeningAudit | null;
+  visual_opening_reconciliation?: VisualOpeningReconciliation | null;
   /**
    * Geometry room footprints (label + measured width/depth), persisted so they survive the
    * run: the crop-on-anomaly gate (missing-window detector) and the crop localizer's

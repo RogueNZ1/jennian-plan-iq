@@ -56,6 +56,10 @@ import {
   type FieldSource,
 } from "./enriched-takeoff";
 import type { VisualOpeningAudit } from "./visual-opening-audit";
+import {
+  reconcileVisualOpenings,
+  visualReconciliationFlags,
+} from "./visual-opening-reconciliation";
 
 export type ComposeTakeoffInput = {
   /** The vision-extracted takeoff (already returned by extractConceptTakeoffs). */
@@ -461,6 +465,12 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
           composedOpeningTotals.total_opening_sqm,
         )
       : t.external_wall_area_m2;
+  const visualOpeningReconciliation = reconcileVisualOpenings({
+    audit: visualOpeningAudit,
+    openings: composedOpenings,
+    externalDoorCount: t.external_door_count,
+    garageDoorSize: composedGarageDoorSize,
+  });
   const reconFlag = (field: string): string | null =>
     reconciliation.fields.find((f) => f.field === field)?.flag ?? null;
   const reconStatusOf = (field: string): FieldReconciliation["status"] | undefined =>
@@ -526,7 +536,12 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       reconConf(reconStatusOf("window_count")),
       flagsFor(reconFlag("window_count")),
     ),
-    external_door_count: fv(t.external_door_count, "vision"),
+    external_door_count: fv(
+      t.external_door_count,
+      "vision",
+      null,
+      visualReconciliationFlags(visualOpeningReconciliation, "external_door_count"),
+    ),
     internal_door_count: fv(t.internal_door_count, "vision"),
     bathroom_count: fv(t.bathroom_count, "vision"),
     ensuite_count: fv(t.ensuite_count, "vision"),
@@ -548,6 +563,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
         ...windowChanges.map((c) => c.change),
         ...codeMismatch,
         ...bedNoWindow,
+        ...visualReconciliationFlags(visualOpeningReconciliation, "windows_by_room"),
       ),
     ),
     windows_schedule: fv(t.windows_schedule ?? null, schedule ? "schedule" : "vision"),
@@ -560,7 +576,10 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       garageDoorConfirmedFromSectionalCallout
         ? "high"
         : reconConf(reconStatusOf("garage_door_width")),
-      flagsFor(garageDoorConfirmedFromSectionalCallout ? null : reconFlag("garage_door_width")),
+      flagsFor(
+        garageDoorConfirmedFromSectionalCallout ? null : reconFlag("garage_door_width"),
+        ...visualReconciliationFlags(visualOpeningReconciliation, "garage_door_size"),
+      ),
     ),
     external_wall_area_m2: fv(composedExtWallAreaM2, "derived", null, extWallFlags),
     total_area_m2: fv(t.total_area_m2, "derived"),
@@ -571,6 +590,9 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     total_opening_sqm: composedOpeningTotals.total_opening_sqm,
     glazed_sqm: composedOpeningTotals.glazed_sqm,
     ...(visualOpeningAudit ? { visual_opening_audit: visualOpeningAudit } : {}),
+    ...(visualOpeningReconciliation
+      ? { visual_opening_reconciliation: visualOpeningReconciliation }
+      : {}),
     // Persist the geometry room footprints (labels + dims) — the crop-on-anomaly gate and
     // the crop localizer need them after the run. Conditional spread: payloads from
     // geometry-less runs stay byte-identical to today.
