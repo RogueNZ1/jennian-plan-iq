@@ -214,7 +214,7 @@ export function VisionTakeoffPanel({
   async function loadLatestVisionSummary(): Promise<VisionRunSummary | null> {
     const { data } = await supabase
       .from("takeoff_runs")
-      .select("summary")
+      .select("status, summary")
       .eq("job_id", jobId)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -222,7 +222,61 @@ export function VisionTakeoffPanel({
     const summary = data?.summary as { vision?: VisionRunSummary } | null;
     const vision = summary?.vision;
     if (!vision || vision.kind !== "vision_takeoff") return null;
-    return vision;
+    const [quantities, openings, windows, measurements, moduleItems] = await Promise.all([
+      supabase
+        .from("extracted_quantities")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", jobId)
+        .eq("data_source", "Vision Takeoff"),
+      supabase
+        .from("opening_schedule")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", jobId)
+        .eq("source", "Vision Takeoff"),
+      supabase
+        .from("opening_schedule")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", jobId)
+        .eq("source", "Vision Takeoff")
+        .eq("opening_type", "window"),
+      supabase
+        .from("plan_measurements")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", jobId)
+        .eq("source", "Vision Takeoff"),
+      supabase
+        .from("module_items")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", jobId)
+        .eq("data_source", "Vision Takeoff"),
+    ]);
+    const quantityCount = quantities.count ?? 0;
+    const openingCount = openings.count ?? 0;
+    const windowCount = windows.count ?? 0;
+    const doorCount = Math.max(0, openingCount - windowCount);
+    const measurementCount = measurements.count ?? 0;
+    const moduleItemCount = moduleItems.count ?? 0;
+    return {
+      ...vision,
+      pagesProcessed:
+        vision.pagesProcessed > 0 || quantityCount > 0 || openingCount > 0 || measurementCount > 0
+          ? Math.max(1, vision.pagesProcessed)
+          : vision.pagesProcessed,
+      workingPlanReviewed: vision.workingPlanReviewed || quantityCount > 0 || openingCount > 0,
+      areaPerimeterValuesFound: Math.max(vision.areaPerimeterValuesFound, quantityCount),
+      windowItemsFound: Math.max(vision.windowItemsFound, windowCount),
+      doorItemsFound: Math.max(vision.doorItemsFound, doorCount),
+      wallLengthsFound: Math.max(vision.wallLengthsFound, measurementCount),
+      moduleDraftItemsCreated: Math.max(vision.moduleDraftItemsCreated, moduleItemCount),
+      reviewRequiredItems: Math.max(vision.reviewRequiredItems, openingCount + quantityCount),
+      warnings:
+        data.status === "running"
+          ? [
+              ...(vision.warnings ?? []),
+              "Vision request timed out after saving partial results. Review extracted rows before pricing.",
+            ]
+          : vision.warnings,
+    };
   }
 
   async function recoverSavedVisionResult(): Promise<VisionRunSummary | null> {
@@ -230,11 +284,10 @@ export function VisionTakeoffPanel({
       const saved = await loadLatestVisionSummary();
       if (
         saved &&
-        (saved.pagesProcessed > 0 ||
-          saved.areaPerimeterValuesFound > 0 ||
-          saved.windowItemsFound > 0 ||
+        (saved.windowItemsFound > 0 ||
           saved.doorItemsFound > 0 ||
           saved.wallLengthsFound > 0 ||
+          saved.moduleDraftItemsCreated > 0 ||
           (saved.errors?.length ?? 0) > 0)
       ) {
         return saved;
