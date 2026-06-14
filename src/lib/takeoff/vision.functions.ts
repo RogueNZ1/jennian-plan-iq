@@ -1433,6 +1433,20 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
               logLabel: classified.logLabel,
             });
           }
+          for (const d2 of (parsed.doors ?? []).filter((door) => door.type === "garage")) {
+            if (d2.width_mm == null) continue;
+            await upsertOpening({
+              opening_type: "garage_door",
+              width_mm: d2.width_mm,
+              height_mm: d2.height_mm,
+              room: d2.room ?? "Garage",
+              confidence: confToDbConfidence(d2.confidence),
+              source_evidence: `${evidenceTag} — ${d2.source_evidence || "garage door"}`,
+              notes: "garage door",
+              counterKey: "doorItemsFound",
+              logLabel: `garage_door ${d2.width_mm}x${d2.height_mm ?? "?"}`,
+            });
+          }
           const usefulRowsAfterWindows =
             pageOutcome.openingsInserted +
               pageOutcome.openingsRefreshed +
@@ -1444,7 +1458,7 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
             summary.processedPages++;
             summary.reviewRequiredItems += pageOutcome.reviewRequiredCount;
             const firstPassWarning =
-              "Vision saved the first-pass quantities and glazing schedule; door extraction, derived measurements, and module drafts are deferred to follow-up passes.";
+              "Vision saved the first-pass quantities, glazing schedule, and any garage-door rows; internal doors, derived measurements, and module drafts are deferred to follow-up passes.";
             if (!summary.warnings.includes(firstPassWarning)) {
               summary.warnings.push(firstPassWarning);
             }
