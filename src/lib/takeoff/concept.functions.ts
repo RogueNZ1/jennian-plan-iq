@@ -215,9 +215,19 @@ const PAPER_WIDTH_MM: Record<string, number> = {
 
 export type ScaleResult = {
   scaleFactor: number | null;
+  scaleRatio: number | null;
+  scaleText: string | null;
+  paperSize: string | null;
   confidence: "high" | "low";
   rationale: string;
 };
+
+export function parsePrintedScaleRatio(text: string | null | undefined): number | null {
+  const m = /(?:scale\s*[:–-]?\s*)?1\s*[:/]\s*(\d{2,4})/i.exec(text ?? "");
+  if (!m) return null;
+  const den = Number(m[1]);
+  return Number.isFinite(den) && den >= 10 && den <= 5000 ? den : null;
+}
 
 export const extractScaleFactor = createServerFn({ method: "POST" })
   .inputValidator(
@@ -272,7 +282,14 @@ Return ONLY the JSON object. No markdown fences.`;
     }
 
     if (!raw.trim()) {
-      return { scaleFactor: null, confidence: "low", rationale: "AI returned an empty response." };
+      return {
+        scaleFactor: null,
+        scaleRatio: null,
+        scaleText: null,
+        paperSize: null,
+        confidence: "low",
+        rationale: "AI returned an empty response.",
+      };
     }
 
     const parsedMaybe = safeParseJson<{
@@ -286,6 +303,9 @@ Return ONLY the JSON object. No markdown fences.`;
       console.error("[extractScaleFactor] Could not parse AI response:", raw.slice(0, 300));
       return {
         scaleFactor: null,
+        scaleRatio: null,
+        scaleText: null,
+        paperSize: null,
         confidence: "low",
         rationale: `AI returned an unparseable response: ${raw.slice(0, 160)}`,
       };
@@ -293,23 +313,29 @@ Return ONLY the JSON object. No markdown fences.`;
     const parsed = parsedMaybe;
 
     let scaleFactor = parsed.scaleFactor ?? null;
+    const scaleRatio =
+      parsed.scaleRatio ?? parsePrintedScaleRatio(parsed.rationale) ?? parsePrintedScaleRatio(raw);
+    const paperSize = parsed.paperSize ? String(parsed.paperSize).toUpperCase().trim() : null;
+    const scaleText = scaleRatio ? `1:${scaleRatio}${paperSize ? ` @ ${paperSize}` : ""}` : null;
     const confidence = parsed.confidence === "high" ? "high" : "low";
 
-    if (scaleFactor === null && parsed.scaleRatio && parsed.paperSize) {
-      const paperKey = String(parsed.paperSize).toUpperCase().trim();
-      const paperWidthMm = PAPER_WIDTH_MM[paperKey];
+    if (scaleFactor === null && scaleRatio && paperSize) {
+      const paperWidthMm = PAPER_WIDTH_MM[paperSize];
       if (paperWidthMm) {
         const imgWidth = Math.max(data.imageWidth, data.imageHeight);
-        scaleFactor = imgWidth / (paperWidthMm * parsed.scaleRatio);
+        scaleFactor = imgWidth / (paperWidthMm * scaleRatio);
       }
     }
 
     return {
       scaleFactor,
-      confidence: scaleFactor !== null ? "high" : confidence,
+      scaleRatio,
+      scaleText,
+      paperSize,
+      confidence: scaleFactor !== null || scaleRatio !== null ? "high" : confidence,
       rationale:
-        scaleFactor === null && parsed.scaleRatio && parsed.paperSize
-          ? `Found "1:${parsed.scaleRatio} @ ${parsed.paperSize}" but paper size not in A0–A4. ${parsed.rationale ?? ""}`.trim()
+        scaleFactor === null && scaleRatio
+          ? `Found "${scaleText}" on the plan. Pixel calibration will use visible plan annotations because paper size was not usable here. ${parsed.rationale ?? ""}`.trim()
           : (parsed.rationale ?? "AI did not return a scale or rationale."),
     };
   });

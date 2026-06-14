@@ -724,6 +724,9 @@ function UploadPage() {
       }
       const fallback = {
         scaleFactor: null,
+        scaleRatio: null,
+        scaleText: null,
+        paperSize: null,
         confidence: "low" as const,
         rationale: `Scale extraction failed: ${detail}. Enter a known dimension below to calibrate manually.`,
       };
@@ -736,6 +739,8 @@ function UploadPage() {
     // Auto-advance: if we found a scale, skip the confirmation screen entirely.
     if (foundResult?.scaleFactor !== null && foundResult?.scaleFactor !== undefined) {
       await proceedToCheck(foundResult.scaleFactor);
+    } else if (foundResult?.scaleRatio !== null && foundResult?.scaleRatio !== undefined) {
+      await proceedToCheck(null);
     }
   }
 
@@ -769,7 +774,14 @@ function UploadPage() {
       setScaleResult((prev) =>
         prev
           ? { ...prev, scaleFactor: resolvedScaleFactor }
-          : { scaleFactor: resolvedScaleFactor, confidence: "high", rationale: "" },
+          : {
+              scaleFactor: resolvedScaleFactor,
+              scaleRatio: null,
+              scaleText: null,
+              paperSize: null,
+              confidence: "high",
+              rationale: "",
+            },
       );
     }
   }
@@ -1360,6 +1372,8 @@ function UploadPage() {
   if (step === "scale") {
     const isLoading = conceptBusy === "scale" || conceptBusy === "rendering";
     const scaleOk = scaleResult?.scaleFactor !== null && scaleResult?.scaleFactor !== undefined;
+    const scaleRatioOk = scaleResult?.scaleRatio !== null && scaleResult?.scaleRatio !== undefined;
+    const scaleUsable = scaleOk || scaleRatioOk;
 
     return (
       <AppLayout>
@@ -1385,22 +1399,24 @@ function UploadPage() {
           {!isLoading && scaleResult && (
             <div className="space-y-4">
               <div
-                className={`rounded-lg border p-5 ${scaleOk ? "border-emerald-500/30 bg-emerald-50/5" : "border-amber-500/30 bg-amber-50/5"}`}
+                className={`rounded-lg border p-5 ${scaleUsable ? "border-emerald-500/30 bg-emerald-50/5" : "border-amber-500/30 bg-amber-50/5"}`}
               >
                 <div
-                  className={`text-[10.5px] uppercase tracking-[0.16em] font-medium ${scaleOk ? "text-emerald-500" : "text-amber-500"}`}
+                  className={`text-[10.5px] uppercase tracking-[0.16em] font-medium ${scaleUsable ? "text-emerald-500" : "text-amber-500"}`}
                 >
-                  {scaleOk ? "Scale detected" : "Scale not detected"}
+                  {scaleUsable ? "Scale detected" : "Scale not detected"}
                 </div>
                 <div className="mt-1 text-sm font-medium text-foreground">
                   {scaleOk
                     ? `${scaleResult.scaleFactor!.toFixed(4)} px/mm (${scaleResult.confidence} confidence)`
-                    : "Could not determine scale automatically"}
+                    : scaleRatioOk
+                      ? `${scaleResult.scaleText ?? `1:${scaleResult.scaleRatio}`} (${scaleResult.confidence} confidence)`
+                      : "Could not determine scale automatically"}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">{scaleResult.rationale}</div>
               </div>
 
-              {!scaleOk && (
+              {!scaleUsable && (
                 <div className="rounded-lg border border-border bg-card p-5 space-y-3">
                   <div className="text-sm font-medium">Enter a known dimension</div>
                   <p className="text-xs text-muted-foreground">
