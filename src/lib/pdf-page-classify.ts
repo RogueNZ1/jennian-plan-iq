@@ -95,6 +95,23 @@ export function classifyText(
   // detection only; `t`/`has` keep 2a behaviour unchanged.
   const tn = t.replace(/\s+/g, " ");
   const hasPhrase = (s: string) => tn.includes(s);
+  const elevationFaceHits = (
+    tn.match(
+      /\b(?:north|south|east|west|front|rear|left|right|northern|southern|eastern|western|north\s+east|north\s+west|south\s+east|south\s+west|north\s+eastern|north\s+western|south\s+eastern|south\s+western)\s+elevations?\b/g,
+    ) ?? []
+  ).length;
+  const strongElevationSheet =
+    hasPhrase("elevations") ||
+    elevationFaceHits >= 2 ||
+    (hasPhrase("elevation a") && hasPhrase("elevation b"));
+
+  // Strong elevation sheets can carry title-block/project text that includes
+  // "floor plan" or "proposed floor plan". Treat clear elevation-face sheets as
+  // elevations before the floor-plan family, while still allowing incidental
+  // one-off "refer elevation A" notes on real floor plans to stay floor_plan.
+  if (strongElevationSheet) {
+    return { type: "elevations", confidence: hasPhrase("elevations") ? "high" : "mid" };
+  }
 
   // Floorplan family FIRST (Phase 2a). An explicit floor-plan sheet must win even
   // when the page also contains incidental disqualifier words ("elevation" in a

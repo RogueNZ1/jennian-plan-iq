@@ -57,6 +57,14 @@ describe("classifyText — floor-plan family wins over incidental disqualifiers"
     expect(type).toBe("elevations");
   });
 
+  it("classifies a genuine elevations sheet even when title-block text mentions floor plan", () => {
+    const { type } = classifyText(
+      "Proposed floor plan title block  NORTH ELEVATION  SOUTH ELEVATION  EAST ELEVATION  WEST ELEVATION",
+      8,
+    );
+    expect(type).toBe("elevations");
+  });
+
   it("still classifies a genuine legend sheet as legends", () => {
     const { type } = classifyText("LEGEND & ABBREVIATIONS  symbols schedule", 0);
     expect(type).toBe("legends");

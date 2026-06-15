@@ -304,6 +304,7 @@ function UploadPage() {
     try {
       let activePlanFile = planFile;
       let pages = await analyzePdfPages(activePlanFile, {
+        maxPages: 60,
         onProgress: (done, total) => setAnalyzeProgress({ done, total }),
       });
       let pick = pickPrimaryFloorplan(pages);
@@ -324,6 +325,7 @@ function UploadPage() {
             },
           ]);
           pages = await analyzePdfPages(activePlanFile, {
+            maxPages: 60,
             onProgress: (done, total) => setAnalyzeProgress({ done, total }),
           });
           pick = pickPrimaryFloorplan(pages);
