@@ -24,6 +24,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 import {
   buildElectricalSchedule,
   electricalScheduleToCSV,
+  isSuppressedInternalWallDataItem,
   type QSExportData,
 } from "../iq-qs-export";
 
@@ -152,6 +153,25 @@ describe("buildElectricalSchedule", () => {
   it("fallback area is 165 when floorAreaM2 is null", () => {
     const schedule = buildElectricalSchedule(makeData({ floorAreaM2: null }));
     expect(schedule.floorAreaM2).toBe(165);
+  });
+});
+
+describe("downloaded workbook compatibility rows", () => {
+  it("suppresses unverified internal-wall module rows from the compatibility tab", () => {
+    expect(
+      isSuppressedInternalWallDataItem({ module_id: "iq-framing", label: "Internal Walls" }),
+    ).toBe(true);
+    expect(
+      isSuppressedInternalWallDataItem({
+        module_id: "iq-linings",
+        label: "Internal Wall Length",
+      }),
+    ).toBe(true);
+    expect(
+      isSuppressedInternalWallDataItem({ module_id: "iq-core", label: "Internal Wall Length" }),
+    ).toBe(false);
+    expect(isSuppressedInternalWallDataItem({ module_id: "iq-roofing", label: "Coverage Area" }))
+      .toBe(false);
   });
 });
 

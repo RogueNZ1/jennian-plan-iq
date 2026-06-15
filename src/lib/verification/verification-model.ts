@@ -226,6 +226,39 @@ function measure(
   };
 }
 
+function notApplicableMeasure(label: string, unit = ""): MeasureRow {
+  return {
+    label,
+    value: "N/A",
+    unit,
+    source: null,
+    confidence: null,
+    flagged: false,
+  };
+}
+
+function manualReviewMeasure(label: string, unit = ""): MeasureRow {
+  return {
+    label,
+    value: "Measure manually",
+    unit,
+    source: "MAN",
+    confidence: "low",
+    flagged: true,
+  };
+}
+
+function openingDimsMatch(
+  visual: { height_m: number | null; width_m: number | null },
+  opening: { height_m: number; width_m: number },
+): boolean {
+  if (visual.height_m == null || visual.width_m == null) return false;
+  return (
+    Math.abs(visual.height_m - opening.height_m) <= 0.02 &&
+    Math.abs(visual.width_m - opening.width_m) <= 0.02
+  );
+}
+
 const ROOM_LABELS: Record<string, string> = {
   bed1: "Bed 1",
   ensuite: "Ensuite",
@@ -287,13 +320,27 @@ export function buildVerificationModel(
   /* geometry banner ---------------------------------------------- */
   const geometryOffline =
     data.geometryStatus === "unavailable" || (e?.geometry_status?.value ?? null) === "unavailable";
+  const hasGarageEvidence =
+    (e?.visual_opening_audit?.summary?.garageDoors ?? 0) > 0 ||
+    data.garageDoor24x21Std > 0 ||
+    data.garageDoor24x21Insulated > 0 ||
+    data.garageDoor27x21Std > 0 ||
+    data.garageDoor27x21Insulated > 0 ||
+    data.garageDoor48x21Std > 0 ||
+    data.garageDoor48x21Insulated > 0;
 
   /* key measures -------------------------------------------------- */
   const measures: MeasureRow[] = [
     measure("Floor area (living)", data.floorAreaM2, "m²", e?.floor_area_m2),
-    measure("Garage area", e?.garage_area_m2?.value ?? null, "m²", e?.garage_area_m2),
-    measure("Alfresco area", data.alfrescoAreaM2, "m²", e?.alfresco_area_m2),
-    measure("First-floor area", data.firstFloorAreaM2, "m²", null),
+    e?.garage_area_m2?.value == null && hasGarageEvidence
+      ? manualReviewMeasure("Garage area", "m²")
+      : measure("Garage area", e?.garage_area_m2?.value ?? null, "m²", e?.garage_area_m2),
+    data.alfrescoAreaM2 == null
+      ? notApplicableMeasure("Alfresco area", "m²")
+      : measure("Alfresco area", data.alfrescoAreaM2, "m²", e?.alfresco_area_m2),
+    data.firstFloorAreaM2 == null
+      ? notApplicableMeasure("First-floor area", "m²")
+      : measure("First-floor area", data.firstFloorAreaM2, "m²", null),
     measure("Total area", e?.total_area_m2?.value ?? null, "m²", e?.total_area_m2),
     measure(
       "External wall length",
@@ -337,18 +384,30 @@ export function buildVerificationModel(
   ];
 
   /* windows -------------------------------------------------------- */
+  const visualOpenings = buildVisualOpeningMarkers(e?.visual_opening_audit?.openings ?? null);
   const canonicalOpenings = (data.openings ?? []).filter((o) => o.glazed);
   const garageDoorOpenings = (data.openings ?? []).filter((o) => o.type === "sectional_door");
-  const openingRows: OpeningVerificationRow[] = canonicalOpenings.map((o, index) => ({
-    id: `O${index + 1}`,
-    type: OPENING_TYPE_LABELS[o.type] ?? o.type,
-    room: fmtStr(o.room),
-    height: o.height_m,
-    width: o.width_m,
-    area: o.area_m2,
-    source: SOURCE_MAP[o.source] ?? o.source.toUpperCase(),
-    flags: o.flags ?? [],
-  }));
+  const usedVisualOpeningIds = new Set<string>();
+  const openingRows: OpeningVerificationRow[] = canonicalOpenings.map((o, index) => {
+    const visual = visualOpenings.find(
+      (v) =>
+        !usedVisualOpeningIds.has(v.markerLabel) &&
+        v.type !== "garage_door" &&
+        openingDimsMatch(v, o) &&
+        (!o.room || !v.room || o.room.toLowerCase() === v.room.toLowerCase()),
+    );
+    if (visual) usedVisualOpeningIds.add(visual.markerLabel);
+    return {
+      id: visual?.markerLabel ?? `O${index + 1}`,
+      type: OPENING_TYPE_LABELS[o.type] ?? o.type,
+      room: fmtStr(o.room),
+      height: o.height_m,
+      width: o.width_m,
+      area: o.area_m2,
+      source: SOURCE_MAP[o.source] ?? o.source.toUpperCase(),
+      flags: o.flags ?? [],
+    };
+  });
 
   const byRoom: RoomWindowRow[] = Object.entries(data.windowsByRoom ?? {})
     .filter(([, v]) => v && v.qty > 0)
@@ -491,7 +550,6 @@ export function buildVerificationModel(
 
   /* plan overlay ----------------------------------------------------- */
   const overlayMarkers = buildDoorMarkers(e?.door_hits ?? null);
-  const visualOpenings = buildVisualOpeningMarkers(e?.visual_opening_audit?.openings ?? null);
   const planOverlay: VerificationModel["planOverlay"] = {
     markers: overlayMarkers,
     visualOpenings,

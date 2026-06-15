@@ -189,6 +189,28 @@ describe("buildVerificationModel", () => {
     expect(m.exceptions).toEqual([]);
   });
 
+  it("prints explicit N/A/manual-review semantics for non-applicable or unmeasured areas", () => {
+    const m = buildVerificationModel(
+      makeData({
+        alfrescoAreaM2: null,
+        firstFloorAreaM2: null,
+        garageDoor27x21Std: 1,
+      }),
+      makeEnriched({
+        garage_area_m2: fv(null, "vision", null),
+        alfresco_area_m2: fv(null, "vision", null),
+      }),
+      RUN,
+    );
+    expect(m.measures.find((r) => r.label === "Garage area")).toMatchObject({
+      value: "Measure manually",
+      source: "MAN",
+      flagged: true,
+    });
+    expect(m.measures.find((r) => r.label === "Alfresco area")?.value).toBe("N/A");
+    expect(m.measures.find((r) => r.label === "First-floor area")?.value).toBe("N/A");
+  });
+
   it("windows: per-room rows, schedule entries, QS rows, and totals all present", () => {
     const m = buildVerificationModel(makeData(), makeEnriched(), RUN);
     expect(m.windows.byRoom).toHaveLength(2);
@@ -276,7 +298,101 @@ describe("buildVerificationModel", () => {
     expect(m.windows.totals.garageDoorCount).toBe(1);
   });
 
-  it("surfaces ⚑ UNPLACED window flags from the enriched fields", () => {
+  it("windows: canonical rows keep visual O labels when a garage-door exception is excluded", () => {
+    const m = buildVerificationModel(
+      makeData({
+        openings: [
+          {
+            type: "garage_window",
+            room: "Garage",
+            height_m: 0.6,
+            width_m: 1.8,
+            glazed: true,
+            cladding: null,
+            area_m2: 1.08,
+            source: "vision",
+            confidence: "high",
+          },
+          {
+            type: "slider",
+            room: "Dining",
+            height_m: 2.055,
+            width_m: 2.1,
+            glazed: true,
+            cladding: null,
+            area_m2: 4.33,
+            source: "vision",
+            confidence: "high",
+          },
+          {
+            type: "sectional_door",
+            room: "Garage",
+            height_m: 2.52,
+            width_m: 2.8,
+            glazed: false,
+            cladding: null,
+            area_m2: 7.06,
+            source: "vision",
+            confidence: "high",
+          },
+        ],
+      }),
+      makeEnriched({
+        visual_opening_audit: {
+          summary: { totalOpenings: 3, qsGlazedOpenings: 2, garageDoors: 1, uncertain: 0 },
+          warnings: [],
+          openings: [
+            {
+              id: "O6",
+              type: "garage_door",
+              room: "Garage",
+              label: "2800x2520",
+              height_m: 2.52,
+              width_m: 2.8,
+              confidence: "high",
+              evidence: "garage door",
+              flags: [],
+              x: 0.8,
+              y: 0.2,
+            },
+            {
+              id: "O7",
+              type: "window",
+              room: "Garage",
+              label: "1800x600 W141",
+              height_m: 0.6,
+              width_m: 1.8,
+              confidence: "high",
+              evidence: "garage window",
+              flags: [],
+              x: 0.8,
+              y: 0.28,
+            },
+            {
+              id: "O8",
+              type: "slider",
+              room: "Dining",
+              label: "2100x2055",
+              height_m: 2.055,
+              width_m: 2.1,
+              confidence: "high",
+              evidence: "dining slider",
+              flags: [],
+              x: 0.72,
+              y: 0.35,
+            },
+          ],
+        },
+      }),
+      RUN,
+    );
+    expect(m.windows.openings.map((o) => [o.id, o.type, o.room])).toEqual([
+      ["O7", "Garage window", "Garage"],
+      ["O8", "Slider", "Dining"],
+    ]);
+  });
+
+  it("surfaces unplaced window flags from the enriched fields", () => {
     const e = makeEnriched({
       windows_by_room: fv({}, "vision", "mid", ["⚑ UNPLACED: W7 1200×1000 — no room match"]),
     });

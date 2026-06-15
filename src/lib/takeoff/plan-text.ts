@@ -67,13 +67,16 @@ export function parseRoomDims(labels: TextLabel[]): PlanRoom[] {
     const t = name.text.trim();
     if (!isRoomName(t)) continue;
     // dims print directly UNDER the room name: small dy below, near-left-aligned.
+    // Some Jennian exports place the room footprint a little lower/right of larger labels
+    // (notably GARAGE); keep this broad enough for room-scale dims, still far tighter
+    // than title blocks and joinery callouts.
     let best: { l: TextLabel; w: number; d: number; dist: number } | null = null;
     for (const l of labels) {
       const m = l.text.trim().match(DIMS_RE);
       if (!m) continue;
       const dx = l.x - name.x,
         dy = l.y - name.y;
-      if (dy <= 0 || dy > 12 || Math.abs(dx) > 30) continue;
+      if (dy <= 0 || dy > 24 || Math.abs(dx) > 48) continue;
       const dist = Math.hypot(dx, dy);
       if (!best || dist < best.dist) best = { l, w: num(m[1]), d: num(m[2]), dist };
     }

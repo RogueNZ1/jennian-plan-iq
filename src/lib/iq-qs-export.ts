@@ -56,6 +56,17 @@ export function pickModuleValue(
   return i ? (i.approved_value ?? i.extracted_value ?? null) : null;
 }
 
+export function isSuppressedInternalWallDataItem(item: {
+  label: string;
+  module_id: string;
+}): boolean {
+  const label = item.label.trim().toLowerCase();
+  return (
+    (label === "internal walls" || label === "internal wall length") &&
+    (item.module_id === "iq-framing" || item.module_id === "iq-linings")
+  );
+}
+
 export type QSExportData = {
   jobNumber: string;
   clientName: string;
@@ -1971,6 +1982,12 @@ export async function writeIQDataSheetFull(
   const dataHeader = ["Module", "Label", "Value", "Unit", "Source"];
   const dataRows: (string | number | null)[][] = [dataHeader];
   for (const item of allItems) {
+    const suppressedInternalWall = isSuppressedInternalWallDataItem(item);
+    if (suppressedInternalWall) {
+      item.approved_value = null;
+      item.extracted_value = "—";
+      item.value_source = "review";
+    }
     dataRows.push([
       item.module_id.replace("iq-", "").toUpperCase(),
       item.label,
