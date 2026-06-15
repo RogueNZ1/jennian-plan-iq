@@ -29,6 +29,7 @@ import {
 type PlacedMarker = DoorMarker & { vx: number; vy: number };
 type PlacedVisualOpening = VisualOpeningMarker & { vx: number; vy: number };
 type PlacedWCode = { text: string; vx: number; vy: number };
+type CropRect = { x: number; y: number; width: number; height: number };
 
 type OverlayState =
   | { status: "loading" }
@@ -47,6 +48,7 @@ type OverlayState =
 export type OverlayRenderStatus = OverlayState["status"];
 
 const RENDER_MAX_WIDTH = 1500;
+const MIN_CROP_POINTS = 4;
 
 function openingTypeLabel(type: VisualOpeningMarker["type"]): string {
   switch (type) {
@@ -104,6 +106,61 @@ function labelPlacement(
   const lx = Math.min(Math.max(4, x + slot.dx), canvasWidth - labelWidth - 4);
   const ly = Math.min(Math.max(4, y + slot.dy), canvasHeight - 18);
   return { lx, ly, tx: lx + 5, ty: ly + 12, lineEndX: lx + labelWidth / 2, lineEndY: ly + 9 };
+}
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
+
+function cropAroundMarkers(
+  width: number,
+  height: number,
+  markers: readonly Array<{ vx: number; vy: number }>,
+): CropRect | null {
+  if (markers.length < MIN_CROP_POINTS) return null;
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const m of markers) {
+    minX = Math.min(minX, m.vx);
+    minY = Math.min(minY, m.vy);
+    maxX = Math.max(maxX, m.vx);
+    maxY = Math.max(maxY, m.vy);
+  }
+  if (![minX, minY, maxX, maxY].every(Number.isFinite)) return null;
+
+  const padX = Math.max(120, width * 0.08);
+  const padY = Math.max(90, height * 0.08);
+  const x = clamp(Math.floor(minX - padX), 0, width - 1);
+  const y = clamp(Math.floor(minY - padY), 0, height - 1);
+  const right = clamp(Math.ceil(maxX + padX), x + 1, width);
+  const bottom = clamp(Math.ceil(maxY + padY), y + 1, height);
+  const crop = { x, y, width: right - x, height: bottom - y };
+
+  // If the crop is basically the whole sheet, keeping the original avoids needless
+  // resampling. Otherwise this removes title blocks, legends and note tables from print.
+  return crop.width * crop.height < width * height * 0.86 ? crop : null;
+}
+
+function cropCanvas(canvas: HTMLCanvasElement, crop: CropRect): HTMLCanvasElement {
+  const out = document.createElement("canvas");
+  out.width = crop.width;
+  out.height = crop.height;
+  const ctx = out.getContext("2d");
+  if (!ctx) throw new Error("canvas 2d unavailable");
+  ctx.drawImage(canvas, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height);
+  return out;
+}
+
+function applyCrop<T extends { vx: number; vy: number }>(items: T[], crop: CropRect | null): T[] {
+  if (!crop) return items;
+  return items.map((item) => ({
+    ...item,
+    vx: item.vx - crop.x,
+    vy: item.vy - crop.y,
+  }));
 }
 
 export function VerificationPlanOverlay({
@@ -193,16 +250,21 @@ export function VerificationPlanOverlay({
               return { text: l.text.trim().toUpperCase(), vx, vy };
             });
 
-          const imgUrl = canvas.toDataURL("image/jpeg", 0.9);
+          const crop = cropAroundMarkers(canvas.width, canvas.height, [
+            ...placed,
+            ...placedVisualOpenings,
+          ]);
+          const outputCanvas = crop ? cropCanvas(canvas, crop) : canvas;
+          const imgUrl = outputCanvas.toDataURL("image/jpeg", 0.9);
           if (active) {
             setState({
               status: "ready",
               imgUrl,
-              width: canvas.width,
-              height: canvas.height,
-              markers: placed,
-              visualOpenings: placedVisualOpenings,
-              wcodes,
+              width: outputCanvas.width,
+              height: outputCanvas.height,
+              markers: applyCrop(placed, crop),
+              visualOpenings: applyCrop(placedVisualOpenings, crop),
+              wcodes: applyCrop(wcodes, crop),
             });
           }
         } finally {
