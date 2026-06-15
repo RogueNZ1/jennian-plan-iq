@@ -197,8 +197,8 @@ describe("buildVerificationModel", () => {
         garageDoor27x21Std: 1,
       }),
       makeEnriched({
-        garage_area_m2: fv(null, "vision", null),
-        alfresco_area_m2: fv(null, "vision", null),
+        garage_area_m2: fv<number>(null, "vision", null),
+        alfresco_area_m2: fv<number>(null, "vision", null),
       }),
       RUN,
     );
@@ -339,6 +339,8 @@ describe("buildVerificationModel", () => {
       }),
       makeEnriched({
         visual_opening_audit: {
+          pageNumber: 1,
+          method: "visual_qs",
           summary: { totalOpenings: 3, qsGlazedOpenings: 2, garageDoors: 1, uncertain: 0 },
           warnings: [],
           openings: [

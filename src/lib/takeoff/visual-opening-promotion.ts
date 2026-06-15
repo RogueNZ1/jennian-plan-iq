@@ -96,12 +96,12 @@ function normaliseVisualDims(item: VisualOpeningAuditItem): {
 
   // Plausibility guard: sliders/windows are not 3m+ high. If one side is a normal
   // door/window height and the other is very large, treat the large side as width.
-  if (item.type !== "garage_door" && h > 3 && w <= 2.7) {
+  if (h > 3 && w <= 2.7) {
     [h, w] = [w, h];
     flags.push(`${item.id}: visual dimensions swapped by plausibility check; confirm label order.`);
   }
 
-  if (h > 2.7 && item.type !== "garage_door") {
+  if (h > 2.7) {
     flags.push(
       `${item.id}: visual height ${round2(h)}m is unusually high; confirm before pricing.`,
     );

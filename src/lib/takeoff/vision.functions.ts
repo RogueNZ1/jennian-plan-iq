@@ -707,19 +707,22 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), AUDIT_FLUSH_TIMEOUT_MS);
         try {
-          await supabase.from("module_audit_logs").insert(
-            auditQueue.map((a) => ({
-              job_id: a.job_id,
-              user_id: a.user_id,
-              action: a.action,
-              module_id: a.module_id ?? null,
-              item_id: a.item_id ?? null,
-              run_id: a.run_id ?? null,
-              previous_value: a.previous_value ?? null,
-              new_value: a.new_value ?? null,
-              notes: a.notes ?? null,
-            })),
-          ).abortSignal(controller.signal);
+          await supabase
+            .from("module_audit_logs")
+            .insert(
+              auditQueue.map((a) => ({
+                job_id: a.job_id,
+                user_id: a.user_id,
+                action: a.action,
+                module_id: a.module_id ?? null,
+                item_id: a.item_id ?? null,
+                run_id: a.run_id ?? null,
+                previous_value: a.previous_value ?? null,
+                new_value: a.new_value ?? null,
+                notes: a.notes ?? null,
+              })),
+            )
+            .abortSignal(controller.signal);
         } catch {
           /* never let audit failure mask the takeoff result */
         } finally {
@@ -885,6 +888,7 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
           });
 
           let argStr: string | undefined;
+          let modelDiagnostic: unknown = null;
           if (LOVABLE_API_KEY) {
             const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
               method: "POST",
@@ -925,6 +929,7 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
             let aiJson: AiResponse;
             try {
               aiJson = (await aiRes.json()) as AiResponse;
+              modelDiagnostic = aiJson;
             } catch {
               pageOutcome.status = "model_unreadable";
               pageOutcome.errorMessage = "Vision model returned an unexpected response.";
@@ -938,6 +943,11 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
             argStr = aiJson.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
           } else {
             const { callVisionModel, safeParseJson } = await import("./anthropic-client");
+            if (!ANTHROPIC_API_KEY) {
+              throw new Error(
+                "Vision Takeoff could not call the vision model. Check server AI credentials. Expected env: ANTHROPIC_API_KEY.",
+              );
+            }
             const userText =
               `Job: ${data.jobId}. File: ${p.fileName}. Page number: ${p.pageNumber}.` +
               (p.clientPageType
@@ -955,15 +965,16 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
               dataUrl.split(",")[1] ?? dataUrl,
               "image/png",
             );
-            argStr = JSON.stringify(safeParseJson<unknown>(raw));
+            modelDiagnostic = safeParseJson<unknown>(raw);
+            argStr = JSON.stringify(modelDiagnostic);
           }
           if (!argStr) {
             // Summarise the response shape so the operator can diagnose gateway issues.
             let technical: string;
             try {
-              technical = JSON.stringify(aiJson).slice(0, 300);
+              technical = JSON.stringify(modelDiagnostic).slice(0, 300);
             } catch {
-              technical = String(aiJson);
+              technical = String(modelDiagnostic);
             }
             pageOutcome.status = "model_unreadable";
             pageOutcome.errorMessage = "Vision model returned an unexpected response.";
@@ -1128,8 +1139,7 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
             summary.workingPlanReviewed = true;
           }
           if (!FLOORPLAN_VISION_TYPES.has(parsed.page_type) && isFloorplan) {
-            const note =
-              `Vision returned page_type "${parsed.page_type}" but flattened floorplan evidence was found; geometry writes allowed.`;
+            const note = `Vision returned page_type "${parsed.page_type}" but flattened floorplan evidence was found; geometry writes allowed.`;
             pageOutcome.warnings.push(note);
             summary.warnings.push(`${p.fileName} p${p.pageNumber}: ${note}`);
           }
@@ -1442,7 +1452,8 @@ export const runVisionTakeoff = createServerFn({ method: "POST" })
             0;
           const shouldReturnAfterOpenings =
             usefulRowsSaved &&
-            (data.pages.length === 1 || Date.now() - startedAtMs > VISION_SOFT_RETURN_AFTER_OPENINGS_MS);
+            (data.pages.length === 1 ||
+              Date.now() - startedAtMs > VISION_SOFT_RETURN_AFTER_OPENINGS_MS);
           const deferDerivedDrafts = usefulRowsSaved;
           if (deferDerivedDrafts) {
             const deferWarning =

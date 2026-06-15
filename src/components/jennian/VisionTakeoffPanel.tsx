@@ -271,7 +271,7 @@ export function VisionTakeoffPanel({
       moduleDraftItemsCreated: Math.max(vision.moduleDraftItemsCreated, moduleItemCount),
       reviewRequiredItems: Math.max(vision.reviewRequiredItems, openingCount + quantityCount),
       warnings:
-        data.status === "running"
+        data?.status === "running"
           ? [
               ...(vision.warnings ?? []),
               "Vision request timed out after saving partial results. Review extracted rows before pricing.",

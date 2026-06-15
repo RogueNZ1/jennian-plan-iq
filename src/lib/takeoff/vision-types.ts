@@ -15,6 +15,7 @@ export type VisionAreaBox = {
 export type VisionBaseGeometry = {
   external_perimeter_m: number | null;
   internal_wall_length_m: number | null;
+  internal_wall_segments_m?: number[];
   garage_area_m2: number | null;
   living_area_excluding_garage_m2: number | null;
 };
