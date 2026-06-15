@@ -6,8 +6,8 @@
  *
  * Layers:
  *   - door markers from the PERSISTED run (red = confirmed, amber dashed = flag)
- *   - W-code boxes matched LIVE from the page's own printed text (no persistence, no claim —
- *     it circles what the plan itself says, for the schedule cross-check)
+ *   - W-code text matched LIVE from the page's own printed text for table cross-checks only.
+ *     The print overlay deliberately does not draw those boxes; they made the marked plan noisy.
  *
  * Degradation is deliberate and quiet-proof:
  *   - no plan file → says so
@@ -83,7 +83,27 @@ function sizeMm(heightM: number | null, widthM: number | null): string {
 }
 
 function tagWidth(text: string): number {
-  return Math.max(38, text.length * 7 + 14);
+  return Math.max(28, text.length * 6 + 10);
+}
+
+function labelPlacement(
+  x: number,
+  y: number,
+  canvasWidth: number,
+  canvasHeight: number,
+  labelWidth: number,
+  index: number,
+) {
+  const slots = [
+    { dx: 12, dy: -22 },
+    { dx: 12, dy: 10 },
+    { dx: -labelWidth - 12, dy: -22 },
+    { dx: -labelWidth - 12, dy: 10 },
+  ];
+  const slot = slots[index % slots.length];
+  const lx = Math.min(Math.max(4, x + slot.dx), canvasWidth - labelWidth - 4);
+  const ly = Math.min(Math.max(4, y + slot.dy), canvasHeight - 18);
+  return { lx, ly, tx: lx + 5, ty: ly + 12, lineEndX: lx + labelWidth / 2, lineEndY: ly + 9 };
 }
 
 export function VerificationPlanOverlay({
@@ -220,7 +240,8 @@ export function VerificationPlanOverlay({
     );
   }
 
-  const r = 13; // marker radius in render px
+  const openingR = 8;
+  const doorR = 7;
   return (
     <div>
       {!page && (
@@ -234,33 +255,39 @@ export function VerificationPlanOverlay({
       <div className="voverlay-wrap" style={{ aspectRatio: `${state.width} / ${state.height}` }}>
         <img src={state.imgUrl} alt="Floor plan with takeoff overlay" />
         <svg viewBox={`0 0 ${state.width} ${state.height}`} preserveAspectRatio="xMinYMin meet">
-          {state.wcodes.map((w, i) => (
-            <g key={`w-${i}`}>
-              <rect
-                x={w.vx - 6}
-                y={w.vy - 18}
-                width={46}
-                height={24}
-                className="vov-wcode"
-                rx={3}
-              />
-            </g>
-          ))}
-          {state.visualOpenings.map((o) => {
+          {state.visualOpenings.map((o, index) => {
             const size = sizeMm(o.height_m, o.width_m);
-            const tag = `${o.markerLabel} ${openingTypeLabel(o.type)}${size ? ` ${size}` : ""}`;
+            const fullTag = `${o.markerLabel} ${openingTypeLabel(o.type)}${size ? ` ${size}` : ""}`;
+            const tag =
+              o.type === "garage_door"
+                ? `${o.markerLabel} GD`
+                : `${o.markerLabel} ${openingTypeLabel(o.type)}`;
             const w = tagWidth(tag);
+            const label = labelPlacement(o.vx, o.vy, state.width, state.height, w, index);
             return (
               <g key={`vo-${o.markerLabel}`}>
                 <title>
-                  {tag}
+                  {fullTag}
                   {o.room ? ` · ${o.room}` : ""}
                   {o.evidence ? ` · ${o.evidence}` : ""}
                 </title>
+                <line
+                  x1={o.vx}
+                  y1={o.vy}
+                  x2={label.lineEndX}
+                  y2={label.lineEndY}
+                  className={[
+                    "vov-leader",
+                    o.type === "garage_door" ? "vov-leader-garage" : "",
+                    o.confidence === "low" ? "vov-leader-low" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                />
                 <circle
                   cx={o.vx}
                   cy={o.vy}
-                  r={r + 2}
+                  r={openingR}
                   className={[
                     "vov-opening",
                     o.confidence === "low" ? "vov-opening-low" : "",
@@ -270,11 +297,11 @@ export function VerificationPlanOverlay({
                     .join(" ")}
                 />
                 <rect
-                  x={o.vx + r + 4}
-                  y={o.vy - r - 8}
+                  x={label.lx}
+                  y={label.ly}
                   width={w}
-                  height={18}
-                  rx={3}
+                  height={16}
+                  rx={2}
                   className={[
                     "vov-tag-bg",
                     o.type === "garage_door" ? "vov-tag-bg-garage" : "",
@@ -283,15 +310,16 @@ export function VerificationPlanOverlay({
                     .filter(Boolean)
                     .join(" ")}
                 />
-                <text x={o.vx + r + 10} y={o.vy - r + 5} className="vov-opening-label">
+                <text x={label.tx} y={label.ty} className="vov-opening-label">
                   {tag}
                 </text>
               </g>
             );
           })}
-          {state.markers.map((m) => {
+          {state.markers.map((m, index) => {
             const tag = `${m.label} ${doorTypeLabel(m.type)}${m.widthMm}`;
             const w = tagWidth(tag);
+            const label = labelPlacement(m.vx, m.vy, state.width, state.height, w, index + 1);
             return (
               <g key={m.label}>
                 <title>
@@ -301,18 +329,25 @@ export function VerificationPlanOverlay({
                 <circle
                   cx={m.vx}
                   cy={m.vy}
-                  r={r}
+                  r={doorR}
                   className={m.confidence === "flag" ? "vov-flag" : "vov-door"}
                 />
+                <line
+                  x1={m.vx}
+                  y1={m.vy}
+                  x2={label.lineEndX}
+                  y2={label.lineEndY}
+                  className={m.confidence === "flag" ? "vov-door-leader-flag" : "vov-door-leader"}
+                />
                 <rect
-                  x={m.vx + r + 4}
-                  y={m.vy - r - 8}
+                  x={label.lx}
+                  y={label.ly}
                   width={w}
-                  height={18}
-                  rx={3}
+                  height={16}
+                  rx={2}
                   className={m.confidence === "flag" ? "vov-door-tag-bg-flag" : "vov-door-tag-bg"}
                 />
-                <text x={m.vx + r + 10} y={m.vy - r + 5} className="vov-label">
+                <text x={label.tx} y={label.ty} className="vov-label">
                   {tag}
                 </text>
               </g>

@@ -532,10 +532,7 @@ function VerificationPrintout() {
         </Section>
 
         {/* 4 · plan overlay */}
-        <Section
-          title="4 · Plan overlay — Visual QS, door hits & window codes"
-          className="vsec-plan"
-        >
+        <Section title="4 · Plan overlay — Visual QS & door hits" className="vsec-plan">
           <VerificationPlanOverlay
             jobId={jobId}
             markers={m.planOverlay.markers}
@@ -545,7 +542,8 @@ function VerificationPrintout() {
           />
           <div className="vplan-note">
             Red = internal door engine. Blue = external-wall opening / glazing marker. Black =
-            garage door exception. Green boxes are printed window-code labels from the plan.
+            garage door exception. Small tags identify the marker; sizes and evidence are in the
+            tables after this page.
           </div>
           <div className="vplan-detail-break" />
           {m.planOverlay.visualWarnings.length > 0 && (
@@ -607,8 +605,7 @@ function VerificationPrintout() {
                 {m.planOverlay.summary.byType.hinged} · double {m.planOverlay.summary.byType.double}
                 &nbsp;· cavity {m.planOverlay.summary.byType.cavity}) — red tags = counted by the
                 deterministic engine; no-arc single-leaf hits must be checked against the marked
-                plan. Dashed amber = review only. Green boxes are the plan's own printed window
-                codes.
+                plan. Dashed amber = review only.
               </div>
               <table className="vtable">
                 <thead>
@@ -830,19 +827,23 @@ const PRINT_CSS = `
 .voverlay-wrap { position:relative; border:1px solid #d1d5db; background:#fff; }
 .voverlay-wrap img { display:block; width:100%; height:100%; }
 .voverlay-wrap svg { position:absolute; inset:0; width:100%; height:100%; }
-.vov-door { fill:none; stroke:#dc2626; stroke-width:3; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
-.vov-flag { fill:none; stroke:#b45309; stroke-width:3; stroke-dasharray:6 4; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
-.vov-label { fill:#fff; font:800 12px ui-sans-serif, system-ui, sans-serif; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
-.vov-door-tag-bg { fill:#dc2626; stroke:#991b1b; stroke-width:1.5; opacity:.94; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
-.vov-door-tag-bg-flag { fill:#b45309; stroke:#92400e; stroke-width:1.5; opacity:.94; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
-.vov-wcode { fill:none; stroke:#16a34a; stroke-width:2.5; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
-.vov-opening { fill:rgba(37,99,235,.10); stroke:#2563eb; stroke-width:3; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
-.vov-opening-low { stroke-dasharray:7 4; }
-.vov-opening-garage { fill:rgba(17,24,39,.10); stroke:#111827; }
-.vov-tag-bg { fill:#2563eb; stroke:#1d4ed8; stroke-width:1.5; opacity:.92; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-door { fill:rgba(220,38,38,.05); stroke:#dc2626; stroke-width:2; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-flag { fill:rgba(180,83,9,.05); stroke:#b45309; stroke-width:2; stroke-dasharray:5 4; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-label { fill:#fff; font:800 10px ui-sans-serif, system-ui, sans-serif; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-door-leader { stroke:#dc2626; stroke-width:1; opacity:.65; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-door-leader-flag { stroke:#b45309; stroke-width:1; opacity:.65; stroke-dasharray:4 3; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-door-tag-bg { fill:#dc2626; stroke:#991b1b; stroke-width:.75; opacity:.86; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-door-tag-bg-flag { fill:#b45309; stroke:#92400e; stroke-width:.75; opacity:.86; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-opening { fill:rgba(37,99,235,.04); stroke:#2563eb; stroke-width:2; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-opening-low { stroke-dasharray:5 4; }
+.vov-opening-garage { fill:rgba(17,24,39,.04); stroke:#111827; }
+.vov-leader { stroke:#2563eb; stroke-width:1; opacity:.55; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-leader-low { stroke:#b45309; stroke-dasharray:4 3; }
+.vov-leader-garage { stroke:#111827; }
+.vov-tag-bg { fill:#2563eb; stroke:#1d4ed8; stroke-width:.75; opacity:.84; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
 .vov-tag-bg-low { fill:#b45309; stroke:#92400e; }
 .vov-tag-bg-garage { fill:#111827; stroke:#111827; }
-.vov-opening-label { fill:#fff; font:800 12px ui-sans-serif, system-ui, sans-serif; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-opening-label { fill:#fff; font:800 10px ui-sans-serif, system-ui, sans-serif; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
 
 .vfoot { margin-top:20px; border-top:2px solid #111827; padding-top:8px; }
 .vlegend { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:9px; color:#6b7280; }
