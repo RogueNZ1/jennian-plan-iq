@@ -46,6 +46,44 @@ type OverlayState =
 
 const RENDER_MAX_WIDTH = 1500;
 
+function openingTypeLabel(type: VisualOpeningMarker["type"]): string {
+  switch (type) {
+    case "window":
+    case "garage_window":
+      return "W";
+    case "slider":
+      return "SL";
+    case "pa_door":
+      return "PA";
+    case "external_door":
+      return "OPEN";
+    case "garage_door":
+      return "GD";
+    default:
+      return "?";
+  }
+}
+
+function doorTypeLabel(type: DoorMarker["type"]): string {
+  switch (type) {
+    case "hinged":
+      return "H";
+    case "double":
+      return "DBL";
+    case "cavity":
+      return "CAV";
+  }
+}
+
+function sizeMm(heightM: number | null, widthM: number | null): string {
+  if (heightM == null || widthM == null) return "";
+  return `${Math.round(heightM * 1000)}x${Math.round(widthM * 1000)}`;
+}
+
+function tagWidth(text: string): number {
+  return Math.max(38, text.length * 7 + 14);
+}
+
 export function VerificationPlanOverlay({
   jobId,
   markers,
@@ -199,38 +237,78 @@ export function VerificationPlanOverlay({
               />
             </g>
           ))}
-          {state.visualOpenings.map((o) => (
-            <g key={`vo-${o.markerLabel}`}>
-              <circle
-                cx={o.vx}
-                cy={o.vy}
-                r={r + 2}
-                className={[
-                  "vov-opening",
-                  o.confidence === "low" ? "vov-opening-low" : "",
-                  o.type === "garage_door" ? "vov-opening-garage" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-              />
-              <text x={o.vx + r + 5} y={o.vy + r + 4} className="vov-opening-label">
-                {o.markerLabel}
-              </text>
-            </g>
-          ))}
-          {state.markers.map((m) => (
-            <g key={m.label}>
-              <circle
-                cx={m.vx}
-                cy={m.vy}
-                r={r}
-                className={m.confidence === "flag" ? "vov-flag" : "vov-door"}
-              />
-              <text x={m.vx + r + 3} y={m.vy - r + 4} className="vov-label">
-                {m.label}
-              </text>
-            </g>
-          ))}
+          {state.visualOpenings.map((o) => {
+            const size = sizeMm(o.height_m, o.width_m);
+            const tag = `${o.markerLabel} ${openingTypeLabel(o.type)}${size ? ` ${size}` : ""}`;
+            const w = tagWidth(tag);
+            return (
+              <g key={`vo-${o.markerLabel}`}>
+                <title>
+                  {tag}
+                  {o.room ? ` · ${o.room}` : ""}
+                  {o.evidence ? ` · ${o.evidence}` : ""}
+                </title>
+                <circle
+                  cx={o.vx}
+                  cy={o.vy}
+                  r={r + 2}
+                  className={[
+                    "vov-opening",
+                    o.confidence === "low" ? "vov-opening-low" : "",
+                    o.type === "garage_door" ? "vov-opening-garage" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                />
+                <rect
+                  x={o.vx + r + 4}
+                  y={o.vy - r - 8}
+                  width={w}
+                  height={18}
+                  rx={3}
+                  className={[
+                    "vov-tag-bg",
+                    o.type === "garage_door" ? "vov-tag-bg-garage" : "",
+                    o.confidence === "low" ? "vov-tag-bg-low" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                />
+                <text x={o.vx + r + 10} y={o.vy - r + 5} className="vov-opening-label">
+                  {tag}
+                </text>
+              </g>
+            );
+          })}
+          {state.markers.map((m) => {
+            const tag = `${m.label} ${doorTypeLabel(m.type)}${m.widthMm}`;
+            const w = tagWidth(tag);
+            return (
+              <g key={m.label}>
+                <title>
+                  {tag}
+                  {m.note ? ` · ${m.note}` : ""}
+                </title>
+                <circle
+                  cx={m.vx}
+                  cy={m.vy}
+                  r={r}
+                  className={m.confidence === "flag" ? "vov-flag" : "vov-door"}
+                />
+                <rect
+                  x={m.vx + r + 4}
+                  y={m.vy - r - 8}
+                  width={w}
+                  height={18}
+                  rx={3}
+                  className={m.confidence === "flag" ? "vov-door-tag-bg-flag" : "vov-door-tag-bg"}
+                />
+                <text x={m.vx + r + 10} y={m.vy - r + 5} className="vov-label">
+                  {tag}
+                </text>
+              </g>
+            );
+          })}
         </svg>
       </div>
     </div>

@@ -132,6 +132,25 @@ function CountTable({
   );
 }
 
+function openingDisplayType(type: string): string {
+  switch (type) {
+    case "window":
+      return "window";
+    case "garage_window":
+      return "garage window";
+    case "slider":
+      return "slider";
+    case "pa_door":
+      return "PA opening";
+    case "external_door":
+      return "opening";
+    case "garage_door":
+      return "garage door";
+    default:
+      return type.replace(/_/g, " ");
+  }
+}
+
 function Section({
   title,
   children,
@@ -479,14 +498,14 @@ function VerificationPrintout() {
           {m.planOverlay.visualOpenings.length > 0 && (
             <>
               <div className="vsrcline" style={{ marginTop: 8 }}>
-                Visual QS external openings:{" "}
+                Visual QS glazing/openings:{" "}
                 <strong>{m.planOverlay.visualSummary?.totalOpenings ?? "—"}</strong> total ·{" "}
                 <strong>{m.planOverlay.visualSummary?.qsGlazedOpenings ?? "—"}</strong> QS
                 glazed/opening items ·{" "}
                 <strong>{m.planOverlay.visualSummary?.garageDoors ?? "—"}</strong> garage door
                 excluded from glazing ·{" "}
                 <strong>{m.planOverlay.visualSummary?.uncertain ?? "—"}</strong> uncertain/low. Blue
-                = visual external opening; black = garage door exception.
+                = glazing/opening marker; black = garage door exception.
               </div>
               <table className="vtable">
                 <thead>
@@ -503,7 +522,7 @@ function VerificationPrintout() {
                   {m.planOverlay.visualOpenings.map((o) => (
                     <tr key={o.markerLabel}>
                       <td className="vlabel">{o.markerLabel}</td>
-                      <td>{o.type}</td>
+                      <td>{openingDisplayType(o.type)}</td>
                       <td>{o.room ?? "—"}</td>
                       <td className="vvalue">
                         {o.height_m != null && o.width_m != null
@@ -524,9 +543,9 @@ function VerificationPrintout() {
                 {m.planOverlay.summary.confirmed} confirmed · {m.planOverlay.summary.flagged}{" "}
                 flagged &nbsp;(hinged {m.planOverlay.summary.byType.hinged} · double{" "}
                 {m.planOverlay.summary.byType.double}
-                &nbsp;· cavity {m.planOverlay.summary.byType.cavity}) — solid red = confirmed by the
-                deterministic engine; dashed amber = flagged for review (never counted). Green boxes
-                are the plan's own printed window codes.
+                &nbsp;· cavity {m.planOverlay.summary.byType.cavity}) — red tags = internal doors
+                from the deterministic engine; dashed amber = review only. Green boxes are the
+                plan's own printed window codes.
               </div>
               <table className="vtable">
                 <thead>
@@ -746,12 +765,17 @@ const PRINT_CSS = `
 .voverlay-wrap svg { position:absolute; inset:0; width:100%; height:100%; }
 .vov-door { fill:none; stroke:#dc2626; stroke-width:3; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
 .vov-flag { fill:none; stroke:#b45309; stroke-width:3; stroke-dasharray:6 4; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
-.vov-label { fill:#dc2626; font:700 15px ui-sans-serif, system-ui, sans-serif; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-label { fill:#fff; font:800 12px ui-sans-serif, system-ui, sans-serif; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-door-tag-bg { fill:#dc2626; stroke:#991b1b; stroke-width:1.5; opacity:.94; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-door-tag-bg-flag { fill:#b45309; stroke:#92400e; stroke-width:1.5; opacity:.94; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
 .vov-wcode { fill:none; stroke:#16a34a; stroke-width:2.5; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
 .vov-opening { fill:rgba(37,99,235,.10); stroke:#2563eb; stroke-width:3; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
 .vov-opening-low { stroke-dasharray:7 4; }
 .vov-opening-garage { fill:rgba(17,24,39,.10); stroke:#111827; }
-.vov-opening-label { fill:#1d4ed8; font:800 15px ui-sans-serif, system-ui, sans-serif; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-tag-bg { fill:#2563eb; stroke:#1d4ed8; stroke-width:1.5; opacity:.92; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-tag-bg-low { fill:#b45309; stroke:#92400e; }
+.vov-tag-bg-garage { fill:#111827; stroke:#111827; }
+.vov-opening-label { fill:#fff; font:800 12px ui-sans-serif, system-ui, sans-serif; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
 
 .vfoot { margin-top:20px; border-top:2px solid #111827; padding-top:8px; }
 .vlegend { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:9px; color:#6b7280; }
