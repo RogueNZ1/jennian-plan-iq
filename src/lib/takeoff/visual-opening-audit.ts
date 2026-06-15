@@ -71,6 +71,28 @@ function cleanFlags(v: unknown): string[] {
   return v.map(cleanString).filter((s): s is string => !!s);
 }
 
+function uniqueFlags(flags: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const flag of flags) {
+    const key = flag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(flag);
+  }
+  return out;
+}
+
+function markerPositionIsUnconfirmed(evidence: string, flags: readonly string[]): boolean {
+  const text = [evidence, ...flags].join(" ").toLowerCase();
+  return /\b(marker|position|coordinate|point)\b/.test(text) &&
+    /\b(approx|approximate|uncertain|not confirmed|not on physical|near label|beside label|room centre|room center|schedule|table)\b/.test(
+      text,
+    )
+    ? true
+    : false;
+}
+
 export function summariseVisualOpeningAudit(
   openings: readonly VisualOpeningAuditItem[],
 ): VisualOpeningAuditSummary {
@@ -93,9 +115,13 @@ export function normaliseVisualOpeningAudit(
     const type = TYPES.has(r.type as VisualOpeningType)
       ? (r.type as VisualOpeningType)
       : "uncertain";
-    const confidence = CONF.has(r.confidence as VisualOpeningConfidence)
+    const rawConfidence = CONF.has(r.confidence as VisualOpeningConfidence)
       ? (r.confidence as VisualOpeningConfidence)
       : "low";
+    const evidence = cleanString(r.evidence) ?? "";
+    const flags = cleanFlags(r.flags);
+    const markerUnconfirmed = markerPositionIsUnconfirmed(evidence, flags);
+    const confidence = markerUnconfirmed ? "low" : rawConfidence;
     return {
       id: cleanString(r.id) ?? `O${index + 1}`,
       type,
@@ -106,8 +132,10 @@ export function normaliseVisualOpeningAudit(
       x: clamp01(r.x),
       y: clamp01(r.y),
       confidence,
-      evidence: cleanString(r.evidence) ?? "",
-      flags: cleanFlags(r.flags),
+      evidence,
+      flags: markerUnconfirmed
+        ? uniqueFlags([...flags, "marker not confirmed on physical opening"])
+        : flags,
     };
   });
 

@@ -506,12 +506,39 @@ READING:
 - Do NOT use nearby level/height markers, wall heights, roof notes, cladding dimensions, or room dimensions as the garage-door size.
 - If multiple labels are near the garage, the real garage-door label is the one spanning the garage opening on the external wall, not the garage room size.
 
-POSITION:
-For every opening, return x and y coordinates on the ACTUAL PHYSICAL OPENING in the wall.
-Use normalized image coordinates from 0 to 1, where x=0 is left edge, x=1 is right edge, y=0 is top edge, y=1 is bottom edge.
-Place the point on the window/door line itself, preferably at the centre of the framed opening.
-Do NOT place the point on the room label, a size label, the middle of the room, a schedule/table, or a nearby note.
-If you can identify an opening but cannot confidently locate its exact wall position, still return your best point, set confidence="low", and add flag "marker position approximate".
+MARKER POSITION - CRITICAL FOR PRINTED QS CHECK:
+The x/y point is where the printed blue/black circle will be drawn. It must overlap the ACTUAL
+PHYSICAL OPENING SYMBOL in the external wall.
+
+For every opening:
+- Return normalized image coordinates from 0 to 1: x=0 left edge, x=1 right edge, y=0 top edge, y=1 bottom edge.
+- Put x/y on the black window/door/opening line itself, preferably the centre of the framed gap/opening.
+- For a window: point to the centre of the window symbol in the wall, not the nearby W-code or size text.
+- For a slider: point to the centre of the sliding-door opening line in the wall, not the room label or deck note.
+- For a PA/external door: point to the external-wall door leaf/opening on the perimeter wall.
+- For the garage door: point to the centre of the large driveway-side garage opening line.
+
+SELF-CHECK BEFORE RETURNING EACH x/y:
+Imagine a small 8-pixel circle printed at the coordinate. If that circle would not touch the
+actual opening line/gap on the wall, move the coordinate until it does.
+
+DO NOT place x/y on:
+- room labels or room centres,
+- printed size labels,
+- W-codes,
+- furniture,
+- deck/paving notes,
+- schedule/title-block/table text,
+- dimension strings or wall height notes.
+
+If you can identify an opening but cannot confidently locate its exact physical wall position:
+- still return your best x/y,
+- set confidence="low",
+- add flag "marker position approximate",
+- add flag "marker not confirmed on physical opening".
+
+The evidence field must describe BOTH the size/read evidence and the marker placement, e.g.
+"printed 1800x600 beside Bed 1 north wall; marker placed on north-wall window line".
 
 RETURN EXACT JSON SHAPE:
 {

@@ -97,4 +97,44 @@ describe("visual-opening-audit", () => {
       uncertain: 1,
     });
   });
+
+  it("downgrades marker coordinates that are not confirmed on the physical opening", () => {
+    const audit = normaliseVisualOpeningAudit({
+      openings: [
+        {
+          id: "O1",
+          type: "window",
+          room: "Bed 1",
+          label: "1800x600",
+          height_m: 1.8,
+          width_m: 0.6,
+          x: 0.2,
+          y: 0.3,
+          confidence: "high",
+          evidence: "printed 1800x600; marker position approximate near label",
+          flags: [],
+        },
+        {
+          id: "O2",
+          type: "slider",
+          room: "Dining",
+          label: "2110x2000",
+          height_m: 2.11,
+          width_m: 2,
+          x: 0.4,
+          y: 0.5,
+          confidence: "high",
+          evidence: "printed 2110x2000; marker placed on south-wall slider line",
+          flags: [],
+        },
+      ],
+    });
+
+    expect(audit.openings[0]).toMatchObject({
+      confidence: "low",
+      flags: ["marker not confirmed on physical opening"],
+    });
+    expect(audit.openings[1]).toMatchObject({ confidence: "high", flags: [] });
+    expect(audit.summary.uncertain).toBe(1);
+  });
 });
