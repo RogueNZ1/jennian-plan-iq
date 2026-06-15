@@ -44,6 +44,8 @@ type OverlayState =
       wcodes: PlacedWCode[];
     };
 
+export type OverlayRenderStatus = OverlayState["status"];
+
 const RENDER_MAX_WIDTH = 1500;
 
 function openingTypeLabel(type: VisualOpeningMarker["type"]): string {
@@ -89,16 +91,19 @@ export function VerificationPlanOverlay({
   markers,
   visualOpenings,
   page,
+  onStatusChange,
 }: {
   jobId: string;
   markers: DoorMarker[];
   visualOpenings: VisualOpeningMarker[];
   page: DoorPagePersisted | null;
+  onStatusChange?: (status: OverlayRenderStatus) => void;
 }) {
   const [state, setState] = useState<OverlayState>({ status: "loading" });
 
   useEffect(() => {
     let active = true;
+    setState({ status: "loading" });
     (async () => {
       try {
         // 1 · latest plan file → signed URL (same source as PlanViewer)
@@ -197,6 +202,10 @@ export function VerificationPlanOverlay({
     };
   }, [jobId, markers, visualOpenings, page]);
 
+  useEffect(() => {
+    onStatusChange?.(state.status);
+  }, [onStatusChange, state.status]);
+
   if (state.status === "loading") {
     return <p className="vempty">Rendering plan overlay…</p>;
   }
@@ -222,7 +231,7 @@ export function VerificationPlanOverlay({
           </div>
         </div>
       )}
-      <div className="voverlay-wrap">
+      <div className="voverlay-wrap" style={{ aspectRatio: `${state.width} / ${state.height}` }}>
         <img src={state.imgUrl} alt="Floor plan with takeoff overlay" />
         <svg viewBox={`0 0 ${state.width} ${state.height}`} preserveAspectRatio="xMinYMin meet">
           {state.wcodes.map((w, i) => (

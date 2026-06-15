@@ -21,7 +21,10 @@ import {
   type MeasureRow,
   type CountRow,
 } from "@/lib/verification/verification-model";
-import { VerificationPlanOverlay } from "@/components/jennian/VerificationPlanOverlay";
+import {
+  VerificationPlanOverlay,
+  type OverlayRenderStatus,
+} from "@/components/jennian/VerificationPlanOverlay";
 
 export const Route = createFileRoute("/jobs/$jobId_/verification")({
   component: VerificationPrintout,
@@ -164,13 +167,15 @@ function Section({
   title,
   children,
   checkbox = true,
+  className,
 }: {
   title: string;
   children: React.ReactNode;
   checkbox?: boolean;
+  className?: string;
 }) {
   return (
-    <section className="vsec">
+    <section className={["vsec", className].filter(Boolean).join(" ")}>
       <div className="vsec-head">
         <h2>{title}</h2>
         {checkbox ? <span className="vcheck">Checked against plan&nbsp;☐</span> : null}
@@ -187,9 +192,11 @@ function VerificationPrintout() {
   const [model, setModel] = useState<VerificationModel | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [overlayStatus, setOverlayStatus] = useState<OverlayRenderStatus>("loading");
 
   useEffect(() => {
     let cancelled = false;
+    setOverlayStatus("loading");
     (async () => {
       try {
         const [data, er] = await Promise.all([
@@ -208,6 +215,35 @@ function VerificationPrintout() {
       cancelled = true;
     };
   }, [jobId]);
+
+  const overlayReady = model != null && overlayStatus !== "loading";
+
+  useEffect(() => {
+    document.documentElement.dataset.verificationReady = overlayReady ? "true" : "false";
+    return () => {
+      delete document.documentElement.dataset.verificationReady;
+    };
+  }, [overlayReady]);
+
+  async function waitForPrintAssets() {
+    await document.fonts?.ready;
+    const images = Array.from(document.images);
+    await Promise.all(
+      images.map(async (img) => {
+        if (img.complete && img.naturalWidth > 0) return;
+        await img.decode().catch(() => {});
+      }),
+    );
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+  }
+
+  async function handlePrint() {
+    if (!overlayReady) return;
+    await waitForPrintAssets();
+    window.print();
+  }
 
   if (loading) {
     return (
@@ -242,10 +278,18 @@ function VerificationPrintout() {
         <Link to="/jobs/$jobId" params={{ jobId }} className="vtool-link">
           <ArrowLeft className="h-3.5 w-3.5" /> Back to job
         </Link>
-        <button type="button" className="vtool-print" onClick={() => window.print()}>
-          <Printer className="h-3.5 w-3.5" /> Print / Save as PDF
+        <button
+          type="button"
+          className="vtool-print"
+          onClick={handlePrint}
+          disabled={!overlayReady}
+          aria-busy={!overlayReady}
+        >
+          <Printer className="h-3.5 w-3.5" />{" "}
+          {overlayReady ? "Print / Save as PDF" : "Preparing print…"}
         </button>
       </div>
+      <div className="no-print" data-verification-ready={overlayReady ? "true" : "false"} />
 
       <div className="vdoc">
         {/* header */}
@@ -488,13 +532,22 @@ function VerificationPrintout() {
         </Section>
 
         {/* 4 · plan overlay */}
-        <Section title="4 · Plan overlay — Visual QS, door hits & window codes">
+        <Section
+          title="4 · Plan overlay — Visual QS, door hits & window codes"
+          className="vsec-plan"
+        >
           <VerificationPlanOverlay
             jobId={jobId}
             markers={m.planOverlay.markers}
             visualOpenings={m.planOverlay.visualOpenings}
             page={m.planOverlay.page}
+            onStatusChange={setOverlayStatus}
           />
+          <div className="vplan-note">
+            Red = internal door engine. Blue = external-wall opening / glazing marker. Black =
+            garage door exception. Green boxes are printed window-code labels from the plan.
+          </div>
+          <div className="vplan-detail-break" />
           {m.planOverlay.visualWarnings.length > 0 && (
             <div className="vbanner vbanner-compact">
               {m.planOverlay.visualWarnings.map((w) => (
@@ -513,8 +566,7 @@ function VerificationPrintout() {
                 glazed/opening items ·{" "}
                 <strong>{m.planOverlay.visualSummary?.garageDoors ?? "—"}</strong> garage door
                 excluded from glazing ·{" "}
-                <strong>{m.planOverlay.visualSummary?.uncertain ?? "—"}</strong> uncertain/low. Blue
-                = glazing/opening marker; black = garage door exception.
+                <strong>{m.planOverlay.visualSummary?.uncertain ?? "—"}</strong> uncertain/low.
               </div>
               <table className="vtable">
                 <thead>
@@ -721,6 +773,7 @@ const PRINT_CSS = `
 .vtool-link:hover { text-decoration:underline; }
 .vtool-print { display:inline-flex; gap:6px; align-items:center; font-size:12px; font-weight:600; color:#fff; background:#E71B23; border:none; border-radius:6px; padding:8px 14px; cursor:pointer; }
 .vtool-print:hover { background:#c8161d; }
+.vtool-print:disabled { background:#9ca3af; cursor:wait; }
 
 .vdoc { max-width:210mm; margin:0 auto; background:#fff; box-shadow:0 1px 6px rgba(0,0,0,.12); padding:14mm 14mm 10mm; color:#111827; font-size:11px; line-height:1.45; }
 
@@ -742,6 +795,9 @@ const PRINT_CSS = `
 .vsec-head h2 { font-size:12.5px; font-weight:800; letter-spacing:.03em; margin:0; }
 .vcheck { font-size:10px; color:#374151; }
 .vsec h3 { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#374151; margin:10px 0 4px; }
+.vsec-plan { break-inside:auto; }
+.vplan-note { margin:5px 0 0; font-size:9.5px; color:#374151; }
+.vplan-detail-break { display:none; }
 
 .vtable { width:100%; border-collapse:collapse; }
 .vtable th { text-align:left; font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; color:#6b7280; border-bottom:1px solid #d1d5db; padding:2px 6px 3px 0; font-weight:600; }
@@ -771,8 +827,8 @@ const PRINT_CSS = `
 .vex-field { font-weight:800; }
 .vex-flag { color:#374151; }
 
-.voverlay-wrap { position:relative; border:1px solid #d1d5db; }
-.voverlay-wrap img { display:block; width:100%; height:auto; }
+.voverlay-wrap { position:relative; border:1px solid #d1d5db; background:#fff; }
+.voverlay-wrap img { display:block; width:100%; height:100%; }
 .voverlay-wrap svg { position:absolute; inset:0; width:100%; height:100%; }
 .vov-door { fill:none; stroke:#dc2626; stroke-width:3; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
 .vov-flag { fill:none; stroke:#b45309; stroke-width:3; stroke-dasharray:6 4; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
@@ -801,7 +857,12 @@ const PRINT_CSS = `
   .vdoc { box-shadow:none; max-width:none; padding:0; }
   .vbrand-bar { margin:0 0 10px; }
   @page { size:A4; margin:12mm; }
+  @page plan-overlay { size:A4 landscape; margin:10mm; }
   .vsec, .vspec-group, .vex-group, table { break-inside:avoid; }
+  .vsec-plan { break-before:page; break-inside:auto; page:plan-overlay; min-height:calc(210mm - 20mm); }
+  .vsec-plan .vsec-head { break-after:avoid; }
+  .vsec-plan .voverlay-wrap { width:100%; max-height:calc(210mm - 41mm); margin:0 auto; }
+  .vplan-detail-break { display:block; break-before:page; height:0; }
   .voverlay-wrap { break-inside:avoid; }
   .vsec-head { break-after:avoid; }
 }

@@ -507,8 +507,11 @@ READING:
 - If multiple labels are near the garage, the real garage-door label is the one spanning the garage opening on the external wall, not the garage room size.
 
 POSITION:
-For every opening, return approximate x and y coordinates of the opening centre on the supplied image.
+For every opening, return x and y coordinates on the ACTUAL PHYSICAL OPENING in the wall.
 Use normalized image coordinates from 0 to 1, where x=0 is left edge, x=1 is right edge, y=0 is top edge, y=1 is bottom edge.
+Place the point on the window/door line itself, preferably at the centre of the framed opening.
+Do NOT place the point on the room label, a size label, the middle of the room, a schedule/table, or a nearby note.
+If you can identify an opening but cannot confidently locate its exact wall position, still return your best point, set confidence="low", and add flag "marker position approximate".
 
 RETURN EXACT JSON SHAPE:
 {
