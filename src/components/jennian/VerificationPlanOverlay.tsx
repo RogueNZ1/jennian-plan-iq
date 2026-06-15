@@ -118,7 +118,7 @@ function clamp(v: number, min: number, max: number): number {
 function cropAroundMarkers(
   width: number,
   height: number,
-  markers: readonly Array<{ vx: number; vy: number }>,
+  markers: readonly { vx: number; vy: number }[],
 ): CropRect | null {
   if (markers.length < MIN_CROP_POINTS) return null;
 
@@ -247,6 +247,13 @@ export function VerificationPlanOverlay({
             const [vx, vy] = viewport.convertToViewportPoint(l.ux, l.uy);
             return { text: l.text.trim(), vx, vy };
           });
+          const doorRightHint =
+            placed.length > 0
+              ? Math.min(
+                  canvas.width * 0.82,
+                  Math.max(...placed.map((m) => m.vx)) + canvas.width * 0.08,
+                )
+              : canvas.width * 0.82;
 
           const placedVisualOpenings: PlacedVisualOpening[] = visualOpenings.map((o) => {
             const rawX = o.x * canvas.width;
@@ -266,11 +273,12 @@ export function VerificationPlanOverlay({
               textAnchor?.vy ?? rawY,
             );
             if (!textAnchor && o.x > 0.78) {
+              const seedX = Math.min(rawX, doorRightHint);
               const broadSnap = snapPointToPlanInk(
                 planPixels.data,
                 canvas.width,
                 canvas.height,
-                rawX,
+                seedX,
                 rawY,
                 { radius: Math.max(120, canvas.width * 0.08), minRun: 40, maxRun: 120 },
               );
