@@ -3,6 +3,7 @@ import {
   adapterToUser,
   buildDoorMarkers,
   buildVisualOpeningMarkers,
+  findOpeningTextAnchor,
   isWindowCode,
   summariseMarkers,
 } from "../verification/plan-overlay";
@@ -109,6 +110,38 @@ describe("plan-overlay", () => {
     ]);
     expect(markers.map((m) => m.markerLabel)).toEqual(["O7", "O2"]);
     expect(markers[1]).toMatchObject({ type: "garage_door", x: 0.75, y: 0.8 });
+  });
+
+  it("findOpeningTextAnchor prefers a printed W-code over broad visual coordinates", () => {
+    const anchor = findOpeningTextAnchor(
+      {
+        label: "1800x600 W141",
+        evidence: "printed 1800x600 W141 on Garage east wall",
+      },
+      [
+        { text: "1800x600", vx: 1200, vy: 180 },
+        { text: "W141", vx: 940, vy: 220 },
+      ],
+      1230,
+      210,
+    );
+    expect(anchor).toMatchObject({ text: "W141", vx: 940, vy: 220 });
+  });
+
+  it("findOpeningTextAnchor picks the nearest duplicate dimension label", () => {
+    const anchor = findOpeningTextAnchor(
+      {
+        label: "2110x2400",
+        evidence: "printed 2110x2400 slider on Bed 1 north wall",
+      },
+      [
+        { text: "2110x2400", vx: 250, vy: 120 },
+        { text: "2110x2400", vx: 900, vy: 230 },
+      ],
+      280,
+      150,
+    );
+    expect(anchor).toMatchObject({ vx: 250, vy: 120 });
   });
 });
 

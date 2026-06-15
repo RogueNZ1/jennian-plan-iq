@@ -4,6 +4,7 @@ export type SnapOptions = {
   radius?: number;
   minRun?: number;
   stride?: number;
+  maxRun?: number;
 };
 
 function luminance(data: Uint8ClampedArray, width: number, x: number, y: number): number {
@@ -51,6 +52,7 @@ export function snapPointToPlanInk(
   const radius = options.radius ?? Math.max(70, Math.min(width, height) * 0.055);
   const minRun = options.minRun ?? 10;
   const stride = options.stride ?? 2;
+  const maxRun = options.maxRun ?? 100;
   const cx = Math.round(x);
   const cy = Math.round(y);
   let best: { x: number; y: number; score: number; run: number } | null = null;
@@ -60,8 +62,8 @@ export function snapPointToPlanInk(
       if (!isPlanInk(data, width, xx, yy)) continue;
       const dist = Math.hypot(xx - x, yy - y);
       if (dist > radius) continue;
-      const horizontalRun = runLength(data, width, height, xx, yy, 1, 0);
-      const verticalRun = runLength(data, width, height, xx, yy, 0, 1);
+      const horizontalRun = runLength(data, width, height, xx, yy, 1, 0, maxRun);
+      const verticalRun = runLength(data, width, height, xx, yy, 0, 1, maxRun);
       const run = Math.max(horizontalRun, verticalRun);
       if (run < minRun) continue;
       const score = run * 2 - dist * 0.12;

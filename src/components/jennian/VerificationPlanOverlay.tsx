@@ -18,10 +18,12 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   adapterToUser,
+  findOpeningTextAnchor,
   isWindowCode,
   stitchTextItems,
   type DoorMarker,
   type DoorPagePersisted,
+  type OpeningTextAnchor,
   type RawTextItem,
   type VisualOpeningMarker,
 } from "@/lib/verification/plan-overlay";
@@ -232,16 +234,48 @@ export function VerificationPlanOverlay({
               })
             : [];
           const planPixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+          // 4 · plan text: live from the page's own text (stitched — Qt plans split glyphs).
+          // Opening markers prefer matching W-codes/dimension labels as seeds, then snap to ink.
+          const tc = await pdfPage.getTextContent();
+          const stitched = stitchTextItems(
+            (tc.items as Array<{ str?: string; transform?: number[]; width?: number }>)
+              .filter((i) => typeof i.str === "string" && i.transform)
+              .map((i): RawTextItem => ({ str: i.str!, transform: i.transform!, width: i.width })),
+          );
+          const textAnchors: OpeningTextAnchor[] = stitched.map((l) => {
+            const [vx, vy] = viewport.convertToViewportPoint(l.ux, l.uy);
+            return { text: l.text.trim(), vx, vy };
+          });
+
           const placedVisualOpenings: PlacedVisualOpening[] = visualOpenings.map((o) => {
             const rawX = o.x * canvas.width;
             const rawY = o.y * canvas.height;
-            const snapped = snapPointToPlanInk(
+            const textAnchorCandidate = findOpeningTextAnchor(o, textAnchors, rawX, rawY);
+            const textAnchor =
+              textAnchorCandidate &&
+              Math.hypot(textAnchorCandidate.vx - rawX, textAnchorCandidate.vy - rawY) <=
+                Math.max(150, canvas.width * 0.1)
+                ? textAnchorCandidate
+                : null;
+            let snapped = snapPointToPlanInk(
               planPixels.data,
               canvas.width,
               canvas.height,
-              rawX,
-              rawY,
+              textAnchor?.vx ?? rawX,
+              textAnchor?.vy ?? rawY,
             );
+            if (!textAnchor && o.x > 0.78) {
+              const broadSnap = snapPointToPlanInk(
+                planPixels.data,
+                canvas.width,
+                canvas.height,
+                rawX,
+                rawY,
+                { radius: Math.max(120, canvas.width * 0.08), minRun: 40, maxRun: 120 },
+              );
+              if (broadSnap.snapped) snapped = { ...broadSnap, y: rawY };
+            }
             return {
               ...o,
               vx: snapped.x,
@@ -251,13 +285,7 @@ export function VerificationPlanOverlay({
             };
           });
 
-          // 4 · W-codes: live from the page's own text (stitched — Qt plans split glyphs)
-          const tc = await pdfPage.getTextContent();
-          const stitched = stitchTextItems(
-            (tc.items as Array<{ str?: string; transform?: number[]; width?: number }>)
-              .filter((i) => typeof i.str === "string" && i.transform)
-              .map((i): RawTextItem => ({ str: i.str!, transform: i.transform!, width: i.width })),
-          );
+          // 5 · W-codes: retained for schedule cross-checks, hidden from print by CSS.
           const wcodes: PlacedWCode[] = stitched
             .filter((l) => isWindowCode(l.text))
             .map((l) => {

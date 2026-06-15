@@ -20,12 +20,20 @@ function ink(data: Uint8ClampedArray, width: number, x: number, y: number) {
   data[i + 3] = 255;
 }
 
+function drawHorizontal(data: Uint8ClampedArray, width: number, x1: number, x2: number, y: number) {
+  for (let x = x1; x <= x2; x++) ink(data, width, x, y);
+}
+
+function drawVertical(data: Uint8ClampedArray, width: number, x: number, y1: number, y2: number) {
+  for (let y = y1; y <= y2; y++) ink(data, width, x, y);
+}
+
 describe("overlay marker snapping", () => {
   it("snaps a loose marker to a nearby horizontal plan line", () => {
     const width = 160;
     const height = 120;
     const data = blank(width, height);
-    for (let x = 50; x <= 110; x++) ink(data, width, x, 60);
+    drawHorizontal(data, width, 50, 110, 60);
 
     const snapped = snapPointToPlanInk(data, width, height, 82, 78, {
       radius: 32,
@@ -49,5 +57,22 @@ describe("overlay marker snapping", () => {
     });
 
     expect(snapped).toEqual({ x: 30, y: 40, snapped: false });
+  });
+
+  it("can prefer a farther long wall over nearby short ink for right-edge recovery", () => {
+    const width = 180;
+    const height = 120;
+    const data = blank(width, height);
+    drawHorizontal(data, width, 130, 150, 60);
+    drawVertical(data, width, 90, 25, 95);
+
+    const snapped = snapPointToPlanInk(data, width, height, 140, 60, {
+      radius: 60,
+      minRun: 40,
+      maxRun: 120,
+      stride: 1,
+    });
+
+    expect(snapped).toMatchObject({ x: 90, snapped: true });
   });
 });

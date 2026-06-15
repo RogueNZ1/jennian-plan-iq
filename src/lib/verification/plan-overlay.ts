@@ -98,6 +98,56 @@ export type VisualOpeningMarker = VisualOpeningAuditItem & {
   markerLabel: string;
 };
 
+export type OpeningTextAnchor = { text: string; vx: number; vy: number };
+
+function compactLabelText(s: string): string {
+  return s.toUpperCase().replace(/×/g, "X").replace(/\s+/g, "");
+}
+
+function openingAnchorTokens(
+  opening: Pick<VisualOpeningAuditItem, "label" | "evidence">,
+): string[] {
+  const text = `${opening.label ?? ""} ${opening.evidence ?? ""}`;
+  const tokens = new Set<string>();
+  for (const match of text.matchAll(/\bW\d{1,3}[a-z]?\b/gi)) {
+    tokens.add(compactLabelText(match[0]));
+  }
+  for (const match of text.matchAll(/\b\d{3,4}\s*[x×]\s*\d{3,4}\b/gi)) {
+    tokens.add(compactLabelText(match[0]));
+  }
+  return [...tokens];
+}
+
+/**
+ * Prefer the plan's own printed label position over broad Visual-QS x/y estimates.
+ * The returned point is still a seed: the renderer snaps it to nearby plan ink before
+ * drawing the circle, so labels near a window do not become the final marker.
+ */
+export function findOpeningTextAnchor(
+  opening: Pick<VisualOpeningAuditItem, "label" | "evidence">,
+  anchors: OpeningTextAnchor[],
+  rawX: number,
+  rawY: number,
+): OpeningTextAnchor | null {
+  const tokens = openingAnchorTokens(opening);
+  if (tokens.length === 0 || anchors.length === 0) return null;
+
+  const compactAnchors = anchors.map((a) => ({ ...a, compact: compactLabelText(a.text) }));
+  let best: (OpeningTextAnchor & { score: number }) | null = null;
+  for (const token of tokens) {
+    const tokenIsCode = /^W\d{1,3}[A-Z]?$/.test(token);
+    for (const anchor of compactAnchors) {
+      if (!anchor.compact.includes(token)) continue;
+      const dist = Math.hypot(anchor.vx - rawX, anchor.vy - rawY);
+      const priority = tokenIsCode ? 0 : 1000;
+      const score = priority + dist;
+      if (!best || score < best.score)
+        best = { text: anchor.text, vx: anchor.vx, vy: anchor.vy, score };
+    }
+  }
+  return best ? { text: best.text, vx: best.vx, vy: best.vy } : null;
+}
+
 /**
  * Visual QS openings already arrive in normalized rendered-image coordinates. Preserve
  * the model's walk-around order and give each item a stable overlay label.
