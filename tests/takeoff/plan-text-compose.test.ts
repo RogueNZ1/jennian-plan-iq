@@ -136,6 +136,13 @@ describe("plan-text cross-checks at compose", () => {
     expect(e.plan_text?.titleAreas.claddingAreaM2).toBeCloseTo(46.7, 1);
   });
 
+  it("printed ENSUITE + missing vision count => ERROR flag on the ensuite count", () => {
+    const e = compose(doorEngine).enriched.ensuite_count;
+    expect(e.value).toBeNull();
+    expect(e.confidence).toBe("low");
+    expect(e.discrepancy_flags.join(" ")).toContain("ERROR: Ensuite is printed on the plan");
+  });
+
   it("GOLDEN SAFETY: no planText → garage stays vision, no plan_text field, no new flags", () => {
     const de3 = { ...(doorEngine as Record<string, unknown>), planText: undefined };
     const e = compose(de3).enriched;

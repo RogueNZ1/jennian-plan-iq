@@ -370,6 +370,15 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
         );
     }
   }
+  const hasPrintedEnsuite =
+    planText?.rooms.some((r) => /(^|[^A-Z])ENS(UITE)?($|[^A-Z])/.test(r.name.toUpperCase())) ??
+    false;
+  const ensuiteCountFlags =
+    hasPrintedEnsuite && (mergedVecW.ensuite_count == null || mergedVecW.ensuite_count <= 0)
+      ? [
+          "ERROR: Ensuite is printed on the plan but ensuite_count was not found by the vision count. Review wet-area count before pricing.",
+        ]
+      : [];
 
   const notesBeforeAgg = mergedVecW.notes ?? "";
   let mergedWithWindows = applyWindowAggregate(mergedVecW, windowAggregate);
@@ -454,9 +463,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     ? folded.openings
     : foldScheduleEntrance(folded.openings, vectorAnnotations?.entrance);
   const visualPromotion = promoteVisualOpenings(visualOpeningAudit);
-  const visualPromotedOpenings = visualPromotion?.openings.length
-    ? visualPromotion.openings
-    : null;
+  const visualPromotedOpenings = visualPromotion?.openings.length ? visualPromotion.openings : null;
   const visualHasSectional = visualPromotedOpenings?.some((o) => o.type === "sectional_door");
   const rawSectionals = rawComposedOpenings.filter((o) => o.type === "sectional_door");
   const composedOpenings = normaliseOpeningsForQs(
@@ -561,7 +568,12 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     external_door_count: fv(t.external_door_count, "vision"),
     internal_door_count: fv(t.internal_door_count, "vision"),
     bathroom_count: fv(t.bathroom_count, "vision"),
-    ensuite_count: fv(t.ensuite_count, "vision"),
+    ensuite_count: fv(
+      t.ensuite_count,
+      "vision",
+      ensuiteCountFlags.length > 0 ? "low" : null,
+      ensuiteCountFlags,
+    ),
     laundry_count: fv(t.laundry_count, "vision"),
     kitchen_count: fv(t.kitchen_count, "vision"),
     ceiling_height_m: fv(t.ceiling_height_m, measuredSrc(m?.stud_height_mm != null)),
