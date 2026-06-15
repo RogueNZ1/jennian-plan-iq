@@ -25,6 +25,7 @@ import {
   type RawTextItem,
   type VisualOpeningMarker,
 } from "@/lib/verification/plan-overlay";
+import { snapPointToPlanInk } from "@/lib/verification/overlay-snap";
 
 type PlacedMarker = DoorMarker & { vx: number; vy: number };
 type PlacedVisualOpening = VisualOpeningMarker & { vx: number; vy: number };
@@ -230,11 +231,25 @@ export function VerificationPlanOverlay({
                 return { ...m, vx, vy };
               })
             : [];
-          const placedVisualOpenings: PlacedVisualOpening[] = visualOpenings.map((o) => ({
-            ...o,
-            vx: o.x * canvas.width,
-            vy: o.y * canvas.height,
-          }));
+          const planPixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const placedVisualOpenings: PlacedVisualOpening[] = visualOpenings.map((o) => {
+            const rawX = o.x * canvas.width;
+            const rawY = o.y * canvas.height;
+            const snapped = snapPointToPlanInk(
+              planPixels.data,
+              canvas.width,
+              canvas.height,
+              rawX,
+              rawY,
+            );
+            return {
+              ...o,
+              vx: snapped.x,
+              vy: snapped.y,
+              flags: snapped.snapped ? o.flags : [...o.flags, "marker not snapped to plan line"],
+              confidence: snapped.snapped ? o.confidence : "low",
+            };
+          });
 
           // 4 · W-codes: live from the page's own text (stitched — Qt plans split glyphs)
           const tc = await pdfPage.getTextContent();
