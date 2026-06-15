@@ -379,6 +379,15 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
           "ERROR: Ensuite is printed on the plan but ensuite_count was not found by the vision count. Review wet-area count before pricing.",
         ]
       : [];
+  const noArcSingleCount =
+    doorEngine?.hinged.filter((h) => /swing arc not vector-recovered/i.test(h.note ?? "")).length ??
+    0;
+  const doorCountFlags =
+    noArcSingleCount > 0
+      ? [
+          `Internal door engine counted ${noArcSingleCount} single-leaf opening(s) from wall-gap/leaf fallback because swing arcs were not vector-recovered. Verify against the marked plan before pricing.`,
+        ]
+      : [];
 
   const notesBeforeAgg = mergedVecW.notes ?? "";
   let mergedWithWindows = applyWindowAggregate(mergedVecW, windowAggregate);
@@ -566,7 +575,12 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       flagsFor(visualWindowCount != null ? null : reconFlag("window_count")),
     ),
     external_door_count: fv(t.external_door_count, "vision"),
-    internal_door_count: fv(t.internal_door_count, "vision"),
+    internal_door_count: fv(
+      t.internal_door_count,
+      "vision",
+      doorCountFlags.length > 0 ? "low" : null,
+      doorCountFlags,
+    ),
     bathroom_count: fv(t.bathroom_count, "vision"),
     ensuite_count: fv(
       t.ensuite_count,

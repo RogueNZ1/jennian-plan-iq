@@ -143,6 +143,26 @@ describe("plan-text cross-checks at compose", () => {
     expect(e.discrepancy_flags.join(" ")).toContain("ERROR: Ensuite is printed on the plan");
   });
 
+  it("flags internal door counts when no-arc fallback singles are counted", () => {
+    const de = {
+      ...(doorEngine as Record<string, unknown>),
+      hinged: [
+        {
+          type: "hinged",
+          widthMm: 810,
+          x: 100,
+          y: 100,
+          confidence: "confirmed",
+          note: "single-leaf opening; swing arc not vector-recovered",
+        },
+      ],
+      counts: { singles: 1, doubles: 0, cavitySliders: 0, barn: 0 },
+    };
+    const e = compose(de).enriched.internal_door_count;
+    expect(e.confidence).toBe("low");
+    expect(e.discrepancy_flags.join(" ")).toContain("swing arcs were not vector-recovered");
+  });
+
   it("GOLDEN SAFETY: no planText → garage stays vision, no plan_text field, no new flags", () => {
     const de3 = { ...(doorEngine as Record<string, unknown>), planText: undefined };
     const e = compose(de3).enriched;

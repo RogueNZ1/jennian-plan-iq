@@ -151,6 +151,15 @@ function openingDisplayType(type: string): string {
   }
 }
 
+function doorMarkerNeedsReview(note: string | undefined): boolean {
+  return /swing arc not vector-recovered/i.test(note ?? "");
+}
+
+function doorMarkerStatus(d: { confidence: "confirmed" | "flag"; note?: string }): string {
+  if (d.confidence === "flag") return "⚑ flag — review";
+  return doorMarkerNeedsReview(d.note) ? "counted — verify" : "confirmed";
+}
+
 function Section({
   title,
   children,
@@ -540,12 +549,14 @@ function VerificationPrintout() {
           {m.planOverlay.markers.length > 0 && (
             <>
               <div className="vsrcline" style={{ marginTop: 8 }}>
-                {m.planOverlay.summary.confirmed} confirmed · {m.planOverlay.summary.flagged}{" "}
-                flagged &nbsp;(hinged {m.planOverlay.summary.byType.hinged} · double{" "}
-                {m.planOverlay.summary.byType.double}
-                &nbsp;· cavity {m.planOverlay.summary.byType.cavity}) — red tags = internal doors
-                from the deterministic engine; dashed amber = review only. Green boxes are the
-                plan's own printed window codes.
+                {m.planOverlay.markers.length} counted ·{" "}
+                {m.planOverlay.markers.filter((d) => doorMarkerNeedsReview(d.note)).length} verify ·{" "}
+                {m.planOverlay.summary.flagged} flagged &nbsp;(hinged{" "}
+                {m.planOverlay.summary.byType.hinged} · double {m.planOverlay.summary.byType.double}
+                &nbsp;· cavity {m.planOverlay.summary.byType.cavity}) — red tags = counted by the
+                deterministic engine; no-arc single-leaf hits must be checked against the marked
+                plan. Dashed amber = review only. Green boxes are the plan's own printed window
+                codes.
               </div>
               <table className="vtable">
                 <thead>
@@ -563,7 +574,7 @@ function VerificationPrintout() {
                       <td className="vlabel">{d.label}</td>
                       <td>{d.type}</td>
                       <td className="vvalue">{d.widthMm}</td>
-                      <td>{d.confidence === "flag" ? "⚑ flag — review" : "confirmed"}</td>
+                      <td>{doorMarkerStatus(d)}</td>
                       <td>{d.note ?? ""}</td>
                     </tr>
                   ))}
