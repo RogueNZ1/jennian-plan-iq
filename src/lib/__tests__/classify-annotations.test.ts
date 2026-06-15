@@ -341,6 +341,12 @@ describe("classifyAnnotations — room counts from roomLabels", () => {
     expect(result.ensuite_count).toBe(1);
   });
 
+  it("counts abbreviated Ens as an ensuite", () => {
+    const raw = makeRaw({ roomLabels: ["MASTER BED", "ENS", "LIVING"] });
+    const result = classifyAnnotations(raw, makeContext());
+    expect(result.ensuite_count).toBe(1);
+  });
+
   it("counts kitchen", () => {
     const raw = makeRaw({ roomLabels: ["KITCHEN", "LIVING"] });
     const result = classifyAnnotations(raw, makeContext());

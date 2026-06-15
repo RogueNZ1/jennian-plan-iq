@@ -104,7 +104,7 @@ export function classifyAnnotations(raw: RawAnnotations, context: PlanContext): 
     roomLabelsLower.filter((r) => needles.some((n) => r.includes(n))).length;
 
   const bathroom_count = countMatchingAny("bath") || null;
-  const ensuite_count = countMatchingAny("ensuite", " ens") || null;
+  const ensuite_count = roomLabelsLower.filter((r) => /\bens(?:uite)?\b/.test(r)).length || null;
   const laundry_count = countMatchingAny("laundry", "utility") || null;
   const kitchen_count = countMatchingAny("kitchen", "kitch") || null;
 

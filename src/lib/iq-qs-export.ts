@@ -324,7 +324,7 @@ const WINDOW_SLOT_SPECS: ReadonlyArray<{
   keywords: string[];
 }> = [
   { key: "bed1", keywords: ["bed 1", "bedroom 1", "master"] },
-  { key: "ensuite", keywords: ["ensuite"] },
+  { key: "ensuite", keywords: ["ensuite", "ens"] },
   { key: "bed2", keywords: ["bed 2", "bedroom 2"] },
   { key: "bed3", keywords: ["bed 3", "bedroom 3"] },
   { key: "bed4", keywords: ["bed 4", "bedroom 4"] },
@@ -680,7 +680,7 @@ export async function buildQSExportData(
   const windowsByRoom: QSExportData["windowsByRoom"] = {};
   const bed1 = matchWindowOpening(["bed 1", "bedroom 1", "master"]);
   if (bed1) windowsByRoom.bed1 = bed1;
-  const ensuite = matchWindowOpening(["ensuite"]);
+  const ensuite = matchWindowOpening(["ensuite", "ens"]);
   if (ensuite) windowsByRoom.ensuite = ensuite;
   const bed2 = matchWindowOpening(["bed 2", "bedroom 2"]);
   if (bed2) windowsByRoom.bed2 = bed2;

@@ -177,6 +177,17 @@ describe("JM-0029 regression: weak extraction is shown, not zeroed", () => {
   });
 });
 
+describe("JM-0045 regression: abbreviated Ens maps to the Ensuite slot", () => {
+  const ws = buildDropInSheet(base({ openings: [op("window", "Ens", 1.8, 0.6)] }));
+
+  it("routes Ens into IQ Import row 34 instead of flagging it unplaced", () => {
+    expect(cellVal(ws, "B34")).toBe(1);
+    expect(cellVal(ws, "C34")).toBe(1.8);
+    expect(cellVal(ws, "D34")).toBe(0.6);
+    expect(manualText(ws)).not.toMatch(/UNPLACED — Ens/);
+  });
+});
+
 describe("zero-window hard sanity flag", () => {
   it("fires when extraction ran and produced nothing", () => {
     const ws = buildDropInSheet(base({ openings: [] }));
