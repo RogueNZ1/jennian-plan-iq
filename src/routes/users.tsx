@@ -20,10 +20,14 @@ import {
   X,
   ChevronDown,
   CheckCircle2,
+  AlertTriangle,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sendInvitationFn } from "@/lib/invite.functions";
 import { deleteUserFn } from "@/lib/delete-user.functions";
+import { getUserAccessHealthFn, repairUserProfileFn } from "@/lib/access-health.functions";
+import type { AccessHealth, AccessHealthRow } from "@/lib/auth/access-health";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -83,16 +87,17 @@ type AuditRow = {
 
 /** Combined user row for the table (real profile or pending invite). */
 type UserListRow = {
-  kind: "profile" | "invite";
+  kind: "profile" | "invite" | "access_issue";
   id: string;
   name: string;
   email: string;
   role: AppRole;
-  status: "active" | "disabled" | "pending";
+  status: "active" | "disabled" | "pending" | "attention";
   branch: string | null;
   lastActive: string | null;
   invitedBy: string | null;
-  raw: ProfileRow | InvitationRow;
+  accessHealth: AccessHealthRow | null;
+  raw: ProfileRow | InvitationRow | AccessHealthRow;
 };
 
 function UsersPage() {
@@ -103,19 +108,21 @@ function UsersPage() {
   const [roleRows, setRoleRows] = useState<RoleRow[]>([]);
   const [invites, setInvites] = useState<InvitationRow[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
+  const [accessHealth, setAccessHealth] = useState<AccessHealthRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState<"all" | AppRole>("all");
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "disabled" | "pending">(
-    "all",
-  );
+  const [filterStatus, setFilterStatus] = useState<
+    "all" | "active" | "disabled" | "pending" | "attention"
+  >("all");
   const [filterBranch, setFilterBranch] = useState<"all" | string>("all");
   const [showInvite, setShowInvite] = useState(false);
   const [editing, setEditing] = useState<UserListRow | null>(null);
   const [showActivity, setShowActivity] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [repairingProfile, setRepairingProfile] = useState<string | null>(null);
 
   const canManage = roles.canManageUsers;
   // Invitations are Owner-only (Haydon). Server function enforces this too —
@@ -142,16 +149,32 @@ function UsersPage() {
         .order("created_at", { ascending: false })
         .limit(40),
     ]);
+    let healthRows: AccessHealthRow[] = [];
+    if (roles.isOwner) {
+      try {
+        const result = await getUserAccessHealthFn({
+          data: { accessToken: await getAccessToken() },
+        });
+        healthRows = result.rows;
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "Could not load access health.");
+      }
+    }
     setProfiles((p ?? []) as ProfileRow[]);
     setRoleRows((r ?? []) as RoleRow[]);
     setInvites((i ?? []) as InvitationRow[]);
     setAudit((a ?? []) as AuditRow[]);
+    setAccessHealth(healthRows);
     setLoading(false);
   }
 
   useEffect(() => {
-    load();
-  }, []);
+    if (roles.loading) return;
+    void load();
+    // load is intentionally kept as an event handler; this effect only re-runs
+    // when the caller's owner capability is known or changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roles.loading, roles.isOwner]);
 
   const roleByUser = useMemo(() => {
     const m: Record<string, AppRole> = {};
@@ -170,6 +193,17 @@ function UsersPage() {
     return m;
   }, [profiles]);
 
+  const accessHealthByUser = useMemo(() => {
+    const m: Record<string, AccessHealthRow> = {};
+    for (const row of accessHealth) m[row.userId] = row;
+    return m;
+  }, [accessHealth]);
+
+  const unresolvedAccessIssues = useMemo(
+    () => accessHealth.filter((row) => row.health !== "ok"),
+    [accessHealth],
+  );
+
   const rows: UserListRow[] = useMemo(() => {
     const inviteEmailByName = new Map<string, string>();
     for (const i of invites) {
@@ -185,10 +219,11 @@ function UsersPage() {
       role: roleByUser[p.id] ?? "viewer",
       status: p.status === "suspended" ? "disabled" : p.status === "invited" ? "pending" : "active",
       branch: p.branch,
-      lastActive: p.last_login_at,
+      lastActive: accessHealthByUser[p.id]?.lastSignInAt ?? p.last_login_at,
       invitedBy: p.invited_by
         ? (profileById[p.invited_by]?.full_name ?? profileById[p.invited_by]?.email ?? null)
         : null,
+      accessHealth: accessHealthByUser[p.id] ?? null,
       raw: p,
     }));
     const pending: UserListRow[] = invites
@@ -203,10 +238,27 @@ function UsersPage() {
         branch: i.branch,
         lastActive: null,
         invitedBy: profileById[i.invited_by]?.full_name ?? profileById[i.invited_by]?.email ?? null,
+        accessHealth: null,
         raw: i,
       }));
-    return [...live, ...pending];
-  }, [profiles, invites, roleByUser, profileById]);
+    const accessIssues: UserListRow[] = accessHealth
+      .filter((row) => row.health === "missing_profile" || row.health === "orphan_profile")
+      .filter((row) => !profileById[row.userId])
+      .map((row) => ({
+        kind: "access_issue",
+        id: row.userId,
+        name: row.name || row.email || row.userId,
+        email: row.email,
+        role: row.role ?? "viewer",
+        status: "attention" as const,
+        branch: null,
+        lastActive: row.lastSignInAt ?? row.lastLoginAt,
+        invitedBy: null,
+        accessHealth: row,
+        raw: row,
+      }));
+    return [...accessIssues, ...live, ...pending];
+  }, [profiles, invites, roleByUser, profileById, accessHealthByUser, accessHealth]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -329,6 +381,26 @@ function UsersPage() {
     load();
   }
 
+  async function repairProfile(targetUserId: string) {
+    if (!canInvite) return toast.error("Only the Owner can repair access records.");
+    setRepairingProfile(targetUserId);
+    try {
+      const result = await repairUserProfileFn({
+        data: {
+          accessToken: await getAccessToken(),
+          targetUserId,
+          status: "active",
+        },
+      });
+      toast.success(result.message);
+      await load();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Could not repair the profile.");
+    } finally {
+      setRepairingProfile(null);
+    }
+  }
+
   return (
     <AppLayout>
       <div className="px-8 py-8 max-w-7xl">
@@ -354,6 +426,21 @@ function UsersPage() {
             </div>
           }
         />
+
+        {roles.isOwner && unresolvedAccessIssues.length > 0 && (
+          <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 text-destructive" />
+              <div className="min-w-0">
+                <div className="text-sm font-semibold tracking-tight">Access attention needed</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">
+                  {unresolvedAccessIssues.length} user{" "}
+                  {unresolvedAccessIssues.length === 1 ? "record needs" : "records need"} review.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -382,6 +469,7 @@ function UsersPage() {
               { v: "active", label: "Active" },
               { v: "disabled", label: "Inactive" },
               { v: "pending", label: "Pending" },
+              { v: "attention", label: "Attention" },
             ]}
           />
           <Select
@@ -413,6 +501,7 @@ function UsersPage() {
                   <th className="px-4 py-3 font-medium">Email</th>
                   <th className="px-4 py-3 font-medium">Role</th>
                   <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Access</th>
                   <th className="px-4 py-3 font-medium">Branch</th>
                   <th className="px-4 py-3 font-medium">Last Active</th>
                   <th className="px-4 py-3 font-medium">Invited By</th>
@@ -437,6 +526,11 @@ function UsersPage() {
                               Pending invitation
                             </div>
                           )}
+                          {r.kind === "access_issue" && (
+                            <div className="text-[10px] uppercase tracking-[0.14em] text-destructive">
+                              Access record
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -446,6 +540,9 @@ function UsersPage() {
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={r.status} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <AccessHealthBadge row={r.accessHealth} />
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{r.branch ?? "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground tabular-nums">
@@ -495,7 +592,7 @@ function UsersPage() {
                               <Trash2 className="h-3 w-3" />
                             </IconBtn>
                           </>
-                        ) : (
+                        ) : r.kind === "invite" ? (
                           <>
                             <IconBtn
                               title={
@@ -516,6 +613,18 @@ function UsersPage() {
                               <X className="h-3 w-3" />
                             </IconBtn>
                           </>
+                        ) : (
+                          <IconBtn
+                            title="Repair missing profile"
+                            onClick={() => repairProfile(r.id)}
+                            disabled={
+                              !canInvite ||
+                              r.accessHealth?.health !== "missing_profile" ||
+                              repairingProfile === r.id
+                            }
+                          >
+                            <Wrench className="h-3 w-3" />
+                          </IconBtn>
                         )}
                       </div>
                     </td>
@@ -692,11 +801,12 @@ function RoleBadge({ role }: { role: AppRole }) {
   );
 }
 
-function StatusBadge({ status }: { status: "active" | "disabled" | "pending" }) {
+function StatusBadge({ status }: { status: "active" | "disabled" | "pending" | "attention" }) {
   const map = {
     active: { cls: "bg-confidence-high-bg text-confidence-high", label: "Active" },
     disabled: { cls: "bg-muted text-muted-foreground", label: "Inactive" },
     pending: { cls: "bg-confidence-mid-bg text-confidence-mid", label: "Pending" },
+    attention: { cls: "bg-destructive/10 text-destructive", label: "Attention" },
   } as const;
   const m = map[status];
   return (
@@ -707,6 +817,32 @@ function StatusBadge({ status }: { status: "active" | "disabled" | "pending" }) 
       )}
     >
       {m.label}
+    </span>
+  );
+}
+
+function AccessHealthBadge({ row }: { row: AccessHealthRow | null }) {
+  if (!row) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+
+  const map: Record<AccessHealth, { cls: string; label: string }> = {
+    ok: { cls: "bg-confidence-high-bg text-confidence-high", label: "OK" },
+    pending_setup: { cls: "bg-confidence-mid-bg text-confidence-mid", label: "Password setup" },
+    missing_profile: { cls: "bg-destructive/10 text-destructive", label: "Missing profile" },
+    suspended: { cls: "bg-muted text-muted-foreground", label: "Suspended" },
+    orphan_profile: { cls: "bg-destructive/10 text-destructive", label: "Orphan profile" },
+  };
+  const m = map[row.health];
+  return (
+    <span
+      className={cn(
+        "inline-flex max-w-36 items-center rounded-full px-2 py-0.5 text-[10.5px] font-medium",
+        m.cls,
+      )}
+      title={row.issues.join(" ")}
+    >
+      <span className="truncate">{m.label}</span>
     </span>
   );
 }
@@ -973,6 +1109,7 @@ function prettyAction(a: string) {
     invite_created: "sent an invitation",
     invite_resent: "re-sent an invitation",
     invite_cancelled: "cancelled an invitation",
+    profile_repaired: "repaired a profile",
   };
   return map[a] ?? a.replace(/_/g, " ");
 }
