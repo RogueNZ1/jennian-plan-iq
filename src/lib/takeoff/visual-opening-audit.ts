@@ -117,11 +117,14 @@ function dimensionLabelLooksMalformed(label: string | null): boolean {
   return first < 300 || second < 300 || first > 6000 || second > 6000;
 }
 
-function hasIndependentDimensionSource(evidence: string, flags: readonly string[]): boolean {
+function hasConfirmingDimensionSource(evidence: string, flags: readonly string[]): boolean {
   const text = [evidence, ...flags].join(" ").toLowerCase();
-  return /\b(elevation|schedule|manual|measured|confirmed|cross[- ]?check|assumed|standard)\b/.test(
-    text,
-  );
+  return /\b(elevation|schedule|manual|measured|confirmed|cross[- ]?check)\b/.test(text);
+}
+
+function hasAssumedDimensionSource(evidence: string, flags: readonly string[]): boolean {
+  const text = [evidence, ...flags].join(" ").toLowerCase();
+  return /\b(assumed|standard)\b/.test(text);
 }
 
 export function summariseVisualOpeningAudit(
@@ -154,10 +157,13 @@ export function normaliseVisualOpeningAudit(
     const markerUnconfirmed = markerPositionIsUnconfirmed(evidence, flags);
     const label = cleanString(r.label);
     const malformedLabel = dimensionLabelLooksMalformed(label);
-    const hasIndependentSource = hasIndependentDimensionSource(evidence, flags);
-    const confidence = markerUnconfirmed || malformedLabel ? "low" : rawConfidence;
-    const height = malformedLabel && !hasIndependentSource ? null : num(r.height_m);
-    const width = malformedLabel && !hasIndependentSource ? null : num(r.width_m);
+    const hasConfirmedSource = hasConfirmingDimensionSource(evidence, flags);
+    const hasAssumedSource = hasAssumedDimensionSource(evidence, flags);
+    const unresolvedMalformedLabel = malformedLabel && !hasConfirmedSource;
+    const hasUsableFallback = hasConfirmedSource || hasAssumedSource;
+    const confidence = markerUnconfirmed || unresolvedMalformedLabel ? "low" : rawConfidence;
+    const height = malformedLabel && !hasUsableFallback ? null : num(r.height_m);
+    const width = malformedLabel && !hasUsableFallback ? null : num(r.width_m);
     return {
       id: cleanString(r.id) ?? `O${index + 1}`,
       type,
@@ -172,7 +178,7 @@ export function normaliseVisualOpeningAudit(
       flags: uniqueFlags([
         ...flags,
         ...(markerUnconfirmed ? ["marker not confirmed on physical opening"] : []),
-        ...(malformedLabel
+        ...(unresolvedMalformedLabel
           ? ["malformed dimension label - verify against elevations/schedule"]
           : []),
       ]),

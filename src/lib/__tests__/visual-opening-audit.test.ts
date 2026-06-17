@@ -166,7 +166,7 @@ describe("visual-opening-audit", () => {
     expect(audit.summary.uncertain).toBe(1);
   });
 
-  it("keeps independently confirmed dimensions but still flags a malformed label", () => {
+  it("treats elevation-confirmed dimensions as resolved, not a blocking malformed-label issue", () => {
     const audit = normaliseVisualOpeningAudit({
       openings: [
         {
@@ -186,9 +186,37 @@ describe("visual-opening-audit", () => {
     });
 
     expect(audit.openings[0]).toMatchObject({
-      confidence: "low",
+      confidence: "high",
       height_m: 2.1,
       width_m: 3.6,
+      flags: [],
+    });
+    expect(audit.summary.uncertain).toBe(0);
+  });
+
+  it("keeps assumed dimensions from malformed labels flagged for review", () => {
+    const audit = normaliseVisualOpeningAudit({
+      openings: [
+        {
+          id: "O1",
+          type: "external_door",
+          room: "Entry",
+          label: "810x40",
+          height_m: 2.1,
+          width_m: 0.81,
+          x: 0.2,
+          y: 0.3,
+          confidence: "high",
+          evidence: "malformed floor-plan label; height assumed standard",
+          flags: [],
+        },
+      ],
+    });
+
+    expect(audit.openings[0]).toMatchObject({
+      confidence: "low",
+      height_m: 2.1,
+      width_m: 0.81,
       flags: ["malformed dimension label - verify against elevations/schedule"],
     });
   });

@@ -531,8 +531,11 @@ READING:
 - Drafting/text labels can be wrong, overprinted, or concatenated. If text looks jammed
   together, has more than two dimension numbers, has an impossible fragment, or looks like
   "1300x175036001300x1750", do NOT trim digits or invent a nearby plausible dimension.
-  Set unknown dimension(s) to null unless Image 2/elevations or a real schedule clearly
-  confirms the size, set confidence="low", and add flag "malformed dimension label".
+  Set unknown dimension(s) to null and add flag "malformed dimension label" unless
+  Image 2/elevations or a real schedule clearly confirms the same physical opening and size.
+  When elevations/schedule clearly resolve the bad floor-plan label, return the confirmed
+  size, keep confidence high/medium according to the evidence, and explain the recovery in
+  evidence instead of adding a blocking malformed-label flag.
 - If a size label is not readable, set height_m and width_m to null and add a flag.
 - For the sectional/roller garage door, read the label physically attached to the driveway-side garage opening.
 - Do NOT use nearby level/height markers, wall heights, roof notes, cladding dimensions, or room dimensions as the garage-door size.
