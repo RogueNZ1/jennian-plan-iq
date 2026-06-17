@@ -21,7 +21,7 @@ export const Route = createFileRoute("/auth/set-password")({
 
 function SetPasswordPage() {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
+  const { user, loading, refreshProfile } = useAuth();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
@@ -79,6 +79,11 @@ function SetPasswordPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!user) {
+      toast.error("Your invite session has expired. Please ask for the invite to be resent.");
+      navigate({ to: "/login" });
+      return;
+    }
     if (password.length < 8) {
       toast.error("Password must be at least 8 characters.");
       return;
@@ -89,12 +94,31 @@ function SetPasswordPage() {
     }
     setBusy(true);
     const { error } = await supabase.auth.updateUser({ password });
-    setBusy(false);
     if (error) {
+      setBusy(false);
       toast.error(error.message);
       return;
     }
-    toast.success("Password set — welcome to Jennian IQ!");
+    const now = new Date().toISOString();
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        status: "active",
+        accepted_at: now,
+        last_login_at: now,
+        updated_at: now,
+      })
+      .eq("id", user.id);
+    if (profileError) {
+      setBusy(false);
+      toast.error(
+        "Password saved, but account activation failed. Please contact your administrator.",
+      );
+      return;
+    }
+    await refreshProfile();
+    setBusy(false);
+    toast.success("Password set - welcome to Jennian IQ!");
     navigate({ to: "/jobs" });
   }
 

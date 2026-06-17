@@ -16,7 +16,10 @@ import type { QSExportData } from "@/lib/iq-qs-export";
 import type { EnrichedTakeoff, FieldValue } from "@/lib/takeoff/enriched-takeoff";
 import type { Opening } from "@/lib/takeoff/takeoff-types";
 import type { VisualOpeningAuditSummary } from "@/lib/takeoff/visual-opening-audit";
-import type { VisualOpeningReconciliation } from "@/lib/takeoff/visual-opening-reconciliation";
+import {
+  visualReconciliationFlags,
+  type VisualOpeningReconciliation,
+} from "@/lib/takeoff/visual-opening-reconciliation";
 import {
   SPEC_GROUPS,
   specsInGroup,
@@ -137,6 +140,7 @@ export type VerificationModel = {
     visionHint: number | null;
     garage: CountRow[];
     garageDoorSize: string;
+    garageDoorFlags: string[];
     hardware: CountRow[]; // hatch, attic stair, letterbox, washing line
   };
   roofCladding: MeasureRow[];
@@ -257,6 +261,27 @@ function openingDimsMatch(
     Math.abs(visual.height_m - opening.height_m) <= 0.02 &&
     Math.abs(visual.width_m - opening.width_m) <= 0.02
   );
+}
+
+function roomCompatible(
+  visualRoom: string | null | undefined,
+  openingRoom: string | null | undefined,
+): boolean {
+  return (
+    !openingRoom ||
+    !visualRoom ||
+    visualRoom.trim().toLowerCase() === openingRoom.trim().toLowerCase()
+  );
+}
+
+function visualTypeCompatible(visualType: string, openingType: Opening["type"]): boolean {
+  if (visualType === openingType) return true;
+  if (visualType === "garage_door" || openingType === "sectional_door") return false;
+  if (openingType === "garage_window")
+    return visualType === "window" || visualType === "garage_window";
+  if (openingType === "entrance") return visualType === "external_door" || visualType === "pa_door";
+  if (openingType === "pa_door") return visualType === "external_door" || visualType === "pa_door";
+  return false;
 }
 
 const ROOM_LABELS: Record<string, string> = {
@@ -389,13 +414,23 @@ export function buildVerificationModel(
   const garageDoorOpenings = (data.openings ?? []).filter((o) => o.type === "sectional_door");
   const usedVisualOpeningIds = new Set<string>();
   const openingRows: OpeningVerificationRow[] = canonicalOpenings.map((o, index) => {
-    const visual = visualOpenings.find(
+    const exactVisual = visualOpenings.find(
       (v) =>
         !usedVisualOpeningIds.has(v.markerLabel) &&
         v.type !== "garage_door" &&
         openingDimsMatch(v, o) &&
-        (!o.room || !v.room || o.room.toLowerCase() === v.room.toLowerCase()),
+        roomCompatible(v.room, o.room),
     );
+    const looseVisual =
+      exactVisual ??
+      visualOpenings.find(
+        (v) =>
+          !usedVisualOpeningIds.has(v.markerLabel) &&
+          v.type !== "garage_door" &&
+          visualTypeCompatible(v.type, o.type) &&
+          roomCompatible(v.room, o.room),
+      );
+    const visual = exactVisual ?? looseVisual;
     if (visual) usedVisualOpeningIds.add(visual.markerLabel);
     return {
       id: visual?.markerLabel ?? `O${index + 1}`,
@@ -473,6 +508,10 @@ export function buildVerificationModel(
     visionHint: data.intDoorVisionHint ?? null,
     garage,
     garageDoorSize: fmtStr(e?.garage_door_size?.value ?? null),
+    garageDoorFlags: visualReconciliationFlags(
+      e?.visual_opening_reconciliation,
+      "garage_door_size",
+    ),
     hardware,
   };
 

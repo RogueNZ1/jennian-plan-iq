@@ -9,14 +9,16 @@ export const Route = createFileRoute("/login")({ component: LoginPage });
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { user, loading, signIn } = useAuth();
+  const { user, loading, requiresPasswordSetup, signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) navigate({ to: "/jobs" });
-  }, [user, loading, navigate]);
+    if (!loading && user) {
+      navigate({ to: requiresPasswordSetup ? "/auth/set-password" : "/jobs" });
+    }
+  }, [user, loading, requiresPasswordSetup, navigate]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

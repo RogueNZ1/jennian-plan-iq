@@ -18,9 +18,12 @@ export {
   FLOORPLAN_SCORE,
   classifyText,
   scoreFor,
+  pickElevationPage,
   pickPrimaryFloorplan,
+  pickSitePlanPage,
   pickWindowSchedule,
   type ScoredPage,
+  type SupportingPage,
 } from "./pdf-page-classify";
 
 export type PageAnalysis = {

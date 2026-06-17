@@ -403,6 +403,93 @@ describe("buildVerificationModel", () => {
     expect(m.windows.unplacedFlags[0]).toContain("W7");
   });
 
+  it("windows: unreadable external-door markers keep their visual O label after a garage exception", () => {
+    const m = buildVerificationModel(
+      makeData({
+        openings: [
+          {
+            type: "window",
+            room: "Entry",
+            height_m: 1.69,
+            width_m: 1.2,
+            glazed: true,
+            cladding: null,
+            area_m2: 2.03,
+            source: "vision",
+            confidence: "high",
+          },
+          {
+            type: "entrance",
+            room: "Entry",
+            height_m: 2.1,
+            width_m: 1,
+            glazed: true,
+            cladding: null,
+            area_m2: 2.1,
+            source: "vision",
+            confidence: "medium",
+            flags: ["size not readable"],
+          },
+        ],
+      }),
+      makeEnriched({
+        visual_opening_audit: {
+          pageNumber: 6,
+          method: "visual_qs",
+          summary: { totalOpenings: 3, qsGlazedOpenings: 2, garageDoors: 1, uncertain: 0 },
+          warnings: [],
+          openings: [
+            {
+              id: "O7",
+              type: "garage_door",
+              room: "Garage",
+              label: "2800x2520",
+              height_m: 2.52,
+              width_m: 2.8,
+              confidence: "high",
+              evidence: "garage door",
+              flags: [],
+              x: 0.8,
+              y: 0.2,
+            },
+            {
+              id: "O18",
+              type: "window",
+              room: "Entry",
+              label: "W107 1685x1200",
+              height_m: 1.69,
+              width_m: 1.2,
+              confidence: "high",
+              evidence: "entry window",
+              flags: [],
+              x: 0.52,
+              y: 0.27,
+            },
+            {
+              id: "O19",
+              type: "external_door",
+              room: "Entry",
+              label: null,
+              height_m: null,
+              width_m: null,
+              confidence: "medium",
+              evidence: "entry door symbol",
+              flags: ["size not readable"],
+              x: 0.56,
+              y: 0.32,
+            },
+          ],
+        },
+      }),
+      RUN,
+    );
+
+    expect(m.windows.openings.map((o) => [o.id, o.type, o.room])).toEqual([
+      ["O18", "Window", "Entry"],
+      ["O19", "Entrance door", "Entry"],
+    ]);
+  });
+
   it("doors: interior rows with engine source label, totals, garage filtered to non-zero", () => {
     const m = buildVerificationModel(makeData(), makeEnriched(), RUN);
     expect(m.doors.interiorTotal).toBe(13);
@@ -410,6 +497,39 @@ describe("buildVerificationModel", () => {
     expect(m.doors.visionHint).toBe(12);
     expect(m.doors.garage).toEqual([{ label: "4.8 × 2.1 insulated", qty: 1 }]);
     expect(m.doors.garageDoorSize).toBe("4.8 × 2.1");
+  });
+
+  it("doors: garage visual reconciliation warning is printed beside the garage size", () => {
+    const m = buildVerificationModel(
+      makeData(),
+      makeEnriched({
+        visual_opening_reconciliation: {
+          method: "visual_qs_reconciliation",
+          status: "review",
+          summary: {
+            visualQsGlazedOpenings: 19,
+            composedGlazedOpenings: 19,
+            visualGarageDoors: 1,
+            composedGarageDoorSize: "2.7x2.1",
+          },
+          issues: [
+            {
+              severity: "warning",
+              field: "garage_door_size",
+              message:
+                "Visual QS garage door read 2520x2800 is outside the garage-door plausibility band; keeping composed garage door size 2700x2100.",
+              visual: "2520x2800",
+              composed: "2700x2100",
+              openingIds: ["O7"],
+            },
+          ],
+        },
+      }),
+      RUN,
+    );
+
+    expect(m.doors.garageDoorFlags).toHaveLength(1);
+    expect(m.doors.garageDoorFlags[0]).toContain("Visual QS garage door read");
   });
 
   it("doors with NO source print the fail-safe warning, never a quiet zero", () => {

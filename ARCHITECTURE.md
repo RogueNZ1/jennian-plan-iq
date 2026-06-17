@@ -1,6 +1,6 @@
 # Jennian IQ — Architecture
 
-_Last verified against the codebase 13 Jun 2026 (full-repo audit). Every claim here was
+_Last verified against the codebase 17 Jun 2026 (deploy target re-check). Every claim here was
 read from code, not memory. STATE.md is the session log; this is the map._
 
 ## What this system is
@@ -93,6 +93,8 @@ page picked, `pdf-page-classify`) → then per run (`src/lib/takeoff/run.ts`):
 
 - `convergence` = working branch; `main` = production. Promotion is a push of
   convergence→main **after green**.
+- Manual production deploys must target Cloudflare account `haydon.christian@jennian.co.nz`
+  and Pages project `jennian-iq-prod`; see `docs/deployment-runbook.md`.
 - **Gates on every push/PR**: `tsc --noEmit` → `eslint` (errors fail; 7 grandfathered
   warnings don't) → `vitest run` (598 offline tests: export faithfulness, goldens,
   regression locks, benches) → `secret-scan` (gitleaks, FULL history).

@@ -30,6 +30,8 @@ import { seedAllModulesForJob } from "@/lib/iq-modules";
 import {
   analyzePdfPages,
   pickPrimaryFloorplan,
+  pickElevationPage,
+  pickSitePlanPage,
   pickWindowSchedule,
   disposePageAnalyses,
   renderPageForAnalysis,
@@ -811,8 +813,10 @@ function UploadPage() {
       // classified pages inside a single combined plan set PDF.
       const elevFile = additionalPdfs.find((p) => p.sheetType === "elevations");
       const siteFile = additionalPdfs.find((p) => p.sheetType === "site_plan");
-      const elevationPage = pageAnalyses.find((p) => p.pageType === "elevations");
-      const sitePage = pageAnalyses.find((p) => p.pageType === "site_plan");
+      const elevationPick = pickElevationPage(pageAnalyses);
+      const sitePick = pickSitePlanPage(pageAnalyses);
+      const elevationPage = elevationPick != null ? pageAnalyses[elevationPick.index] : undefined;
+      const sitePage = sitePick != null ? pageAnalyses[sitePick.index] : undefined;
       const elevBlobP = elevFile
         ? renderPageForAnalysis(elevFile.file, 1).catch(() => null)
         : planFile && elevationPage

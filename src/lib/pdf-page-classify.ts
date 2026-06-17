@@ -105,6 +105,16 @@ export function classifyText(
     elevationFaceHits >= 2 ||
     (hasPhrase("elevation a") && hasPhrase("elevation b"));
 
+  const sheetIndex =
+    /^\s*index\s*:/.test(t) ||
+    hasPhrase("sheet index") ||
+    hasPhrase("drawing index") ||
+    hasPhrase("index of drawings");
+
+  if (sheetIndex) {
+    return { type: "legends", confidence: "high" };
+  }
+
   // Strong elevation sheets can carry title-block/project text that includes
   // "floor plan" or "proposed floor plan". Treat clear elevation-face sheets as
   // elevations before the floor-plan family, while still allowing incidental
@@ -150,6 +160,20 @@ export function classifyText(
 
   // Strong negatives — title-heavy disqualifiers (only when this is NOT an explicit
   // floor plan, which is already handled above).
+  // Site-planning sheets often carry legends and notes, so classify the explicit
+  // site/coverage sheet before the generic legend/detail disqualifiers.
+  if (
+    hasPhrase("site plan") ||
+    hasPhrase("site planning") ||
+    hasPhrase("locality plan") ||
+    hasPhrase("title plan") ||
+    hasPhrase("total coverage") ||
+    hasPhrase("coverage over foundation") ||
+    hasPhrase("additional covered roof area")
+  ) {
+    return { type: "site_plan", confidence: "high" };
+  }
+
   if (has("legend") || has("abbreviation") || has("symbols schedule")) {
     return { type: "legends", confidence: "high" };
   }
@@ -157,8 +181,9 @@ export function classifyText(
     return { type: "legends", confidence: "mid" };
   }
 
-  // Site plan
-  if (has("site plan") || has("locality plan") || has("boundary") || has("title plan")) {
+  // Site plan fallback. Boundary-only pages can be site plans, but stay behind the
+  // stronger legend/detail checks above to avoid routing construction details.
+  if (has("boundary")) {
     return { type: "site_plan", confidence: "high" };
   }
 
@@ -249,4 +274,35 @@ export function pickWindowSchedule(pages: readonly ScoredPage[]): { index: numbe
     }
   }
   return bestIndex >= 0 ? { index: bestIndex } : null;
+}
+
+export type SupportingPage = ScoredPage & {
+  excerpt?: string | null;
+};
+
+function supportExcerpt(page: SupportingPage): string {
+  return (page.excerpt ?? "").toLowerCase().replace(/\s+/g, " ");
+}
+
+export function pickElevationPage(pages: readonly SupportingPage[]): { index: number } | null {
+  const index = pages.findIndex((p) => p.pageType === "elevations");
+  return index >= 0 ? { index } : null;
+}
+
+export function pickSitePlanPage(pages: readonly SupportingPage[]): { index: number } | null {
+  let best: { index: number; score: number } | null = null;
+  for (let index = 0; index < pages.length; index++) {
+    const page = pages[index];
+    if (page.pageType !== "site_plan") continue;
+    const excerpt = supportExcerpt(page);
+    let score = 0;
+    if (/total coverage|coverage over foundation|additional covered roof area/.test(excerpt))
+      score += 5;
+    if (/driveway|concrete|patio|paths?/.test(excerpt)) score += 3;
+    if (/site plan|site planning|site services/.test(excerpt)) score += 2;
+    if (/site elevation|wind zone|earthquake zone|corrosion zone|climate zone/.test(excerpt))
+      score -= 2;
+    if (!best || score > best.score) best = { index, score };
+  }
+  return best ? { index: best.index } : null;
 }

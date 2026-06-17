@@ -516,8 +516,16 @@ function VerificationPrintout() {
                   <tr>
                     <td className="vlabel">Garage door size</td>
                     <td className="vvalue">{m.doors.garageDoorSize}</td>
-                    <td className="vsrc" />
+                    <td className="vsrc">{m.doors.garageDoorFlags.length > 0 ? "⚑" : null}</td>
                   </tr>
+                  {m.doors.garageDoorFlags.map((flag) => (
+                    <tr key={flag}>
+                      <td />
+                      <td colSpan={2} className="vflag">
+                        {flag}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
               <CountTable rows={m.doors.garage} />

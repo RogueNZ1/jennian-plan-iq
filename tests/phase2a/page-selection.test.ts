@@ -20,8 +20,11 @@ import {
   classifyText,
   scoreFor,
   FLOORPLAN_SCORE,
+  pickElevationPage,
   pickPrimaryFloorplan,
+  pickSitePlanPage,
   type ScoredPage,
+  type SupportingPage,
 } from "../../src/lib/pdf-page-classify";
 
 /** Build a ScoredPage from raw page text the way analyzePdfPages does. */
@@ -63,6 +66,22 @@ describe("classifyText — floor-plan family wins over incidental disqualifiers"
       8,
     );
     expect(type).toBe("elevations");
+  });
+
+  it("does not route a sheet index listing floor plans and elevations as a supporting sheet", () => {
+    const { type } = classifyText(
+      "Index: A01.01 Site plan A02.01 Proposed floor plan A03.01 Elevations A03.02 Elevations",
+      0,
+    );
+    expect(type).toBe("legends");
+  });
+
+  it("classifies a site-planning coverage sheet before generic legend/detail rules", () => {
+    const { type } = classifyText(
+      "Site planning & services  Total coverage: 170.16m2  Coverage over foundation: 167.24m2  Legend:",
+      8,
+    );
+    expect(type).toBe("site_plan");
   });
 
   it("still classifies a genuine legend sheet as legends", () => {
@@ -144,5 +163,35 @@ describe("pickPrimaryFloorplan — general multi-page set", () => {
       scored("LEGEND & ABBREVIATIONS", 0),
     ];
     expect(pickPrimaryFloorplan(pages)).toBeNull();
+  });
+});
+
+describe("supporting page pickers", () => {
+  it("pickElevationPage ignores the sheet index once classified as legends", () => {
+    const pages: SupportingPage[] = [
+      { ...scored("Index: A02.01 Proposed floor plan A03.01 Elevations", 0), excerpt: "index" },
+      {
+        ...scored("NORTH ELEVATION  SOUTH ELEVATION  EAST ELEVATION  WEST ELEVATION", 8),
+        excerpt: "north elevation south elevation",
+      },
+    ];
+    expect(pickElevationPage(pages)).toEqual({ index: 1 });
+  });
+
+  it("pickSitePlanPage prefers the coverage/concrete sheet over generic site conditions", () => {
+    const pages: SupportingPage[] = [
+      {
+        ...scored("Site Elevation: <400 Wind Zone High Earthquake Zone 3", 4),
+        excerpt: "site elevation wind zone earthquake zone",
+      },
+      {
+        ...scored(
+          "Site planning & services Total coverage: 170.16m2 Coverage over foundation: 167.24m2",
+          8,
+        ),
+        excerpt: "total coverage coverage over foundation site planning",
+      },
+    ];
+    expect(pickSitePlanPage(pages)).toEqual({ index: 1 });
   });
 });

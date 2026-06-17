@@ -68,7 +68,7 @@ function notifLabel(status: string, jobNumber: string, clientName: string) {
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, requiresPasswordSetup, signOut } = useAuth();
   const { isOwner, isAdmin, loading: rolesLoading } = useRoles();
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -86,7 +86,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/login" });
-  }, [user, loading, navigate]);
+    if (!loading && user && requiresPasswordSetup && path !== "/auth/set-password") {
+      navigate({ to: "/auth/set-password" });
+    }
+  }, [user, loading, requiresPasswordSetup, path, navigate]);
 
   // Load notifications once on mount
   useEffect(() => {
@@ -130,7 +133,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     }, 300);
   }, [searchQuery]);
 
-  if (loading || !user) {
+  if (loading || !user || requiresPasswordSetup) {
     return (
       <div className="min-h-screen grid place-items-center bg-background text-sm text-muted-foreground">
         Loading…
