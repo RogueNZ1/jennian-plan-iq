@@ -31,7 +31,13 @@ export type PlanRoom = {
   y: number;
 };
 
-export type PlanWindowCode = { heightMm: number; widthMm: number; x: number; y: number };
+export type PlanWindowCode = {
+  id?: string;
+  heightMm: number;
+  widthMm: number;
+  x: number;
+  y: number;
+};
 
 export type PlanTitleAreas = Partial<{
   totalAreaM2: number;
@@ -41,14 +47,19 @@ export type PlanTitleAreas = Partial<{
   perimeterM: number;
 }>;
 
+export type PlanFrameOpening = { widthMm: number; x: number; y: number };
+
 export type PlanText = {
   rooms: PlanRoom[];
   windowCodes: PlanWindowCode[];
+  frameOpenings?: PlanFrameOpening[];
   titleAreas: PlanTitleAreas;
 };
 
-const DIMS_RE = /^(\d[\d ]{2,5})\s*[xX]\s*(\d[\d ]{2,5})$/;
-const num = (s: string) => parseInt(s.replace(/ /g, ""), 10);
+const DIMS_RE = /^(\d[\d, ]{2,5})\s*[xX]\s*(\d[\d, ]{2,5})$/;
+const WINDOW_CODE_STRICT_RE = /^(\d[\d, ]{2,5})x(\d[\d, ]{2,5})(?:\s*mm)?$/;
+const WINDOW_CODE_DIMS_RE = /^(\d[\d, ]{2,5})\s*[xX]\s*(\d[\d, ]{2,5})(?:\s*mm)?$/i;
+const num = (s: string) => parseInt(s.replace(/[, ]/g, ""), 10);
 
 /** Room NAME labels are alphabetic (allowing digits like "BED 3"), all-caps on
  * Jennian plans, and never pure numbers or H×W codes. */
@@ -102,8 +113,11 @@ export function parseRoomDims(labels: TextLabel[]): PlanRoom[] {
  * that ALSO parse as room dims are excluded by proximity to a room name above. */
 export function parseWindowCodes(labels: TextLabel[], rooms: PlanRoom[]): PlanWindowCode[] {
   const out: PlanWindowCode[] = [];
+  const wLabels = labels.filter((candidate) => /^W\d{1,3}$/i.test(candidate.text.trim()));
   for (const l of labels) {
-    const m = l.text.trim().match(/^(\d[\d ]{2,5})x(\d[\d ]{2,5})$/);
+    const text = l.text.trim();
+    const strictMatch = text.match(WINDOW_CODE_STRICT_RE);
+    const m = strictMatch ?? text.match(WINDOW_CODE_DIMS_RE);
     if (!m) continue;
     const h = num(m[1]),
       w = num(m[2]);
@@ -111,7 +125,19 @@ export function parseWindowCodes(labels: TextLabel[], rooms: PlanRoom[]): PlanWi
     if (h < 300 || h > 3000 || w < 300 || w > 6000) continue;
     // not a room-dim label (those were claimed by a room name directly above)
     if (rooms.some((r) => Math.abs(r.x - l.x) < 30 && l.y - r.y > 0 && l.y - r.y <= 12)) continue;
-    out.push({ heightMm: h, widthMm: w, x: l.x, y: l.y });
+    const id = wLabels
+      .map((candidate) => ({
+        id: candidate.text
+          .trim()
+          .toUpperCase()
+          .replace(/^W(\d)$/, "W0$1"),
+        dx: Math.abs(candidate.x - l.x),
+        dy: l.y - candidate.y,
+      }))
+      .filter((candidate) => candidate.dy >= -2 && candidate.dy <= 24 && candidate.dx <= 55)
+      .sort((a, b) => Math.hypot(a.dx, a.dy) - Math.hypot(b.dx, b.dy))[0]?.id;
+    if (!id && !strictMatch) continue;
+    out.push({ ...(id ? { id } : {}), heightMm: h, widthMm: w, x: l.x, y: l.y });
   }
   return out;
 }
@@ -144,6 +170,18 @@ export function parseTitleAreas(labels: TextLabel[]): PlanTitleAreas {
   return out;
 }
 
+export function parseFrameOpenings(labels: TextLabel[]): PlanFrameOpening[] {
+  const out: PlanFrameOpening[] = [];
+  for (const l of labels) {
+    const m = l.text.trim().match(/^Frame to Frame\s+(\d[\d, ]{2,5})$/i);
+    if (!m) continue;
+    const widthMm = num(m[1]);
+    if (widthMm < 600 || widthMm > 2400) continue;
+    out.push({ widthMm, x: l.x, y: l.y });
+  }
+  return out;
+}
+
 export function parsePlanText(labels: TextLabel[]): PlanText {
   // Density guard (13 Jun 2026, prelim-set hang): a full working drawing can
   // carry tens of thousands of text labels (every dimension is one). The room
@@ -153,12 +191,13 @@ export function parsePlanText(labels: TextLabel[]): PlanText {
     console.warn(
       `[plan-text] ${labels.length} labels exceeds the density cap — plan-text pass skipped.`,
     );
-    return { rooms: [], windowCodes: [], titleAreas: {} };
+    return { rooms: [], windowCodes: [], frameOpenings: [], titleAreas: {} };
   }
   const rooms = parseRoomDims(labels);
   return {
     rooms,
     windowCodes: parseWindowCodes(labels, rooms),
+    frameOpenings: parseFrameOpenings(labels),
     titleAreas: parseTitleAreas(labels),
   };
 }

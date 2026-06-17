@@ -95,6 +95,8 @@ export function applyWindowAggregate(takeoff: TakeoffData, agg: WindowAggregate)
     id: w.id,
     height_m: mmToM(w.heightMm),
     width_m: mmToM(w.widthMm),
+    ...(w.heightSource ? { height_source: w.heightSource } : {}),
+    ...(w.flags?.length ? { flags: w.flags } : {}),
   }));
 
   // Re-derive the external wall area (Phase 2d) now that the canonical schedule

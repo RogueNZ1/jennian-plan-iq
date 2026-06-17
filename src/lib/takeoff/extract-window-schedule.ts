@@ -22,6 +22,10 @@ export interface ScheduleWindow {
   heightMm: number | null;
   /** Width in mm (the second number), or null if unreadable. */
   widthMm: number | null;
+  /** Optional override when a rejected height was recovered from another deterministic source. */
+  heightSource?: "vector" | "asserted";
+  /** Per-row review flags carried through to the canonical opening row. */
+  flags?: string[];
 }
 
 export interface WindowScheduleData {

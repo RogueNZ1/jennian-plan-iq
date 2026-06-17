@@ -47,12 +47,20 @@ import {
 import { reconcileVectorVision } from "../../src/lib/takeoff/reconcile-annotations";
 import { composeTakeoff } from "../../src/lib/takeoff/compose-takeoff";
 import { unwrapTakeoff } from "../../src/lib/takeoff/enriched-takeoff";
+import { runDoorEngine } from "../../src/lib/doors/run-doors";
 
 const DIR = resolve(process.cwd(), "tests/fixtures/beddis");
 const RENDER = resolve(DIR, "_render");
 const PAGETEXT = resolve(DIR, "_pagetext");
 const GEOMETRY_BASE = process.env.GEOMETRY_BASE ?? "http://localhost:8000";
 const RUN = !!process.env.BEDDIS_LIVE;
+
+const GROUND_TRUTH = JSON.parse(readFileSync(resolve(DIR, "ground-truth.json"), "utf8")) as {
+  truth: Record<string, number>;
+  joinery_bench: { derived: Record<string, number> };
+};
+const TRUTH = GROUND_TRUTH.truth;
+const JOINERY_TRUTH = GROUND_TRUTH.joinery_bench.derived;
 
 const b64 = (p: string) => readFileSync(resolve(RENDER, p)).toString("base64");
 
@@ -247,11 +255,17 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
       // the VISION floor/perimeter; composeTakeoff additionally applies the geometry
       // override (the true Pipeline B behaviour), so its measurement fields come from the
       // geometry engine. Asserted against the Beddis scorecard in the DoD below.
+      const doorEngine = await runDoorEngine(
+        readFileSync(resolve(DIR, "prelim.pdf")),
+        prelimGeomPage + 1,
+        out.prelim.geometry.scale?.string ?? "1:100 @ A3",
+      );
       const composed = composeTakeoff({
         visionTakeoff: takeoff,
         geometry: out.prelim.geometry,
         schedule: scheduleRaw,
         geometryPageIndex: prelimGeomPage,
+        doorEngine,
       });
       out.prelim.composed = composed.enriched;
       out.prelim.composed_bare = unwrapTakeoff(composed.enriched);
@@ -326,15 +340,13 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     for (let n = 1; n <= 13; n++) {
       expect(ids).toContain("W" + String(n).padStart(2, "0"));
     }
-    // Every window has a width; height is non-null UNLESS the Phase 4 head-datum
-    // safeguard rejected it as a datum mis-read (those become null by design — a
-    // rejected height is honest "unknown", never a fabricated value).
+    // Every window has a width. Heights may be unresolved by the head-datum safeguard
+    // as an intermediate honesty rail, but the acceptance contract is the QS-priced
+    // aggregate below, not preserving null heights as the desired final state.
     const flagged: string[] = out.prelim.head_datum_flagged ?? [];
     for (const w of out.prelim.takeoff.windows_schedule) {
       expect(w.width_m).not.toBeNull();
-      if (flagged.includes(w.id)) {
-        expect(w.height_m).toBeNull();
-      } else {
+      if (!flagged.includes(w.id)) {
         expect(w.height_m).not.toBeNull();
       }
     }
@@ -422,7 +434,7 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     expect(out.prelim.vector_annotations.entrance.width_source).toBe("unresolved");
     // Unknown width → the door is NOT folded into the opening set (no fabricated area).
     expect(out.prelim.entrance).toBeNull();
-    expect(out.prelim.takeoff.windows_by_room.entrance).toBeUndefined();
+    expect(out.prelim.takeoff.windows_by_room?.entrance).toBeUndefined();
     // Honesty rails: height flagged assumed-standard, width flagged as the last-resort
     // assumed 1.0m (never a fabricated measured 1.4), and the entry door is counted now.
     expect(out.prelim.takeoff.notes).toContain("height assumed standard 2.1m");
@@ -439,13 +451,9 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     expect(recEntrance.vectorValue).toBeNull();
 
     // ── Phase 2d definition of done (derived fields) ──────────────────────────
-    // external_wall_area_m2 = perimeter × stud − total_opening_area (QS D21 = 109.2),
-    // total_area_m2 = floor + alfresco (QS D14 = 167.1). These are computed and must
-    // land (non-null). They are NOT hard-asserted to the QS figure because they
-    // inherit the opening/alfresco extraction: on the live Beddis run the schedule
-    // window heads read tall (~2.21m) and the entrance door is not extracted (so the
-    // opening area over-shoots), and the prelim summary box yields no alfresco (so
-    // total falls back to the floor area). Reported as deltas for the human.
+    // external_wall_area_m2 = perimeter × stud − total_opening_area (QS D21 = 109.2).
+    // This is the money accuracy gate: the baseline must fail if IQ only gets counts
+    // right while under-materialising dimensioned opening rows.
     expect(out.prelim.takeoff.external_wall_area_m2).not.toBeNull();
     expect(out.prelim.takeoff.total_area_m2).not.toBeNull();
 
@@ -468,9 +476,20 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     const wbrFlags = cmp.windows_by_room.discrepancy_flags.join(" ");
     expect(wbrFlags).toContain("height assumed standard 2.1m");
     expect(wbrFlags).toContain("width assumed 1.0m — confirm against plan");
-    // Derived ext-wall area is flagged incomplete (Beddis heads unresolved) on its own field.
+    // Derived QS-priced outputs must match the signed-off workbook truth, not only the
+    // window count. This is the red/green gate for opening-dimension recovery.
     expect(cmp.external_wall_area_m2.source).toBe("derived");
-    expect(cmp.external_wall_area_m2.discrepancy_flags.join(" ")).toContain("incomplete");
+    const recoveredRows = (cmp.openings ?? []).filter((o) =>
+      o.flags?.join(" ").includes("height recovered from the printed W-code"),
+    );
+    expect(recoveredRows.length).toBeGreaterThan(0);
+    expect(recoveredRows.every((o) => o.source === "schedule")).toBe(true);
+    expect(recoveredRows.every((o) => o.height_source === "asserted")).toBe(true);
+    expect(recoveredRows[0].flags?.join(" ")).toContain("height recovered from the printed W-code");
+    expect(cmp.total_opening_sqm).toBeCloseTo(JOINERY_TRUTH.total_opening_sqm, 0);
+    expect(cmp.glazed_sqm).toBeCloseTo(JOINERY_TRUTH.glazed_sqm, 0);
+    expect(cmp.external_wall_area_m2.value).toBeCloseTo(TRUTH.external_wall_area_m2, 0);
+    expect(cmp.total_area_m2.value).not.toBeNull();
     // The global notes view still carries every migrated flag (backward-compat / M2 survival).
     expect(cmp.notes).toBe(out.prelim.composed_bare.notes);
     expect(cmp.notes).toContain("width assumed 1.0m — confirm against plan");

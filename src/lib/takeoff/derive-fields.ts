@@ -176,9 +176,12 @@ export function deriveOpenings(args: {
         glazed: true,
         cladding: null,
         area_m2: round2(h * wd) ?? 0,
-        source: "vision",
-        ...(assumed ? { flags: [ASSUMED_WIDTH_FLAG] } : {}),
-        confidence: "high",
+        source: "schedule",
+        ...(w.height_source ? { height_source: w.height_source } : {}),
+        ...(assumed || w.flags?.length
+          ? { flags: [...(w.flags ?? []), ...(assumed ? [ASSUMED_WIDTH_FLAG] : [])] }
+          : {}),
+        confidence: w.flags?.length || assumed ? "medium" : "high",
       });
     }
   } else if (args.windowsByRoom) {

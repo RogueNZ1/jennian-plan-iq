@@ -53,6 +53,7 @@ import {
 import { reconcileVectorVision } from "../../src/lib/takeoff/reconcile-annotations";
 import { composeTakeoff } from "../../src/lib/takeoff/compose-takeoff";
 import { unwrapTakeoff } from "../../src/lib/takeoff/enriched-takeoff";
+import { runDoorEngine } from "../../src/lib/doors/run-doors";
 
 const DIR = resolve(process.cwd(), "tests/fixtures/harrison");
 const RENDER = resolve(DIR, "_render");
@@ -65,6 +66,8 @@ const TRUTH = JSON.parse(readFileSync(resolve(DIR, "ground-truth.json"), "utf8")
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdf.js/Supabase boundary types are deliberately loose here
   any
 >;
+const JOINERY_TRUTH = JSON.parse(readFileSync(resolve(DIR, "ground-truth.json"), "utf8"))
+  .joinery_bench.derived as Record<string, number>;
 
 const b64 = (p: string) => readFileSync(resolve(RENDER, p)).toString("base64");
 
@@ -235,11 +238,17 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
       // /upload both call) on the same page-pinned, no-schedule inputs. Harrison is the F-022
       // TRUE POSITIVE (vision 2.7 vs vector 4.8) and the printed-width entrance — composeTakeoff
       // must carry both onto their fields. Asserted against the Harrison scorecard in the DoD.
+      const doorEngine = await runDoorEngine(
+        readFileSync(resolve(DIR, "concept.pdf")),
+        conceptGeomPage + 1,
+        out.concept.geometry.scale?.string ?? "1:100 @ A3",
+      );
       const composed = composeTakeoff({
         visionTakeoff: takeoff,
         geometry: out.concept.geometry,
         schedule: null,
         geometryPageIndex: conceptGeomPage,
+        doorEngine,
       });
       out.concept.composed = composed.enriched;
       out.concept.composed_bare = unwrapTakeoff(composed.enriched);
@@ -325,8 +334,8 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
 
     // No-schedule path: there is no A501 schedule, so windows must come from the
     // floor-plan callouts. (Records the path Beddis could not exercise.)
-    expect(out.concept.window_source).toBe("floor_plan_callouts");
-    expect(out.concept.takeoff.window_count).not.toBeNull();
+    expect(out.concept.composed.window_count.source).toBe("vector");
+    expect(out.concept.composed.window_count.value).not.toBeNull();
 
     // Garage door: 2150×4800 must still classify to the QS double-garage size 4.8×2.1
     // (tolerant 2.0–2.4m height band; 2150 ∈ [2000,2400]).
@@ -353,11 +362,17 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     expect(out.concept.vector_annotations.openings.window_count).toBeGreaterThanOrEqual(13);
     expect(out.concept.vector_annotations.openings.datum_mm).toBeGreaterThanOrEqual(1500);
     expect(out.concept.vector_annotations.openings.widths_raw.length).toBeGreaterThan(0);
-    // Window count is the vector-preferred floor-plan W-code count.
+    // Window count and canonical opening rows are vector-sourced from printed floor-plan
+    // W-codes. Do not bless the stale pre-compose helper label as the real provenance.
     expect(out.concept.takeoff.window_count).toBe(
       out.concept.vector_annotations.openings.window_count,
     );
-    expect(out.concept.window_source).toBe("floor_plan_callouts"); // source label unchanged
+    expect(out.concept.composed.window_count.source).toBe("vector");
+    expect(
+      (out.concept.composed.openings ?? [])
+        .filter((o) => o.type === "window" && /^W\d+$/i.test(o.room ?? ""))
+        .every((o) => o.source === "vector"),
+    ).toBe(true);
     expect(out.concept.opening_widths.source).toBe("vector");
     expect(out.concept.opening_widths.preferred_vector).toBe(true);
     expect(out.concept.opening_widths.widths_mm.length).toBe(
@@ -435,15 +450,13 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     // run.ts calls this SAME pure function with the same page-pinned inputs; proving it on
     // the Harrison ground truth proves the production path's numbers before any DB work.
     const cmp = out.concept.composed;
-    // Harrison regression: geometry/OCR can mislabel the printed perimeter (60.4) as
-    // floor area. The composer must keep the vision/title-block area and carry the
-    // rejected geometry candidate as a review flag.
+    // Harrison regression: geometry/OCR used to mislabel the printed perimeter as
+    // floor area. Current geometry agrees with the title-block floor area, so either
+    // accepted source is fine here; the value is the contract.
     expect(cmp.floor_area_m2.value).toBe(out.concept.takeoff.floor_area_m2);
     expect(cmp.floor_area_m2.value).toBeGreaterThan(160);
-    expect(cmp.floor_area_m2.source).toBe("vision");
-    expect(cmp.floor_area_m2.discrepancy_flags.join(" ")).toContain(
-      "rejected geometry candidate 175.37",
-    );
+    expect(cmp.floor_area_m2.value).toBeCloseTo(TRUTH.floor_area_m2, 1);
+    expect(["vision", "geometry"]).toContain(cmp.floor_area_m2.source);
     expect(cmp.external_wall_lm.source).toBe("geometry");
     // Window count is the vector-preferred floor-plan W-code count.
     expect(cmp.window_count.value).toBe(out.concept.vector_annotations.openings.window_count);
@@ -462,5 +475,12 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     // Global notes view carries every migrated flag (backward-compat / M2 survival).
     expect(cmp.notes).toBe(out.concept.composed_bare.notes);
     expect(cmp.notes).toContain("reconciliation: garage_door_width");
+    // QS-priced aggregate outputs are the acceptance target on the no-schedule path.
+    // Harrison's fixture explicitly warns against grading a flat count; price area is
+    // the robust contract.
+    expect(cmp.total_opening_sqm).toBeCloseTo(JOINERY_TRUTH.total_opening_sqm, 1);
+    expect(cmp.glazed_sqm).toBeCloseTo(JOINERY_TRUTH.glazed_sqm, 1);
+    expect(cmp.external_wall_area_m2.value).toBeCloseTo(TRUTH.external_wall_area_m2, 1);
+    expect(cmp.total_area_m2.value).toBeCloseTo(TRUTH.total_area_m2, 0);
   }, 600000);
 });

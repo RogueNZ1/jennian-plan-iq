@@ -12,7 +12,13 @@ export type OpeningType =
   | "entrance";
 
 /** Where an opening's dimensions came from. */
-export type OpeningSource = "vision" | "vector" | "asserted" | "callout" | "unresolved";
+export type OpeningSource =
+  | "vision"
+  | "vector"
+  | "schedule"
+  | "asserted"
+  | "callout"
+  | "unresolved";
 
 /**
  * A single exterior opening — the flat, per-opening model (Stage 1). Mirrors the
@@ -50,6 +56,10 @@ export type ScheduleWindowEntry = {
   id: string;
   height_m: number | null;
   width_m: number | null;
+  /** Optional override when the height was recovered outside the schedule read. */
+  height_source?: OpeningSource;
+  /** Per-row review flags carried through to the canonical opening row. */
+  flags?: string[];
 };
 
 export type DoorBreakdown = {

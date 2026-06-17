@@ -136,7 +136,8 @@ export type EnrichedTakeoff = {
    * vector text. Absent on runs before the pass existed. */
   plan_text?: {
     rooms: Array<{ name: string; widthMm: number; depthMm: number; areaM2: number }>;
-    windowCodes: Array<{ heightMm: number; widthMm: number }>;
+    windowCodes: Array<{ id?: string; heightMm: number; widthMm: number }>;
+    frameOpenings?: Array<{ widthMm: number }>;
     titleAreas: Record<string, number>;
   };
   door_page?: {

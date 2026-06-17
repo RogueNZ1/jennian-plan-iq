@@ -21,7 +21,7 @@
  *     is performed by the CALLER and handed in as data; the caller owns all side-effects.
  *   - Identical inputs ⇒ deterministic output.
  */
-import type { TakeoffData } from "./takeoff-types";
+import type { Opening, TakeoffData } from "./takeoff-types";
 import type { GeometryApiResult } from "./geometry-api";
 import type { WindowScheduleData } from "./extract-window-schedule";
 import {
@@ -135,6 +135,90 @@ function near(a: number | null | undefined, b: number | null | undefined, tolera
 function foundationOrDefault(v: string | null | undefined): string {
   const cleaned = typeof v === "string" ? v.trim() : "";
   return cleaned || "TC1";
+}
+
+const round2Local = (v: number): number => Math.round(v * 100) / 100;
+
+function openingsFromPlanTextCodes(
+  planText: import("./plan-text").PlanText | null | undefined,
+  vector: import("./geometry-api").VectorAnnotations | null | undefined,
+): Opening[] | null {
+  const entranceWidthMm =
+    vector?.vector_usable && vector.entrance?.width_mm != null ? vector.entrance.width_mm : null;
+  const codes = (planText?.windowCodes ?? []).filter((code) => {
+    if (!code.id) return false;
+    if (entranceWidthMm != null && Math.abs(code.widthMm - entranceWidthMm) <= 50) return false;
+    return true;
+  });
+  const frameDoors = (planText?.frameOpenings ?? []).filter((frame) => {
+    if (entranceWidthMm != null && Math.abs(frame.widthMm - entranceWidthMm) <= 50) return false;
+    return true;
+  });
+  if (codes.length === 0 && frameDoors.length === 0) return null;
+  const openings: Opening[] = codes.map((code) => {
+    const height_m = round2Local(code.heightMm / 1000);
+    const width_m = round2Local(code.widthMm / 1000);
+    return {
+      type: "window",
+      room: code.id ?? null,
+      height_m,
+      width_m,
+      glazed: true,
+      cladding: null,
+      area_m2: round2Local(height_m * width_m),
+      source: "vector",
+      confidence: "medium",
+    };
+  });
+  for (const frame of frameDoors) {
+    const height_m = 2.1;
+    const width_m = round2Local(frame.widthMm / 1000);
+    openings.push({
+      type: "pa_door",
+      room: null,
+      height_m,
+      width_m,
+      glazed: true,
+      cladding: null,
+      area_m2: round2Local(height_m * width_m),
+      source: "vector",
+      height_source: "asserted",
+      flags: ["height assumed standard 2.1m — confirm against the elevation/joinery schedule"],
+      confidence: "medium",
+    });
+  }
+  return openings;
+}
+
+function recoverScheduleHeightsFromPlanText(
+  schedule: WindowScheduleData | null,
+  planText: import("./plan-text").PlanText | null | undefined,
+  headDatumMm: number | null,
+): WindowScheduleData | null {
+  if (!schedule?.windows.length || !planText?.windowCodes.length) return schedule;
+  let changed = false;
+  const byId = new Map(planText.windowCodes.filter((c) => c.id).map((c) => [c.id, c]));
+  const windows = schedule.windows.map((w) => {
+    if (w.heightMm != null) return w;
+    const code = byId.get(w.id);
+    if (!code) return w;
+    let heightMm = code.heightMm;
+    let heightSource: "vector" | "asserted" = "vector";
+    const flags = [
+      ...(w.flags ?? []),
+      `${w.id}: schedule height was rejected as a likely head-datum read; height recovered from the printed W-code on the floor plan.`,
+    ];
+    if (headDatumMm != null && Math.abs(heightMm - headDatumMm) <= 50) {
+      heightMm = 2100;
+      heightSource = "asserted";
+      flags.push(
+        `${w.id}: printed W-code height ${code.heightMm}mm matches the ${headDatumMm}mm head datum; normalised to standard 2100mm and must be confirmed against the joinery schedule.`,
+      );
+    }
+    changed = true;
+    return { ...w, heightMm, heightSource, flags };
+  });
+  return changed ? { ...schedule, windows } : schedule;
 }
 
 /**
@@ -312,7 +396,11 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
 
   // Head-datum safeguard before aggregating.
   const scheduleSafeguard = safeguardScheduleHeights(scheduleRaw, vectorAnnotations);
-  const schedule = scheduleSafeguard.schedule;
+  const schedule = recoverScheduleHeightsFromPlanText(
+    scheduleSafeguard.schedule,
+    planText,
+    scheduleSafeguard.headDatumMm,
+  );
 
   // Plan-text window auto-correction (13 Jun 2026, "flags aren't fixes"): on a
   // schedule-less job, the printed codes ARE the schedule the job never had --
@@ -471,6 +559,19 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   const rawComposedOpenings = hasSymbolOpenings
     ? folded.openings
     : foldScheduleEntrance(folded.openings, vectorAnnotations?.entrance);
+  const planTextOpenings = !schedule?.windows?.length
+    ? openingsFromPlanTextCodes(planText, vectorAnnotations)
+    : null;
+  const planTextRecoveredOpenings = planTextOpenings
+    ? [
+        ...planTextOpenings,
+        ...rawComposedOpenings.filter(
+          (o) =>
+            !["window", "slider", "garage_window"].includes(o.type) ||
+            /entr|entry|porch/i.test(o.room ?? ""),
+        ),
+      ]
+    : null;
   const visualPromotion = promoteVisualOpenings(visualOpeningAudit);
   const visualPromotedOpenings = visualPromotion?.openings.length ? visualPromotion.openings : null;
   const visualHasSectional = visualPromotedOpenings?.some((o) => o.type === "sectional_door");
@@ -480,7 +581,9 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       ? visualHasSectional
         ? visualPromotedOpenings
         : [...visualPromotedOpenings, ...rawSectionals]
-      : rawComposedOpenings,
+      : planTextRecoveredOpenings
+        ? planTextRecoveredOpenings
+        : rawComposedOpenings,
   );
   const composedGarageDoorSize = visualPromotion?.garageDoorSize ?? folded.garage_door_size;
   const garageDoorConfirmedFromSectionalCallout =
@@ -687,8 +790,12 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
                     depthMm,
                     areaM2,
                   })),
-                  windowCodes: doorEngine.planText.windowCodes.map(({ heightMm, widthMm }) => ({
+                  windowCodes: doorEngine.planText.windowCodes.map(({ id, heightMm, widthMm }) => ({
+                    ...(id ? { id } : {}),
                     heightMm,
+                    widthMm,
+                  })),
+                  frameOpenings: (doorEngine.planText.frameOpenings ?? []).map(({ widthMm }) => ({
                     widthMm,
                   })),
                   titleAreas: Object.fromEntries(
