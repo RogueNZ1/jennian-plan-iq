@@ -56,10 +56,12 @@ import {
   type FieldSource,
 } from "./enriched-takeoff";
 import type { VisualOpeningAudit } from "./visual-opening-audit";
+import type { ElevationData } from "./extract-elevations";
 import {
   reconcileVisualOpenings,
   visualReconciliationFlags,
 } from "./visual-opening-reconciliation";
+import { recoverVisualAuditFromElevationLedger } from "./visual-opening-elevation-recovery";
 import { promoteVisualOpenings } from "./visual-opening-promotion";
 
 export type ComposeTakeoffInput = {
@@ -82,8 +84,10 @@ export type ComposeTakeoffInput = {
         wallTrace?: import("./wall-trace").WallTrace;
       })
     | null;
-  /** Visual QS external-opening audit; additive evidence, not value-driving yet. */
+  /** Visual QS external-opening audit; promoted only through strict plausibility/recovery gates. */
   visualOpeningAudit?: VisualOpeningAudit | null;
+  /** Structured elevation opening ledger; used only for strict visual-recovery cases. */
+  elevationData?: ElevationData | null;
 };
 
 export type ComposeTakeoffResult = {
@@ -420,6 +424,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     geometryPageIndex,
     doorEngine,
     visualOpeningAudit,
+    elevationData,
   } = input;
 
   const geoResult = geometry ?? null;
@@ -686,7 +691,11 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
         ),
       ]
     : null;
-  const visualPromotion = promoteVisualOpenings(visualOpeningAudit);
+  const recoveredVisualOpeningAudit = recoverVisualAuditFromElevationLedger(
+    visualOpeningAudit,
+    elevationData,
+  );
+  const visualPromotion = promoteVisualOpenings(recoveredVisualOpeningAudit);
   const visualPromotedOpenings = visualPromotion?.openings.length ? visualPromotion.openings : null;
   const visualHasSectional = visualPromotedOpenings?.some((o) => o.type === "sectional_door");
   const rawSectionals = rawComposedOpenings.filter((o) => o.type === "sectional_door");
@@ -728,7 +737,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
         )
       : t.external_wall_area_m2;
   const visualOpeningReconciliation = reconcileVisualOpenings({
-    audit: visualOpeningAudit,
+    audit: recoveredVisualOpeningAudit,
     openings: composedOpenings,
     garageDoorSize: composedGarageDoorSize,
   });
@@ -868,7 +877,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     openings: composedOpenings,
     total_opening_sqm: composedOpeningTotals.total_opening_sqm,
     glazed_sqm: composedOpeningTotals.glazed_sqm,
-    ...(visualOpeningAudit ? { visual_opening_audit: visualOpeningAudit } : {}),
+    ...(recoveredVisualOpeningAudit ? { visual_opening_audit: recoveredVisualOpeningAudit } : {}),
     ...(visualOpeningReconciliation
       ? { visual_opening_reconciliation: visualOpeningReconciliation }
       : {}),

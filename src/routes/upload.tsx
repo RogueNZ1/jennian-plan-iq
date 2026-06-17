@@ -894,6 +894,22 @@ function UploadPage() {
             .catch(() => null)
         : null;
 
+      // Elevations feed both the later cross-reference panel and the pure compose seam's
+      // strict malformed-label recovery. Extract before compose so export figures can benefit
+      // from a confirmed elevation ledger instead of only displaying the warning afterwards.
+      const [elev, site] = await Promise.all([
+        elevBlob
+          ? blobToBase64(elevBlob).then((eb64) =>
+              extractElevationsFn({ data: { imageBase64: eb64, builderName } }).catch(() => null),
+            )
+          : Promise.resolve(null),
+        siteBlob
+          ? blobToBase64(siteBlob).then((sb64) =>
+              extractSitePlanFn({ data: { imageBase64: sb64 } }).catch(() => null),
+            )
+          : Promise.resolve(null),
+      ]);
+
       // Convergence Slice 1 — the shared, PURE plan→takeoff seam. Every impure input (the
       // vision takeoff, the geometry measurement + vector_annotations, the schedule) is
       // fetched above and handed in; composeTakeoff performs the geometry overrides, the
@@ -918,6 +934,7 @@ function UploadPage() {
         geometryPageIndex,
         doorEngine,
         visualOpeningAudit,
+        elevationData: elev,
       });
       // composeTakeoff now returns the ENRICHED per-field shape (Slice 2). Unwrap to the bare
       // TakeoffData the rest of /upload (state, cross-reference, exportToExcel) consumes —
@@ -934,20 +951,6 @@ function UploadPage() {
 
       setTakeoffData(mergedWithWindows);
       setEditedTakeoff(mergedWithWindows);
-
-      // Run elevation and site plan extractions in parallel (non-blocking)
-      const [elev, site] = await Promise.all([
-        elevBlob
-          ? blobToBase64(elevBlob).then((b64) =>
-              extractElevationsFn({ data: { imageBase64: b64, builderName } }).catch(() => null),
-            )
-          : Promise.resolve(null),
-        siteBlob
-          ? blobToBase64(siteBlob).then((b64) =>
-              extractSitePlanFn({ data: { imageBase64: b64 } }).catch(() => null),
-            )
-          : Promise.resolve(null),
-      ]);
 
       setElevationData(elev);
       setSitePlanData(site);
