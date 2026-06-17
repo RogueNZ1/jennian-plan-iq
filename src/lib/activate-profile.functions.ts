@@ -73,7 +73,6 @@ export const activateProfileFn = createServerFn({ method: "POST" })
       .from("profiles")
       .update({
         ...(invitedName ? { full_name: invitedName } : {}),
-        ...(invited?.branch ? { branch: invited.branch } : {}),
         status: "active",
         accepted_at: now,
         last_login_at: now,
