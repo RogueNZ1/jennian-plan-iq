@@ -42,7 +42,7 @@ import {
 
 export const Route = createFileRoute("/users")({ component: UsersPage });
 
-const ROLES: AppRole[] = ["owner", "admin", "estimator", "project_manager", "viewer"];
+const ROLES: AppRole[] = ["owner", "admin", "estimator", "viewer"];
 
 const BRANCHES = ["Manawatū", "Wellington", "Hawke's Bay", "Taranaki", "Other"];
 
@@ -53,7 +53,6 @@ type ProfileRow = {
   email: string | null;
   full_name: string | null;
   status: ProfileStatus;
-  branch: string | null;
   invited_by: string | null;
   invited_at: string | null;
   accepted_at: string | null;
@@ -180,7 +179,7 @@ function UsersPage() {
   const roleByUser = useMemo(() => {
     const m: Record<string, AppRole> = {};
     // Take highest-privilege role per user
-    const order: AppRole[] = ["owner", "admin", "estimator", "project_manager", "viewer"];
+    const order: AppRole[] = ["owner", "admin", "estimator", "viewer"];
     for (const rr of roleRows) {
       const cur = m[rr.user_id];
       if (!cur || order.indexOf(rr.role) < order.indexOf(cur)) m[rr.user_id] = rr.role;
@@ -219,7 +218,9 @@ function UsersPage() {
       email: p.email ?? inviteEmailByName.get((p.full_name ?? "").toLowerCase()) ?? "",
       role: roleByUser[p.id] ?? "viewer",
       status: p.status === "suspended" ? "disabled" : p.status === "invited" ? "pending" : "active",
-      branch: p.branch,
+      branch:
+        invites.find((i) => i.email.toLowerCase() === (p.email ?? "").toLowerCase())?.branch ??
+        null,
       lastActive: accessHealthByUser[p.id]?.lastSignInAt ?? p.last_login_at,
       invitedBy: p.invited_by
         ? (profileById[p.invited_by]?.full_name ?? profileById[p.invited_by]?.email ?? null)
@@ -784,7 +785,6 @@ function RoleBadge({ role }: { role: AppRole }) {
     owner: "bg-primary/10 text-primary border-transparent",
     admin: "bg-primary/10 text-primary border-transparent",
     estimator: "bg-confidence-high-bg text-confidence-high border-transparent",
-    project_manager: "bg-confidence-mid-bg text-confidence-mid border-transparent",
     viewer: "bg-muted text-muted-foreground border-border",
   };
   return (
@@ -852,7 +852,7 @@ const inviteSchema = z.object({
   first_name: z.string().trim().min(1, "First name is required").max(80),
   last_name: z.string().trim().min(1, "Last name is required").max(80),
   email: z.string().trim().toLowerCase().email("Enter a valid email").max(255),
-  role: z.enum(["owner", "admin", "estimator", "project_manager", "viewer"]),
+  role: z.enum(["owner", "admin", "estimator", "viewer"]),
   branch: z.string().trim().max(80).nullable(),
   welcome_message: z.string().trim().max(500).nullable(),
 });

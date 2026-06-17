@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-type AppRole = "owner" | "admin" | "estimator" | "project_manager" | "viewer";
+type AppRole = "owner" | "admin" | "estimator" | "viewer";
 
 function env(...names: string[]): string | undefined {
   for (const n of names) {

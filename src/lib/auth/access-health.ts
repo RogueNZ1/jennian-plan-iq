@@ -50,7 +50,7 @@ export type AccessHealthRow = {
   issues: string[];
 };
 
-const ROLE_ORDER: AppRole[] = ["owner", "admin", "estimator", "project_manager", "viewer"];
+const ROLE_ORDER: AppRole[] = ["owner", "admin", "estimator", "viewer"];
 
 function strongestRole(rows: AccessRole[], userId: string): AppRole | null {
   const roles = rows.filter((r) => r.user_id === userId).map((r) => r.role);

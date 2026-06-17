@@ -6,55 +6,33 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5";
   };
+  graphql_public: {
+    Tables: {
+      [_ in never]: never;
+    };
+    Views: {
+      [_ in never]: never;
+    };
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json;
+          operationName?: string;
+          query?: string;
+          variables?: Json;
+        };
+        Returns: Json;
+      };
+    };
+    Enums: {
+      [_ in never]: never;
+    };
+    CompositeTypes: {
+      [_ in never]: never;
+    };
+  };
   public: {
     Tables: {
-      door_counts: {
-        Row: {
-          id: string;
-          job_id: string;
-          standard: number;
-          cavity_sliders: number;
-          double_doors: number;
-          barn_sliders: number;
-          ai_total_estimate: number | null;
-          confirmed_at: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          job_id: string;
-          standard?: number;
-          cavity_sliders?: number;
-          double_doors?: number;
-          barn_sliders?: number;
-          ai_total_estimate?: number | null;
-          confirmed_at?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          job_id?: string;
-          standard?: number;
-          cavity_sliders?: number;
-          double_doors?: number;
-          barn_sliders?: number;
-          ai_total_estimate?: number | null;
-          confirmed_at?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "door_counts_job_id_fkey";
-            columns: ["job_id"];
-            isOneToOne: true;
-            referencedRelation: "jobs";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
       audit_logs: {
         Row: {
           action: string;
@@ -93,6 +71,128 @@ export type Database = {
           table_name?: string | null;
         };
         Relationships: [];
+      };
+      consent_notices: {
+        Row: {
+          address: string | null;
+          applicant: string | null;
+          captured_at: string | null;
+          competitor_name: string | null;
+          consent_type: string | null;
+          date_filed: string | null;
+          id: string;
+          is_competitor: boolean | null;
+          source_url: string | null;
+          suburb: string | null;
+        };
+        Insert: {
+          address?: string | null;
+          applicant?: string | null;
+          captured_at?: string | null;
+          competitor_name?: string | null;
+          consent_type?: string | null;
+          date_filed?: string | null;
+          id?: string;
+          is_competitor?: boolean | null;
+          source_url?: string | null;
+          suburb?: string | null;
+        };
+        Update: {
+          address?: string | null;
+          applicant?: string | null;
+          captured_at?: string | null;
+          competitor_name?: string | null;
+          consent_type?: string | null;
+          date_filed?: string | null;
+          id?: string;
+          is_competitor?: boolean | null;
+          source_url?: string | null;
+          suburb?: string | null;
+        };
+        Relationships: [];
+      };
+      daily_briefs: {
+        Row: {
+          alert_count: number;
+          brief_date: string;
+          generated_at: string;
+          html_content: string | null;
+          id: string;
+          new_listing_count: number;
+          price_change_count: number;
+          summary: string | null;
+          text_content: string | null;
+        };
+        Insert: {
+          alert_count?: number;
+          brief_date: string;
+          generated_at?: string;
+          html_content?: string | null;
+          id?: string;
+          new_listing_count?: number;
+          price_change_count?: number;
+          summary?: string | null;
+          text_content?: string | null;
+        };
+        Update: {
+          alert_count?: number;
+          brief_date?: string;
+          generated_at?: string;
+          html_content?: string | null;
+          id?: string;
+          new_listing_count?: number;
+          price_change_count?: number;
+          summary?: string | null;
+          text_content?: string | null;
+        };
+        Relationships: [];
+      };
+      door_counts: {
+        Row: {
+          ai_total_estimate: number | null;
+          barn_sliders: number;
+          cavity_sliders: number;
+          confirmed_at: string | null;
+          created_at: string;
+          double_doors: number;
+          id: string;
+          job_id: string;
+          standard: number;
+          updated_at: string;
+        };
+        Insert: {
+          ai_total_estimate?: number | null;
+          barn_sliders?: number;
+          cavity_sliders?: number;
+          confirmed_at?: string | null;
+          created_at?: string;
+          double_doors?: number;
+          id?: string;
+          job_id: string;
+          standard?: number;
+          updated_at?: string;
+        };
+        Update: {
+          ai_total_estimate?: number | null;
+          barn_sliders?: number;
+          cavity_sliders?: number;
+          confirmed_at?: string | null;
+          created_at?: string;
+          double_doors?: number;
+          id?: string;
+          job_id?: string;
+          standard?: number;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "door_counts_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: true;
+            referencedRelation: "jobs";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       export_logs: {
         Row: {
@@ -191,6 +291,71 @@ export type Database = {
           },
         ];
       };
+      google_reviews: {
+        Row: {
+          builder: string;
+          captured_at: string | null;
+          id: string;
+          rating: number | null;
+          review_count: number | null;
+        };
+        Insert: {
+          builder: string;
+          captured_at?: string | null;
+          id?: string;
+          rating?: number | null;
+          review_count?: number | null;
+        };
+        Update: {
+          builder?: string;
+          captured_at?: string | null;
+          id?: string;
+          rating?: number | null;
+          review_count?: number | null;
+        };
+        Relationships: [];
+      };
+      job_documents: {
+        Row: {
+          classified_at: string | null;
+          created_at: string | null;
+          id: string;
+          job_id: string;
+          original_filename: string;
+          page_count: number | null;
+          sheet_type: string;
+          storage_path: string;
+        };
+        Insert: {
+          classified_at?: string | null;
+          created_at?: string | null;
+          id?: string;
+          job_id: string;
+          original_filename: string;
+          page_count?: number | null;
+          sheet_type?: string;
+          storage_path: string;
+        };
+        Update: {
+          classified_at?: string | null;
+          created_at?: string | null;
+          id?: string;
+          job_id?: string;
+          original_filename?: string;
+          page_count?: number | null;
+          sheet_type?: string;
+          storage_path?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "job_documents_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "jobs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       jobs: {
         Row: {
           address: string;
@@ -198,11 +363,15 @@ export type Database = {
           confidence_score: number | null;
           created_at: string;
           created_by: string;
+          cross_reference_data: Json | null;
+          electrical_plan_url: string | null;
+          elevation_data: Json | null;
           id: string;
           job_number: string;
           plan_context: Json | null;
           plan_thumbnail_url: string | null;
           plan_type: string | null;
+          site_plan_data: Json | null;
           smw_enabled: boolean;
           specifications: Json | null;
           status: Database["public"]["Enums"]["job_status"];
@@ -218,11 +387,15 @@ export type Database = {
           confidence_score?: number | null;
           created_at?: string;
           created_by: string;
+          cross_reference_data?: Json | null;
+          electrical_plan_url?: string | null;
+          elevation_data?: Json | null;
           id?: string;
           job_number: string;
           plan_context?: Json | null;
           plan_thumbnail_url?: string | null;
           plan_type?: string | null;
+          site_plan_data?: Json | null;
           smw_enabled?: boolean;
           specifications?: Json | null;
           status?: Database["public"]["Enums"]["job_status"];
@@ -238,11 +411,15 @@ export type Database = {
           confidence_score?: number | null;
           created_at?: string;
           created_by?: string;
+          cross_reference_data?: Json | null;
+          electrical_plan_url?: string | null;
+          elevation_data?: Json | null;
           id?: string;
           job_number?: string;
           plan_context?: Json | null;
           plan_thumbnail_url?: string | null;
           plan_type?: string | null;
+          site_plan_data?: Json | null;
           smw_enabled?: boolean;
           specifications?: Json | null;
           status?: Database["public"]["Enums"]["job_status"];
@@ -251,6 +428,161 @@ export type Database = {
           uploaded_at?: string | null;
           working_plan_file_id?: string | null;
           working_plan_page_number?: number | null;
+        };
+        Relationships: [];
+      };
+      listing_changes: {
+        Row: {
+          change_type: string | null;
+          changed_at: string | null;
+          detected_at: string | null;
+          field_name: string | null;
+          id: string;
+          listing_id: string;
+          new_value: string | null;
+          old_value: string | null;
+        };
+        Insert: {
+          change_type?: string | null;
+          changed_at?: string | null;
+          detected_at?: string | null;
+          field_name?: string | null;
+          id?: string;
+          listing_id: string;
+          new_value?: string | null;
+          old_value?: string | null;
+        };
+        Update: {
+          change_type?: string | null;
+          changed_at?: string | null;
+          detected_at?: string | null;
+          field_name?: string | null;
+          id?: string;
+          listing_id?: string;
+          new_value?: string | null;
+          old_value?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "listing_changes_listing_id_fkey";
+            columns: ["listing_id"];
+            isOneToOne: false;
+            referencedRelation: "listings";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      listings: {
+        Row: {
+          bathrooms: number | null;
+          bedrooms: number | null;
+          builder: string;
+          created_at: string | null;
+          description: string | null;
+          floor_area: number | null;
+          garages: number | null;
+          house_type: string | null;
+          id: string;
+          image_url: string | null;
+          land_area: number | null;
+          last_seen_at: string | null;
+          location: string | null;
+          price: number | null;
+          price_display: string | null;
+          raw_data: Json | null;
+          scraped_at: string | null;
+          source: string;
+          status: string | null;
+          tags: string[] | null;
+          title: string | null;
+          updated_at: string | null;
+          url: string | null;
+        };
+        Insert: {
+          bathrooms?: number | null;
+          bedrooms?: number | null;
+          builder: string;
+          created_at?: string | null;
+          description?: string | null;
+          floor_area?: number | null;
+          garages?: number | null;
+          house_type?: string | null;
+          id?: string;
+          image_url?: string | null;
+          land_area?: number | null;
+          last_seen_at?: string | null;
+          location?: string | null;
+          price?: number | null;
+          price_display?: string | null;
+          raw_data?: Json | null;
+          scraped_at?: string | null;
+          source: string;
+          status?: string | null;
+          tags?: string[] | null;
+          title?: string | null;
+          updated_at?: string | null;
+          url?: string | null;
+        };
+        Update: {
+          bathrooms?: number | null;
+          bedrooms?: number | null;
+          builder?: string;
+          created_at?: string | null;
+          description?: string | null;
+          floor_area?: number | null;
+          garages?: number | null;
+          house_type?: string | null;
+          id?: string;
+          image_url?: string | null;
+          land_area?: number | null;
+          last_seen_at?: string | null;
+          location?: string | null;
+          price?: number | null;
+          price_display?: string | null;
+          raw_data?: Json | null;
+          scraped_at?: string | null;
+          source?: string;
+          status?: string | null;
+          tags?: string[] | null;
+          title?: string | null;
+          updated_at?: string | null;
+          url?: string | null;
+        };
+        Relationships: [];
+      };
+      market_insights: {
+        Row: {
+          active_listing_count: number | null;
+          captured_at: string | null;
+          days_to_sell: number | null;
+          id: string;
+          median_asking_price: number | null;
+          median_sale_price: number | null;
+          price_change_pct: number | null;
+          source: string;
+          suburb: string;
+        };
+        Insert: {
+          active_listing_count?: number | null;
+          captured_at?: string | null;
+          days_to_sell?: number | null;
+          id?: string;
+          median_asking_price?: number | null;
+          median_sale_price?: number | null;
+          price_change_pct?: number | null;
+          source: string;
+          suburb: string;
+        };
+        Update: {
+          active_listing_count?: number | null;
+          captured_at?: string | null;
+          days_to_sell?: number | null;
+          id?: string;
+          median_asking_price?: number | null;
+          median_sale_price?: number | null;
+          price_change_pct?: number | null;
+          source?: string;
+          suburb?: string;
         };
         Relationships: [];
       };
@@ -343,7 +675,7 @@ export type Database = {
           source_evidence: string | null;
           unit: string | null;
           updated_at: string;
-          value_source: string | null;
+          value_source: string;
         };
         Insert: {
           approved_value?: string | null;
@@ -369,7 +701,7 @@ export type Database = {
           source_evidence?: string | null;
           unit?: string | null;
           updated_at?: string;
-          value_source?: string | null;
+          value_source?: string;
         };
         Update: {
           approved_value?: string | null;
@@ -395,7 +727,7 @@ export type Database = {
           source_evidence?: string | null;
           unit?: string | null;
           updated_at?: string;
-          value_source?: string | null;
+          value_source?: string;
         };
         Relationships: [
           {
@@ -701,7 +1033,6 @@ export type Database = {
       profiles: {
         Row: {
           accepted_at: string | null;
-          branch: string | null;
           created_at: string;
           email: string | null;
           full_name: string | null;
@@ -714,7 +1045,6 @@ export type Database = {
         };
         Insert: {
           accepted_at?: string | null;
-          branch?: string | null;
           created_at?: string;
           email?: string | null;
           full_name?: string | null;
@@ -727,7 +1057,6 @@ export type Database = {
         };
         Update: {
           accepted_at?: string | null;
-          branch?: string | null;
           created_at?: string;
           email?: string | null;
           full_name?: string | null;
@@ -778,6 +1107,90 @@ export type Database = {
           },
         ];
       };
+      sections: {
+        Row: {
+          address: string | null;
+          days_listed: number | null;
+          first_seen_at: string | null;
+          id: string;
+          land_area_m2: number | null;
+          last_seen_at: string | null;
+          listing_url: string | null;
+          price: number | null;
+          price_display: string | null;
+          source: string;
+          status: string | null;
+          suburb: string | null;
+        };
+        Insert: {
+          address?: string | null;
+          days_listed?: number | null;
+          first_seen_at?: string | null;
+          id?: string;
+          land_area_m2?: number | null;
+          last_seen_at?: string | null;
+          listing_url?: string | null;
+          price?: number | null;
+          price_display?: string | null;
+          source: string;
+          status?: string | null;
+          suburb?: string | null;
+        };
+        Update: {
+          address?: string | null;
+          days_listed?: number | null;
+          first_seen_at?: string | null;
+          id?: string;
+          land_area_m2?: number | null;
+          last_seen_at?: string | null;
+          listing_url?: string | null;
+          price?: number | null;
+          price_display?: string | null;
+          source?: string;
+          status?: string | null;
+          suburb?: string | null;
+        };
+        Relationships: [];
+      };
+      subdivision_stages: {
+        Row: {
+          available: number | null;
+          captured_at: string | null;
+          id: string;
+          price_from: number | null;
+          price_to: number | null;
+          reserved: number | null;
+          sold: number | null;
+          stage: string | null;
+          subdivision: string;
+          total_sections: number | null;
+        };
+        Insert: {
+          available?: number | null;
+          captured_at?: string | null;
+          id?: string;
+          price_from?: number | null;
+          price_to?: number | null;
+          reserved?: number | null;
+          sold?: number | null;
+          stage?: string | null;
+          subdivision: string;
+          total_sections?: number | null;
+        };
+        Update: {
+          available?: number | null;
+          captured_at?: string | null;
+          id?: string;
+          price_from?: number | null;
+          price_to?: number | null;
+          reserved?: number | null;
+          sold?: number | null;
+          stage?: string | null;
+          subdivision?: string;
+          total_sections?: number | null;
+        };
+        Relationships: [];
+      };
       takeoff_runs: {
         Row: {
           calibration_id: string | null;
@@ -793,6 +1206,7 @@ export type Database = {
           started_by: string;
           status: string;
           summary: Json;
+          takeoff_json: Json | null;
           updated_at: string;
           working_file_id: string | null;
           working_page_number: number | null;
@@ -812,6 +1226,7 @@ export type Database = {
           started_by: string;
           status?: string;
           summary?: Json;
+          takeoff_json?: Json | null;
           updated_at?: string;
           working_file_id?: string | null;
           working_page_number?: number | null;
@@ -831,6 +1246,7 @@ export type Database = {
           started_by?: string;
           status?: string;
           summary?: Json;
+          takeoff_json?: Json | null;
           updated_at?: string;
           working_file_id?: string | null;
           working_page_number?: number | null;
@@ -875,6 +1291,7 @@ export type Database = {
       };
       user_invitations: {
         Row: {
+          accepted_at: string | null;
           branch: string | null;
           created_at: string;
           email: string;
@@ -888,6 +1305,7 @@ export type Database = {
           welcome_message: string | null;
         };
         Insert: {
+          accepted_at?: string | null;
           branch?: string | null;
           created_at?: string;
           email: string;
@@ -901,6 +1319,7 @@ export type Database = {
           welcome_message?: string | null;
         };
         Update: {
+          accepted_at?: string | null;
           branch?: string | null;
           created_at?: string;
           email?: string;
@@ -1003,10 +1422,11 @@ export type Database = {
         };
         Returns: boolean;
       };
+      is_active_profile: { Args: { _user_id: string }; Returns: boolean };
       is_admin_or_owner: { Args: { _user_id: string }; Returns: boolean };
     };
     Enums: {
-      app_role: "owner" | "admin" | "estimator" | "viewer" | "project_manager";
+      app_role: "owner" | "admin" | "estimator" | "viewer";
       confidence_level: "high" | "mid" | "low";
       export_type: "csv" | "excel";
       file_type: "plan" | "specification" | "electrical";
@@ -1135,9 +1555,12 @@ export type CompositeTypes<
     : never;
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
-      app_role: ["owner", "admin", "estimator", "viewer", "project_manager"],
+      app_role: ["owner", "admin", "estimator", "viewer"],
       confidence_level: ["high", "mid", "low"],
       export_type: ["csv", "excel"],
       file_type: ["plan", "specification", "electrical"],
