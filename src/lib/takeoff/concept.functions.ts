@@ -518,6 +518,7 @@ IMPORTANT REJECTIONS:
 - Do NOT count room dimensions as windows.
 - Do NOT count WIR/WIC room sizes as windows.
 - Do NOT count internal doors.
+- Do NOT count skylights or roof-window notes as external-wall openings unless the opening is physically in an external wall elevation.
 - Do NOT count furniture, beds, bathroom fixtures, cupboards, wardrobes, or roof-access boxes.
 - Do NOT split a single physical framed opening into multiple openings because of panes/mullions.
 - Do NOT count a garage label like "B85 Vehicle" as a garage door size.
@@ -526,6 +527,12 @@ READING:
 - Prefer printed opening labels like "2110x700", "2110x2200", "1100x600".
 - The label format is HEIGHT x WIDTH in mm unless noted otherwise.
 - Convert readable labels to metres: 2110x700 => height_m 2.11, width_m 0.7.
+- A usable size label must be exactly two plausible mm numbers separated by x or ×.
+- Drafting/text labels can be wrong, overprinted, or concatenated. If text looks jammed
+  together, has more than two dimension numbers, has an impossible fragment, or looks like
+  "1300x175036001300x1750", do NOT trim digits or invent a nearby plausible dimension.
+  Set unknown dimension(s) to null unless Image 2/elevations or a real schedule clearly
+  confirms the size, set confidence="low", and add flag "malformed dimension label".
 - If a size label is not readable, set height_m and width_m to null and add a flag.
 - For the sectional/roller garage door, read the label physically attached to the driveway-side garage opening.
 - Do NOT use nearby level/height markers, wall heights, roof notes, cladding dimensions, or room dimensions as the garage-door size.

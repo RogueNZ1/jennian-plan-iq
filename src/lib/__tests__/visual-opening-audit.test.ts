@@ -137,4 +137,59 @@ describe("visual-opening-audit", () => {
     expect(audit.openings[1]).toMatchObject({ confidence: "high", flags: [] });
     expect(audit.summary.uncertain).toBe(1);
   });
+
+  it("does not price dimensions from a malformed or concatenated label", () => {
+    const audit = normaliseVisualOpeningAudit({
+      openings: [
+        {
+          id: "O1",
+          type: "window",
+          room: "Family",
+          label: "1300x175036001300x1750",
+          height_m: 1.3,
+          width_m: 1.752,
+          x: 0.2,
+          y: 0.3,
+          confidence: "high",
+          evidence: "printed label beside Family wall",
+          flags: [],
+        },
+      ],
+    });
+
+    expect(audit.openings[0]).toMatchObject({
+      confidence: "low",
+      height_m: null,
+      width_m: null,
+      flags: ["malformed dimension label - verify against elevations/schedule"],
+    });
+    expect(audit.summary.uncertain).toBe(1);
+  });
+
+  it("keeps independently confirmed dimensions but still flags a malformed label", () => {
+    const audit = normaliseVisualOpeningAudit({
+      openings: [
+        {
+          id: "O1",
+          type: "slider",
+          room: "Family",
+          label: "1300x175036001300x1750",
+          height_m: 2.1,
+          width_m: 3.6,
+          x: 0.2,
+          y: 0.3,
+          confidence: "high",
+          evidence: "malformed floor-plan label; dimensions confirmed from elevation",
+          flags: [],
+        },
+      ],
+    });
+
+    expect(audit.openings[0]).toMatchObject({
+      confidence: "low",
+      height_m: 2.1,
+      width_m: 3.6,
+      flags: ["malformed dimension label - verify against elevations/schedule"],
+    });
+  });
 });

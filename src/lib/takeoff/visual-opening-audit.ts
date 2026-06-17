@@ -93,6 +93,37 @@ function markerPositionIsUnconfirmed(evidence: string, flags: readonly string[])
     : false;
 }
 
+function parseMm(v: string): number | null {
+  const n = Number(v.replace(/[, ]/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+function dimensionLabelLooksMalformed(label: string | null): boolean {
+  if (!label) return false;
+  const compact = label.replace(/\s+/g, "");
+  if (!/[xX×*]/.test(compact)) return false;
+  if (/\d[\d,]{2,5}[xX×*]\d{6,}/.test(compact)) return true;
+
+  const numbers = compact.match(/\d[\d,]{2,}/g) ?? [];
+  if (numbers.length > 2) return true;
+
+  const pair = compact.match(/(\d[\d,]{1,5})[xX×*](\d[\d,]{1,5})/);
+  if (!pair) return true;
+
+  const first = parseMm(pair[1]);
+  const second = parseMm(pair[2]);
+  if (first == null || second == null) return true;
+
+  return first < 300 || second < 300 || first > 6000 || second > 6000;
+}
+
+function hasIndependentDimensionSource(evidence: string, flags: readonly string[]): boolean {
+  const text = [evidence, ...flags].join(" ").toLowerCase();
+  return /\b(elevation|schedule|manual|measured|confirmed|cross[- ]?check|assumed|standard)\b/.test(
+    text,
+  );
+}
+
 export function summariseVisualOpeningAudit(
   openings: readonly VisualOpeningAuditItem[],
 ): VisualOpeningAuditSummary {
@@ -121,21 +152,30 @@ export function normaliseVisualOpeningAudit(
     const evidence = cleanString(r.evidence) ?? "";
     const flags = cleanFlags(r.flags);
     const markerUnconfirmed = markerPositionIsUnconfirmed(evidence, flags);
-    const confidence = markerUnconfirmed ? "low" : rawConfidence;
+    const label = cleanString(r.label);
+    const malformedLabel = dimensionLabelLooksMalformed(label);
+    const hasIndependentSource = hasIndependentDimensionSource(evidence, flags);
+    const confidence = markerUnconfirmed || malformedLabel ? "low" : rawConfidence;
+    const height = malformedLabel && !hasIndependentSource ? null : num(r.height_m);
+    const width = malformedLabel && !hasIndependentSource ? null : num(r.width_m);
     return {
       id: cleanString(r.id) ?? `O${index + 1}`,
       type,
       room: cleanString(r.room),
-      label: cleanString(r.label),
-      height_m: num(r.height_m),
-      width_m: num(r.width_m),
+      label,
+      height_m: height,
+      width_m: width,
       x: clamp01(r.x),
       y: clamp01(r.y),
       confidence,
       evidence,
-      flags: markerUnconfirmed
-        ? uniqueFlags([...flags, "marker not confirmed on physical opening"])
-        : flags,
+      flags: uniqueFlags([
+        ...flags,
+        ...(markerUnconfirmed ? ["marker not confirmed on physical opening"] : []),
+        ...(malformedLabel
+          ? ["malformed dimension label - verify against elevations/schedule"]
+          : []),
+      ]),
     };
   });
 
