@@ -24,7 +24,13 @@ const TRUTH = JSON.parse(
   readFileSync(resolve(process.cwd(), "tests/fixtures/fenner/ground-truth.json"), "utf8"),
 ) as {
   manual_openings: ManualOpening[];
-  derived: { opening_rows: number; opening_qty: number; total_opening_sqm: number };
+  derived: {
+    opening_rows: number;
+    opening_qty: number;
+    total_opening_sqm: number;
+    garage_door_sqm: number;
+    garage_door_excluded_opening_sqm: number;
+  };
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -48,6 +54,10 @@ function manualOpeningAreaM2(rows: ManualOpening[]): number {
   return round2(rows.reduce((sum, row) => sum + row.qty * row.height_m * row.width_m, 0));
 }
 
+function isGarageDoor(row: ManualOpening): boolean {
+  return /garage door/i.test(row.room);
+}
+
 function routedOpeningAreaM2(pt: PlanText): number {
   const routed = routeWindowCodes(pt);
   const routedArea = routed.reduce(
@@ -69,6 +79,13 @@ describe("Fenner wild-card benchmark", () => {
       TRUTH.derived.total_opening_sqm,
       2,
     );
+    expect(manualOpeningAreaM2(TRUTH.manual_openings.filter(isGarageDoor))).toBeCloseTo(
+      TRUTH.derived.garage_door_sqm,
+      2,
+    );
+    expect(
+      manualOpeningAreaM2(TRUTH.manual_openings.filter((row) => !isGarageDoor(row))),
+    ).toBeCloseTo(TRUTH.derived.garage_door_excluded_opening_sqm, 2);
   });
 
   it.fails(

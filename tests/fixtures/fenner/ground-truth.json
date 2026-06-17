@@ -3,8 +3,8 @@
   "name": "Natalie & Marcus Fenner",
   "source_plan": "2026.06.17 FLOORPLAN.pdf",
   "source_elevations": "2026.06.17 ELEVATIONS.pdf",
-  "source_status": "manual QS pricing input from Haydon screenshot, 2026-06-17",
-  "note": "The floor-plan text layer does not contain all large opening dimensions as clean HxW tokens. This benchmark is intentionally aimed at the visual/elevation recovery path, not a broad parser regex.",
+  "source_status": "manual QS pricing input from Haydon's Fenner Specifications.xlsm, tab '5. Data Input House ', 2026-06-18",
+  "note": "The floor-plan text layer does not contain all large opening dimensions as clean HxW tokens. Tab 5 separates total wall openings from the garage-door-excluded sill/glazed-style total: G73 includes Garage Door 1, while G75 = G73 - G67 - G68.",
   "manual_openings": [
     { "room": "Bed 1", "cladding": 2, "qty": 2, "height_m": 1.1, "width_m": 0.8 },
     { "room": "Bed 1", "cladding": 1, "qty": 1, "height_m": 2.1, "width_m": 2.4 },
@@ -27,6 +27,16 @@
   "derived": {
     "opening_rows": 17,
     "opening_qty": 18,
-    "total_opening_sqm": 58.13
+    "total_opening_sqm": 58.13,
+    "garage_door_sqm": 10.08,
+    "garage_door_excluded_opening_sqm": 48.05,
+    "main_cladding_opening_sqm": 24.42,
+    "feature_cladding_opening_sqm": 33.71,
+    "tab5_cells": {
+      "total_opening_sqm": "G73",
+      "garage_door_sqm": "G67",
+      "garage_door_excluded_opening_sqm": "G75 = G73 - G67 - G68",
+      "external_wall_area_after_openings": "D21 = (D19 * D20) - G73"
+    }
   }
 }
