@@ -1,10 +1,9 @@
-import * as pdfjsLib from "pdfjs-dist";
+import type * as pdfjsLib from "pdfjs-dist";
 // pdfjs-dist v5: the GlobalWorkerOptions.workerSrc getter throws if the value
 // is falsy (empty string no longer works as "inline" mode).  Use Vite's ?url
 // import so the worker bundle is emitted as a hashed static asset and the URL
 // is injected at build time.  The worker runs in a real Web Worker thread.
 import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 // Pure page-classification + ranking logic lives in pdf-page-classify.ts so it can
 // be unit-tested without pdfjs. Re-exported here so existing importers are unchanged.
@@ -25,6 +24,16 @@ export {
   type ScoredPage,
   type SupportingPage,
 } from "./pdf-page-classify";
+
+type PdfJs = typeof pdfjsLib;
+let _pdfjs: PdfJs | null = null;
+async function getPdfJs(): Promise<PdfJs> {
+  if (_pdfjs) return _pdfjs;
+  const pdfjs = await import("pdfjs-dist");
+  pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+  _pdfjs = pdfjs;
+  return pdfjs;
+}
 
 export type PageAnalysis = {
   pageNumber: number;
@@ -71,8 +80,9 @@ export async function analyzePdfPages(
   opts: AnalyzeOptions = {},
 ): Promise<PageAnalysis[]> {
   const { maxPages = 24, maxWidth = 360, quality = 0.78, onProgress } = opts;
+  const pdfjs = await getPdfJs();
   const buf = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const pdf = await pdfjs.getDocument({ data: buf }).promise;
   const total = Math.min(pdf.numPages, maxPages);
   const out: PageAnalysis[] = [];
 
@@ -122,8 +132,9 @@ export async function renderPageForAnalysis(
   pageNumber: number,
   maxWidth = 1400,
 ): Promise<Blob | null> {
+  const pdfjs = await getPdfJs();
   const buf = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const pdf = await pdfjs.getDocument({ data: buf }).promise;
   const page = await pdf.getPage(pageNumber);
   return renderPageThumbnail(page, maxWidth, 0.92);
 }

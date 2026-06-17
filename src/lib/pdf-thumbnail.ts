@@ -1,10 +1,19 @@
-import * as pdfjsLib from "pdfjs-dist";
+import type * as pdfjsLib from "pdfjs-dist";
 // pdfjs-dist v5: the GlobalWorkerOptions.workerSrc getter throws if the value
 // is falsy (empty string no longer works as "inline" mode).  Use Vite's ?url
 // import so the worker bundle is emitted as a hashed static asset and the URL
 // is injected at build time.  The worker runs in a real Web Worker thread.
 import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+
+type PdfJs = typeof pdfjsLib;
+let _pdfjs: PdfJs | null = null;
+async function getPdfJs(): Promise<PdfJs> {
+  if (_pdfjs) return _pdfjs;
+  const pdfjs = await import("pdfjs-dist");
+  pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+  _pdfjs = pdfjs;
+  return pdfjs;
+}
 
 /**
  * Render the first page of a PDF File into a JPEG Blob suitable for a thumbnail.
@@ -16,8 +25,9 @@ export async function renderPdfThumbnail(
 ): Promise<Blob | null> {
   const { maxWidth = 480, quality = 0.82 } = opts;
   try {
+    const pdfjs = await getPdfJs();
     const buf = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const pdf = await pdfjs.getDocument({ data: buf }).promise;
     const page = await pdf.getPage(1);
     const baseViewport = page.getViewport({ scale: 1 });
     const scale = Math.min(2, maxWidth / baseViewport.width);
