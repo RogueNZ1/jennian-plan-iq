@@ -34,7 +34,7 @@ import {
   type ScheduleSafeguardResult,
 } from "./vector-annotations";
 import { aggregateWindows, applyWindowAggregate } from "./aggregate-windows";
-import { correctWindowsByRoom } from "./plan-text";
+import { correctWindowsByRoom, routeWindowCodes } from "./plan-text";
 import {
   deriveOpenings,
   deriveOpeningTotals,
@@ -188,6 +188,119 @@ function openingsFromPlanTextCodes(
     });
   }
   return openings;
+}
+
+function openingsFromRoutedPlanTextCodes(
+  planText: import("./plan-text").PlanText | null | undefined,
+  vector: import("./geometry-api").VectorAnnotations | null | undefined,
+): Opening[] | null {
+  if (!planText?.windowCodes.length) return null;
+  const entranceWidthMm =
+    vector?.vector_usable && vector.entrance?.width_mm != null ? vector.entrance.width_mm : null;
+  const routed = routeWindowCodes(planText).filter((code) => {
+    if (entranceWidthMm != null && Math.abs(code.widthMm - entranceWidthMm) <= 50) return false;
+    return true;
+  });
+  if (routed.length === 0) return null;
+  return routed.map((code) => {
+    const height_m = round2Local(code.heightMm / 1000);
+    const width_m = round2Local(code.widthMm / 1000);
+    return {
+      type: "window",
+      room: code.roomName,
+      height_m,
+      width_m,
+      glazed: true,
+      cladding: null,
+      area_m2: round2Local(height_m * width_m),
+      source: "vector",
+      confidence: "medium",
+    };
+  });
+}
+
+function openingRoomKey(room: string | null | undefined): string {
+  const n = (room ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (n.includes("MASTER")) return "BED1";
+  const bed = n.match(/BED(?:ROOM)?(\d)/);
+  if (bed) return `BED${bed[1]}`;
+  if (n.includes("FAMILY") || n.includes("LIVING")) return "FAMILY";
+  if (n.includes("DINING")) return "DINING";
+  if (n.includes("LOUNGE")) return "LOUNGE";
+  if (n.includes("KITCHEN")) return "KITCHEN";
+  if (n.includes("GARAGE")) return "GARAGE";
+  if (n.includes("BATH")) return "BATH";
+  if (n.includes("ENS")) return "ENSUITE";
+  if (n.includes("TOILET") || n === "WC") return "WC";
+  if (n.includes("PANTRY")) return "PANTRY";
+  if (n.includes("WIR")) return "WIR";
+  if (n.includes("LAUNDRY")) return "LAUNDRY";
+  return n;
+}
+
+function sameOpeningDims(a: Opening, b: Opening, toleranceM = 0.06): boolean {
+  const direct =
+    Math.abs(a.height_m - b.height_m) <= toleranceM &&
+    Math.abs(a.width_m - b.width_m) <= toleranceM;
+  const swapped =
+    Math.abs(a.height_m - b.width_m) <= toleranceM &&
+    Math.abs(a.width_m - b.height_m) <= toleranceM;
+  return direct || swapped;
+}
+
+function mergePlanTextAndVisualOpenings(primary: Opening[], visual: Opening[]): Opening[] {
+  const merged = [...primary];
+  const primaryRooms = new Set(
+    primary
+      .filter((o) => o.type === "window" || o.type === "garage_window" || o.type === "slider")
+      .map((o) => openingRoomKey(o.room))
+      .filter(Boolean),
+  );
+  let hasSectional = primary.some((o) => o.type === "sectional_door");
+
+  for (const opening of visual) {
+    if (opening.type === "sectional_door") {
+      if (!hasSectional) {
+        merged.push(opening);
+        hasSectional = true;
+      }
+      continue;
+    }
+
+    const roomKey = openingRoomKey(opening.room);
+    const hasPricedArea = opening.height_m > 0 && opening.width_m > 0 && opening.area_m2 > 0;
+
+    if (opening.type === "window" || opening.type === "garage_window") {
+      // Printed plan-text/window-code rows are the priced window source. Visual windows
+      // in those rooms are placement evidence only; keeping both double-prices glazing.
+      if (!hasPricedArea) continue;
+      if (roomKey && primaryRooms.has(roomKey)) continue;
+      merged.push(opening);
+      continue;
+    }
+
+    if (opening.type === "slider") {
+      // Sliders are often tagged by visual QS, but when the same room+dims already came
+      // from plan text, treat visual as confirmation rather than a second opening.
+      if (!hasPricedArea) continue;
+      const duplicate = merged.some(
+        (existing) =>
+          openingRoomKey(existing.room) === roomKey && sameOpeningDims(existing, opening),
+      );
+      if (!duplicate) merged.push(opening);
+      continue;
+    }
+
+    const duplicate = merged.some(
+      (existing) =>
+        existing.type === opening.type &&
+        openingRoomKey(existing.room) === roomKey &&
+        sameOpeningDims(existing, opening),
+    );
+    if (!duplicate) merged.push(opening);
+  }
+
+  return merged;
 }
 
 function recoverScheduleHeightsFromPlanText(
@@ -560,7 +673,8 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     ? folded.openings
     : foldScheduleEntrance(folded.openings, vectorAnnotations?.entrance);
   const planTextOpenings = !schedule?.windows?.length
-    ? openingsFromPlanTextCodes(planText, vectorAnnotations)
+    ? (openingsFromRoutedPlanTextCodes(planText, vectorAnnotations) ??
+      openingsFromPlanTextCodes(planText, vectorAnnotations))
     : null;
   const planTextRecoveredOpenings = planTextOpenings
     ? [
@@ -576,11 +690,17 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   const visualPromotedOpenings = visualPromotion?.openings.length ? visualPromotion.openings : null;
   const visualHasSectional = visualPromotedOpenings?.some((o) => o.type === "sectional_door");
   const rawSectionals = rawComposedOpenings.filter((o) => o.type === "sectional_door");
+  const planTextPricedWindowBase =
+    !schedule?.windows?.length && (planText?.windowCodes.length ?? 0) > 0
+      ? (planTextRecoveredOpenings ?? rawComposedOpenings)
+      : null;
   const composedOpenings = normaliseOpeningsForQs(
     visualPromotedOpenings
-      ? visualHasSectional
-        ? visualPromotedOpenings
-        : [...visualPromotedOpenings, ...rawSectionals]
+      ? planTextPricedWindowBase
+        ? mergePlanTextAndVisualOpenings(planTextPricedWindowBase, visualPromotedOpenings)
+        : visualHasSectional
+          ? visualPromotedOpenings
+          : [...visualPromotedOpenings, ...rawSectionals]
       : planTextRecoveredOpenings
         ? planTextRecoveredOpenings
         : rawComposedOpenings,

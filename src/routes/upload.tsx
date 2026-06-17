@@ -847,12 +847,17 @@ function UploadPage() {
       // ROLE, never a page literal; undefined when there is no pick → geometry self-selects.
       const geometryPageIndex = resolveGeometryPageIndex(selectedIndex, pageAnalyses);
 
-      const visualOpeningAuditP = extractVisualOpeningAuditFn({
-        data: {
-          imageBase64: b64,
-          pageNumber: pageAnalyses[selectedIndex!]?.pageNumber ?? null,
-        },
-      }).catch(() => null);
+      const visualOpeningAuditP = elevBlobP
+        .then(async (elevationBlob) =>
+          extractVisualOpeningAuditFn({
+            data: {
+              imageBase64: b64,
+              pageNumber: pageAnalyses[selectedIndex!]?.pageNumber ?? null,
+              elevationImageBase64: elevationBlob ? await blobToBase64(elevationBlob) : null,
+            },
+          }),
+        )
+        .catch(() => null);
 
       // Run AI extraction, visual audit and geometry measurement in parallel
       const [result, geoResult, elevBlob, siteBlob, scheduleBlob, visualOpeningAudit] =

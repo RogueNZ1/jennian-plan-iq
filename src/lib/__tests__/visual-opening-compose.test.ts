@@ -94,4 +94,95 @@ describe("composeTakeoff visual opening promotion", () => {
       "outside the garage-door plausibility band",
     );
   });
+
+  it("keeps printed plan-text window dimensions ahead of disagreeing visual QS windows", () => {
+    const enriched = composeTakeoff({
+      visionTakeoff: {
+        ...baseVision,
+        windows_by_room: {
+          "Bed 2": { qty: 1, height_m: 1.1, width_m: 1.2 },
+          Family: { qty: 1, height_m: 1.4, width_m: 0.79 },
+        },
+      },
+      geometry: null,
+      schedule: null,
+      geometryPageIndex: undefined,
+      doorEngine: {
+        counts: { singles: 0, doubles: 0, cavitySliders: 0, barn: 0 },
+        hinged: [],
+        doubles: [],
+        cavity: [],
+        flags: [],
+        planText: {
+          rooms: [
+            { name: "BED 2", widthMm: 3000, depthMm: 3400, areaM2: 10.2, x: 10, y: 10 },
+            { name: "FAMILY", widthMm: 4000, depthMm: 4000, areaM2: 16, x: 100, y: 10 },
+            { name: "LAUNDRY", widthMm: 2000, depthMm: 2000, areaM2: 4, x: 180, y: 10 },
+          ],
+          windowCodes: [
+            { heightMm: 1300, widthMm: 1500, x: 12, y: 12 },
+            { heightMm: 1300, widthMm: 2400, x: 102, y: 12 },
+          ],
+          frameOpenings: [],
+          titleAreas: {},
+        },
+      } as never,
+      visualOpeningAudit: {
+        pageNumber: 1,
+        method: "visual_qs",
+        warnings: [],
+        summary: { totalOpenings: 3, qsGlazedOpenings: 3, garageDoors: 0, uncertain: 0 },
+        openings: [
+          {
+            id: "O1",
+            type: "window",
+            room: "Bed 2",
+            label: "1100x1200",
+            height_m: 1.1,
+            width_m: 1.2,
+            x: 0.1,
+            y: 0.1,
+            confidence: "high",
+            evidence: "visual disagrees with printed plan text",
+            flags: [],
+          },
+          {
+            id: "O2",
+            type: "window",
+            room: "Family",
+            label: "790x1400",
+            height_m: 1.4,
+            width_m: 0.79,
+            x: 0.2,
+            y: 0.2,
+            confidence: "high",
+            evidence: "visual disagrees with printed plan text",
+            flags: [],
+          },
+          {
+            id: "O3",
+            type: "pa_door",
+            room: "Laundry",
+            label: "2100x1000",
+            height_m: 2.1,
+            width_m: 1,
+            x: 0.3,
+            y: 0.3,
+            confidence: "medium",
+            evidence: "visual-only external opening",
+            flags: [],
+          },
+        ],
+      },
+    }).enriched;
+
+    expect(enriched.openings?.map((o) => [o.type, o.room, o.height_m, o.width_m])).toEqual([
+      ["window", "BED 2", 1.3, 1.5],
+      ["window", "FAMILY", 1.3, 2.4],
+      ["sectional_door", "Garage", 2.1, 2.7],
+      ["pa_door", "Laundry", 2.1, 1],
+    ]);
+    expect(enriched.total_opening_sqm).toBe(12.84);
+    expect(enriched.windows_by_room.discrepancy_flags.join(" ")).toContain("Visual QS promoted");
+  });
 });

@@ -43,11 +43,20 @@ async function callVisionModel(
   userText: string,
   imageBase64: string,
 ): Promise<string> {
+  return callVisionModelWithImages(apiKey, systemPrompt, userText, [imageBase64]);
+}
+
+async function callVisionModelWithImages(
+  apiKey: string,
+  systemPrompt: string,
+  userText: string,
+  imageBase64s: string[],
+): Promise<string> {
   // Bounded retry (F-001 resilience): a transient 429/529 shouldn't kill a real
   // job. Retry up to MAX_ATTEMPTS with exponential backoff, then fail loud.
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      return await callVisionModelOnce(apiKey, systemPrompt, userText, imageBase64);
+      return await callVisionModelOnce(apiKey, systemPrompt, userText, imageBase64s);
     } catch (err) {
       if (!(err instanceof TransientApiError) || attempt === MAX_ATTEMPTS) throw err;
       const backoffMs = RETRY_BASE_MS * 2 ** (attempt - 1); // 500ms, then 1000ms
@@ -65,7 +74,7 @@ async function callVisionModelOnce(
   apiKey: string,
   systemPrompt: string,
   userText: string,
-  imageBase64: string,
+  imageBase64s: string[],
 ): Promise<string> {
   const res = await fetch(ANTHROPIC_API, {
     method: "POST",
@@ -87,14 +96,14 @@ async function callVisionModelOnce(
           role: "user",
           content: [
             { type: "text", text: userText },
-            {
-              type: "image",
+            ...imageBase64s.map((imageBase64) => ({
+              type: "image" as const,
               source: {
-                type: "base64",
-                media_type: "image/jpeg",
+                type: "base64" as const,
+                media_type: "image/jpeg" as const,
                 data: imageBase64,
               },
-            },
+            })),
           ],
         },
       ],
@@ -474,7 +483,14 @@ export const extractWindowScheduleFn = createServerFn({ method: "POST" })
  * path until this visual layer is benchmarked.
  */
 export const extractVisualOpeningAuditFn = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => input as { imageBase64: string; pageNumber?: number | null })
+  .inputValidator(
+    (input: unknown) =>
+      input as {
+        imageBase64: string;
+        pageNumber?: number | null;
+        elevationImageBase64?: string | null;
+      },
+  )
   .handler(async ({ data }): Promise<VisualOpeningAudit> => {
     const apiKey = getApiKey();
     const system = `Return ONLY valid JSON. No markdown, no prose.
@@ -483,6 +499,15 @@ You are acting as a senior New Zealand residential Quantity Surveyor reading a F
 TASK:
 Walk around the EXTERNAL WALL perimeter of the dwelling and identify every external-wall opening.
 This is an AUDIT pass. Do not invent hidden openings. Use what is visible on the floor plan.
+
+INPUT IMAGES:
+- Image 1 is always the floor plan. Use it for opening existence and x/y marker coordinates.
+- Image 2, when supplied, is the elevations sheet. Use it as a second source for visual
+  confirmation and dimensions of large sliders, garage windows, entry doors, PA doors, and garage
+  doors that are visible on the floor plan but not clearly labelled there.
+- Never return an opening that exists only on the elevation and cannot be matched to a visible
+  external-wall opening on the floor plan. If the elevation confirms the size but the floor-plan
+  marker is approximate, keep the opening, set confidence="low", and add flags.
 
 QS RULE:
 Every opening on an external wall is a QS opening / glazing item EXCEPT the sectional/roller garage door.
@@ -566,11 +591,18 @@ If no floor plan is visible, return openings=[] with a warning.
 Return ONLY the JSON object.`;
 
     try {
-      const raw = await callVisionModel(
+      const images = data.elevationImageBase64
+        ? [data.imageBase64, data.elevationImageBase64]
+        : [data.imageBase64];
+      const raw = await callVisionModelWithImages(
         apiKey,
         system,
-        `Run the Visual QS external-opening audit on this floor plan page. Page number: ${data.pageNumber ?? "unknown"}.`,
-        data.imageBase64,
+        `Run the Visual QS external-opening audit on this floor plan page. Page number: ${data.pageNumber ?? "unknown"}. ${
+          data.elevationImageBase64
+            ? "A second image is supplied: use the elevations only to confirm dimensions for openings visible on the floor plan."
+            : "No elevation image is supplied."
+        }`,
+        images,
       );
       if (!raw.trim()) {
         return normaliseVisualOpeningAudit(

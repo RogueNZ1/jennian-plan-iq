@@ -60,10 +60,14 @@ const DIMS_RE = /^(\d[\d, ]{2,5})\s*[xX]\s*(\d[\d, ]{2,5})$/;
 const WINDOW_CODE_STRICT_RE = /^(\d[\d, ]{2,5})x(\d[\d, ]{2,5})(?:\s*mm)?$/;
 const WINDOW_CODE_DIMS_RE = /^(\d[\d, ]{2,5})\s*[xX]\s*(\d[\d, ]{2,5})(?:\s*mm)?$/i;
 const num = (s: string) => parseInt(s.replace(/[, ]/g, ""), 10);
+const KNOWN_ROOM_NAME_RE =
+  /^(GARAGE|LOUNGE|LIVING|FAMILY|DINING|KITCHEN|ENTRY|HALL|BED(?:ROOM)? ?\d|MASTER(?: BED(?:ROOM)?)?|ENS(?:UITE)?|BATH(?:ROOM)?|WC|TOILET|LAUNDRY|WIR|ROBE|STORE|LINEN|HWC|PANTRY|TV|STUDY|OFFICE)$/i;
 
 /** Room NAME labels are alphabetic (allowing digits like "BED 3"), all-caps on
  * Jennian plans, and never pure numbers or H×W codes. */
 function isRoomName(t: string): boolean {
+  const compact = t.trim().replace(/\s+/g, " ");
+  if (KNOWN_ROOM_NAME_RE.test(compact)) return true;
   if (!/[A-Z]{2,}/.test(t)) return false;
   if (DIMS_RE.test(t)) return false;
   if (/^\d/.test(t)) return false;

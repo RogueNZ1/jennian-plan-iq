@@ -1,0 +1,100 @@
+{
+  "job": "25040 / 2567",
+  "name": "Christian",
+  "address": "Lot 33 Awa Park, Feilding",
+  "source_plan": "2567 - Jen - Christian - Lot 33 Awa Park - A3 Plans V3.pdf",
+  "source_status": "provisional regression benchmark, not signed-off QS truth",
+  "note": "Christian is the repeated live benchmark. Treat historical IQ exports as failure evidence, not as the answer key. The offline harness pins printed-code extraction and room-footprint recovery; QS-priced opening truth is still pending Haydon signoff.",
+  "fixture_pages": {
+    "floor_plan": "tests/doors/plans/christian-floorplan-page6.pdf",
+    "source_pdf_page": 6,
+    "window_schedule_source_page": 25
+  },
+  "printed_code_expectations": {
+    "minimum_window_codes": 12,
+    "representative_hxw_mm": [
+      [1100, 1300],
+      [1850, 600],
+      [2110, 2700],
+      [2110, 3000]
+    ],
+    "observed_parser_codes_2026_06_18": [
+      "1100x1300",
+      "1100x1300",
+      "1100x1300",
+      "1100x1300",
+      "W112:1850x600",
+      "W111:1850x800",
+      "W109:1850x750",
+      "W103:1100x1300",
+      "2110x960",
+      "W110:2110x2700",
+      "652x2065",
+      "W108:2110x2400",
+      "W107:1850x1200",
+      "W113:1100x1300",
+      "2110x2700",
+      "W106:2110x3000",
+      "1800x800",
+      "1800x800"
+    ]
+  },
+  "room_footprints": {
+    "reason": "Christian uses title-case room labels rather than all-caps labels. The parser must recover these without broadening to arbitrary note text.",
+    "must_recover": [
+      "GARAGE",
+      "LIVING",
+      "DINING",
+      "KITCHEN",
+      "ENTRY",
+      "BED 1",
+      "BED 2",
+      "BED 3",
+      "BED 4",
+      "BATH",
+      "ENS",
+      "WIR"
+    ]
+  },
+  "routing_expectations": {
+    "note": "Routing is a regression rail, not signed-off QS truth. It proves the printed codes anchor to real room labels after title-case room recovery.",
+    "minimum_routed_codes": 12,
+    "must_anchor_rooms": ["BED 2", "BED 3", "BATH", "GARAGE"],
+    "must_anchor_living_zone_large_opening": true
+  },
+  "historical_iq_outputs": [
+    {
+      "job_number": "JM-0021",
+      "generated": "2026-06-10",
+      "floor_area_m2": 216.3,
+      "external_wall_lm": 78.4,
+      "garage_area_m2": null,
+      "alfresco_area_m2": 7,
+      "window_count_export": 4,
+      "total_opening_sqm_export_note": 23.36,
+      "notes": "Export required manual overflow lines for Lounge/Dining."
+    },
+    {
+      "job_number": "JM-0029",
+      "generated": "2026-06-11",
+      "floor_area_m2": 203.7,
+      "external_wall_lm": 74.4,
+      "garage_area_m2": null,
+      "alfresco_area_m2": 3.9,
+      "window_count_export": 0,
+      "total_opening_sqm_export_note": 1.02,
+      "notes": "Catastrophic opening undercount; treated as failure evidence."
+    },
+    {
+      "job_number": "JM-0042",
+      "generated": "2026-06-15",
+      "floor_area_m2": 167.24,
+      "external_wall_lm": 87.44,
+      "garage_area_m2": null,
+      "alfresco_area_m2": 2.92,
+      "window_count_export": 19,
+      "total_opening_sqm_export_note": 59.89,
+      "notes": "Much stronger opening extraction but still missing garage area and carrying manual overflow/unplaced opening notes."
+    }
+  ]
+}

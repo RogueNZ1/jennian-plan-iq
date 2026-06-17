@@ -58,6 +58,10 @@ supabase/.temp/
 /tests/fixtures/harrison/*.xlsm
 /tests/fixtures/harrison/_render/
 /tests/fixtures/harrison/_pagetext/
+/tests/fixtures/christian/*.pdf
+/tests/fixtures/christian/*.xlsm
+/tests/fixtures/christian/_render/
+/tests/fixtures/christian/_pagetext/
 
 # 15A Russell St + O'Neil (Lot 800) joinery fixtures — same rule: commit ONLY
 # ground-truth.json; keep the client plan PDFs + derived renders/page-text out of git.
@@ -83,3 +87,5 @@ supabase/.temp/
 .vercel
 tests/doors/plans/*
 !tests/doors/plans/alexandra.pdf
+!tests/doors/plans/christian-floorplan-page6.pdf
+!tests/doors/plans/fenner-floorplan.pdf
