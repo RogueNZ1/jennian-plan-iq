@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
+    "check:supabase-types": "node scripts/check-supabase-types.mjs",
     "test": "vitest run",
     "test:ui": "vitest --ui",
     "test:watch": "vitest",
