@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { sendInvitationFn } from "@/lib/invite.functions";
 import { deleteUserFn } from "@/lib/delete-user.functions";
 import { getUserAccessHealthFn, repairUserProfileFn } from "@/lib/access-health.functions";
+import { setUserStatusFn } from "@/lib/user-status.functions";
 import type { AccessHealth, AccessHealthRow } from "@/lib/auth/access-health";
 import {
   AlertDialog,
@@ -306,22 +307,20 @@ function UsersPage() {
   }
 
   async function setProfileStatus(targetUserId: string, status: "active" | "disabled") {
-    if (!canManage) return toast.error("You don't have permission to change user status.");
-    const prev = profileById[targetUserId]?.status;
-    const dbStatus: ProfileStatus = status === "disabled" ? "suspended" : "active";
-    const { error } = await supabase
-      .from("profiles")
-      .update({ status: dbStatus })
-      .eq("id", targetUserId);
-    if (error) return toast.error(error.message);
-    await logAction(
-      status === "disabled" ? "user_disabled" : "user_enabled",
-      "profiles",
-      targetUserId,
-      { previous: prev, next: status },
-    );
-    toast.success(status === "disabled" ? "User disabled." : "User enabled.");
-    load();
+    if (!canInvite) return toast.error("Only the Owner can change user access.");
+    try {
+      const result = await setUserStatusFn({
+        data: {
+          accessToken: await getAccessToken(),
+          targetUserId,
+          status: status === "disabled" ? "suspended" : "active",
+        },
+      });
+      toast.success(result.message);
+      await load();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Could not update user access.");
+    }
   }
 
   async function performDelete() {
@@ -566,7 +565,7 @@ function UsersPage() {
                               <IconBtn
                                 title="Enable user"
                                 onClick={() => setProfileStatus(r.id, "active")}
-                                disabled={!canManage}
+                                disabled={!canInvite}
                               >
                                 <Power className="h-3 w-3 text-confidence-high" />
                               </IconBtn>
@@ -574,7 +573,7 @@ function UsersPage() {
                               <IconBtn
                                 title="Disable user"
                                 onClick={() => setProfileStatus(r.id, "disabled")}
-                                disabled={!canManage || r.id === user?.id}
+                                disabled={!canInvite || r.id === user?.id}
                               >
                                 <Power className="h-3 w-3" />
                               </IconBtn>
@@ -1110,6 +1109,7 @@ function prettyAction(a: string) {
     invite_resent: "re-sent an invitation",
     invite_cancelled: "cancelled an invitation",
     profile_repaired: "repaired a profile",
+    profile_activated: "activated a profile",
   };
   return map[a] ?? a.replace(/_/g, " ");
 }

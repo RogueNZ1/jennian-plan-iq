@@ -9,16 +9,18 @@ export const Route = createFileRoute("/login")({ component: LoginPage });
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { user, loading, requiresPasswordSetup, signIn } = useAuth();
+  const { user, loading, profileStatus, requiresPasswordSetup, canEnterApp, signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) {
-      navigate({ to: requiresPasswordSetup ? "/auth/set-password" : "/jobs" });
+    if (!loading && user && requiresPasswordSetup) {
+      navigate({ to: "/auth/set-password" });
+    } else if (!loading && user && canEnterApp) {
+      navigate({ to: "/jobs" });
     }
-  }, [user, loading, requiresPasswordSetup, navigate]);
+  }, [user, loading, requiresPasswordSetup, canEnterApp, navigate]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -108,6 +110,12 @@ function LoginPage() {
           >
             {busy ? "Signing in…" : "Sign in"}
           </button>
+
+          {user && profileStatus === "suspended" && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              This account is disabled. Contact the workspace owner.
+            </div>
+          )}
 
           <div className="text-[11px] text-muted-foreground text-center leading-relaxed">
             Please sign in using your Jennian Homes account.

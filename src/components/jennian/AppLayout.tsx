@@ -68,7 +68,7 @@ function notifLabel(status: string, jobNumber: string, clientName: string) {
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
-  const { user, loading, requiresPasswordSetup, signOut } = useAuth();
+  const { user, loading, requiresPasswordSetup, canEnterApp, signOut } = useAuth();
   const { isOwner, isAdmin, loading: rolesLoading } = useRoles();
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -89,7 +89,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     if (!loading && user && requiresPasswordSetup && path !== "/auth/set-password") {
       navigate({ to: "/auth/set-password" });
     }
-  }, [user, loading, requiresPasswordSetup, path, navigate]);
+    if (!loading && user && !requiresPasswordSetup && !canEnterApp) {
+      void signOut().finally(() => navigate({ to: "/login" }));
+    }
+  }, [user, loading, requiresPasswordSetup, canEnterApp, path, navigate, signOut]);
 
   // Load notifications once on mount
   useEffect(() => {
@@ -133,7 +136,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     }, 300);
   }, [searchQuery]);
 
-  if (loading || !user || requiresPasswordSetup) {
+  if (loading || !user || requiresPasswordSetup || !canEnterApp) {
     return (
       <div className="min-h-screen grid place-items-center bg-background text-sm text-muted-foreground">
         Loading…

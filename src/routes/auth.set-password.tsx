@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { HouseFrame } from "@/components/jennian/HouseFrame";
+import { activateProfileFn } from "@/lib/activate-profile.functions";
 
 export const Route = createFileRoute("/auth/set-password")({
   component: SetPasswordPage,
@@ -99,20 +100,21 @@ function SetPasswordPage() {
       toast.error(error.message);
       return;
     }
-    const now = new Date().toISOString();
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .update({
-        status: "active",
-        accepted_at: now,
-        last_login_at: now,
-        updated_at: now,
-      })
-      .eq("id", user.id);
-    if (profileError) {
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token;
+    if (!accessToken) {
+      setBusy(false);
+      toast.error("Password saved, but your invite session expired. Please sign in again.");
+      return;
+    }
+    try {
+      await activateProfileFn({ data: { accessToken } });
+    } catch (profileError: unknown) {
       setBusy(false);
       toast.error(
-        "Password saved, but account activation failed. Please contact your administrator.",
+        profileError instanceof Error
+          ? profileError.message
+          : "Password saved, but account activation failed. Please contact your administrator.",
       );
       return;
     }

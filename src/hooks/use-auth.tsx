@@ -1,13 +1,18 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { AuthError, Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import type { ProfileStatus } from "@/lib/auth/activation";
+import {
+  canEnterApp as canProfileEnterApp,
+  requiresPasswordSetup as profileRequiresPasswordSetup,
+  type ProfileStatus,
+} from "@/lib/auth/activation";
 
 type AuthCtx = {
   user: User | null;
   session: Session | null;
   profileStatus: ProfileStatus | null;
   requiresPasswordSetup: boolean;
+  canEnterApp: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
@@ -19,6 +24,7 @@ const Ctx = createContext<AuthCtx>({
   session: null,
   profileStatus: null,
   requiresPasswordSetup: false,
+  canEnterApp: false,
   loading: true,
   signIn: async () => ({ error: null }),
   signOut: async () => {},
@@ -83,7 +89,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: session?.user ?? null,
         session,
         profileStatus,
-        requiresPasswordSetup: profileStatus === "invited",
+        requiresPasswordSetup: profileRequiresPasswordSetup(profileStatus),
+        canEnterApp: canProfileEnterApp(profileStatus),
         loading,
         signIn: async (email, password) => {
           const { data, error } = await supabase.auth.signInWithPassword({ email, password });
