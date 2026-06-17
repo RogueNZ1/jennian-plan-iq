@@ -85,6 +85,7 @@ export type QSExportData = {
   /** Gable span candidate: geometry envelope short side, metres. */
   gableSpanM: number | null;
   firstFloorAreaM2: number | null;
+  garageAreaM2?: number | null;
   studHeightMm: number | null;
   alfrescoAreaM2: number | null;
   // Roof / cladding / framing
@@ -404,6 +405,7 @@ export function applyEnrichedTakeoff(
     geometryStatus: enriched.geometry_status?.value ?? null,
     gableSpanM: enriched.gable_span_m?.value ?? base.gableSpanM,
     exteriorWallLengthLm: perimeter ?? base.exteriorWallLengthLm,
+    garageAreaM2: enriched.garage_area_m2.value ?? base.garageAreaM2 ?? null,
     alfrescoAreaM2: enriched.alfresco_area_m2.value ?? base.alfrescoAreaM2,
     studHeightMm: studM != null ? Math.round(studM * 1000) : base.studHeightMm,
     exteriorWallHeightM: studM ?? base.exteriorWallHeightM,
@@ -914,6 +916,7 @@ export async function buildQSExportData(
     floorAreaM2: getNum("floor area") ?? getNum("total area"),
     perimeterLm,
     firstFloorAreaM2: getNum("first floor") ?? getNum("upper floor"),
+    garageAreaM2: getNum("garage area"),
     studHeightMm: getNum("stud height"),
     alfrescoAreaM2: getNum("alfresco") ?? getNum("porch") ?? getNum("deck"),
     internalWallLm: getNum("internal wall length"),
@@ -1308,11 +1311,13 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   put("B9", data.floorAreaM2 ?? 0);
   put("C9", "m²");
   put("A10", "Garage area");
-  put("B10", "");
+  put("B10", data.garageAreaM2 ?? "");
   put("C10", "m²");
+  if (data.garageAreaM2 == null) put("D10", "Measure manually / verify on plan");
   put("A11", "Alfresco / deck area");
-  put("B11", data.alfrescoAreaM2 ?? 0);
+  put("B11", data.alfrescoAreaM2 ?? "");
   put("C11", "m²");
+  if (data.alfrescoAreaM2 == null) put("D11", "N/A or not extracted — verify on plan");
   put("A12", "External wall length");
   put("B12", data.perimeterLm ?? 0);
   put("C12", "lm");

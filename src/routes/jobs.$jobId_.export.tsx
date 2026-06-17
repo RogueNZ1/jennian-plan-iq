@@ -39,6 +39,11 @@ function fmt(v: number | null | undefined, unit = ""): string {
   return `${v.toLocaleString("en-NZ", { maximumFractionDigits: 2 })}${unit ? " " + unit : ""}`;
 }
 
+function fmtNA(v: number | null | undefined, unit = ""): string {
+  if (v === null || v === undefined) return "N/A";
+  return fmt(v, unit);
+}
+
 function SectionCard({
   icon: Icon,
   title,
@@ -253,8 +258,9 @@ function QuickExport() {
                 value={data.studHeightMm ? fmt(data.studHeightMm, "mm") : "—"}
               />
               <Row label="Roof Pitch" value={data.roofPitch ?? "—"} />
-              <Row label="Alfresco / Deck Area" value={fmt(data.alfrescoAreaM2, "m²")} />
-              <Row label="First Floor Area" value={fmt(data.firstFloorAreaM2, "m²")} />
+              <Row label="Garage Area" value={fmt(data.garageAreaM2, "m²")} />
+              <Row label="Alfresco / Deck Area" value={fmtNA(data.alfrescoAreaM2, "m²")} />
+              <Row label="First Floor Area" value={fmtNA(data.firstFloorAreaM2, "m²")} />
               <Row label="Exterior Wall Length" value={fmt(data.exteriorWallLengthLm, "lm")} />
               <Row label="Exterior Wall Height" value={fmt(data.exteriorWallHeightM, "m")} />
               <Row label="Paths / Patio" value={fmt(data.pathsPatioM2, "m²")} />

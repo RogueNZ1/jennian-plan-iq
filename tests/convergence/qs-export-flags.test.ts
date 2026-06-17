@@ -134,6 +134,7 @@ describe("Slice 6 — applyEnrichedTakeoff overlay + fallback", () => {
     expect(out.floorAreaM2).toBe(enriched.floor_area_m2.value);
     expect(out.perimeterLm).toBe(enriched.external_wall_lm.value);
     expect(out.exteriorWallLengthLm).toBe(enriched.external_wall_lm.value);
+    expect(out.garageAreaM2).toBe(enriched.garage_area_m2.value);
     // flags carried over, named by field
     expect(out.reviewFlags && out.reviewFlags.length).toBeGreaterThan(0);
     const flat = (out.reviewFlags ?? []).flatMap((f) => f.flags).join(" ");

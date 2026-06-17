@@ -134,6 +134,13 @@ describe("buildDropInSheet — IQ Import meta block (live QS v4_1 contract)", ()
     expect(cellVal(ws, "B22")).toBe(2.4); // ceiling in METRES (QS D20 expects m)
   });
 
+  it("writes garage area when known, and never invents alfresco zero when unknown", () => {
+    const ws = buildDropInSheet(base({ garageAreaM2: 23.8, alfrescoAreaM2: null }));
+    expect(cellVal(ws, "B10")).toBe(23.8);
+    expect(cellVal(ws, "B11")).toBe("");
+    expect(String(cellVal(ws, "D11") ?? "")).toContain("verify on plan");
+  });
+
   it("door breakdown lands at B27-B30 (→ H187/H193/H192/H190)", () => {
     const ws = buildDropInSheet(
       base({
