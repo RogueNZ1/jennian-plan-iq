@@ -103,6 +103,47 @@ function base(openings: Opening[] | null, overrides: Partial<QSExportData> = {})
   };
 }
 
+type FennerManualOpening = {
+  room: string;
+  cladding: number;
+  qty: number;
+  height_m: number;
+  width_m: number;
+};
+
+function fennerOpening(row: FennerManualOpening): Opening {
+  const room = row.room.toLowerCase();
+  const type: Opening["type"] = room.includes("garage door")
+    ? "sectional_door"
+    : room.includes("entrance")
+      ? "entrance"
+      : room.includes("garage windows")
+        ? "garage_window"
+        : row.height_m >= 2
+          ? "slider"
+          : "window";
+  return {
+    type,
+    room: row.room,
+    height_m: row.height_m,
+    width_m: row.width_m,
+    glazed: type !== "sectional_door",
+    cladding: String(row.cladding),
+    area_m2: Math.round(row.height_m * row.width_m * 100) / 100,
+    source: "schedule",
+    confidence: "high",
+  };
+}
+
+function fennerManualOpenings(): Opening[] {
+  const gt = JSON.parse(readFileSync(resolve(FIX, "fenner/ground-truth.json"), "utf8")) as {
+    manual_openings: FennerManualOpening[];
+  };
+  return gt.manual_openings.flatMap((row) =>
+    Array.from({ length: row.qty }, () => fennerOpening(row)),
+  );
+}
+
 // ── (1) PER-FIXTURE RENDERING RE-BASELINE ─────────────────────────────────────────────────
 // Feed each fixture's joinery_bench.openings[] (the verified QS truth) into buildQSDataInputSheet
 // and assert every opening appears as a flat row — no keyword routing, no collapse, no drops.
@@ -241,6 +282,30 @@ describe("Flat per-opening block — ③ rendering re-baseline (5 fixtures)", ()
 // ── (2) FULL SHEET — Young core cells populated (floor area, perimeter, ext-wall) ────────
 // Proves the enriched overlay reaches the sheet, not just the openings block.
 // Without this gate we'd only know ③ renders and nothing else.
+
+describe("Flat per-opening block - workbook contract totals", () => {
+  it("Fenner: prints tab 5 total, garage-door, and garage-door-excluded opening totals", () => {
+    const gt = JSON.parse(readFileSync(resolve(FIX, "fenner/ground-truth.json"), "utf8")) as {
+      derived: {
+        total_opening_sqm: number;
+        garage_door_sqm: number;
+        garage_door_excluded_opening_sqm: number;
+      };
+    };
+    const openings = fennerManualOpenings();
+    const ws = buildQSDataInputSheet(base(openings));
+    const c = cells(ws);
+    const summaryRow = 40 + openings.length + 1;
+
+    expect(c[`A${summaryRow}`]).toBe("Opening totals (QS tab 5 contract)");
+    expect(c[`A${summaryRow + 1}`]).toContain("G73");
+    expect(c[`E${summaryRow + 1}`]).toBe(gt.derived.total_opening_sqm);
+    expect(c[`A${summaryRow + 2}`]).toContain("garage door");
+    expect(c[`E${summaryRow + 2}`]).toBe(gt.derived.garage_door_sqm);
+    expect(c[`A${summaryRow + 3}`]).toContain("G75");
+    expect(c[`E${summaryRow + 3}`]).toBe(gt.derived.garage_door_excluded_opening_sqm);
+  });
+});
 
 describe("Full sheet — Young enriched overlay (D12/D15/D19 gate)", () => {
   it("D12 floor area / D15 perimeter / D19 ext-wall length are populated from the enriched takeoff", () => {

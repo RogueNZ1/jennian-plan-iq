@@ -1769,6 +1769,36 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
       ws[`G${r}`] = { v: o.cladding ?? o.flags?.join("; ") ?? "", t: "s", s };
       r++;
     }
+
+    const totalOpeningAreaM2 = round2(data.openings.reduce((sum, o) => sum + o.area_m2, 0));
+    const garageDoorAreaM2 = round2(
+      data.openings
+        .filter((o) => o.type === "sectional_door")
+        .reduce((sum, o) => sum + o.area_m2, 0),
+    );
+    const qsGlazedOpeningAreaM2 = round2(
+      data.openings.filter((o) => o.glazed).reduce((sum, o) => sum + o.area_m2, 0),
+    );
+    const summaryRow = r + 1;
+    lbl(`A${summaryRow}`, "Opening totals (QS tab 5 contract)", sectionStyle);
+    lbl(
+      `A${summaryRow + 1}`,
+      "Total wall openings incl. sectional garage door (G73; D21 deduction)",
+      labelStyle,
+    );
+    val(`E${summaryRow + 1}`, totalOpeningAreaM2);
+    lbl(
+      `A${summaryRow + 2}`,
+      "Sectional garage door openings excluded from QS glazing",
+      labelStyle,
+    );
+    val(`E${summaryRow + 2}`, garageDoorAreaM2);
+    lbl(
+      `A${summaryRow + 3}`,
+      "QS/glazed openings excl. sectional garage door (G75-style)",
+      labelStyle,
+    );
+    val(`E${summaryRow + 3}`, qsGlazedOpeningAreaM2);
   } else {
     // ── RELATIONAL SLOT BLOCK (unchanged — exact fallback for old/null-openings jobs) ──
     // Rows match "5. Data Input House " sheet exactly: C=cladding type (1=brick/2=other),
