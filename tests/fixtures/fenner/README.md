@@ -11,9 +11,11 @@ The committed runnable input is:
 
 ```text
 tests/doors/plans/fenner-floorplan.pdf
+tests/doors/plans/fenner-elevations.pdf
 ```
 
-The local elevation PDF is useful for visual inspection but is not committed.
+The elevation fixture is text-poor but vector-rich. It deliberately proves the next slice is
+face-banded vector/visual opening detection, not another floor-plan text-parser tweak.
 
 ## Truth
 

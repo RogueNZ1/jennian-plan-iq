@@ -24,6 +24,7 @@ type ManualOpening = {
 };
 
 const PLAN = resolve(process.cwd(), "tests/doors/plans/fenner-floorplan.pdf");
+const ELEVATIONS = resolve(process.cwd(), "tests/doors/plans/fenner-elevations.pdf");
 const TRUTH = JSON.parse(
   readFileSync(resolve(process.cwd(), "tests/fixtures/fenner/ground-truth.json"), "utf8"),
 ) as {
@@ -49,6 +50,20 @@ async function extract(planPath: string): Promise<PlanText> {
   try {
     const geom = await extractPageGeometry((await doc.getPage(1)) as never);
     return parsePlanText(geom.labels);
+  } finally {
+    await doc.destroy().catch(() => {});
+  }
+}
+
+async function extractRawPageGeometry(planPath: string) {
+  const { extractPageGeometry } = await import("../../src/lib/doors/pdf-adapter");
+  const pdfjs = await import("pdfjs-dist-door/legacy/build/pdf.mjs");
+  const doc = await pdfjs.getDocument({
+    data: new Uint8Array(readFileSync(planPath)),
+    disableFontFace: true,
+  } as never).promise;
+  try {
+    return await extractPageGeometry((await doc.getPage(1)) as never);
   } finally {
     await doc.destroy().catch(() => {});
   }
@@ -135,6 +150,20 @@ describe("Fenner wild-card benchmark", () => {
     expect(gaps.some((gap) => gap.widthMm >= 1700 && gap.widthMm <= 1900)).toBe(true);
     expect(gaps.some((gap) => gap.widthMm >= 4500 && gap.widthMm <= 5100)).toBe(true);
     expect(gaps.every((gap) => /height still need/.test(gap.note))).toBe(true);
+  }, 60_000);
+
+  it("pins Fenner elevations as vector-rich but text-poor opening evidence", async () => {
+    const geom = await extractRawPageGeometry(ELEVATIONS);
+    const labels = geom.labels.map((label) => label.text).join(" ");
+    const dimensionLabels = geom.labels.filter((label) =>
+      /\b\d[\d, ]{2,}\s*[xX×]\s*\d[\d, ]{2,}\b/.test(label.text),
+    );
+
+    expect(geom.segments.length).toBeGreaterThan(5_000);
+    expect(geom.labels.length).toBeLessThan(80);
+    expect(labels).toContain("CLADDING");
+    expect(labels).toContain("ROOF");
+    expect(dimensionLabels).toHaveLength(0);
   }, 60_000);
 
   it.fails(
