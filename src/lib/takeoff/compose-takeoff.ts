@@ -64,6 +64,7 @@ import {
 import { recoverVisualAuditFromElevationLedger } from "./visual-opening-elevation-recovery";
 import { promoteVisualOpenings } from "./visual-opening-promotion";
 import { buildOpeningEvidenceLedger } from "./opening-evidence";
+import { matchElevationToFloorPlanGaps } from "./elevation-gap-match";
 
 export type ComposeTakeoffInput = {
   /** The vision-extracted takeoff (already returned by extractConceptTakeoffs). */
@@ -725,10 +726,15 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     !visualPromotion && composedGarageDoorSize !== t.garage_door_size;
   const garageDoorConfirmedFromVisual = !!visualPromotion?.garageDoorSize;
   const composedOpeningTotals = deriveOpeningTotals(composedOpenings);
+  const floorPlanGapElevationMatches = matchElevationToFloorPlanGaps({
+    gaps: doorEngine?.floorPlanGaps,
+    elevations: elevationData,
+  });
   const openingEvidence = buildOpeningEvidenceLedger({
     openings: composedOpenings,
     planText,
     floorPlanGaps: doorEngine?.floorPlanGaps,
+    floorPlanGapElevationMatches,
   });
   const visualWindowCount =
     visualPromotion && composedOpeningTotals.window_count != null

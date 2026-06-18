@@ -1,6 +1,7 @@
 import type { Opening, OpeningSource } from "./takeoff-types";
 import type { PlanText } from "./plan-text";
 import type { FloorPlanGapCandidate } from "./floor-plan-gaps";
+import type { FloorPlanGapElevationMatch } from "./elevation-gap-match";
 
 export type OpeningEvidenceSource =
   | "floorplan_gap"
@@ -68,6 +69,7 @@ export function buildOpeningEvidenceLedger(args: {
   openings: readonly Opening[] | null | undefined;
   planText?: Pick<PlanText, "draftingIssues"> | null;
   floorPlanGaps?: readonly FloorPlanGapCandidate[] | null;
+  floorPlanGapElevationMatches?: ReadonlyMap<string, FloorPlanGapElevationMatch> | null;
 }): OpeningEvidenceCandidate[] {
   const ledger: OpeningEvidenceCandidate[] = [];
 
@@ -139,6 +141,38 @@ export function buildOpeningEvidenceLedger(args: {
 
   for (const [index, gap] of (args.floorPlanGaps ?? []).entries()) {
     const widthM = Math.round((gap.widthMm / 1000) * 100) / 100;
+    const elevationMatch = args.floorPlanGapElevationMatches?.get(gap.id) ?? null;
+    const heightM =
+      elevationMatch != null ? Math.round((elevationMatch.heightMm / 1000) * 100) / 100 : null;
+    const evidence: OpeningEvidenceItem[] = [
+      {
+        source: "floorplan_gap",
+        role: "width",
+        confidence: gap.confidence,
+        width_m: widthM,
+        room: gap.roomLabel ?? null,
+        wall_face_id: gap.wallFaceId,
+        room_side: gap.roomSide ?? null,
+        alternate_rooms: gap.alternateRoomLabels ?? [],
+        note: gap.note,
+      },
+    ];
+
+    if (elevationMatch) {
+      evidence.push({
+        source: "elevation_measurement",
+        role: "height",
+        confidence: elevationMatch.confidence,
+        width_m: Math.round((elevationMatch.widthMm / 1000) * 100) / 100,
+        height_m: heightM,
+        room: gap.roomLabel ?? null,
+        wall_face_id: gap.wallFaceId,
+        room_side: gap.roomSide ?? null,
+        alternate_rooms: gap.alternateRoomLabels ?? [],
+        note: elevationMatch.note,
+      });
+    }
+
     ledger.push({
       id: `floorplan-gap-${index + 1}`,
       status: "review",
@@ -146,26 +180,18 @@ export function buildOpeningEvidenceLedger(args: {
       type: "unknown",
       room: gap.roomLabel ?? null,
       width_m: widthM,
-      height_m: null,
+      height_m: heightM,
       area_m2: null,
-      evidence: [
-        {
-          source: "floorplan_gap",
-          role: "width",
-          confidence: gap.confidence,
-          width_m: widthM,
-          room: gap.roomLabel ?? null,
-          wall_face_id: gap.wallFaceId,
-          room_side: gap.roomSide ?? null,
-          alternate_rooms: gap.alternateRoomLabels ?? [],
-          note: gap.note,
-        },
-      ],
+      evidence,
       review_flags: [
         `Measured floor-plan wall gap ${gap.widthMm}mm${
           gap.roomLabel ? ` near ${gap.roomLabel}` : ""
         } on wall face ${gap.wallFaceId}; ${
           gap.routing.ambiguous ? `${gap.routing.reason}; ` : ""
+        }${
+          elevationMatch
+            ? `elevation ${elevationMatch.face} supports height ${elevationMatch.heightMm}mm; `
+            : ""
         }not priced until height/type are confirmed by text, elevation, schedule, or review.`,
       ],
       conflicts: gap.routing.ambiguous ? (gap.alternateRoomLabels ?? []) : [],

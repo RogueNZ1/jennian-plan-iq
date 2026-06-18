@@ -79,6 +79,32 @@ function compose(de: unknown) {
     schedule: null,
     geometryPageIndex: undefined,
     doorEngine: de as never,
+    elevationData: {
+      claddingTypes: [],
+      claddingTypeCode: null,
+      roofType: null,
+      roofPitchDegrees: null,
+      wallHeightMm: null,
+      studHeightMm: null,
+      facesPresent: ["North"],
+      windowCountPerFace: {},
+      externalDoorCount: 0,
+      gableEndCount: 0,
+      garageDoorsPresent: false,
+      elevationOpenings: [
+        {
+          face: "North",
+          type: "window",
+          label: "W99",
+          widthMm: 1810,
+          heightMm: 1300,
+          quantity: 1,
+          cladding: null,
+          confidence: "high",
+          notes: [],
+        },
+      ],
+    },
   });
 }
 
@@ -193,7 +219,7 @@ describe("plan-text cross-checks at compose", () => {
       status: "review",
       room: "LOUNGE",
       width_m: 1.8,
-      height_m: null,
+      height_m: 1.3,
       area_m2: null,
     });
     expect(gap?.evidence[0]).toMatchObject({
@@ -202,6 +228,13 @@ describe("plan-text cross-checks at compose", () => {
       confidence: "medium",
       wall_face_id: "H-37",
       room_side: "south",
+    });
+    expect(gap?.evidence[1]).toMatchObject({
+      source: "elevation_measurement",
+      role: "height",
+      confidence: "high",
+      width_m: 1.81,
+      height_m: 1.3,
     });
   });
 
