@@ -143,6 +143,62 @@ describe("Slice 6 — applyEnrichedTakeoff overlay + fallback", () => {
   });
 });
 
+describe("Slice 6 opening evidence review output", () => {
+  it("ENRICHED: opening evidence ledger is surfaced as review flags without pricing it", () => {
+    const out = applyEnrichedTakeoff(baseData(), {
+      ...enriched,
+      total_opening_sqm: 12.34,
+      glazed_sqm: 11.11,
+      opening_evidence: [
+        {
+          id: "floorplan-gap-1",
+          status: "review",
+          priced: false,
+          type: "unknown",
+          room: "Lounge",
+          width_m: 1.8,
+          height_m: 1.3,
+          area_m2: null,
+          evidence: [
+            {
+              source: "floorplan_gap",
+              role: "width",
+              confidence: "high",
+              width_m: 1.8,
+              room: "Lounge",
+              wall_face_id: "H-37",
+              note: "measured physical gap in floor-plan wall line",
+            },
+            {
+              source: "elevation_measurement",
+              role: "height",
+              confidence: "high",
+              width_m: 1.8,
+              height_m: 1.3,
+              room: "Lounge",
+              wall_face_id: "H-37",
+              note: "North elevation supports height 1300mm",
+            },
+          ],
+          review_flags: [
+            "Measured floor-plan wall gap 1800mm near Lounge on wall face H-37; elevation North supports height 1300mm; not priced until height/type are confirmed by text, elevation, schedule, or review.",
+          ],
+          conflicts: [],
+        },
+      ],
+    });
+
+    const flags = out.reviewFlags ?? [];
+    const evidence = flags.find((f) => f.field === "Opening evidence - floorplan-gap-1");
+    expect(evidence).toBeDefined();
+    expect(evidence?.flags.join(" ")).toContain("not priced");
+    expect(evidence?.flags.join(" ")).toContain("floorplan_gap width");
+    expect(evidence?.flags.join(" ")).toContain("elevation_measurement height");
+    expect(evidence?.flags.join(" ")).toContain("H-37");
+    expect(out.openings).toEqual(enriched.openings);
+  });
+});
+
 describe("Slice 6 — export sheets: additive fallback + visible flags", () => {
   it("FALLBACK is ADDITIVE: a relational (null-json) job adds NO Review Notes sheet", () => {
     // null path → no flags → buildReviewNotesSheet returns null → the workbook is unchanged.
@@ -166,6 +222,61 @@ describe("Slice 6 — export sheets: additive fallback + visible flags", () => {
     expect(text).toContain("Garage door");
     expect(text).toContain("garage_door_width"); // F-022 disagreement
     expect(text).toContain("width assumed 1.0m — confirm against plan"); // entrance unresolved-width fallback
+  });
+
+  it("VISIBLE: review notes include opening evidence without changing the IQ paste cells", () => {
+    const withEvidence = applyEnrichedTakeoff(baseData(), {
+      ...enriched,
+      opening_evidence: [
+        {
+          id: "floorplan-gap-1",
+          status: "review",
+          priced: false,
+          type: "unknown",
+          room: "Lounge",
+          width_m: 1.8,
+          height_m: 1.3,
+          area_m2: null,
+          evidence: [
+            {
+              source: "floorplan_gap",
+              role: "width",
+              confidence: "high",
+              width_m: 1.8,
+              room: "Lounge",
+              wall_face_id: "H-37",
+              note: "measured physical gap in floor-plan wall line",
+            },
+            {
+              source: "elevation_measurement",
+              role: "height",
+              confidence: "high",
+              height_m: 1.3,
+              room: "Lounge",
+              wall_face_id: "H-37",
+              note: "North elevation supports height 1300mm",
+            },
+          ],
+          review_flags: [
+            "Measured floor-plan wall gap 1800mm near Lounge on wall face H-37; elevation North supports height 1300mm; not priced until height/type are confirmed by text, elevation, schedule, or review.",
+          ],
+          conflicts: [],
+        },
+      ],
+    });
+    const withoutEvidence = applyEnrichedTakeoff(baseData(), {
+      ...enriched,
+      opening_evidence: [],
+    });
+
+    const ws = buildReviewNotesSheet(withEvidence.reviewFlags);
+    expect(ws).not.toBeNull();
+    const text = allText(ws!);
+    expect(text).toContain("Opening evidence - floorplan-gap-1");
+    expect(text).toContain("floorplan_gap width");
+    expect(text).toContain("elevation_measurement height");
+    expect(text).toContain("not priced until height/type are confirmed");
+    expect(buildQSDataInputSheet(withEvidence)).toEqual(buildQSDataInputSheet(withoutEvidence));
   });
 
   it("ENRICHED values reach the QS paste sheet (floor area = the geometry value, not the base)", () => {

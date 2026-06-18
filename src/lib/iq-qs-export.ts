@@ -383,6 +383,64 @@ export function openingsToWindowsByRoom(openings: Opening[]): QSExportData["wind
   return slots;
 }
 
+function fmtOpeningEvidenceMetres(value: number | null | undefined): string | null {
+  return value == null ? null : `${Math.round(value * 1000)}mm`;
+}
+
+function openingEvidenceFlags(enriched: EnrichedTakeoff): NonNullable<QSExportData["reviewFlags"]> {
+  return (enriched.opening_evidence ?? [])
+    .filter(
+      (candidate) =>
+        !candidate.priced ||
+        candidate.status !== "priced" ||
+        candidate.review_flags.length > 0 ||
+        candidate.conflicts.length > 0,
+    )
+    .map((candidate) => {
+      const bits = [
+        candidate.priced ? "priced" : "not priced",
+        candidate.status,
+        candidate.type ? `type ${candidate.type}` : null,
+        candidate.room ? `near ${candidate.room}` : null,
+        fmtOpeningEvidenceMetres(candidate.width_m)
+          ? `width ${fmtOpeningEvidenceMetres(candidate.width_m)}`
+          : null,
+        fmtOpeningEvidenceMetres(candidate.height_m)
+          ? `height ${fmtOpeningEvidenceMetres(candidate.height_m)}`
+          : null,
+      ].filter(Boolean);
+      const evidence = candidate.evidence
+        .map((item) => {
+          const dims = [
+            fmtOpeningEvidenceMetres(item.width_m)
+              ? `width ${fmtOpeningEvidenceMetres(item.width_m)}`
+              : null,
+            fmtOpeningEvidenceMetres(item.height_m)
+              ? `height ${fmtOpeningEvidenceMetres(item.height_m)}`
+              : null,
+            item.room ? `near ${item.room}` : null,
+            item.wall_face_id ? `wall ${item.wall_face_id}` : null,
+          ].filter(Boolean);
+          return `${item.source} ${item.role}${dims.length ? ` (${dims.join(", ")})` : ""}${
+            item.note ? `: ${item.note}` : ""
+          }`;
+        })
+        .filter((line) => line.trim() !== "");
+      const conflicts =
+        candidate.conflicts.length > 0 ? [`Conflicts: ${candidate.conflicts.join(", ")}`] : [];
+      return {
+        field: `Opening evidence - ${candidate.id}`,
+        flags: [
+          `Status: ${bits.join("; ")}`,
+          ...candidate.review_flags,
+          ...evidence,
+          ...conflicts,
+        ].filter((flag) => flag.trim() !== ""),
+      };
+    })
+    .filter((entry) => entry.flags.length > 0);
+}
+
 /**
  * Overlay the enriched takeoff onto a relational QSExportData base. When `enriched` is null
  * (every pre-convergence job) the base is returned UNCHANGED apart from a source tag — the
@@ -409,7 +467,7 @@ export function applyEnrichedTakeoff(
     alfrescoAreaM2: enriched.alfresco_area_m2.value ?? base.alfrescoAreaM2,
     studHeightMm: studM != null ? Math.round(studM * 1000) : base.studHeightMm,
     exteriorWallHeightM: studM ?? base.exteriorWallHeightM,
-    reviewFlags: fieldFlags(enriched),
+    reviewFlags: [...fieldFlags(enriched), ...openingEvidenceFlags(enriched)],
     takeoffSource: "enriched",
     // Stage 2a — thread the flat opening list through. Present only on the enriched path;
     // the relational fallback above leaves it undefined.
