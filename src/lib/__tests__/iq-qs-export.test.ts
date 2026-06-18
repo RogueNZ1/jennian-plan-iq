@@ -170,8 +170,9 @@ describe("downloaded workbook compatibility rows", () => {
     expect(
       isSuppressedInternalWallDataItem({ module_id: "iq-core", label: "Internal Wall Length" }),
     ).toBe(false);
-    expect(isSuppressedInternalWallDataItem({ module_id: "iq-roofing", label: "Coverage Area" }))
-      .toBe(false);
+    expect(
+      isSuppressedInternalWallDataItem({ module_id: "iq-roofing", label: "Coverage Area" }),
+    ).toBe(false);
   });
 });
 

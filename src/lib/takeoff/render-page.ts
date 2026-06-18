@@ -178,7 +178,12 @@ export async function renderAndUploadPlanPage(args: {
   const cacheMin = cacheMinWidthFor(args.pageType);
   const cacheMax = cacheMaxWidthFor(args.pageType);
   const existingWidth = existing?.render_resolution as number | undefined;
-  if (existing && existingWidth != null && existingWidth >= cacheMin && (!cacheMax || existingWidth <= cacheMax)) {
+  if (
+    existing &&
+    existingWidth != null &&
+    existingWidth >= cacheMin &&
+    (!cacheMax || existingWidth <= cacheMax)
+  ) {
     return {
       pageId: existing.id as string,
       jobId: args.jobId,

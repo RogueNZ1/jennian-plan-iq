@@ -44,8 +44,7 @@ export function classifyVisionWindowOpening(w: VisionWindow): VisionOpeningClass
   if (w.width_mm == null) return null;
 
   const garageContext = hasGarageContext(w);
-  const dimensionText =
-    w.height_mm != null ? `${w.height_mm} x ${w.width_mm}` : String(w.width_mm);
+  const dimensionText = w.height_mm != null ? `${w.height_mm} x ${w.width_mm}` : String(w.width_mm);
   const garageDoor = garageContext ? classifyGarageDoorAnnotation(dimensionText) : null;
 
   if (garageDoor && (hasExplicitGarageDoorContext(w) || garageContext)) {

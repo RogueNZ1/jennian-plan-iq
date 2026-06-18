@@ -124,7 +124,11 @@ export function reconcileVisualOpenings(args: Args): VisualOpeningReconciliation
       composed: fmtSize(composedGarageSize),
       openingIds: [visualGarage.id],
     });
-  } else if (visualGarageSize && composedGarageSize && !sizeCloseUnordered(visualGarageSize, composedGarageSize)) {
+  } else if (
+    visualGarageSize &&
+    composedGarageSize &&
+    !sizeCloseUnordered(visualGarageSize, composedGarageSize)
+  ) {
     issues.push({
       severity: "error",
       field: "garage_door_size",

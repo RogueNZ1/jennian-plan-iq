@@ -62,7 +62,16 @@ function summary(overrides: Partial<VisionRunSummary> = {}): VisionRunSummary {
           },
           rooms: [],
           windows: [],
-          doors: [{ type: "garage", width_mm: 4800, height_mm: 2110, room: "Garage", confidence: "high", source_evidence: "sectional garage door" }],
+          doors: [
+            {
+              type: "garage",
+              width_mm: 4800,
+              height_mm: 2110,
+              room: "Garage",
+              confidence: "high",
+              source_evidence: "sectional garage door",
+            },
+          ],
           wall_lengths: {
             external_wall_length_m: null,
             internal_wall_length_m: null,
