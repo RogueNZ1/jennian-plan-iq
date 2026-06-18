@@ -10,6 +10,10 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parsePlanText, routeWindowCodes, type PlanText } from "../../src/lib/takeoff/plan-text";
+import {
+  detectFloorPlanGaps,
+  type FloorPlanGapCandidate,
+} from "../../src/lib/takeoff/floor-plan-gaps";
 
 type ManualOpening = {
   room: string;
@@ -45,6 +49,26 @@ async function extract(planPath: string): Promise<PlanText> {
   try {
     const geom = await extractPageGeometry((await doc.getPage(1)) as never);
     return parsePlanText(geom.labels);
+  } finally {
+    await doc.destroy().catch(() => {});
+  }
+}
+
+async function extractFloorPlanGaps(planPath: string): Promise<FloorPlanGapCandidate[]> {
+  const { extractPageGeometry } = await import("../../src/lib/doors/pdf-adapter");
+  const pdfjs = await import("pdfjs-dist-door/legacy/build/pdf.mjs");
+  const doc = await pdfjs.getDocument({
+    data: new Uint8Array(readFileSync(planPath)),
+    disableFontFace: true,
+  } as never).promise;
+  try {
+    const geom = await extractPageGeometry((await doc.getPage(1)) as never);
+    const pt = parsePlanText(geom.labels);
+    return detectFloorPlanGaps({
+      segments: geom.segments,
+      scale: 100,
+      rooms: pt.rooms.map((r) => ({ name: r.name, x: r.x, y: r.y })),
+    });
   } finally {
     await doc.destroy().catch(() => {});
   }
@@ -102,6 +126,15 @@ describe("Fenner wild-card benchmark", () => {
     const issueText = (pt.draftingIssues ?? []).map((issue) => issue.text).join(" | ");
 
     expect(issueText).toContain("1300x175036001300x1750");
+  }, 60_000);
+
+  it("detects review-only floor-plan wall gaps even when nearby text is malformed", async () => {
+    const gaps = await extractFloorPlanGaps(PLAN);
+
+    expect(gaps.length).toBeGreaterThan(10);
+    expect(gaps.some((gap) => gap.widthMm >= 1700 && gap.widthMm <= 1900)).toBe(true);
+    expect(gaps.some((gap) => gap.widthMm >= 4500 && gap.widthMm <= 5100)).toBe(true);
+    expect(gaps.every((gap) => /height still need/.test(gap.note))).toBe(true);
   }, 60_000);
 
   it.fails(

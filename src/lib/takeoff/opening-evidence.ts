@@ -1,5 +1,6 @@
 import type { Opening, OpeningSource } from "./takeoff-types";
 import type { PlanText } from "./plan-text";
+import type { FloorPlanGapCandidate } from "./floor-plan-gaps";
 
 export type OpeningEvidenceSource =
   | "floorplan_gap"
@@ -63,6 +64,7 @@ function evidenceRoleForOpening(source: OpeningSource): OpeningEvidenceRole {
 export function buildOpeningEvidenceLedger(args: {
   openings: readonly Opening[] | null | undefined;
   planText?: Pick<PlanText, "draftingIssues"> | null;
+  floorPlanGaps?: readonly FloorPlanGapCandidate[] | null;
 }): OpeningEvidenceCandidate[] {
   const ledger: OpeningEvidenceCandidate[] = [];
 
@@ -129,6 +131,36 @@ export function buildOpeningEvidenceLedger(args: {
         `Malformed dimension label "${issue.text}" found on the floor plan; do not price from that label unless another source confirms the opening size.`,
       ],
       conflicts: [issue.text],
+    });
+  }
+
+  for (const [index, gap] of (args.floorPlanGaps ?? []).entries()) {
+    const widthM = Math.round((gap.widthMm / 1000) * 100) / 100;
+    ledger.push({
+      id: `floorplan-gap-${index + 1}`,
+      status: "review",
+      priced: false,
+      type: "unknown",
+      room: gap.roomLabel ?? null,
+      width_m: widthM,
+      height_m: null,
+      area_m2: null,
+      evidence: [
+        {
+          source: "floorplan_gap",
+          role: "width",
+          confidence: gap.confidence,
+          width_m: widthM,
+          room: gap.roomLabel ?? null,
+          note: gap.note,
+        },
+      ],
+      review_flags: [
+        `Measured floor-plan wall gap ${gap.widthMm}mm${
+          gap.roomLabel ? ` near ${gap.roomLabel}` : ""
+        }; not priced until height/type are confirmed by text, elevation, schedule, or review.`,
+      ],
+      conflicts: [],
     });
   }
 

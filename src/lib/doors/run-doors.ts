@@ -12,6 +12,7 @@ import { detectInteriorDoors, DEFAULT_CONFIG, type DoorEngineResult } from "./do
 import { extractPageGeometry } from "./pdf-adapter";
 import { parsePlanText, type PlanText } from "../takeoff/plan-text";
 import { traceInteriorWalls, type WallTrace } from "../takeoff/wall-trace";
+import { detectFloorPlanGaps, type FloorPlanGapCandidate } from "../takeoff/floor-plan-gaps";
 
 /**
  * Which page the engine ran on, in the adapter's coordinate contract — persisted with the
@@ -38,7 +39,12 @@ export async function runDoorEngine(
   pageNumber: number, // 1-based floor-plan page
   scaleText: string | null | undefined,
 ): Promise<
-  | (DoorEngineResult & { pageMeta?: DoorPageMeta; planText?: PlanText; wallTrace?: WallTrace })
+  | (DoorEngineResult & {
+      pageMeta?: DoorPageMeta;
+      planText?: PlanText;
+      wallTrace?: WallTrace;
+      floorPlanGaps?: FloorPlanGapCandidate[];
+    })
   | null
 > {
   try {
@@ -85,10 +91,16 @@ export async function runDoorEngine(
       );
       // Overlay meta — additive: callers that only read counts/flags are untouched.
       const view = (page as { view?: number[] }).view ?? [0, 0, geom.width, geom.height];
+      const floorPlanGaps = detectFloorPlanGaps({
+        segments: geom.segments,
+        scale,
+        rooms: planText.rooms.map((r) => ({ name: r.name, x: r.x, y: r.y })),
+      });
       return {
         ...result,
         planText,
         wallTrace,
+        floorPlanGaps,
         pageMeta: {
           pageNumber,
           view: [...view],

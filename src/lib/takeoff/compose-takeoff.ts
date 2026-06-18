@@ -83,6 +83,7 @@ export type ComposeTakeoffInput = {
         pageMeta?: import("../doors/run-doors").DoorPageMeta;
         planText?: import("./plan-text").PlanText;
         wallTrace?: import("./wall-trace").WallTrace;
+        floorPlanGaps?: import("./floor-plan-gaps").FloorPlanGapCandidate[];
       })
     | null;
   /** Visual QS external-opening audit; promoted only through strict plausibility/recovery gates. */
@@ -727,6 +728,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   const openingEvidence = buildOpeningEvidenceLedger({
     openings: composedOpenings,
     planText,
+    floorPlanGaps: doorEngine?.floorPlanGaps,
   });
   const visualWindowCount =
     visualPromotion && composedOpeningTotals.window_count != null

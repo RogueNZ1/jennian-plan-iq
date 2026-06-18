@@ -49,6 +49,19 @@ const doorEngine = {
   flags: [],
   counts: { singles: 0, doubles: 0, cavitySliders: 0, barn: 0 },
   planText,
+  floorPlanGaps: [
+    {
+      id: "floorplan-gap-1",
+      widthMm: 1800,
+      x: 120,
+      y: 220,
+      orientation: "horizontal",
+      wallThicknessMm: 190,
+      confidence: "medium",
+      roomLabel: "LOUNGE",
+      note: "measured floor-plan wall gap near LOUNGE; height still needs text/elevation/schedule confirmation",
+    },
+  ],
 } as never;
 
 function compose(de: unknown) {
@@ -150,6 +163,7 @@ describe("plan-text cross-checks at compose", () => {
     const e = compose(doorEngine).enriched;
     const priced = e.opening_evidence?.filter((candidate) => candidate.priced) ?? [];
     const review = e.opening_evidence?.find((candidate) => candidate.id === "drafting-issue-1");
+    const gap = e.opening_evidence?.find((candidate) => candidate.id === "floorplan-gap-1");
 
     expect(priced.length).toBeGreaterThan(0);
     expect(priced[0]?.status).toBe("priced");
@@ -164,6 +178,20 @@ describe("plan-text cross-checks at compose", () => {
       role: "conflict",
       confidence: "low",
       text: "1300x175036001300x1750",
+    });
+
+    expect(gap).toMatchObject({
+      priced: false,
+      status: "review",
+      room: "LOUNGE",
+      width_m: 1.8,
+      height_m: null,
+      area_m2: null,
+    });
+    expect(gap?.evidence[0]).toMatchObject({
+      source: "floorplan_gap",
+      role: "width",
+      confidence: "medium",
     });
   });
 
