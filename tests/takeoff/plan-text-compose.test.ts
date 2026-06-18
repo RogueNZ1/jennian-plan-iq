@@ -56,9 +56,17 @@ const doorEngine = {
       x: 120,
       y: 220,
       orientation: "horizontal",
+      wallFaceId: "H-37",
       wallThicknessMm: 190,
       confidence: "medium",
       roomLabel: "LOUNGE",
+      roomSide: "south",
+      alternateRoomLabels: [],
+      routing: {
+        confidence: "medium",
+        ambiguous: false,
+        reason: "gap routed to LOUNGE on the south side of the wall",
+      },
       note: "measured floor-plan wall gap near LOUNGE; height still needs text/elevation/schedule confirmation",
     },
   ],
@@ -192,6 +200,8 @@ describe("plan-text cross-checks at compose", () => {
       source: "floorplan_gap",
       role: "width",
       confidence: "medium",
+      wall_face_id: "H-37",
+      room_side: "south",
     });
   });
 

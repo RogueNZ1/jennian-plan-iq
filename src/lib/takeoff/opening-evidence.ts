@@ -31,6 +31,9 @@ export type OpeningEvidenceItem = {
   height_m?: number | null;
   area_m2?: number | null;
   room?: string | null;
+  wall_face_id?: string;
+  room_side?: "north" | "south" | "east" | "west" | null;
+  alternate_rooms?: string[];
   text?: string;
   note?: string;
 };
@@ -152,15 +155,20 @@ export function buildOpeningEvidenceLedger(args: {
           confidence: gap.confidence,
           width_m: widthM,
           room: gap.roomLabel ?? null,
+          wall_face_id: gap.wallFaceId,
+          room_side: gap.roomSide ?? null,
+          alternate_rooms: gap.alternateRoomLabels ?? [],
           note: gap.note,
         },
       ],
       review_flags: [
         `Measured floor-plan wall gap ${gap.widthMm}mm${
           gap.roomLabel ? ` near ${gap.roomLabel}` : ""
-        }; not priced until height/type are confirmed by text, elevation, schedule, or review.`,
+        } on wall face ${gap.wallFaceId}; ${
+          gap.routing.ambiguous ? `${gap.routing.reason}; ` : ""
+        }not priced until height/type are confirmed by text, elevation, schedule, or review.`,
       ],
-      conflicts: [],
+      conflicts: gap.routing.ambiguous ? (gap.alternateRoomLabels ?? []) : [],
     });
   }
 

@@ -6,9 +6,17 @@ export type FloorPlanGapCandidate = {
   x: number;
   y: number;
   orientation: "horizontal" | "vertical";
+  wallFaceId: string;
   wallThicknessMm: number;
   confidence: "medium" | "low";
   roomLabel?: string | null;
+  roomSide?: "north" | "south" | "east" | "west" | null;
+  alternateRoomLabels?: string[];
+  routing: {
+    confidence: "medium" | "low";
+    ambiguous: boolean;
+    reason: string;
+  };
   note: string;
 };
 
@@ -119,20 +127,89 @@ function rowGaps(rows: readonly Row[], scale: number): RowGap[] {
   return out;
 }
 
-function nearestRoom(
-  rooms: readonly RoomPoint[],
-  x: number,
-  y: number,
-  scale: number,
-): string | null {
-  const maxDist = mmToPt(5500, scale);
-  let best: { name: string; d: number } | null = null;
-  for (const room of rooms) {
-    const d = Math.hypot(room.x - x, room.y - y);
-    if (d > maxDist) continue;
-    if (!best || d < best.d) best = { name: room.name, d };
+function routeRoom(args: {
+  rooms: readonly RoomPoint[];
+  x: number;
+  y: number;
+  lo: number;
+  hi: number;
+  vertical: boolean;
+  scale: number;
+}): Pick<FloorPlanGapCandidate, "roomLabel" | "roomSide" | "alternateRoomLabels" | "routing"> {
+  const alongPad = mmToPt(2600, args.scale);
+  const maxPerp = mmToPt(6500, args.scale);
+  const options: Array<{
+    name: string;
+    side: "north" | "south" | "east" | "west";
+    perp: number;
+    d: number;
+  }> = [];
+
+  for (const room of args.rooms) {
+    const along = args.vertical ? room.y : room.x;
+    const off = args.vertical ? room.x - args.x : room.y - args.y;
+    if (along < args.lo - alongPad || along > args.hi + alongPad) continue;
+    const perp = Math.abs(off);
+    if (perp > maxPerp) continue;
+    options.push({
+      name: room.name,
+      side: args.vertical ? (off < 0 ? "west" : "east") : off < 0 ? "north" : "south",
+      perp,
+      d: Math.hypot(off, along - (args.lo + args.hi) / 2),
+    });
   }
-  return best?.name ?? null;
+
+  if (options.length === 0) {
+    return {
+      roomLabel: null,
+      roomSide: null,
+      alternateRoomLabels: [],
+      routing: {
+        confidence: "low",
+        ambiguous: true,
+        reason: "no room label found near the measured wall gap",
+      },
+    };
+  }
+
+  options.sort((a, b) => a.d - b.d || a.perp - b.perp);
+  const bySide = new Map<string, typeof options>();
+  for (const option of options) {
+    bySide.set(option.side, [...(bySide.get(option.side) ?? []), option]);
+  }
+  const sideWinners = [...bySide.values()].map((sideOptions) => sideOptions[0]);
+  sideWinners.sort((a, b) => a.d - b.d || a.perp - b.perp);
+  const winner = sideWinners[0];
+  const alternatives = sideWinners
+    .slice(1)
+    .filter(
+      (option) =>
+        option.d <= winner.d * 1.45 || Math.abs(option.perp - winner.perp) < maxPerp * 0.25,
+    );
+  const ambiguous = alternatives.length > 0;
+
+  return {
+    roomLabel: winner.name,
+    roomSide: winner.side,
+    alternateRoomLabels: alternatives.map((option) => option.name),
+    routing: {
+      confidence: ambiguous ? "low" : "medium",
+      ambiguous,
+      reason: ambiguous
+        ? `gap is near ${winner.name} and ${alternatives.map((option) => option.name).join(", ")}; keep room routing under review`
+        : `gap routed to ${winner.name} on the ${winner.side} side of the wall`,
+    },
+  };
+}
+
+function wallFaceId(vertical: boolean, x: number, y: number): string {
+  const axis = vertical ? "V" : "H";
+  const offset = Math.round((vertical ? x : y) / 6);
+  return `${axis}-${offset}`;
+}
+
+function sortConfidence(confidence: "medium" | "low"): number {
+  return confidence === "medium" ? 1 : 0;
 }
 
 export function detectFloorPlanGaps(args: {
@@ -162,19 +239,27 @@ export function detectFloorPlanGaps(args: {
       const widthMm = Math.round(ptToMm((a.widthPt + b.widthPt) / 2, args.scale));
       const x = a.vertical ? (a.offset + b.offset) / 2 : (lo + hi) / 2;
       const y = a.vertical ? (lo + hi) / 2 : (a.offset + b.offset) / 2;
-      const roomLabel = nearestRoom(args.rooms ?? [], x, y, args.scale);
-      const confidence: "medium" | "low" = roomLabel ? "medium" : "low";
+      const route = routeRoom({
+        rooms: args.rooms ?? [],
+        x,
+        y,
+        lo,
+        hi,
+        vertical: a.vertical,
+        scale: args.scale,
+      });
       candidates.push({
         id: `floorplan-gap-${candidates.length + 1}`,
         widthMm,
         x,
         y,
         orientation: a.vertical ? "vertical" : "horizontal",
+        wallFaceId: wallFaceId(a.vertical, x, y),
         wallThicknessMm: Math.round(ptToMm(faceGap, args.scale)),
-        confidence,
-        roomLabel,
-        note: roomLabel
-          ? `measured floor-plan wall gap near ${roomLabel}; height still needs text/elevation/schedule confirmation`
+        confidence: route.routing.confidence,
+        ...route,
+        note: route.roomLabel
+          ? `measured floor-plan wall gap near ${route.roomLabel}; ${route.routing.reason}; height still needs text/elevation/schedule confirmation`
           : "measured floor-plan wall gap; room and height still need confirmation",
       });
     }
@@ -182,7 +267,11 @@ export function detectFloorPlanGaps(args: {
 
   const seen = new Set<string>();
   return candidates
-    .sort((a, b) => b.confidence.localeCompare(a.confidence) || b.widthMm - a.widthMm)
+    .sort(
+      (a, b) =>
+        sortConfidence(b.routing.confidence) - sortConfidence(a.routing.confidence) ||
+        b.widthMm - a.widthMm,
+    )
     .filter((candidate) => {
       const key = [
         candidate.orientation,
