@@ -65,6 +65,7 @@ import { recoverVisualAuditFromElevationLedger } from "./visual-opening-elevatio
 import { promoteVisualOpenings } from "./visual-opening-promotion";
 import { buildOpeningEvidenceLedger } from "./opening-evidence";
 import { matchElevationToFloorPlanGaps } from "./elevation-gap-match";
+import { promoteFloorPlanGapOpenings } from "./floor-plan-gap-promotion";
 
 export type ComposeTakeoffInput = {
   /** The vision-extracted takeoff (already returned by extractConceptTakeoffs). */
@@ -706,11 +707,15 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   const visualPromotedOpenings = visualPromotion?.openings.length ? visualPromotion.openings : null;
   const visualHasSectional = visualPromotedOpenings?.some((o) => o.type === "sectional_door");
   const rawSectionals = rawComposedOpenings.filter((o) => o.type === "sectional_door");
+  const floorPlanGapElevationMatches = matchElevationToFloorPlanGaps({
+    gaps: doorEngine?.floorPlanGaps,
+    elevations: elevationData,
+  });
   const planTextPricedWindowBase =
     !schedule?.windows?.length && (planText?.windowCodes.length ?? 0) > 0
       ? (planTextRecoveredOpenings ?? rawComposedOpenings)
       : null;
-  const composedOpenings = normaliseOpeningsForQs(
+  const selectedOpenings = normaliseOpeningsForQs(
     visualPromotedOpenings
       ? planTextPricedWindowBase
         ? mergePlanTextAndVisualOpenings(planTextPricedWindowBase, visualPromotedOpenings)
@@ -721,20 +726,26 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
         ? planTextRecoveredOpenings
         : rawComposedOpenings,
   );
+  const floorPlanGapPromotion = promoteFloorPlanGapOpenings({
+    openings: selectedOpenings,
+    floorPlanGaps: doorEngine?.floorPlanGaps,
+    elevationMatches: floorPlanGapElevationMatches,
+  });
+  const composedOpenings = normaliseOpeningsForQs(floorPlanGapPromotion.openings);
+  const floorPlanGapPromotionFlags = [...floorPlanGapPromotion.promotedByGapId.values()].flatMap(
+    (opening) => opening.flags ?? [],
+  );
   const composedGarageDoorSize = visualPromotion?.garageDoorSize ?? folded.garage_door_size;
   const garageDoorConfirmedFromSectionalCallout =
     !visualPromotion && composedGarageDoorSize !== t.garage_door_size;
   const garageDoorConfirmedFromVisual = !!visualPromotion?.garageDoorSize;
   const composedOpeningTotals = deriveOpeningTotals(composedOpenings);
-  const floorPlanGapElevationMatches = matchElevationToFloorPlanGaps({
-    gaps: doorEngine?.floorPlanGaps,
-    elevations: elevationData,
-  });
   const openingEvidence = buildOpeningEvidenceLedger({
     openings: composedOpenings,
     planText,
     floorPlanGaps: doorEngine?.floorPlanGaps,
     floorPlanGapElevationMatches,
+    promotedFloorPlanGapOpenings: floorPlanGapPromotion.promotedByGapId,
   });
   const visualWindowCount =
     visualPromotion && composedOpeningTotals.window_count != null
@@ -818,10 +829,18 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     ),
     roof_area_m2: fv(t.roof_area_m2, "vision"),
     window_count: fv(
-      visualWindowCount ?? t.window_count,
-      visualWindowCount != null ? "vision" : windowCountSrc,
-      visualWindowCount != null ? "high" : reconConf(reconStatusOf("window_count")),
-      flagsFor(visualWindowCount != null ? null : reconFlag("window_count")),
+      visualWindowCount ??
+        (floorPlanGapPromotionFlags.length ? composedOpeningTotals.window_count : t.window_count),
+      visualWindowCount != null || floorPlanGapPromotionFlags.length ? "vector" : windowCountSrc,
+      visualWindowCount != null
+        ? "high"
+        : floorPlanGapPromotionFlags.length
+          ? "mid"
+          : reconConf(reconStatusOf("window_count")),
+      flagsFor(
+        visualWindowCount != null ? null : reconFlag("window_count"),
+        ...floorPlanGapPromotionFlags,
+      ),
     ),
     external_door_count: fv(t.external_door_count, "vision"),
     internal_door_count: fv(
@@ -861,6 +880,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
             ...codeMismatch,
             ...bedNoWindow,
             ...planDraftingFlags,
+            ...floorPlanGapPromotionFlags,
             ...visualReconciliationFlags(visualOpeningReconciliation, "windows_by_room"),
           ),
     ),

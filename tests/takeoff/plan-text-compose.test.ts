@@ -72,7 +72,7 @@ const doorEngine = {
   ],
 } as never;
 
-function compose(de: unknown) {
+function compose(de: unknown, elevationOpening: Record<string, unknown> = {}) {
   return composeTakeoff({
     visionTakeoff: baseVision,
     geometry: null,
@@ -102,6 +102,7 @@ function compose(de: unknown) {
           cladding: null,
           confidence: "high",
           notes: [],
+          ...elevationOpening,
         },
       ],
     },
@@ -215,12 +216,13 @@ describe("plan-text cross-checks at compose", () => {
     });
 
     expect(gap).toMatchObject({
-      priced: false,
-      status: "review",
+      priced: true,
+      status: "priced",
+      type: "window",
       room: "LOUNGE",
       width_m: 1.8,
       height_m: 1.3,
-      area_m2: null,
+      area_m2: 2.34,
     });
     expect(gap?.evidence[0]).toMatchObject({
       source: "floorplan_gap",
@@ -236,6 +238,70 @@ describe("plan-text cross-checks at compose", () => {
       width_m: 1.81,
       height_m: 1.3,
     });
+    expect(gap?.review_flags.join(" ")).toContain("promoted into QS openings as window");
+  });
+
+  it("strict floor-plan gap promotion changes opening totals only when unique elevation support exists", () => {
+    const promoted = compose(doorEngine).enriched;
+    const withoutGap = compose({
+      ...(doorEngine as Record<string, unknown>),
+      floorPlanGaps: [],
+    }).enriched;
+
+    const promotedOpening = promoted.openings?.find((opening) => opening.room === "LOUNGE");
+    expect(promotedOpening).toMatchObject({
+      type: "window",
+      width_m: 1.8,
+      height_m: 1.3,
+      area_m2: 2.34,
+      confidence: "medium",
+    });
+    expect(promotedOpening?.flags?.join(" ")).toContain("PROMOTED from measured floor-plan gap");
+    expect(promoted.total_opening_sqm).toBeCloseTo((withoutGap.total_opening_sqm ?? 0) + 2.34, 2);
+    expect(promoted.glazed_sqm).toBeCloseTo((withoutGap.glazed_sqm ?? 0) + 2.34, 2);
+    expect(promoted.window_count.value).toBe(
+      promoted.openings?.filter((opening) =>
+        ["window", "slider", "garage_window"].includes(opening.type),
+      ).length,
+    );
+  });
+
+  it("ambiguous routed gaps stay review-only and do not change opening totals", () => {
+    const ambiguousGap = {
+      ...(doorEngine as { floorPlanGaps: Array<Record<string, unknown>> }).floorPlanGaps[0],
+      routing: {
+        confidence: "medium",
+        ambiguous: true,
+        reason: "gap could belong to LOUNGE or DINING",
+      },
+      alternateRoomLabels: ["DINING"],
+    };
+    const ambiguous = compose({
+      ...(doorEngine as Record<string, unknown>),
+      floorPlanGaps: [ambiguousGap],
+    }).enriched;
+    const withoutGap = compose({
+      ...(doorEngine as Record<string, unknown>),
+      floorPlanGaps: [],
+    }).enriched;
+
+    expect(ambiguous.total_opening_sqm).toBe(withoutGap.total_opening_sqm);
+    const gap = ambiguous.opening_evidence?.find((candidate) => candidate.id === "floorplan-gap-1");
+    expect(gap?.priced).toBe(false);
+    expect(gap?.conflicts).toContain("DINING");
+  });
+
+  it("unknown elevation opening type stays review-only and does not change opening totals", () => {
+    const unknown = compose(doorEngine, { type: "unknown" }).enriched;
+    const withoutGap = compose({
+      ...(doorEngine as Record<string, unknown>),
+      floorPlanGaps: [],
+    }).enriched;
+
+    expect(unknown.total_opening_sqm).toBe(withoutGap.total_opening_sqm);
+    const gap = unknown.opening_evidence?.find((candidate) => candidate.id === "floorplan-gap-1");
+    expect(gap?.priced).toBe(false);
+    expect(gap?.review_flags.join(" ")).toContain("not priced until height/type are confirmed");
   });
 
   it("printed ENSUITE + missing vision count => ERROR flag on the ensuite count", () => {

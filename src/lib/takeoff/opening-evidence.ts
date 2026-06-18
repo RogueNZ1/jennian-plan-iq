@@ -70,6 +70,7 @@ export function buildOpeningEvidenceLedger(args: {
   planText?: Pick<PlanText, "draftingIssues"> | null;
   floorPlanGaps?: readonly FloorPlanGapCandidate[] | null;
   floorPlanGapElevationMatches?: ReadonlyMap<string, FloorPlanGapElevationMatch> | null;
+  promotedFloorPlanGapOpenings?: ReadonlyMap<string, Opening> | null;
 }): OpeningEvidenceCandidate[] {
   const ledger: OpeningEvidenceCandidate[] = [];
 
@@ -142,6 +143,7 @@ export function buildOpeningEvidenceLedger(args: {
   for (const [index, gap] of (args.floorPlanGaps ?? []).entries()) {
     const widthM = Math.round((gap.widthMm / 1000) * 100) / 100;
     const elevationMatch = args.floorPlanGapElevationMatches?.get(gap.id) ?? null;
+    const promotedOpening = args.promotedFloorPlanGapOpenings?.get(gap.id) ?? null;
     const heightM =
       elevationMatch != null ? Math.round((elevationMatch.heightMm / 1000) * 100) / 100 : null;
     const evidence: OpeningEvidenceItem[] = [
@@ -175,25 +177,31 @@ export function buildOpeningEvidenceLedger(args: {
 
     ledger.push({
       id: `floorplan-gap-${index + 1}`,
-      status: "review",
-      priced: false,
-      type: "unknown",
+      status: promotedOpening ? "priced" : "review",
+      priced: promotedOpening != null,
+      type: promotedOpening?.type ?? "unknown",
       room: gap.roomLabel ?? null,
       width_m: widthM,
       height_m: heightM,
-      area_m2: null,
+      area_m2: promotedOpening?.area_m2 ?? null,
       evidence,
-      review_flags: [
-        `Measured floor-plan wall gap ${gap.widthMm}mm${
-          gap.roomLabel ? ` near ${gap.roomLabel}` : ""
-        } on wall face ${gap.wallFaceId}; ${
-          gap.routing.ambiguous ? `${gap.routing.reason}; ` : ""
-        }${
-          elevationMatch
-            ? `elevation ${elevationMatch.face} supports height ${elevationMatch.heightMm}mm; `
-            : ""
-        }not priced until height/type are confirmed by text, elevation, schedule, or review.`,
-      ],
+      review_flags: promotedOpening
+        ? [
+            `Measured floor-plan wall gap ${gap.widthMm}mm${
+              gap.roomLabel ? ` near ${gap.roomLabel}` : ""
+            } on wall face ${gap.wallFaceId}; elevation ${elevationMatch?.face ?? "unknown"} supports ${elevationMatch?.widthMm ?? gap.widthMm}x${elevationMatch?.heightMm ?? Math.round(promotedOpening.height_m * 1000)}mm; promoted into QS openings as ${promotedOpening.type} (${promotedOpening.area_m2}m2).`,
+          ]
+        : [
+            `Measured floor-plan wall gap ${gap.widthMm}mm${
+              gap.roomLabel ? ` near ${gap.roomLabel}` : ""
+            } on wall face ${gap.wallFaceId}; ${
+              gap.routing.ambiguous ? `${gap.routing.reason}; ` : ""
+            }${
+              elevationMatch
+                ? `elevation ${elevationMatch.face} supports height ${elevationMatch.heightMm}mm; `
+                : ""
+            }not priced until height/type are confirmed by text, elevation, schedule, or review.`,
+          ],
       conflicts: gap.routing.ambiguous ? (gap.alternateRoomLabels ?? []) : [],
     });
   }
