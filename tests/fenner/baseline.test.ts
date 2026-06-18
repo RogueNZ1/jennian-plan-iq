@@ -88,8 +88,17 @@ describe("Fenner wild-card benchmark", () => {
     ).toBeCloseTo(TRUTH.derived.garage_door_excluded_opening_sqm, 2);
   });
 
+  it("keeps the deterministic extraction shortfall explicit until visual/elevation recovery closes it", async () => {
+    const pt = await extract(PLAN);
+    const area = routedOpeningAreaM2(pt);
+    const shortfall = round2(TRUTH.derived.total_opening_sqm - area);
+
+    expect(area).toBeLessThan(TRUTH.derived.total_opening_sqm);
+    expect(shortfall).toBeGreaterThan(20);
+  }, 60_000);
+
   it.fails(
-    "recovers Haydon's priced opening area from deterministic extraction",
+    "JEN-27/JEN-26 follow-on: recovers Haydon's priced opening area from deterministic extraction",
     async () => {
       const pt = await extract(PLAN);
       const routed = routeWindowCodes(pt);

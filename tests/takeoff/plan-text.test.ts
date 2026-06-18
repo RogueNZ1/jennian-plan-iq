@@ -127,5 +127,7 @@ describe("window auto-routing — West Street against Haydon's hand-verified wor
     // all are real QS slots and the glazing total is identical either way.
     expect(big.filter((n) => /KITCHEN|DINING|LOUNGE|FAMILY/.test(n))).toHaveLength(2);
     expect(routed).toHaveLength(8);
+    const area = routed.reduce((sum, r) => sum + (r.heightMm / 1000) * (r.widthMm / 1000), 0);
+    expect(area).toBeCloseTo(13.56, 2);
   }, 60_000);
 });
