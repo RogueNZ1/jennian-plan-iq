@@ -63,6 +63,7 @@ import {
 } from "./visual-opening-reconciliation";
 import { recoverVisualAuditFromElevationLedger } from "./visual-opening-elevation-recovery";
 import { promoteVisualOpenings } from "./visual-opening-promotion";
+import { buildOpeningEvidenceLedger } from "./opening-evidence";
 
 export type ComposeTakeoffInput = {
   /** The vision-extracted takeoff (already returned by extractConceptTakeoffs). */
@@ -723,6 +724,10 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     !visualPromotion && composedGarageDoorSize !== t.garage_door_size;
   const garageDoorConfirmedFromVisual = !!visualPromotion?.garageDoorSize;
   const composedOpeningTotals = deriveOpeningTotals(composedOpenings);
+  const openingEvidence = buildOpeningEvidenceLedger({
+    openings: composedOpenings,
+    planText,
+  });
   const visualWindowCount =
     visualPromotion && composedOpeningTotals.window_count != null
       ? composedOpeningTotals.window_count
@@ -880,6 +885,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     notes: t.notes,
     // Stage 2a — flat opening list + glazed-split totals (additive passthrough).
     openings: composedOpenings,
+    opening_evidence: openingEvidence,
     total_opening_sqm: composedOpeningTotals.total_opening_sqm,
     glazed_sqm: composedOpeningTotals.glazed_sqm,
     ...(recoveredVisualOpeningAudit ? { visual_opening_audit: recoveredVisualOpeningAudit } : {}),

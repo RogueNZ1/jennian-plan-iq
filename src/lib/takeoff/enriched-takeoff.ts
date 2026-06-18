@@ -22,6 +22,7 @@ import type {
 } from "./takeoff-types";
 import type { VisualOpeningAudit } from "./visual-opening-audit";
 import type { VisualOpeningReconciliation } from "./visual-opening-reconciliation";
+import type { OpeningEvidenceCandidate } from "./opening-evidence";
 
 /** Where a field's value came from (the provenance we already track in the seam). */
 export type FieldSource =
@@ -84,6 +85,12 @@ export type EnrichedTakeoff = {
    * QS export consumer (Stage 2b); not yet written to any cell.
    */
   openings?: Opening[] | null;
+  /**
+   * JEN-30 opening evidence ledger: the human-QS audit spine. `openings[]` remains the
+   * pricing contract; this additive ledger records why each opening was priced, flagged,
+   * or left as review-only evidence.
+   */
+  opening_evidence?: OpeningEvidenceCandidate[] | null;
   total_opening_sqm?: number | null;
   glazed_sqm?: number | null;
   /**

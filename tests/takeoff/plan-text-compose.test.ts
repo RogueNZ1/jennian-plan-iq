@@ -146,6 +146,27 @@ describe("plan-text cross-checks at compose", () => {
     expect(all).toContain("1300x175036001300x1750");
   });
 
+  it("opening evidence ledger keeps priced rows separate from review-only drafting conflicts", () => {
+    const e = compose(doorEngine).enriched;
+    const priced = e.opening_evidence?.filter((candidate) => candidate.priced) ?? [];
+    const review = e.opening_evidence?.find((candidate) => candidate.id === "drafting-issue-1");
+
+    expect(priced.length).toBeGreaterThan(0);
+    expect(priced[0]?.status).toBe("priced");
+    expect(priced[0]?.evidence[0]?.role).toBe("dimension");
+    expect(priced[0]?.evidence[0]?.area_m2).toBeGreaterThan(0);
+
+    expect(review?.priced).toBe(false);
+    expect(review?.status).toBe("review");
+    expect(review?.conflicts).toContain("1300x175036001300x1750");
+    expect(review?.evidence[0]).toMatchObject({
+      source: "floorplan_text",
+      role: "conflict",
+      confidence: "low",
+      text: "1300x175036001300x1750",
+    });
+  });
+
   it("printed ENSUITE + missing vision count => ERROR flag on the ensuite count", () => {
     const e = compose(doorEngine).enriched.ensuite_count;
     expect(e.value).toBeNull();
