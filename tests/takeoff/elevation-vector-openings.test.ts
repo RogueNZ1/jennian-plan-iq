@@ -6,7 +6,9 @@ import { extractPageGeometry } from "../../src/lib/doors/pdf-adapter";
 import {
   detectElevationFaceBands,
   detectElevationVectorOpenings,
+  mergeElevationVectorOpenings,
 } from "../../src/lib/takeoff/elevation-vector-openings";
+import { runElevationVectorOpenings } from "../../src/lib/takeoff/run-elevation-vector-openings";
 
 const FENNER_ELEVATIONS = resolve(process.cwd(), "tests/doors/plans/fenner-elevations.pdf");
 
@@ -55,5 +57,55 @@ describe("elevation vector opening detector", () => {
     ).toBe(true);
     expect(openings.some((opening) => near(opening.widthMm, 1500, 250))).toBe(true);
     expect(openings.some((opening) => near(opening.heightMm, 2100, 250))).toBe(true);
+  }, 60_000);
+
+  it("runner extracts the same vector candidates from the elevation PDF", async () => {
+    const openings = await runElevationVectorOpenings(readFileSync(FENNER_ELEVATIONS), 1);
+
+    expect(openings.length).toBeGreaterThan(15);
+    expect(openings.length).toBeLessThan(60);
+    expect(openings.some((opening) => opening.source === "vector_face_band")).toBe(true);
+  }, 60_000);
+
+  it("merges vector candidates into elevation data without duplicating matching AI openings", async () => {
+    const [candidate] = detectElevationVectorOpenings(await fennerSegments()).filter(
+      (opening) => opening.type === "garage_door",
+    );
+    const merged = mergeElevationVectorOpenings(
+      {
+        claddingTypes: [],
+        claddingTypeCode: null,
+        roofType: null,
+        roofPitchDegrees: null,
+        wallHeightMm: null,
+        studHeightMm: null,
+        facesPresent: ["AI Face"],
+        windowCountPerFace: {},
+        externalDoorCount: 0,
+        gableEndCount: 0,
+        garageDoorsPresent: false,
+        elevationOpenings: [
+          {
+            face: "AI Face",
+            type: "garage_door",
+            label: "GD",
+            widthMm: candidate.widthMm,
+            heightMm: candidate.heightMm,
+            quantity: 1,
+            cladding: null,
+            confidence: "high",
+            notes: [],
+          },
+        ],
+      },
+      [candidate],
+    );
+
+    expect(merged?.garageDoorsPresent).toBe(true);
+    expect(merged?.elevationOpenings).toHaveLength(1);
+
+    const created = mergeElevationVectorOpenings(null, [candidate]);
+    expect(created?.facesPresent).toContain(candidate.face);
+    expect(created?.elevationOpenings).toHaveLength(1);
   }, 60_000);
 });

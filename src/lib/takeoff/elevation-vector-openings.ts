@@ -1,5 +1,5 @@
 import type { Segment } from "../doors/door-engine";
-import type { ElevationOpeningCandidate } from "./extract-elevations";
+import type { ElevationData, ElevationOpeningCandidate } from "./extract-elevations";
 
 type AxialHorizontal = { y: number; x0: number; x1: number; len: number; count: number };
 type AxialVertical = { x: number; y0: number; y1: number; len: number };
@@ -241,4 +241,47 @@ export function detectElevationVectorOpenings(
   }
   kept.sort((a, b) => a.y - b.y || a.x - b.x);
   return kept;
+}
+
+function sameOpening(a: ElevationOpeningCandidate, b: ElevationOpeningCandidate): boolean {
+  if (a.widthMm == null || a.heightMm == null || b.widthMm == null || b.heightMm == null) {
+    return false;
+  }
+  return Math.abs(a.widthMm - b.widthMm) <= 120 && Math.abs(a.heightMm - b.heightMm) <= 120;
+}
+
+export function mergeElevationVectorOpenings(
+  elevation: ElevationData | null,
+  vectorOpenings: readonly ElevationVectorOpening[],
+): ElevationData | null {
+  if (vectorOpenings.length === 0) return elevation;
+  const base: ElevationData = elevation ?? {
+    claddingTypes: [],
+    claddingTypeCode: null,
+    roofType: null,
+    roofPitchDegrees: null,
+    wallHeightMm: null,
+    studHeightMm: null,
+    facesPresent: [],
+    windowCountPerFace: {},
+    externalDoorCount: 0,
+    gableEndCount: 0,
+    garageDoorsPresent: false,
+    elevationOpenings: [],
+  };
+  const merged = [...(base.elevationOpenings ?? [])];
+  for (const candidate of vectorOpenings) {
+    if (merged.some((existing) => sameOpening(existing, candidate))) continue;
+    merged.push(candidate);
+  }
+  return {
+    ...base,
+    facesPresent:
+      base.facesPresent.length > 0
+        ? base.facesPresent
+        : Array.from(new Set(vectorOpenings.map((opening) => opening.face))),
+    garageDoorsPresent:
+      base.garageDoorsPresent || vectorOpenings.some((opening) => opening.type === "garage_door"),
+    elevationOpenings: merged,
+  };
 }

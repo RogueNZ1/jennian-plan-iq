@@ -64,6 +64,7 @@ import * as XLSX from "xlsx";
 import { normaliseRoomName, classifyGarageDoor } from "@/lib/takeoff/classify";
 import { round2 } from "@/lib/takeoff/utils";
 import { extractElevationsFn, type ElevationData } from "@/lib/takeoff/extract-elevations";
+import { mergeElevationVectorOpenings } from "@/lib/takeoff/elevation-vector-openings";
 import { extractSitePlanFn, type SitePlanData } from "@/lib/takeoff/extract-site-plan";
 import { crossReference, type CrossReferenceResult } from "@/lib/takeoff/cross-reference";
 
@@ -822,6 +823,25 @@ function UploadPage() {
         : planFile && elevationPage
           ? renderPageForAnalysis(planFile, elevationPage.pageNumber).catch(() => null)
           : Promise.resolve(null);
+      const elevVectorP = elevFile
+        ? elevFile.file
+            .arrayBuffer()
+            .then((data) =>
+              import("@/lib/takeoff/run-elevation-vector-openings").then((m) =>
+                m.runElevationVectorOpenings(data, 1),
+              ),
+            )
+            .catch(() => [])
+        : planFile && elevationPage
+          ? planFile
+              .arrayBuffer()
+              .then((data) =>
+                import("@/lib/takeoff/run-elevation-vector-openings").then((m) =>
+                  m.runElevationVectorOpenings(data, elevationPage.pageNumber),
+                ),
+              )
+              .catch(() => [])
+          : Promise.resolve([]);
       const siteBlobP = siteFile
         ? renderPageForAnalysis(siteFile.file, 1).catch(() => null)
         : planFile && sitePage
@@ -897,7 +917,7 @@ function UploadPage() {
       // Elevations feed both the later cross-reference panel and the pure compose seam's
       // strict malformed-label recovery. Extract before compose so export figures can benefit
       // from a confirmed elevation ledger instead of only displaying the warning afterwards.
-      const [elev, site] = await Promise.all([
+      const [elevRaw, site, elevVectorOpenings] = await Promise.all([
         elevBlob
           ? blobToBase64(elevBlob).then((eb64) =>
               extractElevationsFn({ data: { imageBase64: eb64, builderName } }).catch(() => null),
@@ -908,7 +928,9 @@ function UploadPage() {
               extractSitePlanFn({ data: { imageBase64: sb64 } }).catch(() => null),
             )
           : Promise.resolve(null),
+        elevVectorP,
       ]);
+      const elev = mergeElevationVectorOpenings(elevRaw, elevVectorOpenings);
 
       // Convergence Slice 1 — the shared, PURE plan→takeoff seam. Every impure input (the
       // vision takeoff, the geometry measurement + vector_annotations, the schedule) is
