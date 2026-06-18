@@ -48,11 +48,18 @@ export type PlanTitleAreas = Partial<{
 }>;
 
 export type PlanFrameOpening = { widthMm: number; x: number; y: number };
+export type PlanDraftingIssue = {
+  kind: "malformed_dimension_label";
+  text: string;
+  x: number;
+  y: number;
+};
 
 export type PlanText = {
   rooms: PlanRoom[];
   windowCodes: PlanWindowCode[];
   frameOpenings?: PlanFrameOpening[];
+  draftingIssues?: PlanDraftingIssue[];
   titleAreas: PlanTitleAreas;
 };
 
@@ -186,6 +193,20 @@ export function parseFrameOpenings(labels: TextLabel[]): PlanFrameOpening[] {
   return out;
 }
 
+export function parseDraftingIssues(labels: TextLabel[]): PlanDraftingIssue[] {
+  const out: PlanDraftingIssue[] = [];
+  for (const l of labels) {
+    const text = l.text.trim();
+    const compact = text.replace(/\s+/g, "");
+    if (!/[xX]/.test(compact)) continue;
+    const numbers = compact.match(/\d[\d,]{2,}/g) ?? [];
+    const hasJammedRightSide = /\d[\d,]{2,5}[xX]\d{6,}/.test(compact);
+    if (!hasJammedRightSide && numbers.length <= 2) continue;
+    out.push({ kind: "malformed_dimension_label", text, x: l.x, y: l.y });
+  }
+  return out;
+}
+
 export function parsePlanText(labels: TextLabel[]): PlanText {
   // Density guard (13 Jun 2026, prelim-set hang): a full working drawing can
   // carry tens of thousands of text labels (every dimension is one). The room
@@ -195,13 +216,14 @@ export function parsePlanText(labels: TextLabel[]): PlanText {
     console.warn(
       `[plan-text] ${labels.length} labels exceeds the density cap — plan-text pass skipped.`,
     );
-    return { rooms: [], windowCodes: [], frameOpenings: [], titleAreas: {} };
+    return { rooms: [], windowCodes: [], frameOpenings: [], draftingIssues: [], titleAreas: {} };
   }
   const rooms = parseRoomDims(labels);
   return {
     rooms,
     windowCodes: parseWindowCodes(labels, rooms),
     frameOpenings: parseFrameOpenings(labels),
+    draftingIssues: parseDraftingIssues(labels),
     titleAreas: parseTitleAreas(labels),
   };
 }

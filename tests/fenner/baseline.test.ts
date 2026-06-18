@@ -97,6 +97,13 @@ describe("Fenner wild-card benchmark", () => {
     expect(shortfall).toBeGreaterThan(20);
   }, 60_000);
 
+  it("detects the malformed drafting dimension label instead of treating it as pricing truth", async () => {
+    const pt = await extract(PLAN);
+    const issueText = (pt.draftingIssues ?? []).map((issue) => issue.text).join(" | ");
+
+    expect(issueText).toContain("1300x175036001300x1750");
+  }, 60_000);
+
   it.fails(
     "JEN-27/JEN-26 follow-on: recovers Haydon's priced opening area from deterministic extraction",
     async () => {

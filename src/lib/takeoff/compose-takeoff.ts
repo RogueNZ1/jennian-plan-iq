@@ -576,6 +576,10 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
         );
     }
   }
+  const planDraftingFlags = (planText?.draftingIssues ?? []).map(
+    (issue) =>
+      `Drafting issue: malformed dimension label "${issue.text}" found on the floor plan; do not price from that label unless another source confirms the opening size.`,
+  );
   const hasPrintedEnsuite =
     planText?.rooms.some((r) => /(^|[^A-Z])ENS(UITE)?($|[^A-Z])/.test(r.name.toUpperCase())) ??
     false;
@@ -843,6 +847,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
             ...windowChanges.map((c) => c.change),
             ...codeMismatch,
             ...bedNoWindow,
+            ...planDraftingFlags,
             ...visualReconciliationFlags(visualOpeningReconciliation, "windows_by_room"),
           ),
     ),
@@ -927,6 +932,14 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
                   frameOpenings: (doorEngine.planText.frameOpenings ?? []).map(({ widthMm }) => ({
                     widthMm,
                   })),
+                  draftingIssues: (doorEngine.planText.draftingIssues ?? []).map(
+                    ({ kind, text, x, y }) => ({
+                      kind,
+                      text,
+                      x,
+                      y,
+                    }),
+                  ),
                   titleAreas: Object.fromEntries(
                     Object.entries(doorEngine.planText.titleAreas).filter(([, v]) => v != null),
                   ) as Record<string, number>,

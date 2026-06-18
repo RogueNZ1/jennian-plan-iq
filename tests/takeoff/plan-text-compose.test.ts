@@ -36,6 +36,9 @@ const planText = {
     { heightMm: 1300, widthMm: 1800, x: 610, y: 540 }, // master ×1
     { heightMm: 1300, widthMm: 1800, x: 505, y: 90 }, // kitchen
   ],
+  draftingIssues: [
+    { kind: "malformed_dimension_label", text: "1300x175036001300x1750", x: 100, y: 200 },
+  ],
   titleAreas: { totalAreaM2: 139.4, claddingAreaM2: 46.7, perimeterM: 56.2 },
 };
 
@@ -133,7 +136,14 @@ describe("plan-text cross-checks at compose", () => {
     const e = compose(doorEngine).enriched;
     expect(e.plan_text?.rooms.find((r) => r.name === "GARAGE")?.areaM2).toBeCloseTo(23.8, 1);
     expect(e.plan_text?.windowCodes).toHaveLength(5);
+    expect(e.plan_text?.draftingIssues?.[0]?.text).toBe("1300x175036001300x1750");
     expect(e.plan_text?.titleAreas.claddingAreaM2).toBeCloseTo(46.7, 1);
+  });
+
+  it("malformed drafting labels are surfaced as review flags, not priced silently", () => {
+    const all = compose(doorEngine).enriched.windows_by_room.discrepancy_flags.join(" | ");
+    expect(all).toContain("Drafting issue");
+    expect(all).toContain("1300x175036001300x1750");
   });
 
   it("printed ENSUITE + missing vision count => ERROR flag on the ensuite count", () => {

@@ -138,6 +138,12 @@ export type EnrichedTakeoff = {
     rooms: Array<{ name: string; widthMm: number; depthMm: number; areaM2: number }>;
     windowCodes: Array<{ id?: string; heightMm: number; widthMm: number }>;
     frameOpenings?: Array<{ widthMm: number }>;
+    draftingIssues?: Array<{
+      kind: "malformed_dimension_label";
+      text: string;
+      x: number;
+      y: number;
+    }>;
     titleAreas: Record<string, number>;
   };
   door_page?: {
