@@ -1,6 +1,6 @@
 # Jennian IQ — Architecture
 
-_Last verified against the codebase 17 Jun 2026 (deploy target re-check). Every claim here was
+_Last verified against the codebase 18 Jun 2026 (measurement doctrine re-check). Every claim here was
 read from code, not memory. STATE.md is the session log; this is the map._
 
 ## What this system is
@@ -11,6 +11,31 @@ is, and what flags hang off it. The estimator verifies on paper (the verificatio
 printout), then pastes one block into the master QS spreadsheet ("IQ Import" tab). The
 governing doctrine, enforced in code and tests: **an unfilled cell beats a wrong cell** —
 the system never asserts what it cannot back.
+
+## Measurement doctrine
+
+Jennian IQ must model the way a human QS works. A drawing set is not one perfect
+source; it is a set of imperfect witnesses: floor-plan geometry, floor-plan text,
+elevations, schedules, specs, vision output, and workbook truth. One bad witness does
+not make the job bad. The engine must isolate the bad evidence, keep measuring from
+the good evidence, and show the local uncertainty.
+
+The floor plan is the backbone. It carries the layout, wall runs, rooms, openings,
+doors, garage/alfresco footprints, and internal partitions. Text is an accelerator
+when clean, not the authority when it is jammed, malformed, duplicated, or impossible.
+Elevations are powerful cross-checks and height/face-measure sources, but a wrong or
+missing elevation must not poison the whole job. Schedules and specs are explicit
+evidence, but still get sanity-checked against the drawing.
+
+Local failure is the product rule. Bad text must not delete a drawn opening. A wrong
+elevation must not stop the floor-plan takeoff. A missing schedule must not erase
+measurable geometry. Unsupported dimensions stay flagged or blank; supported local
+measurements continue.
+
+Architecture follows that QS method. If the current pipeline cannot measure what a
+human QS would measure, the correct fix is to extend or rebuild the measurement seam,
+not to accept the current seam as a product limit. Existing code is useful only where
+it serves the QS method.
 
 ## Topology
 
