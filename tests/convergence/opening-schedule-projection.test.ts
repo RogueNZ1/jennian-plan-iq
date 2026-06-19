@@ -91,6 +91,93 @@ describe("opening schedule projection", () => {
     expect(rows[0].confidence).toBe("mid");
   });
 
+  it("projects known blocked evidence candidates as review-only rows when priced openings are empty", () => {
+    const rows = buildOpeningScheduleProjectionRows({
+      jobId: "job-1",
+      createdBy: "user-1",
+      openings: [],
+      pricingBlocked: true,
+      openingEvidence: [
+        {
+          id: "quarantined-opening-1",
+          status: "review",
+          priced: false,
+          type: "slider",
+          room: "Lounge",
+          width_m: 3.6,
+          height_m: 2.1,
+          area_m2: 7.56,
+          evidence: [
+            {
+              source: "vision",
+              role: "dimension",
+              confidence: "medium",
+              width_m: 3.6,
+              height_m: 2.1,
+              room: "Lounge",
+              note: "visual candidate held for reconciliation",
+            },
+          ],
+          review_flags: ["Visual QS reconciliation blocked this candidate."],
+          conflicts: ["visual_reconciliation_error"],
+        },
+        {
+          id: "floorplan-gap-1",
+          status: "review",
+          priced: false,
+          type: "unknown",
+          room: "Lounge",
+          width_m: 4.98,
+          height_m: null,
+          area_m2: null,
+          evidence: [],
+          review_flags: ["height/type unknown"],
+          conflicts: [],
+        },
+      ],
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      opening_type: "slider",
+      room_name: "Lounge",
+      width_mm: 3600,
+      height_mm: 2100,
+      confidence: "low",
+      review_status: "review_required",
+    });
+    expect(rows[0].notes).toContain("REVIEW ONLY");
+    expect(rows[0].notes).toContain("visual_reconciliation_error");
+  });
+
+  it("does not project blocked evidence when canonical priced rows are available", () => {
+    const rows = buildOpeningScheduleProjectionRows({
+      jobId: "job-1",
+      createdBy: "user-1",
+      openings: [opening({ room: "Bed 1" })],
+      pricingBlocked: true,
+      openingEvidence: [
+        {
+          id: "quarantined-opening-1",
+          status: "review",
+          priced: false,
+          type: "slider",
+          room: "Lounge",
+          width_m: 3.6,
+          height_m: 2.1,
+          area_m2: 7.56,
+          evidence: [],
+          review_flags: [],
+          conflicts: ["visual_reconciliation_error"],
+        },
+      ],
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].room_name).toBe("Bed 1");
+    expect(rows[0].source_evidence).toContain("canonical opening");
+  });
+
   it("replaces only unconfirmed prior IQ projections before inserting current rows", async () => {
     const { client, calls } = mockClient();
 

@@ -66,6 +66,7 @@ import { promoteVisualOpenings } from "./visual-opening-promotion";
 import { buildOpeningEvidenceLedger } from "./opening-evidence";
 import { matchElevationToFloorPlanGaps } from "./elevation-gap-match";
 import { promoteFloorPlanGapOpenings } from "./floor-plan-gap-promotion";
+import { classifyGarageDoorAnnotation } from "./classify";
 import {
   adjudicateOpeningPricing,
   applyOpeningPricingBlock,
@@ -98,6 +99,58 @@ export type ComposeTakeoffInput = {
   /** Structured elevation opening ledger; used only for strict visual-recovery cases. */
   elevationData?: ElevationData | null;
 };
+
+function roundArea(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function elevationGarageDoorOpening(
+  elevationData: ElevationData | null | undefined,
+): Opening | null {
+  const candidates = (elevationData?.elevationOpenings ?? [])
+    .filter(
+      (opening) =>
+        opening.type === "garage_door" &&
+        opening.widthMm != null &&
+        opening.heightMm != null &&
+        opening.confidence !== "low",
+    )
+    .map((opening) => {
+      const classified = classifyGarageDoorAnnotation(`${opening.widthMm}x${opening.heightMm}`);
+      return classified ? { opening, classified } : null;
+    })
+    .filter(
+      (
+        item,
+      ): item is {
+        opening: NonNullable<ElevationData["elevationOpenings"]>[number] & {
+          widthMm: number;
+          heightMm: number;
+        };
+        classified: NonNullable<ReturnType<typeof classifyGarageDoorAnnotation>>;
+      } => item != null,
+    )
+    .sort((a, b) => b.opening.widthMm - a.opening.widthMm);
+  const best = candidates[0];
+  if (!best) return null;
+
+  const height_m = best.classified.heightMm / 1000;
+  const width_m = best.classified.widthMm / 1000;
+  return {
+    type: "sectional_door",
+    room: "Garage",
+    height_m,
+    width_m,
+    glazed: false,
+    cladding: null,
+    area_m2: roundArea(height_m * width_m),
+    source: "vector",
+    confidence: "medium",
+    flags: [
+      `Garage door recovered from ${best.opening.face} elevation vector candidate ${best.opening.widthMm}x${best.opening.heightMm}mm and snapped to QS size ${best.classified.label}.`,
+    ],
+  };
+}
 
 export type ComposeTakeoffResult = {
   /** The enriched takeoff — per-field value + source + confidence + discrepancy_flags. */
@@ -720,16 +773,23 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     !schedule?.windows?.length && (planText?.windowCodes.length ?? 0) > 0
       ? (planTextRecoveredOpenings ?? rawComposedOpenings)
       : null;
+  const elevationGarageDoor = elevationGarageDoorOpening(elevationData);
+  const selectedOpeningCandidates = visualPromotedOpenings
+    ? planTextPricedWindowBase
+      ? mergePlanTextAndVisualOpenings(planTextPricedWindowBase, visualPromotedOpenings)
+      : visualHasSectional
+        ? visualPromotedOpenings
+        : [...visualPromotedOpenings, ...rawSectionals]
+    : planTextRecoveredOpenings
+      ? planTextRecoveredOpenings
+      : rawComposedOpenings;
   const selectedOpenings = normaliseOpeningsForQs(
-    visualPromotedOpenings
-      ? planTextPricedWindowBase
-        ? mergePlanTextAndVisualOpenings(planTextPricedWindowBase, visualPromotedOpenings)
-        : visualHasSectional
-          ? visualPromotedOpenings
-          : [...visualPromotedOpenings, ...rawSectionals]
-      : planTextRecoveredOpenings
-        ? planTextRecoveredOpenings
-        : rawComposedOpenings,
+    elevationGarageDoor
+      ? [
+          ...selectedOpeningCandidates.filter((opening) => opening.type !== "sectional_door"),
+          elevationGarageDoor,
+        ]
+      : selectedOpeningCandidates,
   );
   const floorPlanGapPromotion = promoteFloorPlanGapOpenings({
     openings: selectedOpenings,
@@ -740,10 +800,13 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   const floorPlanGapPromotionFlags = [...floorPlanGapPromotion.promotedByGapId.values()].flatMap(
     (opening) => opening.flags ?? [],
   );
-  const composedGarageDoorSize = visualPromotion?.garageDoorSize ?? folded.garage_door_size;
+  const composedGarageDoorSize = elevationGarageDoor
+    ? `${elevationGarageDoor.width_m}Ã—${elevationGarageDoor.height_m}`
+    : (visualPromotion?.garageDoorSize ?? folded.garage_door_size);
   const garageDoorConfirmedFromSectionalCallout =
-    !visualPromotion && composedGarageDoorSize !== t.garage_door_size;
-  const garageDoorConfirmedFromVisual = !!visualPromotion?.garageDoorSize;
+    !visualPromotion && !elevationGarageDoor && composedGarageDoorSize !== t.garage_door_size;
+  const garageDoorConfirmedFromVisual = !!visualPromotion?.garageDoorSize && !elevationGarageDoor;
+  const garageDoorConfirmedFromElevation = !!elevationGarageDoor;
   const sanityOpeningPricing = adjudicateOpeningPricing(composedOpenings);
   const sanityPricedOpenings = normaliseOpeningsForQs(sanityOpeningPricing.pricedOpenings);
   const visualOpeningReconciliation = reconcileVisualOpenings({
@@ -757,7 +820,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   );
   const pricedComposedOpenings = normaliseOpeningsForQs(openingPricingAdjudication.pricedOpenings);
   const composedOpeningTotals = deriveOpeningTotals(pricedComposedOpenings);
-  const openingEvidence = buildOpeningEvidenceLedger({
+  let openingEvidence = buildOpeningEvidenceLedger({
     openings: pricedComposedOpenings,
     quarantinedOpenings: openingPricingAdjudication.quarantinedOpenings,
     planText,
@@ -765,6 +828,18 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     floorPlanGapElevationMatches,
     promotedFloorPlanGapOpenings: floorPlanGapPromotion.promotedByGapId,
   });
+  if (openingPricingAdjudication.pricingBlocked) {
+    openingEvidence = openingEvidence.map((candidate) => ({
+      ...candidate,
+      status: candidate.status === "priced" ? "review" : candidate.status,
+      priced: false,
+      conflicts: [...new Set([...candidate.conflicts, "visual_reconciliation_error"])],
+      review_flags:
+        candidate.priced || candidate.status === "priced"
+          ? [...candidate.review_flags, ...openingPricingAdjudication.flags]
+          : candidate.review_flags,
+    }));
+  }
   const visualWindowCount =
     visualPromotion && composedOpeningTotals.window_count != null
       ? composedOpeningTotals.window_count
@@ -910,20 +985,27 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       // Route 2 — the sectional callout reconciles the garage size (e.g. fixes a garbled vision
       // read); composedGarageDoorSize == t.garage_door_size when no sectional callout applied.
       composedGarageDoorSize,
-      garageDoorConfirmedFromSectionalCallout
+      garageDoorConfirmedFromElevation
         ? "vector"
-        : garageDoorConfirmedFromVisual
-          ? "vision"
-          : garageChanged
-            ? "vector"
-            : "vision",
-      garageDoorConfirmedFromSectionalCallout || garageDoorConfirmedFromVisual
+        : garageDoorConfirmedFromSectionalCallout
+          ? "vector"
+          : garageDoorConfirmedFromVisual
+            ? "vision"
+            : garageChanged
+              ? "vector"
+              : "vision",
+      garageDoorConfirmedFromElevation ||
+        garageDoorConfirmedFromSectionalCallout ||
+        garageDoorConfirmedFromVisual
         ? "high"
         : reconConf(reconStatusOf("garage_door_width")),
       flagsFor(
-        garageDoorConfirmedFromSectionalCallout || garageDoorConfirmedFromVisual
+        garageDoorConfirmedFromElevation ||
+          garageDoorConfirmedFromSectionalCallout ||
+          garageDoorConfirmedFromVisual
           ? null
           : reconFlag("garage_door_width"),
+        ...(elevationGarageDoor?.flags ?? []),
         ...visualReconciliationFlags(visualOpeningReconciliation, "garage_door_size"),
       ),
     ),

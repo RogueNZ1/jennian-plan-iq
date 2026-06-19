@@ -366,6 +366,15 @@ function VerificationPrintout() {
 
         {/* 2 · windows */}
         <Section title="2 · Windows & glazed openings">
+          {m.windows.pricingBlockFlags.length > 0 && (
+            <div className="vbanner vbanner-compact">
+              {m.windows.pricingBlockFlags.map((f) => (
+                <div key={f}>
+                  <strong>{f}</strong>
+                </div>
+              ))}
+            </div>
+          )}
           {m.windows.unplacedFlags.length > 0 && (
             <div className="vbanner vbanner-compact">
               {m.windows.unplacedFlags.map((f) => (
@@ -463,11 +472,28 @@ function VerificationPrintout() {
               <div className="vtotals">
                 <div>
                   <span>
-                    {m.windows.totals.qsGlazedOpeningCount != null ? "QS openings" : "Window count"}
+                    {m.windows.pricingBlocked
+                      ? "Pricing status"
+                      : m.windows.totals.qsGlazedOpeningCount != null
+                        ? "QS openings"
+                        : "Window count"}
                   </span>
                   {m.windows.totals.qsGlazedOpeningCount ?? m.windows.totals.windowCount ?? "—"}
                 </div>
-                {m.windows.totals.garageDoorCount != null && (
+                {m.windows.pricingBlocked &&
+                  m.windows.reviewOnlyTotals.qsGlazedOpeningCount != null && (
+                    <div>
+                      <span>Review-only Visual QS openings</span>
+                      {m.windows.reviewOnlyTotals.qsGlazedOpeningCount}
+                    </div>
+                  )}
+                {m.windows.pricingBlocked && m.windows.reviewOnlyTotals.garageDoorCount != null && (
+                  <div>
+                    <span>Review-only garage candidates</span>
+                    {m.windows.reviewOnlyTotals.garageDoorCount}
+                  </div>
+                )}
+                {!m.windows.pricingBlocked && m.windows.totals.garageDoorCount != null && (
                   <div>
                     <span>Garage doors</span>
                     {m.windows.totals.garageDoorCount}
@@ -566,7 +592,9 @@ function VerificationPrintout() {
           {m.planOverlay.visualOpenings.length > 0 && (
             <>
               <div className="vsrcline" style={{ marginTop: 8 }}>
-                Visual QS glazing/openings:{" "}
+                {m.windows.pricingBlocked
+                  ? "Visual QS raw candidates (review only, not priced): "
+                  : "Visual QS glazing/openings: "}
                 <strong>{m.planOverlay.visualSummary?.totalOpenings ?? "—"}</strong> total ·{" "}
                 <strong>{m.planOverlay.visualSummary?.qsGlazedOpenings ?? "—"}</strong> QS
                 glazed/opening items ·{" "}

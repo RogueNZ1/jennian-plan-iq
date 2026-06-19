@@ -279,6 +279,53 @@ describe("Slice 6 — export sheets: additive fallback + visible flags", () => {
     expect(buildQSDataInputSheet(withEvidence)).toEqual(buildQSDataInputSheet(withoutEvidence));
   });
 
+  it("VISIBLE: global opening pricing block demotes evidence rows in Review Notes", () => {
+    const blocked = applyEnrichedTakeoff(baseData(), {
+      ...enriched,
+      external_wall_area_m2: {
+        ...enriched.external_wall_area_m2,
+        value: null,
+        discrepancy_flags: [
+          "Opening pricing blocked: unresolved Visual QS reconciliation error. Visual QS found 17 QS-glazed external openings, but the composed opening set has 20. Reconcile before pricing.",
+        ],
+      },
+      opening_evidence: [
+        {
+          id: "floorplan-gap-1",
+          status: "priced",
+          priced: true,
+          type: "window",
+          room: "Pantry",
+          width_m: 2.75,
+          height_m: 1,
+          area_m2: 2.75,
+          evidence: [
+            {
+              source: "floorplan_gap",
+              role: "width",
+              confidence: "high",
+              width_m: 2.75,
+              room: "Pantry",
+              wall_face_id: "V-111",
+              note: "measured floor-plan gap",
+            },
+          ],
+          review_flags: ["Measured floor-plan wall gap promoted before global reconciliation."],
+          conflicts: ["visual_reconciliation_error"],
+        },
+      ],
+    });
+
+    expect(blocked.openingPricingBlocked).toBe(true);
+    const ws = buildReviewNotesSheet(blocked.reviewFlags);
+    expect(ws).not.toBeNull();
+    const text = allText(ws!);
+    expect(text).toContain("Opening evidence - floorplan-gap-1");
+    expect(text).toContain("Status: not priced; review");
+    expect(text).toContain("Conflicts: visual_reconciliation_error");
+    expect(text).not.toContain("Status: priced; priced");
+  });
+
   it("ENRICHED values reach the QS paste sheet (floor area = the geometry value, not the base)", () => {
     const enrichedSheet = buildQSDataInputSheet(applyEnrichedTakeoff(baseData(), enriched));
     // D12 = Floor Area — now the converged geometry value, overlaid from takeoff_json.

@@ -367,4 +367,94 @@ describe("composeTakeoff visual opening promotion", () => {
       ),
     ).toBe(true);
   });
+
+  it("prefers elevation vector garage-door evidence over a disagreeing visual garage size", () => {
+    const enriched = composeTakeoff({
+      visionTakeoff: {
+        ...baseVision,
+        windows_by_room: null,
+        window_count: null,
+        garage_door_size: "5.4Ã—2.4",
+      },
+      geometry: null,
+      schedule: null,
+      geometryPageIndex: undefined,
+      visualOpeningAudit: {
+        pageNumber: 1,
+        method: "visual_qs",
+        warnings: [],
+        summary: { totalOpenings: 1, qsGlazedOpenings: 0, garageDoors: 1, uncertain: 0 },
+        openings: [
+          {
+            id: "O18",
+            type: "garage_door",
+            room: "Garage",
+            label: "2400x5400",
+            height_m: 2.4,
+            width_m: 5.4,
+            x: 0.2,
+            y: 0.2,
+            confidence: "medium",
+            evidence: "visual garage read",
+            flags: [],
+          },
+        ],
+      },
+      elevationData: {
+        claddingTypes: [],
+        claddingTypeCode: null,
+        roofType: null,
+        roofPitchDegrees: null,
+        wallHeightMm: null,
+        studHeightMm: null,
+        facesPresent: ["North"],
+        windowCountPerFace: {},
+        externalDoorCount: 0,
+        gableEndCount: 0,
+        garageDoorsPresent: true,
+        elevationOpenings: [
+          {
+            face: "North",
+            type: "garage_door",
+            label: null,
+            widthMm: 4741,
+            heightMm: 2049,
+            quantity: 1,
+            cladding: null,
+            confidence: "medium",
+            notes: [],
+          },
+          {
+            face: "Rear",
+            type: "garage_door",
+            label: null,
+            widthMm: 4487,
+            heightMm: 2049,
+            quantity: 1,
+            cladding: null,
+            confidence: "medium",
+            notes: [],
+          },
+        ],
+      },
+    }).enriched;
+
+    expect(enriched.garage_door_size.value).toBe("4.8Ã—2.1");
+    expect(enriched.garage_door_size.source).toBe("vector");
+    expect(enriched.garage_door_size.discrepancy_flags.join(" ")).toContain(
+      "Garage door recovered from North elevation vector candidate 4741x2049mm",
+    );
+    expect(enriched.openings).toEqual([]);
+    const garageEvidence = enriched.opening_evidence?.find(
+      (candidate) => candidate.type === "sectional_door",
+    );
+    expect(garageEvidence).toMatchObject({
+      priced: false,
+      status: "review",
+      room: "Garage",
+      width_m: 4.8,
+      height_m: 2.1,
+      area_m2: 10.08,
+    });
+  });
 });

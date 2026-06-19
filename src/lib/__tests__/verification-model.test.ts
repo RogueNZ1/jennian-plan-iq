@@ -298,6 +298,71 @@ describe("buildVerificationModel", () => {
     expect(m.windows.totals.garageDoorCount).toBe(1);
   });
 
+  it("windows: blocked opening pricing is loud and suppresses fallback/visual totals", () => {
+    const m = buildVerificationModel(
+      makeData({
+        openingPricingBlocked: true,
+        openings: [],
+        garageDoor48x21Insulated: 0,
+        windowsByRoom: {
+          lounge: { cladding: "Linea", qty: 2, height: 2100, width: 2400 },
+        },
+      }),
+      makeEnriched({
+        garage_door_size: fv("5.4 Ã— 2.4", "vision", "low"),
+        external_wall_area_m2: fv<number>(null, "derived", null, [
+          "Opening pricing blocked: unresolved Visual QS reconciliation error. Visual QS found 17 QS-glazed external openings, but the composed opening set has 20. Reconcile before pricing.",
+        ]),
+        total_opening_sqm: null,
+        glazed_sqm: null,
+        visual_opening_audit: {
+          pageNumber: 1,
+          method: "visual_qs",
+          summary: { totalOpenings: 18, qsGlazedOpenings: 17, garageDoors: 1, uncertain: 1 },
+          warnings: [],
+          openings: [],
+        },
+        visual_opening_reconciliation: {
+          method: "visual_qs_reconciliation",
+          status: "review",
+          summary: {
+            visualQsGlazedOpenings: 17,
+            composedGlazedOpenings: 20,
+            visualGarageDoors: 1,
+            composedGarageDoorSize: "5.4x2.4",
+          },
+          issues: [
+            {
+              severity: "error",
+              field: "windows_by_room",
+              message:
+                "Visual QS found 17 QS-glazed external openings, but the composed opening set has 20. Reconcile before pricing.",
+              visual: "17",
+              composed: "20",
+              openingIds: ["O1"],
+            },
+          ],
+        },
+      }),
+      RUN,
+    );
+
+    expect(m.windows.pricingBlocked).toBe(true);
+    expect(m.windows.pricingBlockFlags.join(" ")).toContain("OPENING PRICING BLOCKED");
+    expect(m.windows.pricingBlockFlags.join(" ")).toContain("do not price windows");
+    expect(m.windows.byRoom).toEqual([]);
+    expect(m.windows.totals.qsGlazedOpeningCount).toBeNull();
+    expect(m.windows.totals.garageDoorCount).toBeNull();
+    expect(m.windows.totals.totalOpeningSqm).toBeNull();
+    expect(m.windows.reviewOnlyTotals).toMatchObject({
+      visualOpeningCount: 18,
+      qsGlazedOpeningCount: 17,
+      garageDoorCount: 1,
+    });
+    expect(m.doors.garageDoorSize).toBe("Blocked - verify manually");
+    expect(m.doors.garageDoorFlags.join(" ")).toContain("review-only until reconciled");
+  });
+
   it("windows: canonical rows keep visual O labels when a garage-door exception is excluded", () => {
     const m = buildVerificationModel(
       makeData({

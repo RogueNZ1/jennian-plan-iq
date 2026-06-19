@@ -389,7 +389,10 @@ function fmtOpeningEvidenceMetres(value: number | null | undefined): string | nu
   return value == null ? null : `${Math.round(value * 1000)}mm`;
 }
 
-function openingEvidenceFlags(enriched: EnrichedTakeoff): NonNullable<QSExportData["reviewFlags"]> {
+function openingEvidenceFlags(
+  enriched: EnrichedTakeoff,
+  openingPricingBlocked: boolean,
+): NonNullable<QSExportData["reviewFlags"]> {
   return (enriched.opening_evidence ?? [])
     .filter(
       (candidate) =>
@@ -399,9 +402,12 @@ function openingEvidenceFlags(enriched: EnrichedTakeoff): NonNullable<QSExportDa
         candidate.conflicts.length > 0,
     )
     .map((candidate) => {
+      const priced = openingPricingBlocked ? false : candidate.priced;
+      const status =
+        openingPricingBlocked && candidate.status === "priced" ? "review" : candidate.status;
       const bits = [
-        candidate.priced ? "priced" : "not priced",
-        candidate.status,
+        priced ? "priced" : "not priced",
+        status,
         candidate.type ? `type ${candidate.type}` : null,
         candidate.room ? `near ${candidate.room}` : null,
         fmtOpeningEvidenceMetres(candidate.width_m)
@@ -469,6 +475,7 @@ export function applyEnrichedTakeoff(
   const perimeter = enriched.external_wall_lm.value;
   const studM = enriched.ceiling_height_m.value;
   const enrichedOpenings = enriched.openings ?? null;
+  const openingPricingBlocked = hasOpeningPricingBlock(enriched);
   return {
     ...base,
     floorAreaM2: enriched.floor_area_m2.value ?? base.floorAreaM2,
@@ -481,12 +488,15 @@ export function applyEnrichedTakeoff(
     alfrescoAreaM2: enriched.alfresco_area_m2.value ?? base.alfrescoAreaM2,
     studHeightMm: studM != null ? Math.round(studM * 1000) : base.studHeightMm,
     exteriorWallHeightM: studM ?? base.exteriorWallHeightM,
-    reviewFlags: [...fieldFlags(enriched), ...openingEvidenceFlags(enriched)],
+    reviewFlags: [
+      ...fieldFlags(enriched),
+      ...openingEvidenceFlags(enriched, openingPricingBlocked),
+    ],
     takeoffSource: "enriched",
     // Stage 2a — thread the flat opening list through. Present only on the enriched path;
     // the relational fallback above leaves it undefined.
     openings: enrichedOpenings,
-    openingPricingBlocked: hasOpeningPricingBlock(enriched),
+    openingPricingBlocked,
     // Interior doors — precedence: HISTORICAL confirmed manual counts (legacy jobs) >
     // deterministic door engine > module-item labels > opening-schedule fallback (the
     // latter two are already in base). The engine's counts NEVER include flagged hits.
@@ -1644,7 +1654,7 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   // Hard sanity flag: a dwelling with zero windows is physically impossible. Fires only
   // when extraction actually ran (openings array present, or callouts populated).
   const extractionRan = data.openings != null || Object.keys(data.windowsByRoom).length > 0;
-  if (trueWindowTotal === 0 && extractionRan) {
+  if (trueWindowTotal === 0 && extractionRan && !data.openingPricingBlocked) {
     manual.unshift(
       `⚑⚑ ZERO WINDOWS EXTRACTED — physically impossible for a dwelling. Extraction failed on this plan; DO NOT price windows or cladding from this export.`,
     );

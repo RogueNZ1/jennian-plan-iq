@@ -200,4 +200,10 @@ describe("zero-window hard sanity flag", () => {
     const ws = buildDropInSheet(base({ openings: null, windowsByRoom: {} }));
     expect(manualText(ws)).not.toMatch(/ZERO WINDOWS EXTRACTED/);
   });
+
+  it("does NOT fire when opening pricing is deliberately blocked", () => {
+    const ws = buildDropInSheet(base({ openings: [], openingPricingBlocked: true }));
+    expect(manualText(ws)).toMatch(/OPENING PRICING BLOCKED/);
+    expect(manualText(ws)).not.toMatch(/ZERO WINDOWS EXTRACTED/);
+  });
 });

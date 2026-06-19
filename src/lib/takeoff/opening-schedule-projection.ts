@@ -1,4 +1,5 @@
 import type { Opening, OpeningType } from "./takeoff-types";
+import type { OpeningEvidenceCandidate } from "./opening-evidence";
 
 type OpeningScheduleInsert = {
   job_id: string;
@@ -64,6 +65,11 @@ function openingTypeForSchedule(type: OpeningType): string {
   }
 }
 
+function evidenceTypeForSchedule(type: OpeningEvidenceCandidate["type"]): string | null {
+  if (!type || type === "unknown") return null;
+  return openingTypeForSchedule(type);
+}
+
 function confidenceForSchedule(confidence: Opening["confidence"]): string {
   return confidence === "medium" ? "mid" : confidence;
 }
@@ -100,10 +106,65 @@ export function buildOpeningScheduleProjectionRows(args: {
   jobId: string;
   createdBy: string;
   openings: readonly Opening[] | null | undefined;
+  openingEvidence?: readonly OpeningEvidenceCandidate[] | null | undefined;
+  pricingBlocked?: boolean;
 }): OpeningScheduleInsert[] {
-  return (args.openings ?? [])
+  const openingRows = (args.openings ?? [])
     .map((opening) => openingToScheduleInsert({ ...args, opening }))
     .filter((row): row is OpeningScheduleInsert => row != null);
+  if (openingRows.length > 0 || !args.pricingBlocked) return openingRows;
+
+  return (args.openingEvidence ?? [])
+    .map((candidate) => evidenceCandidateToScheduleInsert({ ...args, candidate }))
+    .filter((row): row is OpeningScheduleInsert => row != null);
+}
+
+function evidenceCandidateToScheduleInsert(args: {
+  jobId: string;
+  createdBy: string;
+  candidate: OpeningEvidenceCandidate;
+}): OpeningScheduleInsert | null {
+  const type = evidenceTypeForSchedule(args.candidate.type);
+  if (!type) return null;
+  const widthMm = Math.round((args.candidate.width_m ?? 0) * 1000);
+  const heightMm = Math.round((args.candidate.height_m ?? 0) * 1000);
+  if (!Number.isFinite(widthMm) || widthMm <= 0) return null;
+  if (!Number.isFinite(heightMm) || heightMm <= 0) return null;
+  const evidence = args.candidate.evidence
+    .map((item) => item.note ?? `${item.source} ${item.role}`)
+    .filter((note) => note.trim() !== "")
+    .slice(0, 2)
+    .join(" | ");
+  const status = args.candidate.priced ? "priced before global block" : "not priced";
+  const conflicts = args.candidate.conflicts.length
+    ? `Conflicts: ${args.candidate.conflicts.join(", ")}`
+    : null;
+  const notes = [
+    "REVIEW ONLY - opening pricing blocked; do not price from this row until reconciled.",
+    `Candidate ${args.candidate.id}: ${status}.`,
+    ...args.candidate.review_flags,
+    evidence,
+    conflicts,
+  ]
+    .filter((line): line is string => !!line && line.trim() !== "")
+    .join(" | ");
+
+  return {
+    job_id: args.jobId,
+    file_id: null,
+    plan_page_number: 1,
+    opening_type: type,
+    width_mm: widthMm,
+    height_mm: heightMm,
+    room_name: args.candidate.room ?? null,
+    quantity: 1,
+    source: IQ_TAKEOFF_OPENING_SOURCE,
+    source_evidence: `review-only blocked opening candidate (${args.candidate.id})`,
+    confidence: "low",
+    review_status: "review_required",
+    notes,
+    created_by: args.createdBy,
+  };
 }
 
 export async function projectEnrichedOpeningsToSchedule(
@@ -112,6 +173,8 @@ export async function projectEnrichedOpeningsToSchedule(
     jobId: string;
     createdBy: string;
     openings: readonly Opening[] | null | undefined;
+    openingEvidence?: readonly OpeningEvidenceCandidate[] | null | undefined;
+    pricingBlocked?: boolean;
   },
 ): Promise<OpeningScheduleProjectionResult> {
   const rows = buildOpeningScheduleProjectionRows(args);

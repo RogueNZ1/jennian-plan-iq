@@ -123,12 +123,19 @@ export type VerificationModel = {
     byRoom: RoomWindowRow[];
     schedule: ScheduleRow[];
     qsRows: CountRow[]; // the joinery rows exactly as exported
+    pricingBlocked: boolean;
+    pricingBlockFlags: string[];
     totals: {
       windowCount: number | null;
       qsGlazedOpeningCount: number | null;
       garageDoorCount: number | null;
       glazedSqm: number | null;
       totalOpeningSqm: number | null;
+    };
+    reviewOnlyTotals: {
+      visualOpeningCount: number | null;
+      qsGlazedOpeningCount: number | null;
+      garageDoorCount: number | null;
     };
     unplacedFlags: string[]; // ⚑ UNPLACED entries pulled from window-field flags
   };
@@ -199,6 +206,22 @@ function fmtNum(v: number | null | undefined, dp = 2): string {
 
 function fmtStr(v: string | null | undefined): string {
   return v && v.trim() !== "" ? v : "—";
+}
+
+function openingPricingBlockFlags(data: QSExportData, e: EnrichedTakeoff | null): string[] {
+  const flags: string[] = [];
+  if (data.openingPricingBlocked) {
+    flags.push(
+      "OPENING PRICING BLOCKED - unresolved opening reconciliation; do not price windows, openings, garage doors, or cladding from this printout.",
+    );
+  }
+  for (const flag of e?.external_wall_area_m2.discrepancy_flags ?? []) {
+    if (flag.startsWith("Opening pricing blocked:")) flags.push(flag);
+  }
+  for (const issue of e?.visual_opening_reconciliation?.issues ?? []) {
+    if (issue.severity === "error") flags.push(`Visual QS reconciliation: ${issue.message}`);
+  }
+  return [...new Set(flags)];
 }
 
 function prov(f: FieldValue<unknown> | undefined | null): {
@@ -412,6 +435,9 @@ export function buildVerificationModel(
   const visualOpenings = buildVisualOpeningMarkers(e?.visual_opening_audit?.openings ?? null);
   const canonicalOpenings = (data.openings ?? []).filter((o) => o.glazed);
   const garageDoorOpenings = (data.openings ?? []).filter((o) => o.type === "sectional_door");
+  const pricingBlockFlags = openingPricingBlockFlags(data, e);
+  const openingPricingBlocked = pricingBlockFlags.length > 0;
+  const visualSummary = e?.visual_opening_audit?.summary ?? null;
   const usedVisualOpeningIds = new Set<string>();
   const openingRows: OpeningVerificationRow[] = canonicalOpenings.map((o, index) => {
     const exactVisual = visualOpenings.find(
@@ -490,6 +516,8 @@ export function buildVerificationModel(
     { label: "2.4 × 2.1 standard", qty: data.garageDoor24x21Std },
     { label: "2.4 × 2.1 insulated", qty: data.garageDoor24x21Insulated },
   ].filter((r) => r.qty > 0);
+  const exportedGarageDoorCount =
+    garage.reduce((sum, row) => sum + row.qty, 0) + garageDoorOpenings.length;
 
   const hardware: CountRow[] = [
     { label: "Ceiling hatch", qty: data.ceilingHatch },
@@ -507,10 +535,17 @@ export function buildVerificationModel(
       : "⚑ NO SOURCE — counts are unbacked zeros, do not price",
     visionHint: data.intDoorVisionHint ?? null,
     garage,
-    garageDoorSize: fmtStr(e?.garage_door_size?.value ?? null),
+    garageDoorSize:
+      openingPricingBlocked && exportedGarageDoorCount === 0
+        ? "Blocked - verify manually"
+        : fmtStr(e?.garage_door_size?.value ?? null),
     garageDoorFlags: visualReconciliationFlags(
       e?.visual_opening_reconciliation,
       "garage_door_size",
+    ).concat(
+      openingPricingBlocked && exportedGarageDoorCount === 0
+        ? ["Opening pricing is blocked; garage door size is review-only until reconciled."]
+        : [],
     ),
     hardware,
   };
@@ -637,21 +672,32 @@ export function buildVerificationModel(
     measures,
     windows: {
       openings: openingRows,
-      byRoom,
+      byRoom: openingPricingBlocked ? [] : byRoom,
       schedule,
       qsRows,
+      pricingBlocked: openingPricingBlocked,
+      pricingBlockFlags,
       totals: {
         windowCount: e?.window_count?.value ?? null,
-        qsGlazedOpeningCount:
-          canonicalOpenings.length > 0
+        qsGlazedOpeningCount: openingPricingBlocked
+          ? null
+          : canonicalOpenings.length > 0
             ? canonicalOpenings.length
-            : (e?.visual_opening_audit?.summary?.qsGlazedOpenings ?? null),
-        garageDoorCount:
-          garageDoorOpenings.length > 0
+            : (visualSummary?.qsGlazedOpenings ?? null),
+        garageDoorCount: openingPricingBlocked
+          ? null
+          : garageDoorOpenings.length > 0
             ? garageDoorOpenings.length
-            : (e?.visual_opening_audit?.summary?.garageDoors ?? null),
-        glazedSqm: e?.glazed_sqm ?? null,
-        totalOpeningSqm: e?.total_opening_sqm ?? null,
+            : (visualSummary?.garageDoors ?? null),
+        glazedSqm: openingPricingBlocked ? null : (e?.glazed_sqm ?? null),
+        totalOpeningSqm: openingPricingBlocked ? null : (e?.total_opening_sqm ?? null),
+      },
+      reviewOnlyTotals: {
+        visualOpeningCount: openingPricingBlocked ? (visualSummary?.totalOpenings ?? null) : null,
+        qsGlazedOpeningCount: openingPricingBlocked
+          ? (visualSummary?.qsGlazedOpenings ?? null)
+          : null,
+        garageDoorCount: openingPricingBlocked ? (visualSummary?.garageDoors ?? null) : null,
       },
       unplacedFlags,
     },

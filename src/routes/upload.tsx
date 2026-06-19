@@ -528,6 +528,14 @@ function UploadPage() {
           jobId: job.id,
           createdBy: user.id,
           openings: enriched.openings,
+          openingEvidence: enriched.opening_evidence,
+          pricingBlocked:
+            enriched.external_wall_area_m2.discrepancy_flags.some((flag) =>
+              flag.startsWith("Opening pricing blocked:"),
+            ) ||
+            (enriched.opening_evidence ?? []).some((candidate) =>
+              candidate.conflicts.includes("visual_reconciliation_error"),
+            ),
         });
         if (!openingProjectionResult.written) {
           console.warn(
