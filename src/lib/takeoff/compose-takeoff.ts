@@ -66,6 +66,11 @@ import { promoteVisualOpenings } from "./visual-opening-promotion";
 import { buildOpeningEvidenceLedger } from "./opening-evidence";
 import { matchElevationToFloorPlanGaps } from "./elevation-gap-match";
 import { promoteFloorPlanGapOpenings } from "./floor-plan-gap-promotion";
+import {
+  adjudicateOpeningPricing,
+  applyOpeningPricingBlock,
+  pricingBlockFromVisualReconciliation,
+} from "./opening-pricing-adjudication";
 
 export type ComposeTakeoffInput = {
   /** The vision-extracted takeoff (already returned by extractConceptTakeoffs). */
@@ -739,9 +744,22 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   const garageDoorConfirmedFromSectionalCallout =
     !visualPromotion && composedGarageDoorSize !== t.garage_door_size;
   const garageDoorConfirmedFromVisual = !!visualPromotion?.garageDoorSize;
-  const composedOpeningTotals = deriveOpeningTotals(composedOpenings);
+  const sanityOpeningPricing = adjudicateOpeningPricing(composedOpenings);
+  const sanityPricedOpenings = normaliseOpeningsForQs(sanityOpeningPricing.pricedOpenings);
+  const visualOpeningReconciliation = reconcileVisualOpenings({
+    audit: recoveredVisualOpeningAudit,
+    openings: sanityPricedOpenings,
+    garageDoorSize: composedGarageDoorSize,
+  });
+  const openingPricingAdjudication = applyOpeningPricingBlock(
+    sanityOpeningPricing,
+    pricingBlockFromVisualReconciliation(visualOpeningReconciliation),
+  );
+  const pricedComposedOpenings = normaliseOpeningsForQs(openingPricingAdjudication.pricedOpenings);
+  const composedOpeningTotals = deriveOpeningTotals(pricedComposedOpenings);
   const openingEvidence = buildOpeningEvidenceLedger({
-    openings: composedOpenings,
+    openings: pricedComposedOpenings,
+    quarantinedOpenings: openingPricingAdjudication.quarantinedOpenings,
     planText,
     floorPlanGaps: doorEngine?.floorPlanGaps,
     floorPlanGapElevationMatches,
@@ -756,19 +774,19 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   // entry fold above — so external_wall_area_m2 and glazed_sqm move together by the same
   // amount. A strict no-op otherwise (composedOpenings === baseOpenings → same reference), so
   // jobs with neither fold keep their existing ext-wall value untouched.
-  const composedExtWallAreaM2 =
-    composedOpenings !== baseOpenings && composedOpeningTotals.total_opening_sqm != null
+  const composedExtWallAreaM2 = openingPricingAdjudication.pricingBlocked
+    ? null
+    : composedOpenings !== baseOpenings && composedOpeningTotals.total_opening_sqm != null
       ? computeExternalWallAreaM2(
           t.external_wall_lm,
           t.ceiling_height_m,
           composedOpeningTotals.total_opening_sqm,
         )
       : t.external_wall_area_m2;
-  const visualOpeningReconciliation = reconcileVisualOpenings({
-    audit: recoveredVisualOpeningAudit,
-    openings: composedOpenings,
-    garageDoorSize: composedGarageDoorSize,
-  });
+  const extWallAreaFlags = [
+    ...extWallFlags,
+    ...(openingPricingAdjudication.pricingBlocked ? openingPricingAdjudication.flags : []),
+  ];
   const reconFlag = (field: string): string | null =>
     reconciliation.fields.find((f) => f.field === field)?.flag ?? null;
   const reconStatusOf = (field: string): FieldReconciliation["status"] | undefined =>
@@ -870,6 +888,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       visualPromotion
         ? flagsFor(
             ...visualPromotion.flags,
+            ...openingPricingAdjudication.flags,
             ...visualReconciliationFlags(visualOpeningReconciliation, "windows_by_room"),
           )
         : flagsFor(
@@ -881,6 +900,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
             ...bedNoWindow,
             ...planDraftingFlags,
             ...floorPlanGapPromotionFlags,
+            ...openingPricingAdjudication.flags,
             ...visualReconciliationFlags(visualOpeningReconciliation, "windows_by_room"),
           ),
     ),
@@ -907,12 +927,12 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
         ...visualReconciliationFlags(visualOpeningReconciliation, "garage_door_size"),
       ),
     ),
-    external_wall_area_m2: fv(composedExtWallAreaM2, "derived", null, extWallFlags),
+    external_wall_area_m2: fv(composedExtWallAreaM2, "derived", null, extWallAreaFlags),
     total_area_m2: fv(t.total_area_m2, "derived"),
     // Global, backward-compatible view: identical to the bare TakeoffData.notes string.
     notes: t.notes,
     // Stage 2a — flat opening list + glazed-split totals (additive passthrough).
-    openings: composedOpenings,
+    openings: pricedComposedOpenings,
     opening_evidence: openingEvidence,
     total_opening_sqm: composedOpeningTotals.total_opening_sqm,
     glazed_sqm: composedOpeningTotals.glazed_sqm,

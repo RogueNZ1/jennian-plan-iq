@@ -211,6 +211,8 @@ export type QSExportData = {
    * fallback. Optional so existing QSExportData literals + the .xlsx output are unaffected.
    */
   openings?: Opening[] | null;
+  /** True when the enriched opening engine ran but deliberately blocked pricing/export totals. */
+  openingPricingBlocked?: boolean;
 };
 
 export type ElectricalItem = {
@@ -441,6 +443,17 @@ function openingEvidenceFlags(enriched: EnrichedTakeoff): NonNullable<QSExportDa
     .filter((entry) => entry.flags.length > 0);
 }
 
+function hasOpeningPricingBlock(enriched: EnrichedTakeoff): boolean {
+  return (
+    (enriched.opening_evidence ?? []).some((candidate) =>
+      candidate.conflicts.includes("visual_reconciliation_error"),
+    ) ||
+    enriched.external_wall_area_m2.discrepancy_flags.some((flag) =>
+      flag.startsWith("Opening pricing blocked:"),
+    )
+  );
+}
+
 /**
  * Overlay the enriched takeoff onto a relational QSExportData base. When `enriched` is null
  * (every pre-convergence job) the base is returned UNCHANGED apart from a source tag — the
@@ -455,6 +468,7 @@ export function applyEnrichedTakeoff(
   if (!enriched) return { ...base, takeoffSource: "relational" };
   const perimeter = enriched.external_wall_lm.value;
   const studM = enriched.ceiling_height_m.value;
+  const enrichedOpenings = enriched.openings ?? null;
   return {
     ...base,
     floorAreaM2: enriched.floor_area_m2.value ?? base.floorAreaM2,
@@ -471,7 +485,8 @@ export function applyEnrichedTakeoff(
     takeoffSource: "enriched",
     // Stage 2a — thread the flat opening list through. Present only on the enriched path;
     // the relational fallback above leaves it undefined.
-    openings: enriched.openings ?? null,
+    openings: enrichedOpenings,
+    openingPricingBlocked: hasOpeningPricingBlock(enriched),
     // Interior doors — precedence: HISTORICAL confirmed manual counts (legacy jobs) >
     // deterministic door engine > module-item labels > opening-schedule fallback (the
     // latter two are already in base). The engine's counts NEVER include flagged hits.
@@ -491,9 +506,7 @@ export function applyEnrichedTakeoff(
     // touched here — it stays vector-sourced (enriched.window_count) until the Harrison
     // re-typing lands.
     windowsByRoom:
-      enriched.openings && enriched.openings.length > 0
-        ? openingsToWindowsByRoom(enriched.openings)
-        : base.windowsByRoom,
+      enrichedOpenings != null ? openingsToWindowsByRoom(enrichedOpenings) : base.windowsByRoom,
   };
 }
 
@@ -1454,7 +1467,13 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     );
   }
 
-  if (data.openings && data.openings.length > 0) {
+  if (data.openingPricingBlocked) {
+    manual.unshift(
+      "OPENING PRICING BLOCKED - unresolved opening reconciliation; do not price windows or cladding from this export until Review Notes are resolved.",
+    );
+  }
+
+  if (data.openings != null) {
     for (const o of data.openings) {
       if (o.type === "sectional_door") {
         sectionalDoors.push(o);
@@ -1594,7 +1613,7 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     .reduce((s, [, gs]) => s + (gs[0]?.qty ?? 0), 0);
   const unplacedWindowTotal = unplaced.reduce((s, u) => s + u.qty, 0);
   const trueWindowTotal =
-    data.openings && data.openings.length > 0
+    data.openings != null
       ? data.openings.filter((o) => o.glazed).length
       : slotWindowTotal + unplacedWindowTotal;
   const manualOrOverflowWindowTotal = Math.max(
@@ -1624,7 +1643,7 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   }
   // Hard sanity flag: a dwelling with zero windows is physically impossible. Fires only
   // when extraction actually ran (openings array present, or callouts populated).
-  const extractionRan = data.openings !== null || Object.keys(data.windowsByRoom).length > 0;
+  const extractionRan = data.openings != null || Object.keys(data.windowsByRoom).length > 0;
   if (trueWindowTotal === 0 && extractionRan) {
     manual.unshift(
       `⚑⚑ ZERO WINDOWS EXTRACTED — physically impossible for a dwelling. Extraction failed on this plan; DO NOT price windows or cladding from this export.`,
@@ -1669,28 +1688,38 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     adapterFlags.push(
       `gable span ${data.gableSpanM}m = plan envelope short side — verify for non-rectangular plans`,
     );
-  const clad = computeCladding({
-    perimeterLm: data.perimeterLm,
-    studHeightM: data.studHeightMm != null ? data.studHeightMm / 1000 : null,
-    roofPitchDeg: data.elevationSummary?.roofPitchDegrees ?? null,
-    gableEndCount: gables ?? 0,
-    gableSpanM: data.gableSpanM,
-    openings: (data.openings ?? []).map((o) => ({ height_m: o.height_m, width_m: o.width_m })),
-    claddingTypes: [data.claddingType1, data.claddingType2].filter((t): t is string => !!t),
-  });
+  const clad = data.openingPricingBlocked
+    ? null
+    : computeCladding({
+        perimeterLm: data.perimeterLm,
+        studHeightM: data.studHeightMm != null ? data.studHeightMm / 1000 : null,
+        roofPitchDeg: data.elevationSummary?.roofPitchDegrees ?? null,
+        gableEndCount: gables ?? 0,
+        gableSpanM: data.gableSpanM,
+        openings: (data.openings ?? []).map((o) => ({ height_m: o.height_m, width_m: o.width_m })),
+        claddingTypes: [data.claddingType1, data.claddingType2].filter((t): t is string => !!t),
+      });
   const cladStart = 49 + manualRows;
   put(`A${cladStart}`, "CLADDING (ENGINE) — provable terms; flags need a human:");
   const fmt = (n: number | null) => (n == null ? "NOT COMPUTED" : `${n} m²`);
-  put(`A${cladStart + 1}`, `• Wall (perimeter × stud): ${fmt(clad.wallRectAreaM2)}`);
-  put(`A${cladStart + 2}`, `• Gables: ${fmt(clad.gableAreaM2)}`);
-  put(`A${cladStart + 3}`, `• Less openings: ${clad.glazingDeductionM2} m²`);
-  put(`A${cladStart + 4}`, `• NET CLADDING: ${fmt(clad.netCladdingAreaM2)}`);
+  put(`A${cladStart + 1}`, `• Wall (perimeter × stud): ${fmt(clad?.wallRectAreaM2 ?? null)}`);
+  put(`A${cladStart + 2}`, `• Gables: ${fmt(clad?.gableAreaM2 ?? null)}`);
+  put(
+    `A${cladStart + 3}`,
+    data.openingPricingBlocked
+      ? "• Less openings: NOT COMPUTED - opening pricing blocked"
+      : `• Less openings: ${clad?.glazingDeductionM2 ?? 0} m²`,
+  );
+  put(`A${cladStart + 4}`, `• NET CLADDING: ${fmt(clad?.netCladdingAreaM2 ?? null)}`);
   let cr = cladStart + 5;
-  for (const pc of clad.perCladding) {
+  for (const pc of clad?.perCladding ?? []) {
     put(`A${cr}`, `   – ${pc.type}: ${fmt(pc.areaM2)}`);
     cr++;
   }
-  for (const f of [...adapterFlags, ...clad.flags]) {
+  const claddingFlags = data.openingPricingBlocked
+    ? ["opening pricing blocked - resolve opening review before calculating cladding"]
+    : (clad?.flags ?? []);
+  for (const f of [...adapterFlags, ...claddingFlags]) {
     put(`A${cr}`, `⚑ ${f}`);
     cr++;
   }
@@ -1801,7 +1830,7 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
   // absent) → old per-room slot block, unchanged — exact fallback for legacy/null jobs.
   lbl("A38", "③ WINDOWS & OPENINGS", sectionStyle);
 
-  if (data.openings && data.openings.length > 0) {
+  if (data.openings != null) {
     // ── FLAT PER-OPENING BLOCK (enriched path) ────────────────────────────────────────
     // Column headers: Type | Room | H (m) | W (m) | Area (m²) | Glazed | Cladding/Notes
     lbl("A39", "Type", labelStyle);
@@ -1825,6 +1854,14 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
       ws[`E${r}`] = { v: o.area_m2, t: "n", s };
       ws[`F${r}`] = { v: o.glazed ? "Y" : "N", t: "s", s };
       ws[`G${r}`] = { v: o.cladding ?? o.flags?.join("; ") ?? "", t: "s", s };
+      r++;
+    }
+    if (data.openings.length === 0 && data.openingPricingBlocked) {
+      lbl(
+        `A${r}`,
+        "OPENING PRICING BLOCKED - see Review Notes before pricing windows, openings, or cladding.",
+        instructionStyle,
+      );
       r++;
     }
 

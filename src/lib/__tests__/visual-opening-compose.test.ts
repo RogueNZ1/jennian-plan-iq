@@ -251,4 +251,120 @@ describe("composeTakeoff visual opening promotion", () => {
     });
     expect(enriched.total_opening_sqm).toBe(13.23);
   });
+
+  it("quarantines impossible visual witnesses before they become priced opening totals", () => {
+    const enriched = composeTakeoff({
+      visionTakeoff: baseVision,
+      geometry: null,
+      schedule: null,
+      geometryPageIndex: undefined,
+      visualOpeningAudit: {
+        pageNumber: 1,
+        method: "visual_qs",
+        warnings: [],
+        summary: { totalOpenings: 2, qsGlazedOpenings: 2, garageDoors: 0, uncertain: 0 },
+        openings: [
+          {
+            id: "O1",
+            type: "window",
+            room: "Entrance",
+            label: null,
+            height_m: 1.6,
+            width_m: 90,
+            x: 0.1,
+            y: 0.1,
+            confidence: "medium",
+            evidence: "JM-0055-style poisoned visual witness",
+            flags: [],
+          },
+          {
+            id: "O2",
+            type: "window",
+            room: "Bed 2",
+            label: "1100x1000",
+            height_m: 1.1,
+            width_m: 1,
+            x: 0.2,
+            y: 0.2,
+            confidence: "high",
+            evidence: "sane visual witness",
+            flags: [],
+          },
+        ],
+      },
+    }).enriched;
+
+    expect(enriched.openings?.map((o) => [o.room, o.height_m, o.width_m])).toEqual([
+      ["Bed 2", 1.1, 1],
+      ["Garage", 2.1, 2.7],
+    ]);
+    expect(enriched.total_opening_sqm).toBe(6.77);
+    expect(enriched.glazed_sqm).toBe(1.1);
+    expect(enriched.external_wall_area_m2.value).toBe(89.23);
+    expect(enriched.windows_by_room.discrepancy_flags.join(" ")).toContain(
+      "Entrance: window 90m x 1.6m quarantined from pricing",
+    );
+    const quarantined = enriched.opening_evidence?.find((e) => e.id === "quarantined-opening-1");
+    expect(quarantined).toMatchObject({
+      priced: false,
+      status: "review",
+      room: "Entrance",
+      width_m: 90,
+      height_m: 1.6,
+    });
+    expect(quarantined?.conflicts).toEqual(
+      expect.arrayContaining(["impossible_width", "impossible_area", "impossible_ratio"]),
+    );
+  });
+
+  it("blocks opening-derived pricing when Visual QS reconciliation has unresolved errors", () => {
+    const enriched = composeTakeoff({
+      visionTakeoff: baseVision,
+      geometry: null,
+      schedule: null,
+      geometryPageIndex: undefined,
+      visualOpeningAudit: {
+        pageNumber: 1,
+        method: "visual_qs",
+        warnings: [],
+        summary: { totalOpenings: 4, qsGlazedOpenings: 4, garageDoors: 0, uncertain: 0 },
+        openings: [
+          {
+            id: "O1",
+            type: "window",
+            room: "Bed 2",
+            label: "1100x1000",
+            height_m: 1.1,
+            width_m: 1,
+            x: 0.2,
+            y: 0.2,
+            confidence: "high",
+            evidence: "only one priced visual opening was confidently recovered",
+            flags: [],
+          },
+        ],
+      },
+    }).enriched;
+
+    expect(enriched.openings).toEqual([]);
+    expect(enriched.total_opening_sqm).toBeNull();
+    expect(enriched.glazed_sqm).toBeNull();
+    expect(enriched.external_wall_area_m2.value).toBeNull();
+    expect(enriched.visual_opening_reconciliation?.issues[0]).toMatchObject({
+      severity: "error",
+      field: "windows_by_room",
+    });
+    expect(enriched.windows_by_room.discrepancy_flags.join(" ")).toContain(
+      "Opening pricing blocked: unresolved Visual QS reconciliation error",
+    );
+    expect(enriched.external_wall_area_m2.discrepancy_flags.join(" ")).toContain(
+      "Opening pricing blocked: unresolved Visual QS reconciliation error",
+    );
+    expect(enriched.opening_evidence?.every((candidate) => candidate.priced === false)).toBe(true);
+    expect(
+      enriched.opening_evidence?.some((candidate) =>
+        candidate.conflicts.includes("visual_reconciliation_error"),
+      ),
+    ).toBe(true);
+  });
 });

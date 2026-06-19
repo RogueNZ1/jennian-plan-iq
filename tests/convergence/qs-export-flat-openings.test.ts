@@ -19,6 +19,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+  buildDropInSheet,
   buildQSDataInputSheet,
   applyEnrichedTakeoff,
   type QSExportData,
@@ -438,15 +439,31 @@ describe("Fallback intact — null openings triggers relational slot layout", ()
     expect(c["F41"]).toBe(1.8);
   });
 
-  it("empty openings[] also triggers relational fallback", () => {
+  it("empty enriched openings[] stays fail-closed instead of falling back to relational slots", () => {
     const ws = buildQSDataInputSheet(
       base([], {
+        openingPricingBlocked: true,
         windowsByRoom: { lounge: { cladding: "", qty: 2, height: 1.8, width: 2.4 } },
       }),
     );
     const c = cells(ws);
-    expect(c["C39"]).toContain("Cladding type");
-    // Lounge is at row 62
-    expect(c["D62"]).toBe(2);
+    expect(c["A39"]).toBe("Type");
+    expect(c["A40"]).toContain("OPENING PRICING BLOCKED");
+    expect(c["D62"]).toBeUndefined();
+  });
+
+  it("blocked openings stop drop-in cladding from computing a false no-opening net", () => {
+    const ws = buildDropInSheet(
+      base([], {
+        openingPricingBlocked: true,
+        perimeterLm: 40,
+        studHeightMm: 2400,
+        claddingType1: "Brick",
+      }),
+    );
+    const text = Object.values(cells(ws)).join(" ");
+    expect(text).toContain("OPENING PRICING BLOCKED");
+    expect(text).toContain("Less openings: NOT COMPUTED - opening pricing blocked");
+    expect(text).toContain("NET CLADDING: NOT COMPUTED");
   });
 });

@@ -518,13 +518,23 @@ function UploadPage() {
           console.warn("[persist-wizard] takeoff_json write failed:", tjResult.error);
         }
 
-        // (c) REMOVED 11 Jun 2026 — the wizard's opening_schedule auto-projection called
-        // buildComposedOpeningRows, which no longer exists in the codebase; the dynamic
-        // import destructured undefined, threw on call, and the fail-soft catch (5f88352)
-        // silently skipped the write on EVERY wizard job (verified live: JM-0022 has 13
-        // canonical openings and 0 opening_schedule rows). The canonical opening set lives
-        // in takeoff_json (step b). opening_schedule remains for ESTIMATOR-entered rows via
-        // the Opening Schedule UI — the doors "schedule" fallback still reads those.
+        // (c) Project adjudicated canonical openings into the review table.
+        // Pricing/export still read takeoff_json; this keeps Windows & Doors visible after a
+        // wizard run. Only unconfirmed prior IQ projections are replaced; manual or confirmed
+        // rows stay sacred.
+        const { projectEnrichedOpeningsToSchedule } =
+          await import("@/lib/takeoff/opening-schedule-projection");
+        const openingProjectionResult = await projectEnrichedOpeningsToSchedule(supabase as never, {
+          jobId: job.id,
+          createdBy: user.id,
+          openings: enriched.openings,
+        });
+        if (!openingProjectionResult.written) {
+          console.warn(
+            "[persist-wizard] opening_schedule projection failed:",
+            openingProjectionResult.error,
+          );
+        }
 
         // (d) INSERT module_items for the key labels buildQSExportData.getNum() reads.
         // Labels chosen for EXACT match with getNum's needle strings (case-insensitive exact):

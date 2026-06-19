@@ -2,6 +2,7 @@ import type { Opening, OpeningSource } from "./takeoff-types";
 import type { PlanText } from "./plan-text";
 import type { FloorPlanGapCandidate } from "./floor-plan-gaps";
 import type { FloorPlanGapElevationMatch } from "./elevation-gap-match";
+import type { QuarantinedOpening } from "./opening-pricing-adjudication";
 
 export type OpeningEvidenceSource =
   | "floorplan_gap"
@@ -67,6 +68,7 @@ function evidenceRoleForOpening(source: OpeningSource): OpeningEvidenceRole {
 
 export function buildOpeningEvidenceLedger(args: {
   openings: readonly Opening[] | null | undefined;
+  quarantinedOpenings?: readonly QuarantinedOpening[] | null;
   planText?: Pick<PlanText, "draftingIssues"> | null;
   floorPlanGaps?: readonly FloorPlanGapCandidate[] | null;
   floorPlanGapElevationMatches?: ReadonlyMap<string, FloorPlanGapElevationMatch> | null;
@@ -112,6 +114,35 @@ export function buildOpeningEvidenceLedger(args: {
       evidence,
       review_flags: opening.flags ?? [],
       conflicts: [],
+    });
+  }
+
+  for (const [index, quarantined] of (args.quarantinedOpenings ?? []).entries()) {
+    const opening = quarantined.opening;
+    const primarySource = evidenceSourceForOpening(opening.source);
+    ledger.push({
+      id: `quarantined-opening-${index + 1}`,
+      status: "review",
+      priced: false,
+      type: opening.type,
+      room: opening.room,
+      width_m: opening.width_m,
+      height_m: opening.height_m,
+      area_m2: opening.area_m2,
+      evidence: [
+        {
+          source: primarySource,
+          role: evidenceRoleForOpening(opening.source),
+          confidence: opening.confidence,
+          width_m: opening.width_m,
+          height_m: opening.height_m,
+          area_m2: opening.area_m2,
+          room: opening.room,
+          note: `${opening.type} opening held out of pricing from ${primarySource}`,
+        },
+      ],
+      review_flags: opening.flags ?? [],
+      conflicts: quarantined.reasons,
     });
   }
 
