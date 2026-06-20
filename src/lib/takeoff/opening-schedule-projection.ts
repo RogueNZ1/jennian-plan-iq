@@ -1,5 +1,9 @@
 import type { Opening, OpeningType } from "./takeoff-types";
 import type { OpeningEvidenceCandidate } from "./opening-evidence";
+import {
+  BLOCKED_OPENING_REVIEW_ONLY_NOTE,
+  BLOCKED_OPENING_SOURCE_EVIDENCE_PREFIX,
+} from "../opening-review-guards";
 
 type OpeningScheduleInsert = {
   job_id: string;
@@ -140,7 +144,7 @@ function evidenceCandidateToScheduleInsert(args: {
     ? `Conflicts: ${args.candidate.conflicts.join(", ")}`
     : null;
   const notes = [
-    "REVIEW ONLY - opening pricing blocked; do not price from this row until reconciled.",
+    BLOCKED_OPENING_REVIEW_ONLY_NOTE,
     `Candidate ${args.candidate.id}: ${status}.`,
     ...args.candidate.review_flags,
     evidence,
@@ -159,7 +163,7 @@ function evidenceCandidateToScheduleInsert(args: {
     room_name: args.candidate.room ?? null,
     quantity: 1,
     source: IQ_TAKEOFF_OPENING_SOURCE,
-    source_evidence: `review-only blocked opening candidate (${args.candidate.id})`,
+    source_evidence: `${BLOCKED_OPENING_SOURCE_EVIDENCE_PREFIX} (${args.candidate.id})`,
     confidence: "low",
     review_status: "review_required",
     notes,

@@ -12,6 +12,10 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toJson } from "@/lib/type-helpers";
+import {
+  blockedOpeningActionMessage,
+  isBlockedReviewOnlyOpening,
+} from "@/lib/opening-review-guards";
 
 export type Pt = { x: number; y: number };
 
@@ -381,14 +385,18 @@ export async function updateOpening(
   // approved quantities cannot drift unnoticed.
   const valueFields = ["width_mm", "height_mm", "quantity", "opening_type"] as const;
   const valueChanged = valueFields.some((f) => Object.prototype.hasOwnProperty.call(patch, f));
+  const confirming = patch.review_status === "confirmed";
   let prevJobId: string | null = null;
-  if (valueChanged) {
+  if (valueChanged || confirming) {
     const { data: prev } = await supabase
       .from("opening_schedule")
-      .select("job_id")
+      .select("job_id, source_evidence, notes")
       .eq("id", id)
       .maybeSingle();
     prevJobId = (prev?.job_id as string | null) ?? null;
+    if (confirming && prev && isBlockedReviewOnlyOpening(prev)) {
+      throw new Error(blockedOpeningActionMessage("confirm"));
+    }
   }
   const { error } = await supabase.from("opening_schedule").update(patch).eq("id", id);
   if (error) throw error;
@@ -474,9 +482,12 @@ export async function pushMeasurementToModule(args: {
   if (args.openingId) {
     const { data: src } = await supabase
       .from("opening_schedule")
-      .select("review_status")
+      .select("review_status, source_evidence, notes")
       .eq("id", args.openingId)
       .maybeSingle();
+    if (src && isBlockedReviewOnlyOpening(src)) {
+      throw new Error(blockedOpeningActionMessage("push"));
+    }
     if (!src || src.review_status !== "confirmed") {
       throw new Error("Confirm this opening before pushing to modules.");
     }

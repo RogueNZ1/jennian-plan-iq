@@ -5,6 +5,7 @@ import {
   IQ_TAKEOFF_OPENING_SOURCE,
   projectEnrichedOpeningsToSchedule,
 } from "../../src/lib/takeoff/opening-schedule-projection";
+import { isBlockedReviewOnlyOpening } from "../../src/lib/opening-review-guards";
 import type { Opening } from "../../src/lib/takeoff/takeoff-types";
 
 const opening = (over: Partial<Opening>): Opening => ({
@@ -148,6 +149,8 @@ describe("opening schedule projection", () => {
     });
     expect(rows[0].notes).toContain("REVIEW ONLY");
     expect(rows[0].notes).toContain("visual_reconciliation_error");
+    expect(rows[0].source_evidence).toContain("review-only blocked opening candidate");
+    expect(isBlockedReviewOnlyOpening(rows[0])).toBe(true);
   });
 
   it("does not project blocked evidence when canonical priced rows are available", () => {

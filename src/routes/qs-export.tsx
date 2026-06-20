@@ -23,7 +23,19 @@ import {
 import { IQ_MODULES, type IQModuleId } from "@/lib/iq-modules";
 import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
-import { FileSpreadsheet, Zap, DoorOpen, Download, ArrowLeft, Loader2 } from "lucide-react";
+import {
+  FileSpreadsheet,
+  Zap,
+  DoorOpen,
+  Download,
+  ArrowLeft,
+  Loader2,
+  AlertTriangle,
+} from "lucide-react";
+import {
+  blockedOpeningActionMessage,
+  isBlockedReviewOnlyOpening,
+} from "@/lib/opening-review-guards";
 
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
 type OpeningRow = Database["public"]["Tables"]["opening_schedule"]["Row"];
@@ -71,6 +83,9 @@ function reviewTone(s: string | null): "default" | "secondary" | "outline" {
 }
 
 function buildOpeningCSV(rows: OpeningRow[]): string {
+  if (rows.some(isBlockedReviewOnlyOpening)) {
+    throw new Error(blockedOpeningActionMessage("export"));
+  }
   const header = [
     "Type",
     "Room",
@@ -188,6 +203,8 @@ function QSExportPage() {
     return map;
   }, [items]);
 
+  const blockedOpenings = useMemo(() => openings.filter(isBlockedReviewOnlyOpening), [openings]);
+
   const surname = data ? data.clientSurname || data.clientName.split(" ").pop() || "Client" : "";
   const fileBase = data ? `${data.jmwNumber || data.jobNumber}-${surname}` : "QS-Takeoff";
 
@@ -225,6 +242,10 @@ function QSExportPage() {
   function exportOpenings() {
     if (openings.length === 0) {
       toast.error("No opening schedule rows to export.");
+      return;
+    }
+    if (blockedOpenings.length > 0) {
+      toast.error(blockedOpeningActionMessage("export"));
       return;
     }
     void withExport("openings", () => {
@@ -431,6 +452,24 @@ function QSExportPage() {
                   Generated from the latest approved and extracted takeoff data for this job.
                 </p>
 
+                {blockedOpenings.length > 0 && (
+                  <div className="mb-3 rounded-md border border-confidence-low/30 bg-confidence-low/10 px-3 py-2 text-[11.5px] text-muted-foreground">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-confidence-low" />
+                      <div>
+                        <div className="font-medium text-confidence-low">
+                          Opening schedule export blocked
+                        </div>
+                        <div>
+                          {blockedOpenings.length} review-only opening candidate
+                          {blockedOpenings.length === 1 ? "" : "s"} must be reconciled before CSV
+                          export.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Button
                     onClick={exportIQData}
@@ -451,7 +490,12 @@ function QSExportPage() {
                   </Button>
                   <Button
                     onClick={exportOpenings}
-                    disabled={exporting !== null || openings.length === 0}
+                    title={
+                      blockedOpenings.length > 0 ? blockedOpeningActionMessage("export") : undefined
+                    }
+                    disabled={
+                      exporting !== null || openings.length === 0 || blockedOpenings.length > 0
+                    }
                     variant="outline"
                     className="w-full justify-start"
                   >
@@ -471,6 +515,12 @@ function QSExportPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Openings</span>
                   <span className="font-medium tabular-nums">{openings.length}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Blocked review-only openings</span>
+                  <span className="font-medium tabular-nums text-confidence-low">
+                    {blockedOpenings.length}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Confirmed</span>

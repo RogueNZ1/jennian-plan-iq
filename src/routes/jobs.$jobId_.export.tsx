@@ -28,6 +28,7 @@ import {
   Printer,
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
+import { isBlockedReviewOnlyOpening } from "@/lib/opening-review-guards";
 
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
 type OpeningRow = Database["public"]["Tables"]["opening_schedule"]["Row"];
@@ -151,6 +152,7 @@ function QuickExport() {
   }
 
   const job = data;
+  const blockedOpenings = openings.filter(isBlockedReviewOnlyOpening);
 
   const surname = job ? job.clientSurname || job.clientName.split(" ").pop() || "Client" : "";
   const filename = job
@@ -269,6 +271,20 @@ function QuickExport() {
 
             {/* Windows & Doors */}
             <SectionCard icon={DoorOpen} title="Windows & Doors">
+              {blockedOpenings.length > 0 && (
+                <div className="mb-3 rounded-md border border-confidence-low/30 bg-confidence-low/10 px-3 py-2 text-[12px] text-muted-foreground">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-confidence-low" />
+                    <div>
+                      <div className="font-medium text-confidence-low">Opening pricing blocked</div>
+                      <div>
+                        {blockedOpenings.length} review-only candidate
+                        {blockedOpenings.length === 1 ? "" : "s"} shown below for evidence only.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               {openings.length === 0 ? (
                 <EmptyNote text="No opening schedule data — run a takeoff to extract windows and doors." />
               ) : (
@@ -289,7 +305,12 @@ function QuickExport() {
                   </thead>
                   <tbody>
                     {openings.map((o) => (
-                      <tr key={o.id} className="border-b border-border/40 last:border-0">
+                      <tr
+                        key={o.id}
+                        className={`border-b border-border/40 last:border-0 ${
+                          isBlockedReviewOnlyOpening(o) ? "bg-confidence-low/5" : ""
+                        }`}
+                      >
                         <td className="py-1.5 pr-3 capitalize">
                           {o.opening_type.replace(/_/g, " ")}
                         </td>

@@ -10,6 +10,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { narrowRow } from "@/lib/type-helpers";
+import { isBlockedReviewOnlyOpening } from "@/lib/opening-review-guards";
 import type { Confidence } from "./jennian-data";
 
 export type IQModuleId =
@@ -799,16 +800,17 @@ export async function recalculateModule(
     }
   }
 
-  const openingMap = new Map<string, { width_mm: number; quantity: number }>();
+  const openingMap = new Map<string, { width_mm: number; quantity: number; blocked: boolean }>();
   if (openingIds.length) {
     const { data: os } = await supabase
       .from("opening_schedule")
-      .select("id, width_mm, quantity")
+      .select("id, width_mm, quantity, source_evidence, notes")
       .in("id", openingIds);
     for (const o of os ?? []) {
       openingMap.set(o.id as string, {
         width_mm: Number(o.width_mm),
         quantity: Number(o.quantity ?? 1),
+        blocked: isBlockedReviewOnlyOpening(o),
       });
     }
   }
@@ -835,16 +837,20 @@ export async function recalculateModule(
       }
     } else if (it.opening_id) {
       const src = openingMap.get(it.opening_id);
-      currentSourceValue = src ? src.width_mm : null;
+      currentSourceValue = src && !src.blocked ? src.width_mm : null;
     }
 
     if (currentSourceValue == null) {
       missing += 1;
+      const missingNotes =
+        it.opening_id && openingMap.get(it.opening_id)?.blocked
+          ? "Source opening is review-only blocked and cannot price this module item."
+          : "Source measurement/opening no longer exists.";
       await supabase
         .from("module_items")
         .update({
           review_status: "review_required",
-          notes: "Source measurement/opening no longer exists.",
+          notes: missingNotes,
         })
         .eq("id", it.id);
       await logAudit({

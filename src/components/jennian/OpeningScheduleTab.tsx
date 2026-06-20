@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
-import { Plus, Trash2, Check, Send } from "lucide-react";
+import { Plus, Trash2, Check, Send, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import {
   loadOpenings,
@@ -14,6 +14,10 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { PushToModuleDialog } from "@/components/jennian/PushToModuleDialog";
 import type { IQModuleId } from "@/lib/iq-modules";
+import {
+  blockedOpeningActionMessage,
+  isBlockedReviewOnlyOpening,
+} from "@/lib/opening-review-guards";
 
 const OPENING_TYPES: { value: string; label: string }[] = [
   { value: "window", label: "Window" },
@@ -48,6 +52,7 @@ export function OpeningScheduleTab({ jobId }: { jobId: string }) {
   const [workingFileId, setWorkingFileId] = useState<string | null>(null);
   const [workingPage, setWorkingPage] = useState<number>(1);
   const [pushFor, setPushFor] = useState<Opening | null>(null);
+  const blockedRows = rows.filter(isBlockedReviewOnlyOpening);
 
   useEffect(() => {
     loadOpenings(jobId)
@@ -99,6 +104,10 @@ export function OpeningScheduleTab({ jobId }: { jobId: string }) {
   }
 
   async function patch(o: Opening, p: Partial<Opening>) {
+    if (p.review_status === "confirmed" && isBlockedReviewOnlyOpening(o)) {
+      toast.error(blockedOpeningActionMessage("confirm"));
+      return;
+    }
     try {
       await updateOpening(o.id, p);
       setRows((rs) => rs.map((r) => (r.id === o.id ? { ...r, ...p } : r)));
@@ -128,6 +137,10 @@ export function OpeningScheduleTab({ jobId }: { jobId: string }) {
     },
   ) {
     if (!user) return;
+    if (isBlockedReviewOnlyOpening(o)) {
+      toast.error(blockedOpeningActionMessage("push"));
+      return;
+    }
     const evidence =
       `Working Plan page ${o.plan_page_number}, opening ${o.id.slice(0, 8)} — ` +
       `${o.opening_type} ${o.width_mm}${o.height_mm ? `x${o.height_mm}` : ""}mm`;
@@ -207,6 +220,21 @@ export function OpeningScheduleTab({ jobId }: { jobId: string }) {
         </div>
       )}
 
+      {blockedRows.length > 0 && (
+        <div className="mx-5 mt-4 rounded-md border border-confidence-low/30 bg-confidence-low/10 px-3 py-2 text-xs text-confidence-low">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <div className="font-semibold">Opening pricing blocked</div>
+              <div className="mt-0.5 text-muted-foreground">
+                {blockedRows.length} review-only candidate{blockedRows.length === 1 ? "" : "s"}{" "}
+                cannot be confirmed, pushed to modules, or exported as a normal opening schedule.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/30">
@@ -217,6 +245,7 @@ export function OpeningScheduleTab({ jobId }: { jobId: string }) {
               <th className="px-5 py-2.5 font-medium">Room / Location</th>
               <th className="px-5 py-2.5 font-medium text-center">Qty</th>
               <th className="px-5 py-2.5 font-medium">Source</th>
+              <th className="px-5 py-2.5 font-medium">Evidence</th>
               <th className="px-5 py-2.5 font-medium">Confidence</th>
               <th className="px-5 py-2.5 font-medium">Confirmed</th>
               <th className="px-5 py-2.5 font-medium" />
@@ -225,110 +254,137 @@ export function OpeningScheduleTab({ jobId }: { jobId: string }) {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={9} className="px-5 py-6 text-center text-xs text-muted-foreground">
+                <td colSpan={10} className="px-5 py-6 text-center text-xs text-muted-foreground">
                   Loading…
                 </td>
               </tr>
             )}
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-5 py-6 text-center text-xs text-muted-foreground">
+                <td colSpan={10} className="px-5 py-6 text-center text-xs text-muted-foreground">
                   No openings recorded yet.
                 </td>
               </tr>
             )}
-            {rows.map((o) => (
-              <tr key={o.id} className="border-t border-border align-middle">
-                <td className="px-5 py-2.5">
-                  <select
-                    disabled={!canEdit}
-                    value={o.opening_type}
-                    onChange={(e) => patch(o, { opening_type: e.target.value })}
-                    className="rounded-md border border-input bg-background px-2 py-1 text-xs"
-                  >
-                    {OPENING_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-5 py-2.5 tabular-nums">{o.width_mm}</td>
-                <td className="px-5 py-2.5 tabular-nums text-muted-foreground">
-                  {o.height_mm ?? "—"}
-                </td>
-                <td className="px-5 py-2.5">
-                  <input
-                    disabled={!canEdit}
-                    defaultValue={o.room_name ?? ""}
-                    onBlur={(e) => {
-                      if (e.target.value !== (o.room_name ?? "")) {
-                        patch(o, { room_name: e.target.value || null });
-                      }
-                    }}
-                    placeholder="—"
-                    className="w-40 rounded-md border border-input bg-background px-2 py-1 text-xs"
-                  />
-                </td>
-                <td className="px-5 py-2.5 text-center tabular-nums">{o.quantity}</td>
-                <td className="px-5 py-2.5 text-[11px] text-muted-foreground">{o.source}</td>
-                <td className="px-5 py-2.5 text-[11px] capitalize text-muted-foreground">
-                  {o.confidence}
-                </td>
-                <td className="px-5 py-2.5">
-                  <span
-                    className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${
-                      o.review_status === "confirmed"
-                        ? "border-confidence-high/40 bg-confidence-high/10 text-confidence-high"
-                        : "border-confidence-mid/40 bg-confidence-mid/10 text-confidence-mid"
-                    }`}
-                  >
-                    {o.review_status === "confirmed" ? "Confirmed" : "Review"}
-                  </span>
-                </td>
-                <td className="px-5 py-2.5 text-right">
-                  <div className="inline-flex items-center gap-1">
-                    {canEdit && o.review_status !== "confirmed" && (
-                      <button
-                        onClick={() => patch(o, { review_status: "confirmed" })}
-                        title="Confirm"
-                        className="h-6 w-6 grid place-items-center rounded-md border border-border bg-card hover:bg-accent"
-                      >
-                        <Check className="h-3 w-3" />
-                      </button>
-                    )}
-                    {canEdit && (
-                      <button
-                        onClick={() => setPushFor(o)}
-                        disabled={o.review_status !== "confirmed"}
-                        title={
-                          o.review_status === "confirmed"
-                            ? "Push to module…"
-                            : "Confirm opening before pushing to modules."
+            {rows.map((o) => {
+              const blocked = isBlockedReviewOnlyOpening(o);
+              return (
+                <tr
+                  key={o.id}
+                  className={`border-t border-border align-middle ${
+                    blocked ? "bg-confidence-low/5" : ""
+                  }`}
+                >
+                  <td className="px-5 py-2.5">
+                    <select
+                      disabled={!canEdit || blocked}
+                      value={o.opening_type}
+                      onChange={(e) => patch(o, { opening_type: e.target.value })}
+                      className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+                    >
+                      {OPENING_TYPES.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-5 py-2.5 tabular-nums">{o.width_mm}</td>
+                  <td className="px-5 py-2.5 tabular-nums text-muted-foreground">
+                    {o.height_mm ?? "—"}
+                  </td>
+                  <td className="px-5 py-2.5">
+                    <input
+                      disabled={!canEdit || blocked}
+                      defaultValue={o.room_name ?? ""}
+                      onBlur={(e) => {
+                        if (e.target.value !== (o.room_name ?? "")) {
+                          patch(o, { room_name: e.target.value || null });
                         }
-                        className="h-6 w-6 grid place-items-center rounded-md border border-border bg-card hover:bg-accent text-primary disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <Send className="h-3 w-3" />
-                      </button>
-                    )}
-                    {canEdit && (
-                      <button
-                        onClick={() => remove(o)}
-                        title="Delete"
-                        className="h-6 w-6 grid place-items-center rounded-md border border-border bg-card hover:bg-accent text-confidence-low"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                      }}
+                      placeholder="—"
+                      className="w-40 rounded-md border border-input bg-background px-2 py-1 text-xs"
+                    />
+                  </td>
+                  <td className="px-5 py-2.5 text-center tabular-nums">{o.quantity}</td>
+                  <td className="px-5 py-2.5 text-[11px] text-muted-foreground">{o.source}</td>
+                  <td className="px-5 py-2.5 text-[11px] text-muted-foreground">
+                    <div className="max-w-[280px] space-y-1">
+                      {blocked && (
+                        <span className="inline-flex items-center rounded-full border border-confidence-low/40 bg-confidence-low/10 px-2 py-0.5 text-[10px] font-medium text-confidence-low">
+                          Review only - blocked
+                        </span>
+                      )}
+                      <div>{o.source_evidence ?? "-"}</div>
+                      {o.notes && <div className="line-clamp-2">{o.notes}</div>}
+                    </div>
+                  </td>
+                  <td className="px-5 py-2.5 text-[11px] capitalize text-muted-foreground">
+                    {o.confidence}
+                  </td>
+                  <td className="px-5 py-2.5">
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                        blocked
+                          ? "border-confidence-low/40 bg-confidence-low/10 text-confidence-low"
+                          : o.review_status === "confirmed"
+                            ? "border-confidence-high/40 bg-confidence-high/10 text-confidence-high"
+                            : "border-confidence-mid/40 bg-confidence-mid/10 text-confidence-mid"
+                      }`}
+                    >
+                      {blocked
+                        ? "Blocked"
+                        : o.review_status === "confirmed"
+                          ? "Confirmed"
+                          : "Review"}
+                    </span>
+                  </td>
+                  <td className="px-5 py-2.5 text-right">
+                    <div className="inline-flex items-center gap-1">
+                      {canEdit && o.review_status !== "confirmed" && (
+                        <button
+                          onClick={() => patch(o, { review_status: "confirmed" })}
+                          disabled={blocked}
+                          title={blocked ? blockedOpeningActionMessage("confirm") : "Confirm"}
+                          className="h-6 w-6 grid place-items-center rounded-md border border-border bg-card hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <Check className="h-3 w-3" />
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button
+                          onClick={() => setPushFor(o)}
+                          disabled={o.review_status !== "confirmed" || blocked}
+                          title={
+                            o.review_status === "confirmed"
+                              ? "Push to module…"
+                              : "Confirm opening before pushing to modules."
+                          }
+                          className="h-6 w-6 grid place-items-center rounded-md border border-border bg-card hover:bg-accent text-primary disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <Send className="h-3 w-3" />
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button
+                          onClick={() => remove(o)}
+                          title="Delete"
+                          className="h-6 w-6 grid place-items-center rounded-md border border-border bg-card hover:bg-accent text-confidence-low"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
       {pushFor &&
+        !isBlockedReviewOnlyOpening(pushFor) &&
         (() => {
           const label =
             (pushFor.room_name ? `${pushFor.room_name} — ` : "") +
