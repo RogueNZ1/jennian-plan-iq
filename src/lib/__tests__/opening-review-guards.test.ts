@@ -26,6 +26,15 @@ describe("opening review guards", () => {
     ).toBe(true);
   });
 
+  it("identifies blocked rows from the canonical note heading", () => {
+    expect(
+      isBlockedReviewOnlyOpening({
+        source_evidence: null,
+        notes: `${BLOCKED_OPENING_REVIEW_ONLY_NOTE.split(";")[0]} - needs QS reconciliation.`,
+      }),
+    ).toBe(true);
+  });
+
   it("does not block normal confirmed opening rows", () => {
     expect(
       isBlockedReviewOnlyOpening({

@@ -3,6 +3,11 @@ export const BLOCKED_OPENING_REVIEW_ONLY_NOTE =
 
 export const BLOCKED_OPENING_SOURCE_EVIDENCE_PREFIX = "review-only blocked opening candidate";
 
+const BLOCKED_OPENING_REVIEW_NOTE_MARKERS = [
+  BLOCKED_OPENING_REVIEW_ONLY_NOTE,
+  BLOCKED_OPENING_REVIEW_ONLY_NOTE.split(";")[0],
+].map((marker) => marker.toLowerCase());
+
 export type OpeningReviewGuardRow = {
   source_evidence?: string | null;
   notes?: string | null;
@@ -16,8 +21,7 @@ export function isBlockedReviewOnlyOpening(row: OpeningReviewGuardRow): boolean 
 
   return (
     sourceEvidence.includes(BLOCKED_OPENING_SOURCE_EVIDENCE_PREFIX) ||
-    notes.includes("review only - opening pricing blocked") ||
-    notes.includes("opening pricing blocked; do not price")
+    BLOCKED_OPENING_REVIEW_NOTE_MARKERS.some((marker) => marker !== "" && notes.includes(marker))
   );
 }
 
