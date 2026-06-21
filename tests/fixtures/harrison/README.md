@@ -2,9 +2,10 @@
 
 Second permanent ground-truth set, alongside Beddis. **Every fix must pass BOTH.**
 
-- **Answer key:** `ground-truth.json` (committed) — the verified `Harrison_QS.xlsm` figures. This
-  is the only machine-readable file that lives in git. The QS is the source of truth; the plans are
-  the *input*, the QS values are the expected *output*.
+- **Evidence pack:** `ground-truth.json` (committed) records the signed `Harrison_QS.xlsm`
+  pricing witness plus the reviewed joinery bench. The QS workbook is not treated as
+  infallible: the plan set remains drawing evidence, and any plan-vs-QS contradiction must
+  be surfaced with provenance rather than forced to silently match either side.
 - **Harness:** `tests/harrison/baseline.test.ts`, gated on `HARRISON_LIVE=1`.
 
 ## What Harrison adds over Beddis
@@ -22,8 +23,8 @@ The PDFs/workbook are sensitive client data + large binaries. Place them here lo
 
 ```
 tests/fixtures/harrison/
-  concept.pdf          ← Lot_9_Kiwitea_CONCEPT_rev_4.pdf  (6-page, PRIMARY input, grade vs QS)
-  Harrison_QS.xlsm     ← the signed-off QS
+  concept.pdf          ← Lot_9_Kiwitea_CONCEPT_rev_4.pdf  (6-page, PRIMARY drawing evidence)
+  Harrison_QS.xlsm     ← the signed-off QS pricing witness
   floorplan-0812.pdf   ← ..._Floorplan_08_12_25.pdf  (earlier rev, SECONDARY, report-only)
 ```
 
@@ -49,5 +50,5 @@ done
 HARRISON_LIVE=1 GEOMETRY_BASE=http://localhost:8000 npx vitest run tests/harrison/baseline.test.ts
 ```
 
-Writes `_render/baseline-results.json` and prints `HARRISON_RESULTS=…` for scoring against
-`ground-truth.json`.
+Writes `_render/baseline-results.json` and prints `HARRISON_RESULTS=…` for comparison against
+the signed QS witness and reviewed joinery bench in `ground-truth.json`.

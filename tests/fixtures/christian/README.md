@@ -32,12 +32,12 @@ Current gate shape:
 - Green: the parser must recover the title-case room footprint labels from this page.
 - Green: printed joinery codes must route onto real room anchors.
 
-This does not make Christian a signed-off pricing truth set. Previous Christian runs prove the
+This does not make Christian a signed-off pricing witness set. Previous Christian runs prove the
 parser can look active while still routing poorly, so QS-priced opening totals remain pending until
 Haydon signs off the rows against the actual workbook.
 
 ## Truth status
 
-`ground-truth.json` is not a signed-off QS answer key yet. It records historical IQ outputs and the
+`ground-truth.json` is not signed-off QS pricing witness evidence yet. It records historical IQ outputs and the
 known live failure evidence. Promote it to a priced truth set only after Haydon signs off the
 Christian QS rows against the actual workbook.

@@ -3,8 +3,8 @@
   "name": "Christian",
   "address": "Lot 33 Awa Park, Feilding",
   "source_plan": "2567 - Jen - Christian - Lot 33 Awa Park - A3 Plans V3.pdf",
-  "source_status": "provisional regression benchmark, not signed-off QS truth",
-  "note": "Christian is the repeated live benchmark. Treat historical IQ exports as failure evidence, not as the answer key. The offline harness pins printed-code extraction and room-footprint recovery; QS-priced opening truth is still pending Haydon signoff.",
+  "source_status": "provisional regression benchmark, not signed-off QS witness evidence",
+  "note": "Christian is the repeated live benchmark. Treat historical IQ exports as failure evidence, not as final pricing evidence. The offline harness pins printed-code extraction and room-footprint recovery; QS-priced opening witness evidence is still pending Haydon signoff.",
   "fixture_pages": {
     "floor_plan": "tests/doors/plans/christian-floorplan-page6.pdf",
     "source_pdf_page": 6,
@@ -57,7 +57,7 @@
     ]
   },
   "routing_expectations": {
-    "note": "Routing is a regression rail, not signed-off QS truth. It proves the printed codes anchor to real room labels after title-case room recovery.",
+    "note": "Routing is a regression rail, not signed-off QS witness evidence. It proves the printed codes anchor to real room labels after title-case room recovery.",
     "minimum_routed_codes": 12,
     "must_anchor_rooms": ["BED 2", "BED 3", "BATH", "GARAGE"],
     "must_anchor_living_zone_large_opening": true

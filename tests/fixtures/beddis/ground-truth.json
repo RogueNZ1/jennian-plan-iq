@@ -3,7 +3,7 @@
   "name": "Beddis",
   "address": "20 Tukere Crescent, Lot 50 Tamakuku",
   "source_of_truth": "Beddis_QS.xlsm — sheet '5. Data Input House'",
-  "note": "Verified answer key. 'Correct' = matches Truth column, not 'matches geometry' and not 'the three layers agree'. Concept and prelim plans both state floor 165.4 / perimeter 63.8 — IQ should return the same from either input.",
+  "note": "Signed QS witness plus drawing evidence. The QS workbook is high-value human evidence, not an infallible oracle; concept and prelim plans both state floor 165.4 / perimeter 63.8, so IQ should return the same from either input unless a contradiction is explicitly surfaced.",
   "truth": {
     "floor_area_m2": 165.4,
     "alfresco_area_m2": 1.7,

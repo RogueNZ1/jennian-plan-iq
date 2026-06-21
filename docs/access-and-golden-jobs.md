@@ -4,7 +4,7 @@ Last reviewed: 21 Jun 2026
 
 ## Purpose
 
-Jennian IQ should be verified against real QS truth, not screenshots, chat memory, or one-off exports. This checklist records the access, source files, and golden-job evidence needed for Codex, Haydon, Claude, and the Haydon Council to audit the product repeatably.
+Jennian IQ should be verified against real signed evidence packs, not screenshots, chat memory, or one-off exports. QS workbooks, plans, elevations, and manual reviews are witnesses; contradictions must be surfaced instead of hidden. This checklist records the access, source files, and golden-job evidence needed for Codex, Haydon, Claude, and the Haydon Council to audit the product repeatably.
 
 ## Ground rules
 
@@ -12,7 +12,7 @@ Jennian IQ should be verified against real QS truth, not screenshots, chat memor
 - Raw plans, QS workbooks, and client documents should live in the controlled Jennian SharePoint/OneDrive structure or another approved private storage location.
 - The repo may store fixtures, metadata, reduced truth JSON, and test-safe artifacts when they are intentionally allowed.
 - Missing evidence stays explicit. A missing login, DB role, workbook, or job pack is not "probably fine".
-- Every golden job must have a human-signed truth source before it is used to claim accuracy.
+- Every golden job must have a human-signed evidence source before it is used to claim accuracy. A signed QS workbook is high-value evidence, not an infallible oracle.
 
 ## Current access state
 
@@ -24,7 +24,7 @@ Jennian IQ should be verified against real QS truth, not screenshots, chat memor
 | Jennian IQ test login | Confirmed via the existing internal operator account `test@jennian-iq.internal`. Codex authenticated to production and verified Jobs, Upload New Plan, user menu, and recent JM-0052 through JM-0056 runs were visible. | Keep credentials outside Git/Linear/chat. Do not reset this account casually because reset scripts can change role/permission state. |
 | Supabase read access | No stable read-only analyst credential recorded here. Some admin/service paths exist in workflows/functions, but should not be used as normal audit access. | Provision read-only SQL/API access for schema/live-job audits, separate from service-role credentials. |
 | Canonical QS master workbook | Confirmed by Haydon on 21 Jun 2026: `Jennian IQ MASTER.xlsm`. The SharePoint `Jennian IQ` copy and `JENNIAN MASTER SPREADSHEET` copy are byte-identical by SHA-256. | IQ exports must obey this workbook until Haydon explicitly supersedes it. Keep frozen copies when the master changes. |
-| Golden job source folder | Partial repo fixtures exist under `tests/fixtures` for `15a`, `beddis`, `christian`, `fenner`, `harrison`, `oneil`, and `young`. SharePoint golden-source folder is locally synced at `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\Jennian IQ`. First controlled index is recorded in `docs/golden-job-index.md`. | Promote signed truth metadata for the controlled SharePoint packs before claiming broad accuracy. |
+| Golden job source folder | Partial repo fixtures exist under `tests/fixtures` for `15a`, `beddis`, `christian`, `fenner`, `harrison`, `oneil`, and `young`. SharePoint golden-source folder is locally synced at `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\Jennian IQ`. First controlled index is recorded in `docs/golden-job-index.md`. | Promote signed witness metadata for the controlled SharePoint packs before claiming broad accuracy. |
 | SharePoint/OneDrive job access | Confirmed via local sync. The shared SharePoint URL resolves to `Shared Documents/QUANTITY SURVEYING/Jennian IQ`, but direct unauthenticated/tool web access returns Microsoft forms-auth `403`; use the local synced path instead. | Keep using the local synced path for read-only audits; avoid broad browser/account access unless a file is not synced. |
 | Haydon Council outputs | Secondary backup folder created at `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\Jennian IQ\_Project Notes`. | Save Council reports to Linear documents and/or the SharePoint `_Project Notes` folder so they can be read as evidence. |
 
@@ -124,7 +124,7 @@ Job Name/
     signoff.md
 ```
 
-The current synced SharePoint folder already contains the first controlled job folders; it does not need to mirror the target structure exactly before use, but each job still needs signed truth metadata.
+The current synced SharePoint folder already contains the first controlled job folders; it does not need to mirror the target structure exactly before use, but each job still needs signed witness metadata.
 
 The first evidence index is now recorded in `docs/golden-job-index.md` and mirrored to SharePoint `_Project Notes/golden-job-index/2026-06-21-golden-job-index.md`.
 
@@ -148,7 +148,7 @@ Christian/
     ...
 ```
 
-Minimum truth per job:
+Minimum witness evidence per job:
 
 - Floor area.
 - Perimeter / external wall length where used.
@@ -207,7 +207,7 @@ For each live/golden job, record:
 - Job folder path.
 - Which plan revision IQ used.
 - Which elevations/specs were available.
-- Which QS workbook is the signed human truth.
+- Which QS workbook is the signed human witness.
 - Any known drafting errors.
 
 ### 8. Haydon Council output location
@@ -233,8 +233,8 @@ Each Council report should say:
 ## Immediate next actions
 
 1. Haydon/IT provisions read-only Supabase access or confirms an acceptable read-only alternative.
-2. Haydon signs Christian QS money truth or nominates a newer IQ-era Christian workbook.
-3. Continue JEN-38 candidate-level Fenner reconciliation against the signed 58.13 m2 / 48.05 m2 opening truth.
+2. Haydon signs/reviews Christian QS money evidence or nominates a newer IQ-era Christian workbook.
+3. Continue JEN-38 candidate-level Fenner reconciliation against the signed 58.13 m2 / 48.05 m2 opening witness.
 4. Keep this checklist, `docs/golden-job-index.md`, Linear JEN-39, and SharePoint `_Project Notes` aligned after each evidence/access change.
 
 ## Secondary notes backup
@@ -250,4 +250,4 @@ C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\Je
   decisions\
 ```
 
-Use this for sanitized Codex/Claude/Haydon Council notes, Golden Job indexes, trial-readiness summaries, and decisions. Do not store passwords, API keys, service-role keys, tokens, invite links, or unreviewed outputs that could be mistaken for signed truth.
+Use this for sanitized Codex/Claude/Haydon Council notes, Golden Job indexes, trial-readiness summaries, and decisions. Do not store passwords, API keys, service-role keys, tokens, invite links, or unreviewed outputs that could be mistaken for signed witness evidence.

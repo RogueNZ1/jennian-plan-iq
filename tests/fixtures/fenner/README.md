@@ -20,7 +20,8 @@ face-banded vector/visual opening detection, not another floor-plan text-parser 
 ## Truth
 
 `ground-truth.json` records Haydon's manual pricing input from the spreadsheet screenshot. This is
-the benchmark the engine must reach before Fenner can be considered priced correctly.
+signed witness evidence, not an infallible oracle, and must be compared against plan/elevation
+evidence. It is the benchmark the engine must reach before Fenner can be considered priced correctly.
 
 ## Harness
 
@@ -28,7 +29,7 @@ the benchmark the engine must reach before Fenner can be considered priced corre
 
 Current gate shape:
 
-- Green: the manual priced rows sum to the declared truth total, so the benchmark itself is not a
+- Green: the manual priced rows sum to the declared witness total, so the benchmark itself is not a
   loose screenshot note.
 - Expected fail: deterministic floor-plan text routing still undercounts the exterior opening area.
 

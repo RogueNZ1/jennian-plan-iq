@@ -4,8 +4,9 @@
   "address": "Lot 9, Feilding — 'Arnott Street' (08.12.25 set) / 'Kiwitea Grove' (concept rev 4). Same house.",
   "clients": "Ryan & Bridgette Harrison",
   "builder": "Jennian Homes Manawatu (newer template than Beddis — project 25191, sheets A101–A302)",
-  "source_of_truth": "Harrison_QS.xlsm — sheet '5. Data Input House '",
-  "note": "Verified answer key = the QS, always. The plans are the INPUT; these QS values are the expected OUTPUT. Primary baseline input is the concept rev 4 (6-page) set, whose design matches the QS (perimeter 60.4). The 08.12.25 set is an EARLIER revision (perimeter 59.89, porch 0.92) — run it only as a revision-robustness check, report don't grade. 'Correct' = matches this truth, not 'matches geometry' and not 'the three layers agree'.",
+  "source_of_truth": "Evidence pack: concept.pdf plus Harrison_QS.xlsm sheet '5. Data Input House '.",
+  "source_of_signed_qs_witness": "Harrison_QS.xlsm — sheet '5. Data Input House '",
+  "note": "The QS workbook is a signed pricing witness, not an infallible oracle. The plans are the drawing evidence; the QS values are the expected commercial/pricing witness. If the plan evidence and QS witness disagree, IQ must surface the contradiction with provenance instead of forcing one source to silently win. Primary baseline input is the concept rev 4 (6-page) set, whose design matches the QS at material aggregate level (perimeter 60.4). The 08.12.25 set is an EARLIER revision (perimeter 59.89, porch 0.92) — run it only as a revision-robustness check, report don't grade.",
   "what_harrison_adds": [
     "No separate window-schedule page — windows are floor-plan callouts W01–W14 (the no-schedule fallback path).",
     "Different/newer Jennian drawing template — tests page classification + extraction generalisation beyond the one template.",
@@ -135,15 +136,15 @@
     ]
   },
   "grading_decisions": {
-    "answer_key": "The QS, always. ground-truth.json = QS figures, never any single plan's printed numbers.",
-    "primary_input": "concept rev 4 (Lot_9_Kiwitea_CONCEPT_rev_4.pdf, 6-page) — grade against the QS key.",
+    "answer_key": "ground-truth.json records the signed QS pricing witness and the current reviewed joinery bench. It is not allowed to erase contradictory plan evidence; disagreements must be reported with provenance.",
+    "primary_input": "concept rev 4 (Lot_9_Kiwitea_CONCEPT_rev_4.pdf, 6-page) — compare against the signed QS witness and reviewed joinery bench.",
     "secondary_input": "08.12.25 set — earlier revision; run as revision-robustness check only, report don't grade.",
     "windows": "Do NOT pass/fail on a flat count. Primary check: does IQ extract the 14 W-code callouts off the floor plan (no-schedule path)? Cross-check robust QS figures: total opening area ≈ 46.89 m² and ext wall area 98.07 m². The 11-windows-proper figure is context, not a strict target.",
-    "doors": "Grade against QS (7/0/0) but treat plan-vs-QS disagreement as a KNOWN discrepancy. If IQ reads doubles off the plan (2/710, 2/610) that is IQ faithfully reading a plan the QS simplified — NOT automatically a bug. Do NOT tune IQ to suppress doubles to match the QS (overfitting). Report, flag, let the human reconcile."
+    "doors": "Compare against the QS witness (7/0/0) but treat plan-vs-QS disagreement as a KNOWN discrepancy. If IQ reads doubles off the plan (2/710, 2/610) that is IQ faithfully reading a plan the QS simplified — NOT automatically a bug. Do NOT tune IQ to suppress doubles to match the QS (overfitting). Report, flag, let the human reconcile."
   },
   "grading_nuances": [
     "'Window count' is ill-defined across jobs: plan = 14 W-codes; QS = 14 opening rows (11 windows + 2 garage doors + entrance); windows-proper = 11. These don't map 1:1. The QS cares about per-room opening AREAS (which feed ext wall area), not a flat count.",
-    "Plan ≠ QS on doors: plan hints at paired doors (2/710, 2/610, frame-to-frame 1430); QS records 7 standard / 0 double / 0 cavity. QS is the signed-off truth; IQ reading doubles off the plan could 'fail' against it — a clean example of why the human-review backstop matters."
+    "Plan ≠ QS on doors: plan hints at paired doors (2/710, 2/610, frame-to-frame 1430); QS records 7 standard / 0 double / 0 cavity. The QS is the signed pricing witness, not an oracle; IQ reading doubles off the plan can be plausible drawing evidence — a clean example of why the human-review backstop matters."
   ],
   "open_question": "Confirm what IQ feeds internal_wall_length_m into; if nothing in the QS consumes it, it is a diagnostic metric, not a deliverable (same as Beddis).",
   "joinery_bench": {

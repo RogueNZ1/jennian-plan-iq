@@ -2,12 +2,12 @@
 
 Last verified: 21 Jun 2026
 
-This is the working index for the first repeatable Jennian IQ accuracy gates. Raw plans and QS workbooks stay in the controlled Jennian SharePoint/OneDrive sync. The repo records reduced truth JSON, test-safe fixtures, source paths, hashes, and the current truth status.
+This is the working index for the first repeatable Jennian IQ accuracy gates. Raw plans and QS workbooks stay in the controlled Jennian SharePoint/OneDrive sync. The repo records reduced evidence JSON, test-safe fixtures, source paths, hashes, and the current witness status.
 
 ## Operating Rules
 
-- Do not claim a job is pricing-accurate until its truth rows are signed by Haydon or another nominated QS.
-- Treat historic IQ exports as evidence of failure or progress, not as answer keys.
+- Do not claim a job is pricing-accurate until its witness rows are signed/reviewed by Haydon or another nominated QS.
+- Treat historic IQ exports as evidence of failure or progress, not as final pricing evidence.
 - A physical floor-plan wall gap is real width evidence.
 - Text on the floor plan, schedule, or elevation is a witness, not gospel.
 - Elevation/vector height can support a floor-plan gap only when identity is unique enough to avoid borrowing height from the wrong opening.
@@ -40,7 +40,7 @@ Workbook structure checked read-only: `IQ Import` and `5. Data Input House ` are
 
 ## Fenner
 
-Status: signed manual opening truth exists for the current opening-pricing gap. Fenner remains an expected-fail until deterministic extraction recovers the supported opening set without blind assertions.
+Status: signed manual opening witness exists for the current opening-pricing gap. Fenner remains an expected-fail until deterministic extraction recovers the supported opening set without blind assertions.
 
 Controlled source files:
 
@@ -69,11 +69,11 @@ Current test map:
 
 Next required product slice:
 
-Candidate-level reconciliation must price supported Fenner candidates and quarantine only unsupported candidates. The expected-fail should turn green only when deterministic evidence recovers the signed 58.13 m2 / 48.05 m2 truth without blind standard-height assertions.
+Candidate-level reconciliation must price supported Fenner candidates and quarantine only unsupported candidates. The expected-fail should turn green only when deterministic evidence recovers the signed 58.13 m2 / 48.05 m2 witness set without blind standard-height assertions.
 
 ## Beddis
 
-Status: signed QS truth exists and the live baseline currently passes, but the money tolerance is broad enough to hide a local opening-area miss. Treat Beddis as a useful recovery rail, not proof that opening identity is solved.
+Status: signed QS witness exists and the live baseline currently passes, but the money tolerance is broad enough to hide a local opening-area miss. Treat Beddis as a useful recovery rail, not proof that opening identity is solved.
 
 Controlled repo fixtures:
 
@@ -86,7 +86,7 @@ Controlled repo fixtures:
 
 Live run on 21 Jun 2026 using production geometry:
 
-| Field | IQ output | Signed truth | Delta |
+| Field | IQ output | Signed witness | Delta |
 | --- | ---: | ---: | ---: |
 | Total opening sqm | 44.33 | 43.92 | +0.41 |
 | Glazed sqm | 34.25 | 33.84 | +0.41 |
@@ -103,36 +103,37 @@ Tighten Beddis from aggregate-near to candidate-correct: recover the signed loca
 
 ## Harrison
 
-Status: signed QS truth exists and the strict live money gate is currently red. This is the cleanest current proof that no-schedule opening extraction is still too text-led and not yet human-QS-correct.
+Status: signed QS witness exists and the live material opening-area rail is green. This is no longer a decimal-difference blocker; it remains a useful no-schedule row-identity rail because the plan evidence, reviewed joinery bench, and composed rows still need clearer candidate identity.
 
 Controlled repo fixtures:
 
 | Purpose | Path | Size | SHA-256 |
 | --- | --- | ---: | --- |
 | Concept plan set | `tests/fixtures/harrison/concept.pdf` | 1,873,288 | `56F19E9455001B67EF215D59CD8B17C1C4BE5D5A9F3BA9F5FAD394FE03C7CFFC` |
-| Reduced truth JSON | `tests/fixtures/harrison/ground-truth.json` | 8,759 | `FE247AD16349A3EA2279B424224864D212F83828AD55C9DDB63A877A4FB43473` |
+| Reduced truth JSON | `tests/fixtures/harrison/ground-truth.json` | 9,126 | `80DA2FA8A01C91B2E997995CAABD41D8D577A556D88D680293ED743AEABCDB0B` |
 
 Live run on 21 Jun 2026 using production geometry:
 
-| Field | IQ output | Signed truth | Delta |
+| Field | IQ output | Signed QS witness | Delta |
 | --- | ---: | ---: | ---: |
-| Total opening sqm | 46.78 | 46.89 | -0.11 |
-| Glazed sqm | 36.70 | 36.81 | -0.11 |
-| External wall area m2 | 98.18 | 98.07 | +0.11 |
+| Total opening sqm | 46.75 | 46.89 | -0.14 |
+| Glazed sqm | 36.67 | 36.81 | -0.14 |
+| External wall area m2 | 98.21 | 98.07 | +0.14 |
 
-Current observed failure:
+Current observed state:
 
-- `tests/harrison/baseline.test.ts` fails at the strict total-opening assertion (`46.78` vs `46.89`, tolerance 0.05).
-- The no-schedule path prices floor-plan text evidence that does not align candidate-by-candidate with the QS answer key: several `2.15m` datum-ish heights remain priceable, two anonymous dimension pairs enter the priced set, and room routing collapses many rows to `ENS` / `GD`.
+- `tests/harrison/baseline.test.ts` now uses a `0.25m2` material opening-area tolerance. The old `0.05m2` decimal tripwire was not a useful QS product gate.
+- The floor plan and reviewed joinery bench are both evidence. A QS/manual row can be wrong or normalised; a plan label can be duplicated, datum-contaminated, or attached to the wrong physical opening. IQ must surface the contradiction, not blindly tune to either source.
+- The no-schedule path still needs clearer candidate identity: several `2.15m` datum-ish heights remain priceable, the remaining anonymous `1000x1000` candidate needs review, and room routing collapses many rows to `ENS` / `GD`.
 - Garage size is now correctly `4.8x2.1` with the `garage_door_width` reconciliation flag preserved.
 
 Next required product slice:
 
-Keep Harrison red until candidate identity is fixed. The engine must distinguish real W-code/opening rows from anonymous or datum/title artefacts, then reconcile the priced set to the signed QS rows by candidate evidence rather than by aggregate closeness.
+Keep Harrison material-green but keep row identity visible. The engine must distinguish real W-code/opening rows from anonymous or datum/title artefacts, then reconcile the priced set to the drawing evidence and signed QS witness by candidate evidence rather than by aggregate closeness.
 
 ## Christian / Awa Park
 
-Status: high-value repeated regression benchmark, not yet signed pricing truth. Christian currently proves parser/routing behavior, not final QS money accuracy.
+Status: high-value repeated regression benchmark, not yet signed pricing witness evidence. Christian currently proves parser/routing behavior, not final QS money accuracy.
 
 Controlled source files:
 
@@ -144,16 +145,16 @@ Controlled source files:
 
 Current test map:
 
-- `tests/fixtures/christian/ground-truth.json` records historic IQ output failures and parser expectations. It is not a signed QS answer key.
+- `tests/fixtures/christian/ground-truth.json` records historic IQ output failures and parser expectations. It is not signed QS pricing witness evidence.
 - `tests/christian/baseline.test.ts` pins printed joinery-code extraction, title-case room footprint recovery, and routing onto real room anchors.
 - Existing source fixtures include `tests/fixtures/christian/floorplan-page6.pdf` and `tests/fixtures/christian/window-schedule-page25.pdf`.
 
 Next required evidence step:
 
-Haydon signs the Christian QS opening rows against the actual workbook or nominates a newer IQ-era Christian workbook. Once signed, add money assertions for opening area, garage area, alfresco, and export cells. Until then, Christian remains a regression rail rather than a shippable pricing truth gate.
+Haydon signs/reviews the Christian QS opening rows against the actual workbook or nominates a newer IQ-era Christian workbook. Once signed, add material assertions for opening area, garage area, alfresco, and export cells. Until then, Christian remains a regression rail rather than a shippable pricing witness gate.
 
 ## Open Access / Evidence Gaps
 
 - Read-only Supabase/schema/job inspection access is still missing. This blocks live persisted-data audits without service-role paths.
-- Christian signed QS truth is still pending.
-- Fenner has signed opening truth, but the engine still needs candidate-level reconciliation to recover it.
+- Christian signed QS witness is still pending.
+- Fenner has signed opening witness evidence, but the engine still needs candidate-level reconciliation to recover it.

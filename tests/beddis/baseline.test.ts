@@ -354,7 +354,7 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     // ── Phase 2c definition of done ───────────────────────────────────────────
     // The garage door now classifies by the height+width combination instead of
     // falling through unparsed. Beddis reads "2,210 x 4,800" (double garage) and
-    // must map to the QS double-garage size 4.8×2.1 — matching the answer key.
+    // must map to the reviewed double-garage size 4.8×2.1 — matching the QS witness.
     expect(out.prelim.takeoff.garage_door_size).toBe("4.8×2.1");
 
     // ── Phase 4, Slice 1 definition of done (vector-first hybrid) ──────────────

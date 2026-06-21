@@ -160,7 +160,7 @@ function fennerManualOpenings(): Opening[] {
 }
 
 // ── (1) PER-FIXTURE RENDERING RE-BASELINE ─────────────────────────────────────────────────
-// Feed each fixture's joinery_bench.openings[] (the verified QS truth) into buildQSDataInputSheet
+// Feed each fixture's joinery_bench.openings[] (the reviewed QS witness) into buildQSDataInputSheet
 // and assert every opening appears as a flat row — no keyword routing, no collapse, no drops.
 
 const FIXTURES = [

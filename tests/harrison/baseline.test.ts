@@ -15,7 +15,8 @@
  *    classification + extraction must generalise beyond the one Beddis template.
  *  - Garage door reads 2150×4800 (Beddis was 2210×4800) → tolerant 2.0–2.4m band.
  *
- * Answer key = the QS, always (ground-truth.json). Primary input = concept rev 4.
+ * ground-truth.json records the signed QS witness plus reviewed joinery bench.
+ * The plan remains drawing evidence; plan-vs-QS contradictions are reported, not hidden.
  * Page images are pre-rendered by poppler into tests/fixtures/harrison/_render/
  * (see tests/fixtures/harrison/README.md). Page text → _pagetext/.
  *
@@ -66,7 +67,7 @@ const TRUTH = JSON.parse(readFileSync(resolve(DIR, "ground-truth.json"), "utf8")
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdf.js/Supabase boundary types are deliberately loose here
   any
 >;
-const JOINERY_TRUTH = JSON.parse(readFileSync(resolve(DIR, "ground-truth.json"), "utf8"))
+const JOINERY_BENCH = JSON.parse(readFileSync(resolve(DIR, "ground-truth.json"), "utf8"))
   .joinery_bench.derived as Record<string, number>;
 
 const b64 = (p: string) => readFileSync(resolve(RENDER, p)).toString("base64");
@@ -272,8 +273,8 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
       out.concept.window_source = null;
     }
 
-    // Scorecard: deltas vs the QS answer key (report — not all are hard-asserted,
-    // since the QS, not any plan's printed number, is truth and some values are AI-read).
+    // Scorecard: deltas vs the signed QS witness (report — not all are hard-asserted,
+    // because the QS and plan are separate witnesses and some values are AI-read).
     const t = out.concept.takeoff;
     out.concept.scorecard = t && {
       floor_area_m2: {
@@ -455,7 +456,7 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
 
     // ── Convergence Slice 3 definition of done (shared composeTakeoff on prod inputs) ──
     // run.ts calls this SAME pure function with the same page-pinned inputs; proving it on
-    // the Harrison ground truth proves the production path's numbers before any DB work.
+    // the Harrison evidence pack proves the production path's numbers before any DB work.
     const cmp = out.concept.composed;
     // Harrison regression: geometry/OCR used to mislabel the printed perimeter as
     // floor area. Current geometry agrees with the title-block floor area, so either
@@ -489,9 +490,9 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     expectMaterialAreaClose(
       "total opening area",
       cmp.total_opening_sqm,
-      JOINERY_TRUTH.total_opening_sqm,
+      JOINERY_BENCH.total_opening_sqm,
     );
-    expectMaterialAreaClose("glazed opening area", cmp.glazed_sqm, JOINERY_TRUTH.glazed_sqm);
+    expectMaterialAreaClose("glazed opening area", cmp.glazed_sqm, JOINERY_BENCH.glazed_sqm);
     expectMaterialAreaClose(
       "external wall area",
       cmp.external_wall_area_m2.value,

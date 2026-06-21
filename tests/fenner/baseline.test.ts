@@ -136,7 +136,7 @@ describe("Fenner wild-card benchmark", () => {
     expect(shortfall).toBeGreaterThan(20);
   }, 60_000);
 
-  it("detects the malformed drafting dimension label instead of treating it as pricing truth", async () => {
+  it("detects the malformed drafting dimension label instead of treating it as pricing evidence", async () => {
     const pt = await extract(PLAN);
     const issueText = (pt.draftingIssues ?? []).map((issue) => issue.text).join(" | ");
 
