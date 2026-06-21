@@ -20,9 +20,9 @@ Production app access is confirmed through the internal operator account `test@j
 
 Do not record the password in Git, Linear, SharePoint notes, or STATE.md. Do not reset this account casually because reset scripts can change the role or permission state.
 
-## Canonical QS Master Candidate
+## Canonical QS Master
 
-Pending Haydon signoff, the strongest candidate is:
+Confirmed by Haydon on 21 Jun 2026:
 
 `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\Jennian IQ\Jennian IQ MASTER.xlsm`
 
@@ -36,7 +36,7 @@ Both copies are byte-identical:
 | --- | --- | ---: | --- |
 | `Jennian IQ MASTER.xlsm` | 2026-06-17 14:02:27 | 1,348,665 | `84D45808AFD75D3BC816DC768350BF087C1A2F77EFC07255CD07976720135D63` |
 
-Workbook structure checked read-only: `IQ Import` and `5. Data Input House ` are present. The candidate is not fully signed canonical until Haydon confirms this is the workbook IQ exports must obey.
+Workbook structure checked read-only: `IQ Import` and `5. Data Input House ` are present. This is the canonical master workbook IQ exports must obey until Haydon explicitly supersedes it.
 
 ## Fenner
 
@@ -96,6 +96,5 @@ Haydon signs the Christian QS opening rows against the actual workbook or nomina
 ## Open Access / Evidence Gaps
 
 - Read-only Supabase/schema/job inspection access is still missing. This blocks live persisted-data audits without service-role paths.
-- Canonical QS master signoff is still pending, although the current candidate is now identified and hashed.
 - Christian signed QS truth is still pending.
 - Fenner has signed opening truth, but the engine still needs candidate-level reconciliation to recover it.
