@@ -122,7 +122,7 @@ Live run on 21 Jun 2026 using production geometry:
 
 Current observed state:
 
-- `tests/harrison/baseline.test.ts` now uses a `0.25m2` material opening-area tolerance. The old `0.05m2` decimal tripwire was not a useful QS product gate.
+- `tests/harrison/baseline.test.ts` now uses a `2m2` aggregate opening/glazed-area tolerance. The old decimal tripwires were not useful QS product gates; row identity and unsupported candidates still remain visible rather than being hidden by the aggregate pass.
 - The floor plan and reviewed joinery bench are both evidence. A QS/manual row can be wrong or normalised; a plan label can be duplicated, datum-contaminated, or attached to the wrong physical opening. IQ must surface the contradiction, not blindly tune to either source.
 - The no-schedule path still needs clearer candidate identity: several `2.15m` datum-ish heights remain priceable, the remaining anonymous `1000x1000` candidate needs review, and room routing collapses many rows to `ENS` / `GD`.
 - Garage size is now correctly `4.8x2.1` with the `garage_door_width` reconciliation flag preserved.
