@@ -19,7 +19,13 @@ jobs:
 
     env:
       SUPABASE_URL: https://ukegudqobnmiesudtjen.supabase.co
-      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # Fix — was secrets.SUPABASE_SERVICE_ROLE_KEY, a leftover secret holding
+      # the old/rotated service_role JWT (now invalid → Supabase "Invalid API
+      # key"). The secret exists, so GitHub passed a real-but-stale value; this
+      # was not an empty substitution. Every other workflow (live-validate,
+      # provision-validator, deploy-pages) already reads SUPABASE_SECRET_KEY,
+      # the current valid key. Align 007 with them.
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
 
