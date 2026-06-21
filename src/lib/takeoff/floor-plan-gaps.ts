@@ -234,6 +234,12 @@ function gapConfidence(
   return routingConfidence;
 }
 
+function coveredOutdoorLabel(label: string | null | undefined): boolean {
+  return /\b(alfresco|deck|patio|porch|outdoor|concrete|paving|driveway|covered\s+area)\b/i.test(
+    label ?? "",
+  );
+}
+
 function routeWithEnvelopeReview<T extends Pick<FloorPlanGapCandidate, "routing">>(
   route: T,
   envelopeSide: FloorPlanGapEnvelopeSide,
@@ -246,6 +252,25 @@ function routeWithEnvelopeReview<T extends Pick<FloorPlanGapCandidate, "routing"
       confidence: "low",
       ambiguous: true,
       reason: `${route.routing.reason}; measured gap is on an ${envelopeSide} wall line, so it is review-only until exterior wall identity is proven`,
+    },
+  };
+}
+
+function routeWithCoveredOutdoorReview<
+  T extends Pick<FloorPlanGapCandidate, "roomLabel" | "alternateRoomLabels" | "routing">,
+>(route: T): T {
+  const alternatives = route.alternateRoomLabels ?? [];
+  const hasOnlyOutdoorArea =
+    coveredOutdoorLabel(route.roomLabel) &&
+    alternatives.every((label) => coveredOutdoorLabel(label));
+  if (!hasOnlyOutdoorArea) return route;
+  return {
+    ...route,
+    routing: {
+      ...route.routing,
+      confidence: "low",
+      ambiguous: true,
+      reason: `${route.routing.reason}; ${route.roomLabel} is covered/outdoor area evidence, not an internal room proving a building wall`,
     },
   };
 }
@@ -289,7 +314,7 @@ export function detectFloorPlanGaps(args: {
         scale: args.scale,
       });
       const envelopeSide = envelopeSideOf(x, y, a.vertical);
-      const route = routeWithEnvelopeReview(baseRoute, envelopeSide);
+      const route = routeWithEnvelopeReview(routeWithCoveredOutdoorReview(baseRoute), envelopeSide);
       candidates.push({
         id: `floorplan-gap-${candidates.length + 1}`,
         widthMm,

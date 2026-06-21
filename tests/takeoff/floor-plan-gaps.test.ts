@@ -112,6 +112,38 @@ describe("floor-plan gap extraction", () => {
     expect(gaps[0].note).toContain("interior wall gap");
   });
 
+  it("does not let a covered alfresco outline alone prove a building-wall opening", () => {
+    const scale = 100;
+    const widthPt = mmToPt(1800, scale);
+    const wallFaceGap = mmToPt(190, scale);
+    const start = 100;
+    const end = start + widthPt;
+    const segments: Segment[] = [
+      horizontal(20, start, 100),
+      horizontal(end, 270, 100),
+      horizontal(20, start, 100 + wallFaceGap),
+      horizontal(end, 270, 100 + wallFaceGap),
+    ];
+
+    const gaps = detectFloorPlanGaps({
+      segments,
+      scale,
+      rooms: [{ name: "ALFRESCO", x: 150, y: 135 }],
+    });
+
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0]).toMatchObject({
+      envelopeSide: "exterior",
+      roomLabel: "ALFRESCO",
+      confidence: "low",
+      routing: {
+        confidence: "low",
+        ambiguous: true,
+      },
+    });
+    expect(gaps[0].note).toContain("covered/outdoor area");
+  });
+
   it("does not treat a single broken annotation line as a wall gap", () => {
     const scale = 100;
     const widthPt = mmToPt(1200, scale);

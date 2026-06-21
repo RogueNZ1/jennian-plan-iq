@@ -145,3 +145,14 @@ describe("window auto-routing — West Street against Haydon's hand-verified wor
     expect(area).toBeCloseTo(13.56, 2);
   }, 60_000);
 });
+
+describe("plan-text - standalone opening width witnesses", () => {
+  it("collects width-only labels as evidence without turning them into window codes", async () => {
+    const pt = await extract(resolve(__dirname, "../doors/plans/fenner-floorplan.pdf"));
+
+    expect(pt.windowCodes.some((code) => code.widthMm === 3600 || code.heightMm === 3600)).toBe(
+      false,
+    );
+    expect(pt.standaloneOpeningWidths?.some((witness) => witness.widthMm === 3600)).toBe(true);
+  }, 60_000);
+});

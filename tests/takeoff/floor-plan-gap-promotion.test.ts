@@ -79,4 +79,16 @@ describe("floor-plan gap promotion", () => {
     expect(promoted.openings).toHaveLength(0);
     expect(promoted.promotedByGapId.has(gap.id)).toBe(false);
   });
+
+  it("does not promote stale gap evidence when wall-envelope identity is missing", () => {
+    const { envelopeSide: _droppedEnvelopeSide, ...staleGap } = gap;
+    const promoted = promoteFloorPlanGapOpenings({
+      openings: [],
+      floorPlanGaps: [staleGap as FloorPlanGapCandidate],
+      elevationMatches: new Map([[gap.id, match(0)]]),
+    });
+
+    expect(promoted.openings).toHaveLength(0);
+    expect(promoted.promotedByGapId.has(gap.id)).toBe(false);
+  });
 });

@@ -21,11 +21,15 @@ not make the job bad. The engine must isolate the bad evidence, keep measuring f
 the good evidence, and show the local uncertainty.
 
 The floor plan is the backbone. It carries the layout, wall runs, rooms, openings,
-doors, garage/alfresco footprints, and internal partitions. Text is an accelerator
-when clean, not the authority when it is jammed, malformed, duplicated, or impossible.
-Elevations are powerful cross-checks and height/face-measure sources, but a wrong or
-missing elevation must not poison the whole job. Schedules and specs are explicit
-evidence, but still get sanity-checked against the drawing.
+doors, garage/alfresco footprints, and internal partitions. The building wall
+perimeter is not the same thing as the roof, concrete, paving, or covered-area
+perimeter. A covered alfresco can sit under the roof line without making its open
+edge an exterior wall; the house wall behind/around that covered area is still the
+opening/cladding witness a QS measures. Text is an accelerator when clean, not the
+authority when it is jammed, malformed, duplicated, or impossible. Elevations are
+powerful cross-checks and height/face-measure sources, but a wrong or missing
+elevation must not poison the whole job. Schedules and specs are explicit evidence,
+but still get sanity-checked against the drawing.
 
 Local failure is the product rule. Bad text must not delete a drawn opening. A wrong
 elevation must not stop the floor-plan takeoff. A missing schedule must not erase

@@ -9,6 +9,10 @@ This is the working index for the first repeatable Jennian IQ accuracy gates. Ra
 - Do not claim a job is pricing-accurate until its witness rows are signed/reviewed by Haydon or another nominated QS.
 - Treat historic IQ exports as evidence of failure or progress, not as final pricing evidence.
 - A physical floor-plan wall gap is real width evidence.
+- The building wall perimeter is the QS witness for openings and cladding. Roof,
+  concrete, paving, and covered-alfresco outlines are separate witnesses; their
+  open edges must not be priced as exterior walls, and they must not hide the real
+  house wall behind them.
 - Text on the floor plan, schedule, or elevation is a witness, not gospel.
 - Elevation/vector height can support a floor-plan gap only when identity is unique enough to avoid borrowing height from the wrong opening.
 - Malformed or contradictory evidence quarantines that candidate; it should not condemn every other supported opening.

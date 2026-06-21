@@ -144,6 +144,28 @@ describe("elevation to floor-plan gap matching", () => {
     expect(matches.size).toBe(0);
   });
 
+  it("does not treat missing wall-envelope evidence as exterior by default", () => {
+    const { envelopeSide: _droppedEnvelopeSide, ...staleGap } = baseGap;
+    const matches = matchElevationToFloorPlanGaps({
+      gaps: [staleGap as FloorPlanGapCandidate],
+      elevations: elevations([
+        {
+          face: "North",
+          type: "window",
+          label: "W01",
+          widthMm: 1810,
+          heightMm: 1300,
+          quantity: 1,
+          cladding: null,
+          confidence: "high",
+          notes: [],
+        },
+      ]),
+    });
+
+    expect(matches.size).toBe(0);
+  });
+
   it("fails open when elevation face labels are generated rather than cardinal", () => {
     const matches = matchElevationToFloorPlanGaps({
       gaps: [baseGap],

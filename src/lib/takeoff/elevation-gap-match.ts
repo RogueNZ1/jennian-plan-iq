@@ -77,7 +77,7 @@ export function matchElevationToFloorPlanGaps(args: {
   if (gaps.length === 0 || elevationOpenings.length === 0) return out;
 
   for (const gap of gaps) {
-    if ((gap.envelopeSide ?? "exterior") !== "exterior") continue;
+    if (gap.envelopeSide !== "exterior") continue;
     const tolerance = widthToleranceMm(gap.widthMm);
     const matches = elevationOpenings.filter(
       (opening) =>
@@ -88,7 +88,7 @@ export function matchElevationToFloorPlanGaps(args: {
     const match = matches[0];
     const competingGaps = gaps.filter(
       (candidate) =>
-        (candidate.envelopeSide ?? "exterior") === "exterior" &&
+        candidate.envelopeSide === "exterior" &&
         Math.abs(match.widthMm - candidate.widthMm) <= widthToleranceMm(candidate.widthMm) &&
         faceCompatible(candidate, match),
     );

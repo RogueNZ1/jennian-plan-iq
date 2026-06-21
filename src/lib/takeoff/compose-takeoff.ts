@@ -761,6 +761,12 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   const recoveredVisualOpeningAudit = recoverVisualAuditFromElevationLedger(
     visualOpeningAudit,
     elevationData,
+    {
+      planText,
+      page: doorEngine?.pageMeta
+        ? { width: doorEngine.pageMeta.width, height: doorEngine.pageMeta.height }
+        : null,
+    },
   );
   const visualPromotion = promoteVisualOpenings(recoveredVisualOpeningAudit);
   const visualPromotedOpenings = visualPromotion?.openings.length ? visualPromotion.openings : null;

@@ -48,6 +48,13 @@ export type PlanTitleAreas = Partial<{
 }>;
 
 export type PlanFrameOpening = { widthMm: number; x: number; y: number };
+export type PlanStandaloneOpeningWidth = {
+  widthMm: number;
+  x: number;
+  y: number;
+  vertical: boolean;
+  text: string;
+};
 export type PlanDraftingIssue = {
   kind: "malformed_dimension_label";
   text: string;
@@ -59,6 +66,7 @@ export type PlanText = {
   rooms: PlanRoom[];
   windowCodes: PlanWindowCode[];
   frameOpenings?: PlanFrameOpening[];
+  standaloneOpeningWidths?: PlanStandaloneOpeningWidth[];
   draftingIssues?: PlanDraftingIssue[];
   titleAreas: PlanTitleAreas;
 };
@@ -231,6 +239,21 @@ export function parseFrameOpenings(labels: TextLabel[]): PlanFrameOpening[] {
   return out;
 }
 
+export function parseStandaloneOpeningWidths(labels: TextLabel[]): PlanStandaloneOpeningWidth[] {
+  const out: PlanStandaloneOpeningWidth[] = [];
+  for (const l of labels) {
+    const text = l.text.trim();
+    if (!/^\d[\d, ]{2,5}$/.test(text)) continue;
+    const widthMm = num(text);
+    // Width-only exterior opening witnesses are typically sliders/large frames.
+    // Internal door leaves and dimension ticks stay below this band and must not
+    // become opening evidence without a separate physical-symbol/elevation match.
+    if (widthMm < 1200 || widthMm > 6000) continue;
+    out.push({ widthMm, x: l.x, y: l.y, vertical: l.vertical, text });
+  }
+  return out;
+}
+
 export function parseDraftingIssues(labels: TextLabel[]): PlanDraftingIssue[] {
   const out: PlanDraftingIssue[] = [];
   for (const l of labels) {
@@ -261,6 +284,7 @@ export function parsePlanText(labels: TextLabel[]): PlanText {
     rooms,
     windowCodes: parseWindowCodes(labels, rooms),
     frameOpenings: parseFrameOpenings(labels),
+    standaloneOpeningWidths: parseStandaloneOpeningWidths(labels),
     draftingIssues: parseDraftingIssues(labels),
     titleAreas: parseTitleAreas(labels),
   };

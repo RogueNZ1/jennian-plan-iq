@@ -252,6 +252,109 @@ describe("composeTakeoff visual opening promotion", () => {
     expect(enriched.total_opening_sqm).toBe(13.23);
   });
 
+  it("uses standalone floor-plan width to choose between ambiguous elevation openings", () => {
+    const enriched = composeTakeoff({
+      visionTakeoff: { ...baseVision, windows_by_room: null, window_count: null },
+      geometry: null,
+      schedule: null,
+      geometryPageIndex: undefined,
+      doorEngine: {
+        hinged: [],
+        doubles: [],
+        cavity: [],
+        flags: [],
+        counts: { singles: 0, doubles: 0, cavitySliders: 0, barn: 0 },
+        planText: {
+          rooms: [],
+          windowCodes: [],
+          frameOpenings: [],
+          standaloneOpeningWidths: [
+            { widthMm: 3600, x: 505, y: 410, vertical: true, text: "3600" },
+          ],
+          draftingIssues: [],
+          titleAreas: {},
+        },
+        floorPlanGaps: [],
+        pageMeta: {
+          pageNumber: 1,
+          view: [0, 0, 1000, 800],
+          width: 1000,
+          height: 800,
+          scaleText: "1:100",
+        },
+      },
+      visualOpeningAudit: {
+        pageNumber: 1,
+        method: "visual_qs",
+        warnings: [],
+        summary: { totalOpenings: 1, qsGlazedOpenings: 1, garageDoors: 0, uncertain: 1 },
+        openings: [
+          {
+            id: "O1",
+            type: "slider",
+            room: "Family",
+            label: "1300x175036001300x1750",
+            height_m: null,
+            width_m: null,
+            x: 0.5,
+            y: 0.5,
+            confidence: "low",
+            evidence: "visual opening symbol on exterior wall; malformed floor-plan label",
+            flags: ["malformed dimension label - verify against elevations/schedule"],
+          },
+        ],
+      },
+      elevationData: {
+        claddingTypes: [],
+        claddingTypeCode: null,
+        roofType: null,
+        roofPitchDegrees: null,
+        wallHeightMm: null,
+        studHeightMm: null,
+        facesPresent: ["North"],
+        windowCountPerFace: {},
+        externalDoorCount: 0,
+        gableEndCount: 0,
+        garageDoorsPresent: false,
+        elevationOpenings: [
+          {
+            face: "North",
+            type: "slider",
+            label: "RS1",
+            widthMm: 3000,
+            heightMm: 2100,
+            quantity: 1,
+            cladding: null,
+            confidence: "high",
+            notes: [],
+          },
+          {
+            face: "North",
+            type: "slider",
+            label: "RS2",
+            widthMm: 3600,
+            heightMm: 2100,
+            quantity: 1,
+            cladding: null,
+            confidence: "high",
+            notes: [],
+          },
+        ],
+      },
+    }).enriched;
+
+    expect(enriched.openings?.[0]).toMatchObject({
+      type: "slider",
+      room: "Family",
+      width_m: 3.6,
+      height_m: 2.1,
+      confidence: "high",
+      flags: [],
+    });
+    expect(enriched.openings?.[0]?.area_m2).toBe(7.56);
+    expect(enriched.total_opening_sqm).toBeGreaterThan(7.56);
+  });
+
   it("quarantines impossible visual witnesses before they become priced opening totals", () => {
     const enriched = composeTakeoff({
       visionTakeoff: baseVision,
