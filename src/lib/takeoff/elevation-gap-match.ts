@@ -1,11 +1,14 @@
 import type { ElevationData, ElevationOpeningCandidate } from "./extract-elevations";
 import type { FloorPlanGapCandidate } from "./floor-plan-gaps";
 
+export const MEASURED_WIDTH_CONFIRMATION_TOLERANCE_MM = 50;
+
 export type FloorPlanGapElevationMatch = {
   source: "elevation_measurement";
   face: string;
   expectedFace: "north" | "south" | "east" | "west" | null;
   faceCheck: "matched" | "unknown";
+  measurementCheck: "confirmed" | "supporting";
   type: ElevationOpeningCandidate["type"];
   label: string | null;
   widthMm: number;
@@ -90,6 +93,8 @@ export function matchElevationToFloorPlanGaps(args: {
     if (competingGaps.length !== 1) continue;
 
     const widthDeltaMm = Math.abs(match.widthMm - gap.widthMm);
+    const measurementCheck =
+      widthDeltaMm <= MEASURED_WIDTH_CONFIRMATION_TOLERANCE_MM ? "confirmed" : "supporting";
     out.set(gap.id, {
       source: "elevation_measurement",
       face: match.face,
@@ -98,13 +103,17 @@ export function matchElevationToFloorPlanGaps(args: {
         oppositeFace(gap.roomSide ?? null) != null && canonicalFace(match.face) != null
           ? "matched"
           : "unknown",
+      measurementCheck,
       type: match.type,
       label: match.label,
       widthMm: match.widthMm,
       heightMm: match.heightMm,
       widthDeltaMm,
       confidence: match.confidence,
-      note: `${match.face} elevation ${match.label ?? "opening"} confirms ${match.widthMm}mm width within ${widthDeltaMm}mm of measured floor-plan gap; height ${match.heightMm}mm recovered as evidence only.`,
+      note:
+        measurementCheck === "confirmed"
+          ? `${match.face} elevation ${match.label ?? "opening"} confirms ${match.widthMm}mm width within ${widthDeltaMm}mm of measured floor-plan gap; height ${match.heightMm}mm recovered as evidence only.`
+          : `${match.face} elevation ${match.label ?? "opening"} supports a similar ${match.widthMm}mm width, but the ${widthDeltaMm}mm delta is outside the 50mm confirmation tolerance; keep review-only.`,
     });
   }
 

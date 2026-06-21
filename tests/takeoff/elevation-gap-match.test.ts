@@ -69,7 +69,36 @@ describe("elevation to floor-plan gap matching", () => {
       confidence: "high",
       expectedFace: "north",
       faceCheck: "matched",
+      measurementCheck: "confirmed",
     });
+  });
+
+  it("keeps wider width deltas as supporting evidence, not confirmed measurement", () => {
+    const matches = matchElevationToFloorPlanGaps({
+      gaps: [baseGap],
+      elevations: elevations([
+        {
+          face: "North",
+          type: "window",
+          label: "W01",
+          widthMm: 1870,
+          heightMm: 1300,
+          quantity: 1,
+          cladding: null,
+          confidence: "high",
+          notes: [],
+        },
+      ]),
+    });
+
+    expect(matches.get("floorplan-gap-1")).toMatchObject({
+      face: "North",
+      widthMm: 1870,
+      widthDeltaMm: 70,
+      faceCheck: "matched",
+      measurementCheck: "supporting",
+    });
+    expect(matches.get("floorplan-gap-1")?.note).toContain("outside the 50mm confirmation");
   });
 
   it("does not let a known wrong elevation face support a floor-plan gap", () => {
@@ -115,6 +144,7 @@ describe("elevation to floor-plan gap matching", () => {
       face: "elevation-face-1",
       expectedFace: "north",
       faceCheck: "unknown",
+      measurementCheck: "confirmed",
       heightMm: 1300,
     });
   });

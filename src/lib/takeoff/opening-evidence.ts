@@ -208,7 +208,9 @@ export function buildOpeningEvidenceLedger(args: {
 
     const elevationSupportText = elevationMatch
       ? elevationMatch.faceCheck === "matched"
-        ? `elevation ${elevationMatch.face} supports height ${elevationMatch.heightMm}mm; `
+        ? elevationMatch.measurementCheck === "confirmed"
+          ? `elevation ${elevationMatch.face} confirms width within ${elevationMatch.widthDeltaMm}mm and supports height ${elevationMatch.heightMm}mm; `
+          : `elevation ${elevationMatch.face} has similar width/height evidence, but its width delta is ${elevationMatch.widthDeltaMm}mm outside the 50mm confirmation tolerance; `
         : `elevation ${elevationMatch.face} has matching width/height evidence, but its face is not matched to the floor-plan wall; `
       : "";
 
