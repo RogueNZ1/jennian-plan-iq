@@ -87,7 +87,7 @@ describe("composeTakeoff visual opening promotion", () => {
 
     expect(enriched.openings?.map((o) => o.type)).toEqual(["window", "pa_door", "sectional_door"]);
     expect(enriched.openings?.map((o) => o.glazed)).toEqual([true, true, false]);
-    expect(enriched.garage_door_size.value).toBe("2.7×2.1");
+    expect(enriched.garage_door_size.value).toBe("2.7x2.1");
     expect(enriched.total_opening_sqm).toBe(8.87);
     expect(enriched.windows_by_room.discrepancy_flags.join(" ")).toContain("Visual QS promoted");
     expect(enriched.windows_by_room.discrepancy_flags.join(" ")).toContain(
@@ -448,7 +448,7 @@ describe("composeTakeoff visual opening promotion", () => {
       },
     }).enriched;
 
-    expect(enriched.garage_door_size.value).toBe("4.8Ã—2.1");
+    expect(enriched.garage_door_size.value).toBe("4.8x2.1");
     expect(enriched.garage_door_size.source).toBe("vector");
     expect(enriched.garage_door_size.discrepancy_flags.join(" ")).toContain(
       "Garage door recovered from North elevation vector candidate 4741x2049mm",
@@ -465,8 +465,12 @@ describe("composeTakeoff visual opening promotion", () => {
         }),
       ]),
     );
-    expect(enriched.total_opening_sqm).toBeNull();
-    expect(enriched.glazed_sqm).toBeNull();
+    expect(enriched.total_opening_sqm).toBe(10.08);
+    expect(enriched.glazed_sqm).toBe(0);
+    expect(enriched.external_wall_area_m2.value).toBe(85.92);
+    expect(enriched.external_wall_area_m2.discrepancy_flags.join(" ")).not.toContain(
+      "Opening pricing blocked",
+    );
     const garageEvidence = enriched.opening_evidence?.find(
       (candidate) => candidate.type === "sectional_door",
     );

@@ -46,7 +46,7 @@ describe("visual-opening-promotion", () => {
       ["pa_door", true],
       ["sectional_door", false],
     ]);
-    expect(promoted?.garageDoorSize).toBe("2.8×2.11");
+    expect(promoted?.garageDoorSize).toBe("2.8x2.11");
     expect(promoted?.openings[1]).toMatchObject({
       height_m: 2.1,
       width_m: 1,
@@ -85,7 +85,7 @@ describe("visual-opening-promotion", () => {
       height_m: 2.11,
       glazed: false,
     });
-    expect(promoted?.garageDoorSize).toBe("2.7×2.11");
+    expect(promoted?.garageDoorSize).toBe("2.7x2.11");
   });
 
   it("rejects elevation/level reads as garage doors", () => {

@@ -158,7 +158,7 @@ describe("geometry_status flag at the compose seam", () => {
       geometryPageIndex: 0,
     }).enriched;
 
-    expect(out.garage_door_size.value).toBe("3×2.1");
+    expect(out.garage_door_size.value).toBe("3x2.1");
     expect(out.garage_door_size.confidence).toBe("high");
     expect(out.garage_door_size.discrepancy_flags.join(" ")).not.toContain("garage_door_width");
   });

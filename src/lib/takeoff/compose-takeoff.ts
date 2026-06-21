@@ -67,6 +67,7 @@ import { buildOpeningEvidenceLedger } from "./opening-evidence";
 import { matchElevationToFloorPlanGaps } from "./elevation-gap-match";
 import { promoteFloorPlanGapOpenings } from "./floor-plan-gap-promotion";
 import { classifyGarageDoorAnnotation } from "./classify";
+import { normaliseGarageDoorSizeLabel } from "./garage-door-size";
 import {
   adjudicateOpeningPricing,
   applyOpeningPricingBlock,
@@ -800,9 +801,10 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
   const floorPlanGapPromotionFlags = [...floorPlanGapPromotion.promotedByGapId.values()].flatMap(
     (opening) => opening.flags ?? [],
   );
-  const composedGarageDoorSize = elevationGarageDoor
+  const rawComposedGarageDoorSize = elevationGarageDoor
     ? `${elevationGarageDoor.width_m}Ã—${elevationGarageDoor.height_m}`
     : (visualPromotion?.garageDoorSize ?? folded.garage_door_size);
+  const composedGarageDoorSize = normaliseGarageDoorSizeLabel(rawComposedGarageDoorSize);
   const garageDoorConfirmedFromSectionalCallout =
     !visualPromotion && !elevationGarageDoor && composedGarageDoorSize !== t.garage_door_size;
   const garageDoorConfirmedFromVisual = !!visualPromotion?.garageDoorSize && !elevationGarageDoor;

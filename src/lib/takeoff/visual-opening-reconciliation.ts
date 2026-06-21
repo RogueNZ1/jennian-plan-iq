@@ -1,5 +1,6 @@
 import type { Opening } from "./takeoff-types";
 import type { VisualOpeningAudit } from "./visual-opening-audit";
+import { parseGarageDoorSizeM } from "./garage-door-size";
 
 export type VisualOpeningReconciliationIssue = {
   severity: "error" | "warning";
@@ -33,14 +34,7 @@ function fmtCount(n: number | null | undefined): string {
 }
 
 function parseSizeM(label: string | null | undefined): { a: number; b: number } | null {
-  if (!label) return null;
-  const m = label.match(/(\d+(?:\.\d+)?)\s*[x×*]\s*(\d+(?:\.\d+)?)/i);
-  if (!m) return null;
-  const rawA = Number(m[1]);
-  const rawB = Number(m[2]);
-  if (!Number.isFinite(rawA) || !Number.isFinite(rawB)) return null;
-  const toM = (v: number) => (v > 20 ? v / 1000 : v);
-  return { a: toM(rawA), b: toM(rawB) };
+  return parseGarageDoorSizeM(label);
 }
 
 function visualSizeM(
@@ -130,9 +124,9 @@ export function reconcileVisualOpenings(args: Args): VisualOpeningReconciliation
     !sizeCloseUnordered(visualGarageSize, composedGarageSize)
   ) {
     issues.push({
-      severity: "error",
+      severity: "warning",
       field: "garage_door_size",
-      message: `Visual QS garage door size ${fmtSize(visualGarageSize)} disagrees with composed garage door size ${fmtSize(composedGarageSize)}.`,
+      message: `Visual QS garage door size ${fmtSize(visualGarageSize)} disagrees with composed garage door size ${fmtSize(composedGarageSize)}; keeping the composed numeric garage door size.`,
       visual: fmtSize(visualGarageSize),
       composed: fmtSize(composedGarageSize),
       openingIds: [visualGarage.id],

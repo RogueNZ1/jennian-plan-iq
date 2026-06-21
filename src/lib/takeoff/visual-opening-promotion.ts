@@ -2,6 +2,7 @@ import type { Opening, OpeningType } from "./takeoff-types";
 import type { VisualOpeningAudit, VisualOpeningAuditItem } from "./visual-opening-audit";
 import { parseDimsMm } from "./classify";
 import { isQsGlazedOpening } from "./derive-fields";
+import { normaliseGarageDoorSizeLabel } from "./garage-door-size";
 import { round2 } from "./utils";
 
 export type VisualOpeningPromotion = {
@@ -157,5 +158,5 @@ export function promoteVisualOpenings(
   flags.unshift(
     `Visual QS promoted ${openings.length} external-wall openings into the canonical opening set; sectional/roller garage door remains the only non-glazed exception.`,
   );
-  return { openings, garageDoorSize, flags };
+  return { openings, garageDoorSize: normaliseGarageDoorSizeLabel(garageDoorSize), flags };
 }

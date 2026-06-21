@@ -68,6 +68,17 @@ describe("visual-opening-reconciliation", () => {
     expect(report?.issues).toEqual([]);
   });
 
+  it("treats numeric garage dimensions as usable even when the separator is broken", () => {
+    const report = reconcileVisualOpenings({
+      audit: audit([vo("O1", "garage_door", 2.1, 4.8)]),
+      openings: [opening("sectional_door", false)],
+      garageDoorSize: "4.8 bad-separator 2.1",
+    });
+
+    expect(report?.status).toBe("pass");
+    expect(report?.issues).toEqual([]);
+  });
+
   it("flags visual QS opening-count and garage-door disagreements", () => {
     const report = reconcileVisualOpenings({
       audit: audit([
