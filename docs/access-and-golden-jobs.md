@@ -21,7 +21,7 @@ Jennian IQ should be verified against real QS truth, not screenshots, chat memor
 | Linear | Available. JEN issues can be read and updated from Codex. | Keep product doctrine, access work, and trial gates in Linear rather than chat only. |
 | GitHub/repo | Available. Codex can commit, push, and verify local gates. | Keep using strict slices with STATE.md entries. |
 | Production deploy path | Available. `main` deploys to Cloudflare Pages project `jennian-iq-prod`; live `/version.json` and geometry health can be probed. | Continue verifying live version and geometry after every deploy. |
-| Jennian IQ test login | Not provisioned as a stable Codex-owned account. | Create a dedicated non-human test user with the minimum role needed for full upload/review/export runs. |
+| Jennian IQ test login | Confirmed via the existing internal operator account `test@jennian-iq.internal`. Codex authenticated to production and verified Jobs, Upload New Plan, user menu, and recent JM-0052 through JM-0056 runs were visible. | Keep credentials outside Git/Linear/chat. Do not reset this account casually because reset scripts can change role/permission state. |
 | Supabase read access | No stable read-only analyst credential recorded here. Some admin/service paths exist in workflows/functions, but should not be used as normal audit access. | Provision read-only SQL/API access for schema/live-job audits, separate from service-role credentials. |
 | Canonical QS master workbook | Candidate local files exist. Newest observed: `Jennian IQ MASTER.xlsm` in `QUANTITY SURVEYING/JENNIAN MASTER SPREADSHEET`. | Haydon must confirm the single canonical master and where frozen copies should live. |
 | Golden job source folder | Partial repo fixtures exist under `tests/fixtures` for `15a`, `beddis`, `christian`, `fenner`, `harrison`, `oneil`, and `young`. SharePoint golden-source folder is locally synced at `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\Jennian IQ`. | Build signed truth metadata for the controlled SharePoint packs before treating them as accuracy gates. |
@@ -31,6 +31,8 @@ Jennian IQ should be verified against real QS truth, not screenshots, chat memor
 ## Access requests
 
 ### 1. Dedicated Jennian IQ test login
+
+Status: provisioned via the existing internal operator account `test@jennian-iq.internal`.
 
 Needed to let Codex run the whole product path without using Haydon's live session.
 
@@ -44,8 +46,9 @@ Minimum setup:
 
 Record:
 
-- The account email in Linear or this doc.
+- The account email in Linear or this doc. Current account: `test@jennian-iq.internal`.
 - Never record the password in Git, STATE.md, or Linear.
+- Do not ask Haydon to re-invite Codex unless this account is disabled, deleted, or login actually fails.
 
 ### 2. Read-only Supabase access
 
