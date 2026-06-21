@@ -73,7 +73,7 @@ Candidate-level reconciliation must price supported Fenner candidates and quaran
 
 ## Beddis
 
-Status: signed QS witness exists and the live baseline currently passes, but the money tolerance is broad enough to hide a local opening-area miss. Treat Beddis as a useful recovery rail, not proof that opening identity is solved.
+Status: signed QS witness exists and the live baseline currently passes under the shared golden-job business tolerance. Treat Beddis as a useful recovery rail, not proof that opening identity is solved.
 
 Controlled repo fixtures:
 
@@ -94,12 +94,12 @@ Live run on 21 Jun 2026 using production geometry:
 
 Current test map:
 
-- `tests/beddis/baseline.test.ts` verifies schedule-path height recovery, garage size, field provenance, and broad aggregate money gates.
-- The broad aggregate tolerance (`toBeCloseTo(..., 0)`) should not be tightened until the row identity/recovery path is corrected; otherwise it will fail for the right reason but without telling the operator which candidate is wrong.
+- `tests/beddis/baseline.test.ts` verifies schedule-path height recovery, garage size, field provenance, and the shared aggregate opening/glazed/external-wall product rail.
+- The shared `2m2` aggregate rail should not be confused with candidate correctness; row identity/recovery still has to explain which local opening is wrong.
 
 Next required product slice:
 
-Tighten Beddis from aggregate-near to candidate-correct: recover the signed local opening rows, then reduce the money tolerance so a 0.41 m2 overage cannot masquerade as green.
+Move Beddis from aggregate-acceptable to candidate-correct: recover the signed local opening rows and keep any row-level disagreement visible even when the aggregate area is commercially acceptable.
 
 ## Harrison
 
@@ -122,7 +122,7 @@ Live run on 21 Jun 2026 using production geometry:
 
 Current observed state:
 
-- Harrison and Beddis live benches now use the shared `GOLDEN_AGGREGATE_OPENING_AREA_TOLERANCE_M2 = 2` product rail for aggregate opening/glazed/external-wall area. This is not job-specific and not a per-opening matcher; row identity and unsupported candidates still remain visible rather than being hidden by the aggregate pass.
+- Harrison, Beddis, and the Fenner expected-fail recovery gate now use the shared `GOLDEN_AGGREGATE_OPENING_AREA_TOLERANCE_M2 = 2` product rail for aggregate opening/glazed/external-wall area. This is not job-specific and not a per-opening matcher; row identity and unsupported candidates still remain visible rather than being hidden by the aggregate pass.
 - The floor plan and reviewed joinery bench are both evidence. A QS/manual row can be wrong or normalised; a plan label can be duplicated, datum-contaminated, or attached to the wrong physical opening. IQ must surface the contradiction, not blindly tune to either source.
 - The no-schedule path still needs clearer candidate identity: several `2.15m` datum-ish heights remain priceable, the remaining anonymous `1000x1000` candidate needs review, and room routing collapses many rows to `ENS` / `GD`.
 - Garage size is now correctly `4.8x2.1` with the `garage_door_width` reconciliation flag preserved.

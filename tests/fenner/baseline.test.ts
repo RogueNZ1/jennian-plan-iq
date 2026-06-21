@@ -2,13 +2,14 @@
 /**
  * Fenner wild-card opening benchmark.
  *
- * The truth is Haydon's manual QS pricing input. The current text-layer route is
+ * The signed witness is Haydon's manual QS pricing input. The current text-layer route is
  * expected to fail until visual/elevation recovery can see the large sliders and
  * garage/entry openings that are not printed as clean HxW text tokens.
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { expectGoldenAggregateAreaClose } from "../golden-business-tolerances";
 import { parsePlanText, routeWindowCodes, type PlanText } from "../../src/lib/takeoff/plan-text";
 import {
   detectFloorPlanGaps,
@@ -178,11 +179,15 @@ describe("Fenner wild-card benchmark", () => {
         routed.map((r) => `${r.roomName}:${r.heightMm}x${r.widthMm}`).join(" | "),
         "area",
         area,
-        "truth",
+        "witness",
         TRUTH.derived.total_opening_sqm,
       );
 
-      expect(area).toBeCloseTo(TRUTH.derived.total_opening_sqm, 1);
+      expectGoldenAggregateAreaClose(
+        "Fenner total opening area",
+        area,
+        TRUTH.derived.total_opening_sqm,
+      );
     },
     60_000,
   );
