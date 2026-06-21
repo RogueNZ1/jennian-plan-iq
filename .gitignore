@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 .output
+output/diagnostics/
 .vinxi
 .tanstack/**
 .codex-scratch/
