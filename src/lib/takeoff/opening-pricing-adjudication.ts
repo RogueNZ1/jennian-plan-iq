@@ -113,17 +113,9 @@ export function applyOpeningPricingBlock(
 ): OpeningPricingAdjudication {
   if (!block) return adjudication;
 
-  const blockedOpenings = adjudication.pricedOpenings.map((opening) => ({
-    opening: {
-      ...opening,
-      flags: [...(opening.flags ?? []), block.flag],
-    },
-    reasons: [block.reason],
-  }));
-
   return {
-    pricedOpenings: [],
-    quarantinedOpenings: [...adjudication.quarantinedOpenings, ...blockedOpenings],
+    pricedOpenings: adjudication.pricedOpenings,
+    quarantinedOpenings: adjudication.quarantinedOpenings,
     flags: [...adjudication.flags, block.flag],
     pricingBlocked: true,
   };

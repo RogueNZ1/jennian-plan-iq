@@ -113,14 +113,16 @@ export function buildOpeningScheduleProjectionRows(args: {
   openingEvidence?: readonly OpeningEvidenceCandidate[] | null | undefined;
   pricingBlocked?: boolean;
 }): OpeningScheduleInsert[] {
+  if (args.pricingBlocked) {
+    return (args.openingEvidence ?? [])
+      .map((candidate) => evidenceCandidateToScheduleInsert({ ...args, candidate }))
+      .filter((row): row is OpeningScheduleInsert => row != null);
+  }
+
   const openingRows = (args.openings ?? [])
     .map((opening) => openingToScheduleInsert({ ...args, opening }))
     .filter((row): row is OpeningScheduleInsert => row != null);
-  if (openingRows.length > 0 || !args.pricingBlocked) return openingRows;
-
-  return (args.openingEvidence ?? [])
-    .map((candidate) => evidenceCandidateToScheduleInsert({ ...args, candidate }))
-    .filter((row): row is OpeningScheduleInsert => row != null);
+  return openingRows;
 }
 
 function evidenceCandidateToScheduleInsert(args: {

@@ -4,6 +4,8 @@ import type { FloorPlanGapCandidate } from "./floor-plan-gaps";
 export type FloorPlanGapElevationMatch = {
   source: "elevation_measurement";
   face: string;
+  expectedFace: "north" | "south" | "east" | "west" | null;
+  faceCheck: "matched" | "unknown";
   type: ElevationOpeningCandidate["type"];
   label: string | null;
   widthMm: number;
@@ -34,6 +36,32 @@ function widthToleranceMm(widthMm: number): number {
   return Math.max(100, Math.round(widthMm * 0.08));
 }
 
+function canonicalFace(
+  face: string | null | undefined,
+): "north" | "south" | "east" | "west" | null {
+  const text = (face ?? "").toLowerCase();
+  const hits = (["north", "south", "east", "west"] as const).filter((dir) =>
+    new RegExp(`\\b${dir}\\b`).test(text),
+  );
+  return hits.length === 1 ? hits[0] : null;
+}
+
+function oppositeFace(
+  side: FloorPlanGapCandidate["roomSide"],
+): "north" | "south" | "east" | "west" | null {
+  if (side === "north") return "south";
+  if (side === "south") return "north";
+  if (side === "east") return "west";
+  if (side === "west") return "east";
+  return null;
+}
+
+function faceCompatible(gap: FloorPlanGapCandidate, opening: ElevationOpeningCandidate): boolean {
+  const expectedFace = oppositeFace(gap.roomSide ?? null);
+  const actualFace = canonicalFace(opening.face);
+  return expectedFace == null || actualFace == null || expectedFace === actualFace;
+}
+
 export function matchElevationToFloorPlanGaps(args: {
   gaps: readonly FloorPlanGapCandidate[] | null | undefined;
   elevations: ElevationData | null | undefined;
@@ -48,14 +76,16 @@ export function matchElevationToFloorPlanGaps(args: {
   for (const gap of gaps) {
     const tolerance = widthToleranceMm(gap.widthMm);
     const matches = elevationOpenings.filter(
-      (opening) => Math.abs(opening.widthMm - gap.widthMm) <= tolerance,
+      (opening) =>
+        Math.abs(opening.widthMm - gap.widthMm) <= tolerance && faceCompatible(gap, opening),
     );
     if (matches.length !== 1) continue;
 
     const match = matches[0];
     const competingGaps = gaps.filter(
       (candidate) =>
-        Math.abs(match.widthMm - candidate.widthMm) <= widthToleranceMm(candidate.widthMm),
+        Math.abs(match.widthMm - candidate.widthMm) <= widthToleranceMm(candidate.widthMm) &&
+        faceCompatible(candidate, match),
     );
     if (competingGaps.length !== 1) continue;
 
@@ -63,6 +93,11 @@ export function matchElevationToFloorPlanGaps(args: {
     out.set(gap.id, {
       source: "elevation_measurement",
       face: match.face,
+      expectedFace: oppositeFace(gap.roomSide ?? null),
+      faceCheck:
+        oppositeFace(gap.roomSide ?? null) != null && canonicalFace(match.face) != null
+          ? "matched"
+          : "unknown",
       type: match.type,
       label: match.label,
       widthMm: match.widthMm,

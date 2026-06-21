@@ -153,7 +153,7 @@ describe("opening schedule projection", () => {
     expect(isBlockedReviewOnlyOpening(rows[0])).toBe(true);
   });
 
-  it("does not project blocked evidence when canonical priced rows are available", () => {
+  it("projects blocked evidence as review-only even when local priced candidates exist", () => {
     const rows = buildOpeningScheduleProjectionRows({
       jobId: "job-1",
       createdBy: "user-1",
@@ -177,8 +177,18 @@ describe("opening schedule projection", () => {
     });
 
     expect(rows).toHaveLength(1);
-    expect(rows[0].room_name).toBe("Bed 1");
-    expect(rows[0].source_evidence).toContain("canonical opening");
+    expect(rows[0]).toMatchObject({
+      opening_type: "slider",
+      room_name: "Lounge",
+      width_mm: 3600,
+      height_mm: 2100,
+      confidence: "low",
+      review_status: "review_required",
+    });
+    expect(rows[0].notes).toContain("Candidate quarantined-opening-1: not priced");
+    expect(rows[0].notes).toContain("visual_reconciliation_error");
+    expect(rows[0].source_evidence).toContain("review-only blocked opening candidate");
+    expect(isBlockedReviewOnlyOpening(rows[0])).toBe(true);
   });
 
   it("replaces only unconfirmed prior IQ projections before inserting current rows", async () => {

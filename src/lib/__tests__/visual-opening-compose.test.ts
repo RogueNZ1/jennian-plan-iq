@@ -346,7 +346,16 @@ describe("composeTakeoff visual opening promotion", () => {
       },
     }).enriched;
 
-    expect(enriched.openings).toEqual([]);
+    expect(enriched.openings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "window",
+          room: "Bed 2",
+          width_m: 1,
+          height_m: 1.1,
+        }),
+      ]),
+    );
     expect(enriched.total_opening_sqm).toBeNull();
     expect(enriched.glazed_sqm).toBeNull();
     expect(enriched.external_wall_area_m2.value).toBeNull();
@@ -360,10 +369,10 @@ describe("composeTakeoff visual opening promotion", () => {
     expect(enriched.external_wall_area_m2.discrepancy_flags.join(" ")).toContain(
       "Opening pricing blocked: unresolved Visual QS reconciliation error",
     );
-    expect(enriched.opening_evidence?.every((candidate) => candidate.priced === false)).toBe(true);
+    expect(enriched.opening_evidence?.some((candidate) => candidate.priced === true)).toBe(true);
     expect(
-      enriched.opening_evidence?.some((candidate) =>
-        candidate.conflicts.includes("visual_reconciliation_error"),
+      enriched.opening_evidence?.every(
+        (candidate) => !candidate.conflicts.includes("visual_reconciliation_error"),
       ),
     ).toBe(true);
   });
@@ -444,13 +453,26 @@ describe("composeTakeoff visual opening promotion", () => {
     expect(enriched.garage_door_size.discrepancy_flags.join(" ")).toContain(
       "Garage door recovered from North elevation vector candidate 4741x2049mm",
     );
-    expect(enriched.openings).toEqual([]);
+    expect(enriched.openings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "sectional_door",
+          source: "vector",
+          room: "Garage",
+          width_m: 4.8,
+          height_m: 2.1,
+          area_m2: 10.08,
+        }),
+      ]),
+    );
+    expect(enriched.total_opening_sqm).toBeNull();
+    expect(enriched.glazed_sqm).toBeNull();
     const garageEvidence = enriched.opening_evidence?.find(
       (candidate) => candidate.type === "sectional_door",
     );
     expect(garageEvidence).toMatchObject({
-      priced: false,
-      status: "review",
+      priced: true,
+      status: "priced",
       room: "Garage",
       width_m: 4.8,
       height_m: 2.1,

@@ -279,7 +279,7 @@ describe("Slice 6 — export sheets: additive fallback + visible flags", () => {
     expect(buildQSDataInputSheet(withEvidence)).toEqual(buildQSDataInputSheet(withoutEvidence));
   });
 
-  it("VISIBLE: global opening pricing block demotes evidence rows in Review Notes", () => {
+  it("VISIBLE: global opening pricing block keeps local candidate evidence priced in Review Notes", () => {
     const blocked = applyEnrichedTakeoff(baseData(), {
       ...enriched,
       external_wall_area_m2: {
@@ -311,7 +311,7 @@ describe("Slice 6 — export sheets: additive fallback + visible flags", () => {
             },
           ],
           review_flags: ["Measured floor-plan wall gap promoted before global reconciliation."],
-          conflicts: ["visual_reconciliation_error"],
+          conflicts: [],
         },
       ],
     });
@@ -321,9 +321,39 @@ describe("Slice 6 — export sheets: additive fallback + visible flags", () => {
     expect(ws).not.toBeNull();
     const text = allText(ws!);
     expect(text).toContain("Opening evidence - floorplan-gap-1");
-    expect(text).toContain("Status: not priced; review");
-    expect(text).toContain("Conflicts: visual_reconciliation_error");
-    expect(text).not.toContain("Status: priced; priced");
+    expect(text).toContain("Status: priced; priced");
+    expect(text).toContain("Measured floor-plan wall gap promoted before global reconciliation.");
+    expect(text).not.toContain("Conflicts: visual_reconciliation_error");
+  });
+
+  it("BLOCKED: partial priced openings do not repopulate export window slots", () => {
+    const blocked = applyEnrichedTakeoff(baseData(), {
+      ...enriched,
+      openings: [
+        {
+          type: "window",
+          room: "Lounge",
+          height_m: 1.3,
+          width_m: 1.8,
+          glazed: true,
+          cladding: null,
+          area_m2: 2.34,
+          source: "vector",
+          confidence: "medium",
+        },
+      ],
+      external_wall_area_m2: {
+        ...enriched.external_wall_area_m2,
+        value: null,
+        discrepancy_flags: [
+          "Opening pricing blocked: unresolved Visual QS reconciliation error. Visual QS found more openings than the composed set.",
+        ],
+      },
+    });
+
+    expect(blocked.openingPricingBlocked).toBe(true);
+    expect(blocked.openings).toHaveLength(1);
+    expect(blocked.windowsByRoom.lounge).toBeUndefined();
   });
 
   it("ENRICHED values reach the QS paste sheet (floor area = the geometry value, not the base)", () => {

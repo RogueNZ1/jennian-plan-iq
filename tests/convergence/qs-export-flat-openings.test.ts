@@ -136,6 +136,20 @@ function fennerOpening(row: FennerManualOpening): Opening {
   };
 }
 
+function op(type: Opening["type"], room: string, height_m: number, width_m: number): Opening {
+  return {
+    type,
+    room,
+    height_m,
+    width_m,
+    glazed: type !== "sectional_door",
+    cladding: null,
+    area_m2: Math.round(height_m * width_m * 100) / 100,
+    source: "schedule",
+    confidence: "high",
+  };
+}
+
 function fennerManualOpenings(): Opening[] {
   const gt = JSON.parse(readFileSync(resolve(FIX, "fenner/ground-truth.json"), "utf8")) as {
     manual_openings: FennerManualOpening[];
@@ -452,16 +466,36 @@ describe("Fallback intact — null openings triggers relational slot layout", ()
     expect(c["D62"]).toBeUndefined();
   });
 
-  it("blocked openings stop drop-in cladding from computing a false no-opening net", () => {
+  it("blocked partial openings render review-only rows without opening total cells", () => {
+    const ws = buildQSDataInputSheet(
+      base([op("window", "Lounge", 1.3, 1.8)], {
+        openingPricingBlocked: true,
+        windowsByRoom: { lounge: { cladding: "", qty: 2, height: 1.8, width: 2.4 } },
+      }),
+    );
+    const c = cells(ws);
+
+    expect(c["A40"]).toBe("window");
+    expect(c["G40"]).toContain("REVIEW ONLY - opening pricing blocked");
+    expect(c["A41"]).toContain("OPENING PRICING BLOCKED");
+    expect(Object.values(c).join(" ")).not.toContain("Opening totals (QS tab 5 contract)");
+  });
+
+  it("blocked partial openings stop drop-in slots and cladding from computing false totals", () => {
     const ws = buildDropInSheet(
-      base([], {
+      base([op("window", "Lounge", 1.3, 1.8)], {
         openingPricingBlocked: true,
         perimeterLm: 40,
         studHeightMm: 2400,
         claddingType1: "Brick",
       }),
     );
+    const c = cells(ws);
     const text = Object.values(cells(ws)).join(" ");
+    expect(c["B42"]).toBe(0);
+    expect(c["C42"]).toBe(0);
+    expect(c["D42"]).toBe(0);
+    expect(c["B15"]).toBe("");
     expect(text).toContain("OPENING PRICING BLOCKED");
     expect(text).toContain("Less openings: NOT COMPUTED - opening pricing blocked");
     expect(text).toContain("NET CLADDING: NOT COMPUTED");

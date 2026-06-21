@@ -819,8 +819,11 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     pricingBlockFromVisualReconciliation(visualOpeningReconciliation),
   );
   const pricedComposedOpenings = normaliseOpeningsForQs(openingPricingAdjudication.pricedOpenings);
-  const composedOpeningTotals = deriveOpeningTotals(pricedComposedOpenings);
-  let openingEvidence = buildOpeningEvidenceLedger({
+  const localOpeningTotals = deriveOpeningTotals(pricedComposedOpenings);
+  const composedOpeningTotals = openingPricingAdjudication.pricingBlocked
+    ? { window_count: null, total_opening_sqm: null, glazed_sqm: null }
+    : localOpeningTotals;
+  const openingEvidence = buildOpeningEvidenceLedger({
     openings: pricedComposedOpenings,
     quarantinedOpenings: openingPricingAdjudication.quarantinedOpenings,
     planText,
@@ -828,20 +831,10 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     floorPlanGapElevationMatches,
     promotedFloorPlanGapOpenings: floorPlanGapPromotion.promotedByGapId,
   });
-  if (openingPricingAdjudication.pricingBlocked) {
-    openingEvidence = openingEvidence.map((candidate) => ({
-      ...candidate,
-      status: candidate.status === "priced" ? "review" : candidate.status,
-      priced: false,
-      conflicts: [...new Set([...candidate.conflicts, "visual_reconciliation_error"])],
-      review_flags:
-        candidate.priced || candidate.status === "priced"
-          ? [...candidate.review_flags, ...openingPricingAdjudication.flags]
-          : candidate.review_flags,
-    }));
-  }
   const visualWindowCount =
-    visualPromotion && composedOpeningTotals.window_count != null
+    !openingPricingAdjudication.pricingBlocked &&
+    visualPromotion &&
+    composedOpeningTotals.window_count != null
       ? composedOpeningTotals.window_count
       : null;
   // Re-derive the external wall AREA from the now-richer opening total (perimeter × stud −

@@ -389,10 +389,7 @@ function fmtOpeningEvidenceMetres(value: number | null | undefined): string | nu
   return value == null ? null : `${Math.round(value * 1000)}mm`;
 }
 
-function openingEvidenceFlags(
-  enriched: EnrichedTakeoff,
-  openingPricingBlocked: boolean,
-): NonNullable<QSExportData["reviewFlags"]> {
+function openingEvidenceFlags(enriched: EnrichedTakeoff): NonNullable<QSExportData["reviewFlags"]> {
   return (enriched.opening_evidence ?? [])
     .filter(
       (candidate) =>
@@ -402,9 +399,8 @@ function openingEvidenceFlags(
         candidate.conflicts.length > 0,
     )
     .map((candidate) => {
-      const priced = openingPricingBlocked ? false : candidate.priced;
-      const status =
-        openingPricingBlocked && candidate.status === "priced" ? "review" : candidate.status;
+      const priced = candidate.priced;
+      const status = candidate.status;
       const bits = [
         priced ? "priced" : "not priced",
         status,
@@ -488,10 +484,7 @@ export function applyEnrichedTakeoff(
     alfrescoAreaM2: enriched.alfresco_area_m2.value ?? base.alfrescoAreaM2,
     studHeightMm: studM != null ? Math.round(studM * 1000) : base.studHeightMm,
     exteriorWallHeightM: studM ?? base.exteriorWallHeightM,
-    reviewFlags: [
-      ...fieldFlags(enriched),
-      ...openingEvidenceFlags(enriched, openingPricingBlocked),
-    ],
+    reviewFlags: [...fieldFlags(enriched), ...openingEvidenceFlags(enriched)],
     takeoffSource: "enriched",
     // Stage 2a — thread the flat opening list through. Present only on the enriched path;
     // the relational fallback above leaves it undefined.
@@ -516,7 +509,9 @@ export function applyEnrichedTakeoff(
     // touched here — it stays vector-sourced (enriched.window_count) until the Harrison
     // re-typing lands.
     windowsByRoom:
-      enrichedOpenings != null ? openingsToWindowsByRoom(enrichedOpenings) : base.windowsByRoom,
+      enrichedOpenings != null && !openingPricingBlocked
+        ? openingsToWindowsByRoom(enrichedOpenings)
+        : base.windowsByRoom,
   };
 }
 
@@ -1483,7 +1478,10 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     );
   }
 
-  if (data.openings != null) {
+  if (data.openingPricingBlocked) {
+    // Partial candidate evidence may be present for review, but the IQ paste rows
+    // must stay unpriced while aggregate opening pricing is blocked.
+  } else if (data.openings != null) {
     for (const o of data.openings) {
       if (o.type === "sectional_door") {
         sectionalDoors.push(o);
@@ -1622,16 +1620,17 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     .filter(([k]) => k !== "garageDoor1")
     .reduce((s, [, gs]) => s + (gs[0]?.qty ?? 0), 0);
   const unplacedWindowTotal = unplaced.reduce((s, u) => s + u.qty, 0);
-  const trueWindowTotal =
-    data.openings != null
+  const trueWindowTotal = data.openingPricingBlocked
+    ? null
+    : data.openings != null
       ? data.openings.filter((o) => o.glazed).length
       : slotWindowTotal + unplacedWindowTotal;
   const manualOrOverflowWindowTotal = Math.max(
     0,
-    trueWindowTotal - slotWindowTotal - unplacedWindowTotal,
+    (trueWindowTotal ?? 0) - slotWindowTotal - unplacedWindowTotal,
   );
   put("A15", "Windows");
-  put("B15", trueWindowTotal);
+  put("B15", trueWindowTotal ?? "");
   if (unplacedWindowTotal > 0 || manualOrOverflowWindowTotal > 0) {
     const reviewTotal = unplacedWindowTotal + manualOrOverflowWindowTotal;
     put("C15", `${slotWindowTotal} in rows 33-45 + ${reviewTotal} manual/overflow below`);
@@ -1863,10 +1862,16 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
       ws[`D${r}`] = { v: o.width_m, t: "n", s }; // 0 = unresolved; shown, not dropped
       ws[`E${r}`] = { v: o.area_m2, t: "n", s };
       ws[`F${r}`] = { v: o.glazed ? "Y" : "N", t: "s", s };
-      ws[`G${r}`] = { v: o.cladding ?? o.flags?.join("; ") ?? "", t: "s", s };
+      ws[`G${r}`] = {
+        v: data.openingPricingBlocked
+          ? `REVIEW ONLY - opening pricing blocked${o.flags?.length ? `; ${o.flags.join("; ")}` : ""}`
+          : (o.cladding ?? o.flags?.join("; ") ?? ""),
+        t: "s",
+        s,
+      };
       r++;
     }
-    if (data.openings.length === 0 && data.openingPricingBlocked) {
+    if (data.openingPricingBlocked) {
       lbl(
         `A${r}`,
         "OPENING PRICING BLOCKED - see Review Notes before pricing windows, openings, or cladding.",
@@ -1875,35 +1880,37 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
       r++;
     }
 
-    const totalOpeningAreaM2 = round2(data.openings.reduce((sum, o) => sum + o.area_m2, 0));
-    const garageDoorAreaM2 = round2(
-      data.openings
-        .filter((o) => o.type === "sectional_door")
-        .reduce((sum, o) => sum + o.area_m2, 0),
-    );
-    const qsGlazedOpeningAreaM2 = round2(
-      data.openings.filter((o) => o.glazed).reduce((sum, o) => sum + o.area_m2, 0),
-    );
-    const summaryRow = r + 1;
-    lbl(`A${summaryRow}`, "Opening totals (QS tab 5 contract)", sectionStyle);
-    lbl(
-      `A${summaryRow + 1}`,
-      "Total wall openings incl. sectional garage door (G73; D21 deduction)",
-      labelStyle,
-    );
-    val(`E${summaryRow + 1}`, totalOpeningAreaM2);
-    lbl(
-      `A${summaryRow + 2}`,
-      "Sectional garage door openings excluded from QS glazing",
-      labelStyle,
-    );
-    val(`E${summaryRow + 2}`, garageDoorAreaM2);
-    lbl(
-      `A${summaryRow + 3}`,
-      "QS/glazed openings excl. sectional garage door (G75-style)",
-      labelStyle,
-    );
-    val(`E${summaryRow + 3}`, qsGlazedOpeningAreaM2);
+    if (!data.openingPricingBlocked) {
+      const totalOpeningAreaM2 = round2(data.openings.reduce((sum, o) => sum + o.area_m2, 0));
+      const garageDoorAreaM2 = round2(
+        data.openings
+          .filter((o) => o.type === "sectional_door")
+          .reduce((sum, o) => sum + o.area_m2, 0),
+      );
+      const qsGlazedOpeningAreaM2 = round2(
+        data.openings.filter((o) => o.glazed).reduce((sum, o) => sum + o.area_m2, 0),
+      );
+      const summaryRow = r + 1;
+      lbl(`A${summaryRow}`, "Opening totals (QS tab 5 contract)", sectionStyle);
+      lbl(
+        `A${summaryRow + 1}`,
+        "Total wall openings incl. sectional garage door (G73; D21 deduction)",
+        labelStyle,
+      );
+      val(`E${summaryRow + 1}`, totalOpeningAreaM2);
+      lbl(
+        `A${summaryRow + 2}`,
+        "Sectional garage door openings excluded from QS glazing",
+        labelStyle,
+      );
+      val(`E${summaryRow + 2}`, garageDoorAreaM2);
+      lbl(
+        `A${summaryRow + 3}`,
+        "QS/glazed openings excl. sectional garage door (G75-style)",
+        labelStyle,
+      );
+      val(`E${summaryRow + 3}`, qsGlazedOpeningAreaM2);
+    }
   } else {
     // ── RELATIONAL SLOT BLOCK (unchanged — exact fallback for old/null-openings jobs) ──
     // Rows match "5. Data Input House " sheet exactly: C=cladding type (1=brick/2=other),
