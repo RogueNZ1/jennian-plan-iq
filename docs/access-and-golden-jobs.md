@@ -23,8 +23,8 @@ Jennian IQ should be verified against real QS truth, not screenshots, chat memor
 | Production deploy path | Available. `main` deploys to Cloudflare Pages project `jennian-iq-prod`; live `/version.json` and geometry health can be probed. | Continue verifying live version and geometry after every deploy. |
 | Jennian IQ test login | Confirmed via the existing internal operator account `test@jennian-iq.internal`. Codex authenticated to production and verified Jobs, Upload New Plan, user menu, and recent JM-0052 through JM-0056 runs were visible. | Keep credentials outside Git/Linear/chat. Do not reset this account casually because reset scripts can change role/permission state. |
 | Supabase read access | No stable read-only analyst credential recorded here. Some admin/service paths exist in workflows/functions, but should not be used as normal audit access. | Provision read-only SQL/API access for schema/live-job audits, separate from service-role credentials. |
-| Canonical QS master workbook | Candidate local files exist. Newest observed: `Jennian IQ MASTER.xlsm` in `QUANTITY SURVEYING/JENNIAN MASTER SPREADSHEET`. | Haydon must confirm the single canonical master and where frozen copies should live. |
-| Golden job source folder | Partial repo fixtures exist under `tests/fixtures` for `15a`, `beddis`, `christian`, `fenner`, `harrison`, `oneil`, and `young`. SharePoint golden-source folder is locally synced at `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\Jennian IQ`. | Build signed truth metadata for the controlled SharePoint packs before treating them as accuracy gates. |
+| Canonical QS master workbook | Strongest candidate is `Jennian IQ MASTER.xlsm`; the SharePoint `Jennian IQ` copy and `JENNIAN MASTER SPREADSHEET` copy are byte-identical by SHA-256. | Haydon must confirm this is the single canonical master and where frozen copies should live. |
+| Golden job source folder | Partial repo fixtures exist under `tests/fixtures` for `15a`, `beddis`, `christian`, `fenner`, `harrison`, `oneil`, and `young`. SharePoint golden-source folder is locally synced at `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\Jennian IQ`. First controlled index is recorded in `docs/golden-job-index.md`. | Promote signed truth metadata for the controlled SharePoint packs before claiming broad accuracy. |
 | SharePoint/OneDrive job access | Confirmed via local sync. The shared SharePoint URL resolves to `Shared Documents/QUANTITY SURVEYING/Jennian IQ`, but direct unauthenticated/tool web access returns Microsoft forms-auth `403`; use the local synced path instead. | Keep using the local synced path for read-only audits; avoid broad browser/account access unless a file is not synced. |
 | Haydon Council outputs | Secondary backup folder created at `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\Jennian IQ\_Project Notes`. | Save Council reports to Linear documents and/or the SharePoint `_Project Notes` folder so they can be read as evidence. |
 
@@ -78,6 +78,13 @@ Current candidate files observed locally:
 - `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\JENNIAN MASTER SPREADSHEET\Jennian_QS_Master_MASTER_BASE_PLUS_STAGE_LOADS_2026-06-17.xlsm`
 - `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\JENNIAN MASTER SPREADSHEET\Jennian_QS_Master_IQ_WIRED.xlsm`
 
+Current strongest candidate:
+
+- `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\Jennian IQ\Jennian IQ MASTER.xlsm`
+- `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\JENNIAN MASTER SPREADSHEET\Jennian IQ MASTER.xlsm`
+- Both copies hash to `84D45808AFD75D3BC816DC768350BF087C1A2F77EFC07255CD07976720135D63`.
+- Read-only structure check found both `IQ Import` and `5. Data Input House `.
+
 Decision needed:
 
 - Which file is the current canonical master?
@@ -119,6 +126,8 @@ Job Name/
 ```
 
 The current synced SharePoint folder already contains the first controlled job folders; it does not need to mirror the target structure exactly before use, but each job still needs signed truth metadata.
+
+The first evidence index is now recorded in `docs/golden-job-index.md` and mirrored to SharePoint `_Project Notes/golden-job-index/2026-06-21-golden-job-index.md`.
 
 Example target contents for a normalized pack:
 
@@ -225,10 +234,10 @@ Each Council report should say:
 ## Immediate next actions
 
 1. Haydon confirms the canonical QS master workbook.
-2. Haydon creates or approves a dedicated Jennian IQ test login.
-3. Haydon/IT provisions read-only Supabase access or confirms an acceptable read-only alternative.
-4. Create the first Golden Jobs pack from Christian and Fenner because they are already central to the current accuracy work.
-5. Attach this checklist to Linear, then link it to JEN-27, JEN-29, and JEN-38.
+2. Haydon/IT provisions read-only Supabase access or confirms an acceptable read-only alternative.
+3. Haydon signs Christian QS money truth or nominates a newer IQ-era Christian workbook.
+4. Continue JEN-38 candidate-level Fenner reconciliation against the signed 58.13 m2 / 48.05 m2 opening truth.
+5. Keep this checklist, `docs/golden-job-index.md`, Linear JEN-39, and SharePoint `_Project Notes` aligned after each evidence/access change.
 
 ## Secondary notes backup
 
