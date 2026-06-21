@@ -26,7 +26,7 @@ Jennian IQ should be verified against real QS truth, not screenshots, chat memor
 | Canonical QS master workbook | Candidate local files exist. Newest observed: `Jennian IQ MASTER.xlsm` in `QUANTITY SURVEYING/JENNIAN MASTER SPREADSHEET`. | Haydon must confirm the single canonical master and where frozen copies should live. |
 | Golden job source folder | Partial repo fixtures exist under `tests/fixtures` for `15a`, `beddis`, `christian`, `fenner`, `harrison`, `oneil`, and `young`. SharePoint golden-source folder is locally synced at `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\Jennian IQ`. | Build signed truth metadata for the controlled SharePoint packs before treating them as accuracy gates. |
 | SharePoint/OneDrive job access | Confirmed via local sync. The shared SharePoint URL resolves to `Shared Documents/QUANTITY SURVEYING/Jennian IQ`, but direct unauthenticated/tool web access returns Microsoft forms-auth `403`; use the local synced path instead. | Keep using the local synced path for read-only audits; avoid broad browser/account access unless a file is not synced. |
-| Haydon Council outputs | Available only when pasted into chat or exposed via the local skill/output path. | Save Council reports to Linear documents or a known repo/private-doc location so they can be read as evidence. |
+| Haydon Council outputs | Secondary backup folder created at `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\Jennian IQ\_Project Notes`. | Save Council reports to Linear documents and/or the SharePoint `_Project Notes` folder so they can be read as evidence. |
 
 ## Access requests
 
@@ -206,7 +206,8 @@ Needed so Council review becomes evidence, not another pasted chat artifact.
 Preferred options:
 
 - Linear document per Council review.
-- Repo `docs/council-reviews/` only for sanitized summaries.
+- SharePoint `_Project Notes/council-reviews/` for secondary backup beside the golden job source files.
+- Repo `docs/council-reviews/` only for sanitized summaries that should travel with code.
 - Private SharePoint folder for raw Council reports where client data appears.
 
 Each Council report should say:
@@ -225,3 +226,18 @@ Each Council report should say:
 3. Haydon/IT provisions read-only Supabase access or confirms an acceptable read-only alternative.
 4. Create the first Golden Jobs pack from Christian and Fenner because they are already central to the current accuracy work.
 5. Attach this checklist to Linear, then link it to JEN-27, JEN-29, and JEN-38.
+
+## Secondary notes backup
+
+Haydon approved using the synced SharePoint folder as a secondary project-notes backup. Created:
+
+```text
+C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\Jennian IQ\_Project Notes\
+  README.md
+  council-reviews\
+  golden-job-index\
+  trial-readiness\
+  decisions\
+```
+
+Use this for sanitized Codex/Claude/Haydon Council notes, Golden Job indexes, trial-readiness summaries, and decisions. Do not store passwords, API keys, service-role keys, tokens, invite links, or unreviewed outputs that could be mistaken for signed truth.
