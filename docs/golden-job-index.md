@@ -71,6 +71,65 @@ Next required product slice:
 
 Candidate-level reconciliation must price supported Fenner candidates and quarantine only unsupported candidates. The expected-fail should turn green only when deterministic evidence recovers the signed 58.13 m2 / 48.05 m2 truth without blind standard-height assertions.
 
+## Beddis
+
+Status: signed QS truth exists and the live baseline currently passes, but the money tolerance is broad enough to hide a local opening-area miss. Treat Beddis as a useful recovery rail, not proof that opening identity is solved.
+
+Controlled repo fixtures:
+
+| Purpose | Path | Size | SHA-256 |
+| --- | --- | ---: | --- |
+| Prelim plan set | `tests/fixtures/beddis/prelim.pdf` | 3,584,063 | `047CE95A5B711DB51F09824E8C22582D55DCC22BFC6C5930D02B6AAB8DD0B1BF` |
+| Concept floorplan | `tests/fixtures/beddis/concept-floorplan.pdf` | 434,493 | `7F680304C4371B4DFC50B16CE9FB0042A31939AC97EC0F610256E55CAB57BFC6` |
+| QS workbook fixture | `tests/fixtures/beddis/Beddis_QS.xlsm` | 1,326,451 | `22D7E899052502C8AB84899B81BF47A6A3DBF858BE70D4EF3B42E9F9ED57FDF1` |
+| Reduced truth JSON | `tests/fixtures/beddis/ground-truth.json` | 4,525 | `4A116A8126CEDAD59466B029D9149EA2206DF0FA71064EF0090EB651EAB46202` |
+
+Live run on 21 Jun 2026 using production geometry:
+
+| Field | IQ output | Signed truth | Delta |
+| --- | ---: | ---: | ---: |
+| Total opening sqm | 44.33 | 43.92 | +0.41 |
+| Glazed sqm | 34.25 | 33.84 | +0.41 |
+| External wall area m2 | 108.79 | 109.20 | -0.41 |
+
+Current test map:
+
+- `tests/beddis/baseline.test.ts` verifies schedule-path height recovery, garage size, field provenance, and broad aggregate money gates.
+- The broad aggregate tolerance (`toBeCloseTo(..., 0)`) should not be tightened until the row identity/recovery path is corrected; otherwise it will fail for the right reason but without telling the operator which candidate is wrong.
+
+Next required product slice:
+
+Tighten Beddis from aggregate-near to candidate-correct: recover the signed local opening rows, then reduce the money tolerance so a 0.41 m2 overage cannot masquerade as green.
+
+## Harrison
+
+Status: signed QS truth exists and the strict live money gate is currently red. This is the cleanest current proof that no-schedule opening extraction is still too text-led and not yet human-QS-correct.
+
+Controlled repo fixtures:
+
+| Purpose | Path | Size | SHA-256 |
+| --- | --- | ---: | --- |
+| Concept plan set | `tests/fixtures/harrison/concept.pdf` | 1,873,288 | `56F19E9455001B67EF215D59CD8B17C1C4BE5D5A9F3BA9F5FAD394FE03C7CFFC` |
+| Reduced truth JSON | `tests/fixtures/harrison/ground-truth.json` | 8,759 | `FE247AD16349A3EA2279B424224864D212F83828AD55C9DDB63A877A4FB43473` |
+
+Live run on 21 Jun 2026 using production geometry:
+
+| Field | IQ output | Signed truth | Delta |
+| --- | ---: | ---: | ---: |
+| Total opening sqm | 46.78 | 46.89 | -0.11 |
+| Glazed sqm | 36.70 | 36.81 | -0.11 |
+| External wall area m2 | 98.18 | 98.07 | +0.11 |
+
+Current observed failure:
+
+- `tests/harrison/baseline.test.ts` fails at the strict total-opening assertion (`46.78` vs `46.89`, tolerance 0.05).
+- The no-schedule path prices floor-plan text evidence that does not align candidate-by-candidate with the QS answer key: several `2.15m` datum-ish heights remain priceable, two anonymous dimension pairs enter the priced set, and room routing collapses many rows to `ENS` / `GD`.
+- Garage size is now correctly `4.8x2.1` with the `garage_door_width` reconciliation flag preserved.
+
+Next required product slice:
+
+Keep Harrison red until candidate identity is fixed. The engine must distinguish real W-code/opening rows from anonymous or datum/title artefacts, then reconcile the priced set to the signed QS rows by candidate evidence rather than by aggregate closeness.
+
 ## Christian / Awa Park
 
 Status: high-value repeated regression benchmark, not yet signed pricing truth. Christian currently proves parser/routing behavior, not final QS money accuracy.

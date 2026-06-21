@@ -463,7 +463,7 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     expect(cmp.window_count.source).toBe("vector");
     // Garage: F-022 TRUE POSITIVE — vector 4.8 wins over the 2.7 vision flake. The value is
     // vector-sourced, the disagreement is low-confidence, and the flag rides on the field.
-    expect(cmp.garage_door_size.value).toBe("4.8×2.1");
+    expect(cmp.garage_door_size.value).toBe("4.8x2.1");
     expect(cmp.garage_door_size.source).toBe("vector");
     expect(cmp.garage_door_size.confidence).toBe("low");
     expect(cmp.garage_door_size.discrepancy_flags.join(" ")).toContain("garage_door_width");

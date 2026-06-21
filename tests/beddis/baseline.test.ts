@@ -470,7 +470,7 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     // Vector-preferred window count (the schedule's 13 W-codes).
     expect(cmp.window_count.value).toBe(13);
     // Garage 4.8×2.1; Beddis is the F-022 TRUE NEGATIVE (vision & vector agree → no flag).
-    expect(cmp.garage_door_size.value).toBe("4.8×2.1");
+    expect(cmp.garage_door_size.value).toBe("4.8x2.1");
     expect(cmp.garage_door_size.discrepancy_flags).toHaveLength(0);
     // Entrance unknown-width flag rides on windows_by_room (asserted height, width not found).
     const wbrFlags = cmp.windows_by_room.discrepancy_flags.join(" ");

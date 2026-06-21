@@ -805,8 +805,9 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     ? `${elevationGarageDoor.width_m}Ã—${elevationGarageDoor.height_m}`
     : (visualPromotion?.garageDoorSize ?? folded.garage_door_size);
   const composedGarageDoorSize = normaliseGarageDoorSizeLabel(rawComposedGarageDoorSize);
+  const takeoffGarageDoorSize = normaliseGarageDoorSizeLabel(t.garage_door_size);
   const garageDoorConfirmedFromSectionalCallout =
-    !visualPromotion && !elevationGarageDoor && composedGarageDoorSize !== t.garage_door_size;
+    !visualPromotion && !elevationGarageDoor && composedGarageDoorSize !== takeoffGarageDoorSize;
   const garageDoorConfirmedFromVisual = !!visualPromotion?.garageDoorSize && !elevationGarageDoor;
   const garageDoorConfirmedFromElevation = !!elevationGarageDoor;
   const sanityOpeningPricing = adjudicateOpeningPricing(composedOpenings);

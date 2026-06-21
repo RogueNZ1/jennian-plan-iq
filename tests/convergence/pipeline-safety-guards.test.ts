@@ -162,6 +162,56 @@ describe("geometry_status flag at the compose seam", () => {
     expect(out.garage_door_size.confidence).toBe("high");
     expect(out.garage_door_size.discrepancy_flags.join(" ")).not.toContain("garage_door_width");
   });
+
+  it("same numeric garage size with a normalised separator keeps reconciliation flags", () => {
+    const geometry = {
+      success: true,
+      page_used: 0,
+      total_pages: 1,
+      scale: { string: "1:100", factor: 100, source: "text", pixels_per_mm: null },
+      confidence: { floor_area: "high", perimeter: "high", notes: [] },
+      ocr_raw: {
+        living_area_m2: 170.8,
+        perimeter_m: 60.4,
+        garage_area_m2: null,
+        alfresco_area_m2: null,
+        stud_height_mm: 2400,
+      },
+      measurements: {
+        floor_area_m2: 170.8,
+        perimeter_m: 60.4,
+        external_wall_length_m: 60.4,
+        internal_wall_length_m: null,
+        internal_wall_confidence: "low",
+        garage_area_m2: null,
+        alfresco_area_m2: null,
+        stud_height_mm: 2400,
+        bounding_box_m: null,
+        room_count: 0,
+        main_room_count: 0,
+        rooms: [],
+      },
+      vector_annotations: {
+        vector_usable: true,
+        garage: { width_mm: 4800, height_mm: 2150, raw: "2,150 x 4,800", page: 0 },
+        schedule: null,
+        openings: { window_count: 14, widths_raw: ["4,800"], datum_mm: 2150, page: 0 },
+        entrance: null,
+        symbol_openings: null,
+      },
+    } as never;
+
+    const out = composeTakeoff({
+      visionTakeoff: { ...minimalVision, garage_door_size: "2.7×2.1", window_count: 1 },
+      geometry,
+      schedule: null,
+      geometryPageIndex: 0,
+    }).enriched;
+
+    expect(out.garage_door_size.value).toBe("4.8x2.1");
+    expect(out.garage_door_size.confidence).toBe("low");
+    expect(out.garage_door_size.discrepancy_flags.join(" ")).toContain("garage_door_width");
+  });
 });
 
 function base(over: Partial<QSExportData> = {}): QSExportData {
