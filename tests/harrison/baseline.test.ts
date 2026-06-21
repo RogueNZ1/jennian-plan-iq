@@ -26,6 +26,7 @@
 import { describe, it, beforeAll, expect } from "vitest";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { expectGoldenAggregateAreaClose } from "../golden-business-tolerances";
 import { loadEnvLocal } from "../phase1/pipeline";
 import { recognisePlan } from "../../src/lib/takeoff/recognise-plan";
 import { extractAnnotations } from "../../src/lib/takeoff/extract-annotations";
@@ -108,15 +109,6 @@ const scoreFromText = (text: string): ScoredPage => {
 
 const delta = (got: number | null, truth: number) =>
   got === null ? null : Number((got - truth).toFixed(2));
-// Business/product rail: aggregate opening/glazed area can be materially acceptable
-// while row identity still needs review. This is not used for per-opening matching.
-const MATERIAL_OPENING_AREA_TOLERANCE_M2 = 2;
-
-function expectMaterialAreaClose(label: string, got: number, truth: number) {
-  expect(Math.abs(got - truth), `${label} delta`).toBeLessThanOrEqual(
-    MATERIAL_OPENING_AREA_TOLERANCE_M2,
-  );
-}
 
 describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
   beforeAll(() => loadEnvLocal());
@@ -489,13 +481,13 @@ describe.skipIf(!RUN)("Harrison baseline (job 25191)", () => {
     // Harrison's fixture explicitly warns against grading a flat count; price area is
     // the robust contract. This is a QS materiality gate, not a decimal-perfect lock:
     // a 0.14m2 variance is acceptable noise, while row identity stays separately visible.
-    expectMaterialAreaClose(
+    expectGoldenAggregateAreaClose(
       "total opening area",
       cmp.total_opening_sqm,
       JOINERY_BENCH.total_opening_sqm,
     );
-    expectMaterialAreaClose("glazed opening area", cmp.glazed_sqm, JOINERY_BENCH.glazed_sqm);
-    expectMaterialAreaClose(
+    expectGoldenAggregateAreaClose("glazed opening area", cmp.glazed_sqm, JOINERY_BENCH.glazed_sqm);
+    expectGoldenAggregateAreaClose(
       "external wall area",
       cmp.external_wall_area_m2.value,
       TRUTH.external_wall_area_m2,

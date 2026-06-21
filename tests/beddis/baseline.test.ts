@@ -16,6 +16,7 @@
 import { describe, it, beforeAll, expect } from "vitest";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { expectGoldenAggregateAreaClose } from "../golden-business-tolerances";
 import { loadEnvLocal } from "../phase1/pipeline";
 import { recognisePlan } from "../../src/lib/takeoff/recognise-plan";
 import { extractAnnotations } from "../../src/lib/takeoff/extract-annotations";
@@ -486,9 +487,17 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     expect(recoveredRows.every((o) => o.source === "schedule")).toBe(true);
     expect(recoveredRows.every((o) => o.height_source === "asserted")).toBe(true);
     expect(recoveredRows[0].flags?.join(" ")).toContain("height recovered from the printed W-code");
-    expect(cmp.total_opening_sqm).toBeCloseTo(JOINERY_TRUTH.total_opening_sqm, 0);
-    expect(cmp.glazed_sqm).toBeCloseTo(JOINERY_TRUTH.glazed_sqm, 0);
-    expect(cmp.external_wall_area_m2.value).toBeCloseTo(TRUTH.external_wall_area_m2, 0);
+    expectGoldenAggregateAreaClose(
+      "total opening area",
+      cmp.total_opening_sqm,
+      JOINERY_TRUTH.total_opening_sqm,
+    );
+    expectGoldenAggregateAreaClose("glazed opening area", cmp.glazed_sqm, JOINERY_TRUTH.glazed_sqm);
+    expectGoldenAggregateAreaClose(
+      "external wall area",
+      cmp.external_wall_area_m2.value,
+      TRUTH.external_wall_area_m2,
+    );
     expect(cmp.total_area_m2.value).not.toBeNull();
     // The global notes view still carries every migrated flag (backward-compat / M2 survival).
     expect(cmp.notes).toBe(out.prelim.composed_bare.notes);
