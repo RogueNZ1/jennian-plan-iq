@@ -24,8 +24,8 @@ Jennian IQ should be verified against real QS truth, not screenshots, chat memor
 | Jennian IQ test login | Not provisioned as a stable Codex-owned account. | Create a dedicated non-human test user with the minimum role needed for full upload/review/export runs. |
 | Supabase read access | No stable read-only analyst credential recorded here. Some admin/service paths exist in workflows/functions, but should not be used as normal audit access. | Provision read-only SQL/API access for schema/live-job audits, separate from service-role credentials. |
 | Canonical QS master workbook | Candidate local files exist. Newest observed: `Jennian IQ MASTER.xlsm` in `QUANTITY SURVEYING/JENNIAN MASTER SPREADSHEET`. | Haydon must confirm the single canonical master and where frozen copies should live. |
-| Golden job source folder | Partial repo fixtures exist under `tests/fixtures` for `15a`, `beddis`, `christian`, `fenner`, `harrison`, `oneil`, and `young`. | Build a controlled golden job pack with raw source docs plus signed truth metadata. |
-| SharePoint/OneDrive job access | Available only when individual files/paths are provided in the thread or already synced locally. | Provide or document the controlled folder path for golden jobs and current trial jobs. |
+| Golden job source folder | Partial repo fixtures exist under `tests/fixtures` for `15a`, `beddis`, `christian`, `fenner`, `harrison`, `oneil`, and `young`. SharePoint golden-source folder is locally synced at `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\Jennian IQ`. | Build signed truth metadata for the controlled SharePoint packs before treating them as accuracy gates. |
+| SharePoint/OneDrive job access | Confirmed via local sync. The shared SharePoint URL resolves to `Shared Documents/QUANTITY SURVEYING/Jennian IQ`, but direct unauthenticated/tool web access returns Microsoft forms-auth `403`; use the local synced path instead. | Keep using the local synced path for read-only audits; avoid broad browser/account access unless a file is not synced. |
 | Haydon Council outputs | Available only when pasted into chat or exposed via the local skill/output path. | Save Council reports to Linear documents or a known repo/private-doc location so they can be read as evidence. |
 
 ## Access requests
@@ -89,8 +89,38 @@ Needed to stop chasing one plan at a time. A golden job proves whether the engin
 Recommended private storage structure:
 
 ```text
-Golden Jobs/
-  christian/
+Jennian IQ/
+  25040 Christian, Blair - Lot 33 Awa Park, Feilding/
+  26001 Beddis, Tony and Sandra, Lot 50 Tamakuku - 20 Tukere Cres/
+  29A West St/
+  Fenner, Natalie & Marcus - Section TBC/
+  Jennian IQ MASTER.xlsm
+```
+
+Target structure inside each job pack:
+
+```text
+Job Name/
+  source/
+    floorplan.pdf
+    elevations.pdf
+    specifications.xlsm
+    signed_qs_workbook.xlsm
+  iq-runs/
+    latest-verification.pdf
+    latest-export.xlsx
+    latest-version.json
+  truth/
+    ground-truth.json
+    signoff.md
+```
+
+The current synced SharePoint folder already contains the first controlled job folders; it does not need to mirror the target structure exactly before use, but each job still needs signed truth metadata.
+
+Example target contents for a normalized pack:
+
+```text
+Christian/
     source/
       floorplan.pdf
       elevations.pdf
@@ -103,7 +133,7 @@ Golden Jobs/
     truth/
       ground-truth.json
       signoff.md
-  fenner/
+  Fenner/
     ...
 ```
 
