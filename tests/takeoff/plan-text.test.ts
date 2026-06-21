@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parsePlanText, type PlanText } from "../../src/lib/takeoff/plan-text";
 
-async function extract(planPath: string): Promise<PlanText> {
+async function extract(planPath: string, pageNumber = 1): Promise<PlanText> {
   const { extractPageGeometry } = await import("../../src/lib/doors/pdf-adapter");
   const pdfjs = await import("pdfjs-dist-door/legacy/build/pdf.mjs");
   const doc = await pdfjs.getDocument({
@@ -17,7 +17,7 @@ async function extract(planPath: string): Promise<PlanText> {
     disableFontFace: true,
   } as never).promise;
   try {
-    const geom = await extractPageGeometry((await doc.getPage(1)) as never);
+    const geom = await extractPageGeometry((await doc.getPage(pageNumber)) as never);
     return parsePlanText(geom.labels);
   } finally {
     await doc.destroy().catch(() => {});
@@ -100,6 +100,20 @@ describe("plan-text — Alexandra (no false rooms from a different plan style)",
       expect(r.depthMm).toBeGreaterThanOrEqual(400);
       expect(r.areaM2).toBeLessThan(120);
     }
+  }, 60_000);
+});
+
+describe("plan-text - Harrison candidate identity", () => {
+  it("keeps W-code-backed jammed labels and rejects nearby room footprints", async () => {
+    const pt = await extract(resolve(__dirname, "../fixtures/harrison/concept.pdf"), 2);
+
+    const w07 = pt.windowCodes.filter(
+      (c) => c.id === "W07" && c.heightMm === 700 && c.widthMm === 1500,
+    );
+    expect(w07).toHaveLength(1);
+    expect(pt.windowCodes.some((c) => !c.id && c.heightMm === 900 && c.widthMm === 1200)).toBe(
+      false,
+    );
   }, 60_000);
 });
 

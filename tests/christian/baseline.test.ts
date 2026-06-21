@@ -51,6 +51,10 @@ describe("Christian / Awa Park benchmark", () => {
     for (const [heightMm, widthMm] of TRUTH.printed_code_expectations.representative_hxw_mm) {
       expect(hasCode(heightMm, widthMm), `missing ${heightMm}x${widthMm}`).toBe(true);
     }
+    expect(
+      pt.windowCodes.some((c) => c.id === "W112" && c.heightMm === 2200 && c.widthMm === 1400),
+      "WIR room footprint must not attach to nearby W112",
+    ).toBe(false);
     expect(pt.windowCodes.length).toBeGreaterThanOrEqual(
       TRUTH.printed_code_expectations.minimum_window_codes,
     );

@@ -66,6 +66,7 @@ export type PlanText = {
 const DIMS_RE = /^(\d[\d, ]{2,5})\s*[xX]\s*(\d[\d, ]{2,5})$/;
 const WINDOW_CODE_STRICT_RE = /^(\d[\d, ]{2,5})x(\d[\d, ]{2,5})(?:\s*mm)?$/;
 const WINDOW_CODE_DIMS_RE = /^(\d[\d, ]{2,5})\s*[xX]\s*(\d[\d, ]{2,5})(?:\s*mm)?$/i;
+const WINDOW_CODE_PREFIX_RE = /^(\d[\d, ]{2,5})\s*[xX]\s*(\d[\d, ]{2,5})(?=\D|$)/i;
 const num = (s: string) => parseInt(s.replace(/[, ]/g, ""), 10);
 const KNOWN_ROOM_NAME_RE =
   /^(GARAGE|LOUNGE|LIVING|FAMILY|DINING|KITCHEN|ENTRY|HALL|BED(?:ROOM)? ?\d|MASTER(?: BED(?:ROOM)?)?|ENS(?:UITE)?|BATH(?:ROOM)?|WC|TOILET|LAUNDRY|WIR|ROBE|STORE|LINEN|HWC|PANTRY|TV|STUDY|OFFICE)$/i;
@@ -123,20 +124,21 @@ export function parseRoomDims(labels: TextLabel[]): PlanRoom[] {
  * requiring no space around the x, the dominant Jennian drafting habit; codes
  * that ALSO parse as room dims are excluded by proximity to a room name above. */
 export function parseWindowCodes(labels: TextLabel[], rooms: PlanRoom[]): PlanWindowCode[] {
-  const out: PlanWindowCode[] = [];
+  type WindowCandidate = PlanWindowCode & { idDist: number | null };
+  const out: WindowCandidate[] = [];
   const wLabels = labels.filter((candidate) => /^W\d{1,3}$/i.test(candidate.text.trim()));
   for (const l of labels) {
     const text = l.text.trim();
     const strictMatch = text.match(WINDOW_CODE_STRICT_RE);
-    const m = strictMatch ?? text.match(WINDOW_CODE_DIMS_RE);
+    const exactMatch = strictMatch ?? text.match(WINDOW_CODE_DIMS_RE);
+    const prefixMatch = exactMatch ? null : text.match(WINDOW_CODE_PREFIX_RE);
+    const m = exactMatch ?? prefixMatch;
     if (!m) continue;
     const h = num(m[1]),
       w = num(m[2]);
     // joinery heights 300–3000, widths 300–6000
     if (h < 300 || h > 3000 || w < 300 || w > 6000) continue;
-    // not a room-dim label (those were claimed by a room name directly above)
-    if (rooms.some((r) => Math.abs(r.x - l.x) < 30 && l.y - r.y > 0 && l.y - r.y <= 12)) continue;
-    const id = wLabels
+    const idMatch = wLabels
       .map((candidate) => ({
         id: candidate.text
           .trim()
@@ -146,11 +148,47 @@ export function parseWindowCodes(labels: TextLabel[], rooms: PlanRoom[]): PlanWi
         dy: l.y - candidate.y,
       }))
       .filter((candidate) => candidate.dy >= -2 && candidate.dy <= 24 && candidate.dx <= 55)
-      .sort((a, b) => Math.hypot(a.dx, a.dy) - Math.hypot(b.dx, b.dy))[0]?.id;
+      .map((candidate) => ({ ...candidate, dist: Math.hypot(candidate.dx, candidate.dy) }))
+      .sort((a, b) => a.dist - b.dist)[0];
+    const id = idMatch?.id;
+    // Anonymous room footprints are not joinery candidates. If a nearby W-code
+    // labels the same text, keep it because that is a real opening identity.
+    if (
+      !id &&
+      rooms.some(
+        (r) =>
+          r.widthMm === h &&
+          r.depthMm === w &&
+          Math.abs(r.x - l.x) < 48 &&
+          l.y - r.y > 0 &&
+          l.y - r.y <= 24,
+      )
+    )
+      continue;
+    // Prefix matches tolerate PDF text that has jammed trailing words, but only
+    // when a nearby W-code proves the text belongs to a joinery callout.
+    if (prefixMatch && !id) continue;
     if (!id && !strictMatch) continue;
-    out.push({ ...(id ? { id } : {}), heightMm: h, widthMm: w, x: l.x, y: l.y });
+    out.push({
+      ...(id ? { id } : {}),
+      heightMm: h,
+      widthMm: w,
+      x: l.x,
+      y: l.y,
+      idDist: idMatch?.dist ?? null,
+    });
   }
-  return out;
+  const bestById = new Map<string, WindowCandidate>();
+  for (const candidate of out) {
+    if (!candidate.id) continue;
+    const existing = bestById.get(candidate.id);
+    if (!existing || (candidate.idDist ?? Infinity) < (existing.idDist ?? Infinity)) {
+      bestById.set(candidate.id, candidate);
+    }
+  }
+  return out
+    .filter((candidate) => !candidate.id || bestById.get(candidate.id) === candidate)
+    .map(({ idDist: _idDist, ...candidate }) => candidate);
 }
 
 export function parseTitleAreas(labels: TextLabel[]): PlanTitleAreas {
