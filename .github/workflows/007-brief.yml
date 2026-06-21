@@ -75,8 +75,14 @@ jobs:
       - name: Failure alert email
         if: failure()
         run: |
-          curl -s -X POST https://api.resend.com/emails \
+          # Fix — was sending from intel@jennian.co.nz, an unverified domain at
+          # Resend (national-office DNS, not under Haydon's control). Switched
+          # to jennianiq.nz, which IS verified (same domain the IQ invite
+          # system already sends from successfully). Also added curl --fail
+          # so a Resend rejection actually trips the || echo fallback instead
+          # of curl silently exiting 0 on a non-2xx HTTP response.
+          curl -s --fail -X POST https://api.resend.com/emails \
             -H "Authorization: Bearer $RESEND_API_KEY" \
             -H "Content-Type: application/json" \
-            -d "{\"from\":\"007 Intel <intel@jennian.co.nz>\",\"to\":\"haydon.christian@jennian.co.nz\",\"subject\":\"007 run FAILED\",\"text\":\"The scheduled 007 run failed — no brief this cycle.\\n\\nLogs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            -d "{\"from\":\"007 Intel <intel@jennianiq.nz>\",\"to\":\"haydon.christian@jennian.co.nz\",\"subject\":\"007 run FAILED\",\"text\":\"The scheduled 007 run failed — no brief this cycle.\\n\\nLogs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
             || echo "Failure alert could not be sent"
