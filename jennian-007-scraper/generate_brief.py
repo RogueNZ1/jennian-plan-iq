@@ -181,13 +181,25 @@ def send_email(brief: dict):
         "https://api.resend.com/emails",
         headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
         json={
-            "from": "007 Intel <intel@jennian.co.nz>",
+            # Fix — was "intel@jennian.co.nz". jennian.co.nz is national-office
+            # DNS (Haydon doesn't control it / it's not verified at Resend).
+            # jennianiq.nz IS verified (same domain the IQ invite system sends
+            # branded email from) — use it here too so the send isn't rejected.
+            "from": "007 Intel <intel@jennianiq.nz>",
             "to": "haydon.christian@jennian.co.nz",
             "subject": subject,
             "html": brief["html_content"],
             "text": brief["text_content"]
         }
     )
+    # Fix — httpx.post() does NOT raise on HTTP error status codes (only on
+    # connection failures). A Resend rejection — unverified domain, bad key,
+    # malformed payload — was previously just printed and silently ignored,
+    # so the run looked like a success even when no email was ever sent.
+    if response.status_code >= 400:
+        raise RuntimeError(
+            f"Resend rejected the email ({response.status_code}): {response.text[:300]}"
+        )
     print(f"  Email sent: {response.status_code}")
 
 

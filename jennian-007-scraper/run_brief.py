@@ -38,6 +38,15 @@ log = logging.getLogger("007")
 def main():
     start = datetime.now(timezone.utc)
     log.info("=== Jennian 007 run started ===")
+    # Fix — previously both steps below were caught-and-logged with no exit
+    # code change, so the process always exited 0 regardless of failures.
+    # GitHub Actions therefore reported every run as a green "success" even
+    # when the email never sent — including the 17 Jun run, which is why it
+    # showed green in the Actions history while still possibly emailing
+    # nobody. Track failures and exit non-zero so CI marks the run failed,
+    # which also fires the existing "Failure alert email" step in the
+    # workflow.
+    had_error = False
 
     log.info("Step 1/2 — Scraping all sources")
     try:
@@ -47,6 +56,7 @@ def main():
             log.info("  %-30s  %d records", source, n)
     except Exception:
         log.exception("Scraper failed — continuing to brief generation")
+        had_error = True
 
     log.info("Step 2/2 — Generating and sending brief")
     try:
@@ -66,9 +76,14 @@ def main():
         send_email(brief)
     except Exception:
         log.exception("Brief generation failed")
+        had_error = True
 
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()
     log.info("=== Done in %.1fs ===", elapsed)
+
+    if had_error:
+        log.critical("Run completed with errors — see above — exiting non-zero so CI flags this run")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
