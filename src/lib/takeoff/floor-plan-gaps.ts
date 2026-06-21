@@ -1,5 +1,7 @@
-import type { Segment } from "../doors/door-engine";
+import { envelopeInteriorTest, type Segment } from "../doors/door-engine";
 import { createScaleRuler } from "./scale-ruler";
+
+export type FloorPlanGapEnvelopeSide = "exterior" | "interior" | "ambiguous";
 
 export type FloorPlanGapCandidate = {
   id: string;
@@ -9,6 +11,7 @@ export type FloorPlanGapCandidate = {
   orientation: "horizontal" | "vertical";
   wallFaceId: string;
   wallThicknessMm: number;
+  envelopeSide: FloorPlanGapEnvelopeSide;
   confidence: "medium" | "low";
   roomLabel?: string | null;
   roomSide?: "north" | "south" | "east" | "west" | null;
@@ -213,6 +216,40 @@ function sortConfidence(confidence: "medium" | "low"): number {
   return confidence === "medium" ? 1 : 0;
 }
 
+function pageBounds(segments: readonly Segment[]): { width: number; height: number } {
+  let width = 0;
+  let height = 0;
+  for (const segment of segments) {
+    width = Math.max(width, segment.x0, segment.x1);
+    height = Math.max(height, segment.y0, segment.y1);
+  }
+  return { width, height };
+}
+
+function gapConfidence(
+  envelopeSide: FloorPlanGapEnvelopeSide,
+  routingConfidence: "medium" | "low",
+): "medium" | "low" {
+  if (envelopeSide !== "exterior") return "low";
+  return routingConfidence;
+}
+
+function routeWithEnvelopeReview<T extends Pick<FloorPlanGapCandidate, "routing">>(
+  route: T,
+  envelopeSide: FloorPlanGapEnvelopeSide,
+): T {
+  if (envelopeSide === "exterior") return route;
+  return {
+    ...route,
+    routing: {
+      ...route.routing,
+      confidence: "low",
+      ambiguous: true,
+      reason: `${route.routing.reason}; measured gap is on an ${envelopeSide} wall line, so it is review-only until exterior wall identity is proven`,
+    },
+  };
+}
+
 export function detectFloorPlanGaps(args: {
   segments: readonly Segment[];
   scale: number;
@@ -225,6 +262,7 @@ export function detectFloorPlanGaps(args: {
   const faceMin = ruler.mmToPdfPoints(60);
   const faceMax = ruler.mmToPdfPoints(320);
   const endpointTol = ruler.mmToPdfPoints(260);
+  const envelopeSideOf = envelopeInteriorTest([...args.segments], pageBounds(args.segments));
   const candidates: FloorPlanGapCandidate[] = [];
 
   for (let i = 0; i < gaps.length; i++) {
@@ -241,7 +279,7 @@ export function detectFloorPlanGaps(args: {
       const widthMm = ruler.measureGapWidthMm((a.widthPt + b.widthPt) / 2);
       const x = a.vertical ? (a.offset + b.offset) / 2 : (lo + hi) / 2;
       const y = a.vertical ? (lo + hi) / 2 : (a.offset + b.offset) / 2;
-      const route = routeRoom({
+      const baseRoute = routeRoom({
         rooms: args.rooms ?? [],
         x,
         y,
@@ -250,6 +288,8 @@ export function detectFloorPlanGaps(args: {
         vertical: a.vertical,
         scale: args.scale,
       });
+      const envelopeSide = envelopeSideOf(x, y, a.vertical);
+      const route = routeWithEnvelopeReview(baseRoute, envelopeSide);
       candidates.push({
         id: `floorplan-gap-${candidates.length + 1}`,
         widthMm,
@@ -258,10 +298,11 @@ export function detectFloorPlanGaps(args: {
         orientation: a.vertical ? "vertical" : "horizontal",
         wallFaceId: wallFaceId(a.vertical, x, y),
         wallThicknessMm: Math.round(ruler.pdfPointsToMm(faceGap)),
-        confidence: route.routing.confidence,
+        envelopeSide,
+        confidence: gapConfidence(envelopeSide, route.routing.confidence),
         ...route,
         note: route.roomLabel
-          ? `measured floor-plan wall gap near ${route.roomLabel}; ${route.routing.reason}; height still needs text/elevation/schedule confirmation`
+          ? `measured floor-plan ${envelopeSide} wall gap near ${route.roomLabel}; ${route.routing.reason}; height still needs text/elevation/schedule confirmation`
           : "measured floor-plan wall gap; room and height still need confirmation",
       });
     }

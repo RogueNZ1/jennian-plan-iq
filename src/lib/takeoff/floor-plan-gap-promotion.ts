@@ -45,6 +45,7 @@ export function promoteFloorPlanGapOpenings(args: {
   const promoted: Opening[] = [];
 
   for (const gap of args.floorPlanGaps ?? []) {
+    if ((gap.envelopeSide ?? "exterior") !== "exterior") continue;
     const match = args.elevationMatches.get(gap.id);
     const type = match ? typeFromElevation(match.type) : null;
     if (!match || !type) continue;

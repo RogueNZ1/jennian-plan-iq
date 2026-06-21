@@ -146,8 +146,14 @@ describe("Fenner wild-card benchmark", () => {
 
   it("detects review-only floor-plan wall gaps even when nearby text is malformed", async () => {
     const gaps = await extractFloorPlanGaps(PLAN);
+    const exteriorGaps = gaps.filter((gap) => gap.envelopeSide === "exterior");
+    const demotedInteriorGaps = gaps.filter(
+      (gap) => gap.envelopeSide === "interior" && gap.confidence === "low",
+    );
 
     expect(gaps.length).toBeGreaterThan(10);
+    expect(exteriorGaps.length).toBeGreaterThan(5);
+    expect(demotedInteriorGaps.length).toBeGreaterThan(5);
     expect(gaps.some((gap) => gap.widthMm >= 1700 && gap.widthMm <= 1900)).toBe(true);
     expect(gaps.some((gap) => gap.widthMm >= 4500 && gap.widthMm <= 5100)).toBe(true);
     expect(gaps.every((gap) => /height still need/.test(gap.note))).toBe(true);

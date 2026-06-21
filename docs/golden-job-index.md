@@ -64,12 +64,12 @@ Read-only QS cells verified from `Fenner Specifications.xlsm`, sheet `5. Data In
 Current test map:
 
 - `tests/fixtures/fenner/ground-truth.json` pins Haydon's manual rows: 17 rows, 18 quantity, 58.13 m2 total openings, 10.08 m2 garage door, 48.05 m2 garage-door-excluded.
-- `tests/fenner/baseline.test.ts` pins the manual rows, malformed drafting label detection, review-only floor-plan gaps, vector-rich/text-poor elevations, and the expected-fail for full priced opening recovery.
-- `tests/takeoff/elevation-gap-match.test.ts` pins face-aware elevation matching so a wrong elevation face cannot support a floor-plan gap.
+- `tests/fenner/baseline.test.ts` pins the manual rows, malformed drafting label detection, review-only floor-plan gaps, vector-rich/text-poor elevations, and the expected-fail for full priced opening recovery. It also now asserts Fenner produces both usable exterior gap evidence and demoted interior/artefact gap evidence, because this plan deliberately contains drafting/witness failures.
+- `tests/takeoff/elevation-gap-match.test.ts` pins face-aware and envelope-aware elevation matching so a wrong elevation face or an interior wall gap cannot support a floor-plan gap.
 
 Next required product slice:
 
-Candidate-level reconciliation must price supported Fenner candidates and quarantine only unsupported candidates. The expected-fail should turn green only when deterministic evidence recovers the signed 58.13 m2 / 48.05 m2 witness set without blind standard-height assertions.
+Candidate-level reconciliation must price supported Fenner exterior candidates and quarantine only unsupported candidates. The expected-fail should turn green only when deterministic evidence recovers the signed 58.13 m2 / 48.05 m2 witness set without blind standard-height assertions or borrowing dimensions from interior/slab/drafting artefacts.
 
 ## Beddis
 

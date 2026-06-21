@@ -11,6 +11,7 @@ const baseGap: FloorPlanGapCandidate = {
   orientation: "horizontal",
   wallFaceId: "H-17",
   wallThicknessMm: 190,
+  envelopeSide: "exterior",
   confidence: "medium",
   roomLabel: "LOUNGE",
   roomSide: "south",
@@ -107,6 +108,27 @@ describe("elevation to floor-plan gap matching", () => {
       elevations: elevations([
         {
           face: "South",
+          type: "window",
+          label: "W01",
+          widthMm: 1810,
+          heightMm: 1300,
+          quantity: 1,
+          cladding: null,
+          confidence: "high",
+          notes: [],
+        },
+      ]),
+    });
+
+    expect(matches.size).toBe(0);
+  });
+
+  it("does not let elevation evidence support an interior floor-plan gap", () => {
+    const matches = matchElevationToFloorPlanGaps({
+      gaps: [{ ...baseGap, envelopeSide: "interior" }],
+      elevations: elevations([
+        {
+          face: "North",
           type: "window",
           label: "W01",
           widthMm: 1810,

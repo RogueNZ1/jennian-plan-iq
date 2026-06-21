@@ -11,6 +11,7 @@ const gap: FloorPlanGapCandidate = {
   orientation: "horizontal",
   wallFaceId: "H-17",
   wallThicknessMm: 190,
+  envelopeSide: "exterior",
   confidence: "medium",
   roomLabel: "LOUNGE",
   roomSide: "south",
@@ -62,6 +63,17 @@ describe("floor-plan gap promotion", () => {
       openings: [],
       floorPlanGaps: [gap],
       elevationMatches: new Map([[gap.id, match(51)]]),
+    });
+
+    expect(promoted.openings).toHaveLength(0);
+    expect(promoted.promotedByGapId.has(gap.id)).toBe(false);
+  });
+
+  it("does not promote an interior wall gap even with matching elevation dimensions", () => {
+    const promoted = promoteFloorPlanGapOpenings({
+      openings: [],
+      floorPlanGaps: [{ ...gap, envelopeSide: "interior" }],
+      elevationMatches: new Map([[gap.id, match(0)]]),
     });
 
     expect(promoted.openings).toHaveLength(0);

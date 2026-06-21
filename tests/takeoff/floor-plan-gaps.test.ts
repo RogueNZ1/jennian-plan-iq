@@ -34,6 +34,7 @@ describe("floor-plan gap extraction", () => {
       widthMm: 1200,
       orientation: "horizontal",
       wallFaceId: "H-17",
+      envelopeSide: "exterior",
       roomLabel: "LOUNGE",
       roomSide: "south",
       confidence: "medium",
@@ -74,6 +75,41 @@ describe("floor-plan gap extraction", () => {
     });
     const routedRooms = [gaps[0].roomLabel, ...(gaps[0].alternateRoomLabels ?? [])];
     expect(routedRooms).toEqual(expect.arrayContaining(["HALL", "BED 2"]));
+  });
+
+  it("demotes interior wall breaks so they cannot masquerade as exterior openings", () => {
+    const scale = 100;
+    const widthPt = mmToPt(900, scale);
+    const wallFaceGap = mmToPt(90, scale);
+    const start = 100;
+    const end = start + widthPt;
+    const segments: Segment[] = [
+      horizontal(0, 260, 20),
+      horizontal(0, 260, 20 + wallFaceGap),
+      horizontal(0, 260, 180),
+      horizontal(0, 260, 180 + wallFaceGap),
+      horizontal(20, start, 100),
+      horizontal(end, 240, 100),
+      horizontal(20, start, 100 + wallFaceGap),
+      horizontal(end, 240, 100 + wallFaceGap),
+    ];
+
+    const gaps = detectFloorPlanGaps({
+      segments,
+      scale,
+      rooms: [{ name: "HALL", x: 130, y: 125 }],
+    });
+
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0]).toMatchObject({
+      envelopeSide: "interior",
+      confidence: "low",
+      routing: {
+        confidence: "low",
+        ambiguous: true,
+      },
+    });
+    expect(gaps[0].note).toContain("interior wall gap");
   });
 
   it("does not treat a single broken annotation line as a wall gap", () => {

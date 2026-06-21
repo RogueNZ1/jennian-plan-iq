@@ -34,6 +34,7 @@ export type OpeningEvidenceItem = {
   area_m2?: number | null;
   room?: string | null;
   wall_face_id?: string;
+  envelope_side?: FloorPlanGapCandidate["envelopeSide"];
   room_side?: "north" | "south" | "east" | "west" | null;
   alternate_rooms?: string[];
   text?: string;
@@ -185,6 +186,7 @@ export function buildOpeningEvidenceLedger(args: {
         width_m: widthM,
         room: gap.roomLabel ?? null,
         wall_face_id: gap.wallFaceId,
+        envelope_side: gap.envelopeSide,
         room_side: gap.roomSide ?? null,
         alternate_rooms: gap.alternateRoomLabels ?? [],
         note: gap.note,
@@ -200,6 +202,7 @@ export function buildOpeningEvidenceLedger(args: {
         height_m: heightM,
         room: gap.roomLabel ?? null,
         wall_face_id: gap.wallFaceId,
+        envelope_side: gap.envelopeSide,
         room_side: gap.roomSide ?? null,
         alternate_rooms: gap.alternateRoomLabels ?? [],
         note: elevationMatch.note,
@@ -228,12 +231,12 @@ export function buildOpeningEvidenceLedger(args: {
         ? [
             `Measured floor-plan wall gap ${gap.widthMm}mm${
               gap.roomLabel ? ` near ${gap.roomLabel}` : ""
-            } on wall face ${gap.wallFaceId}; elevation ${elevationMatch?.face ?? "unknown"} supports ${elevationMatch?.widthMm ?? gap.widthMm}x${elevationMatch?.heightMm ?? Math.round(promotedOpening.height_m * 1000)}mm; promoted into QS openings as ${promotedOpening.type} (${promotedOpening.area_m2}m2).`,
+            } on ${gap.envelopeSide} wall face ${gap.wallFaceId}; elevation ${elevationMatch?.face ?? "unknown"} supports ${elevationMatch?.widthMm ?? gap.widthMm}x${elevationMatch?.heightMm ?? Math.round(promotedOpening.height_m * 1000)}mm; promoted into QS openings as ${promotedOpening.type} (${promotedOpening.area_m2}m2).`,
           ]
         : [
             `Measured floor-plan wall gap ${gap.widthMm}mm${
               gap.roomLabel ? ` near ${gap.roomLabel}` : ""
-            } on wall face ${gap.wallFaceId}; ${
+            } on ${gap.envelopeSide} wall face ${gap.wallFaceId}; ${
               gap.routing.ambiguous ? `${gap.routing.reason}; ` : ""
             }${elevationSupportText}not priced until height/type/face are confirmed by text, elevation, schedule, or review.`,
           ],

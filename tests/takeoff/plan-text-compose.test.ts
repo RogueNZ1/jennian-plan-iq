@@ -58,6 +58,7 @@ const doorEngine = {
       orientation: "horizontal",
       wallFaceId: "H-37",
       wallThicknessMm: 190,
+      envelopeSide: "exterior",
       confidence: "medium",
       roomLabel: "LOUNGE",
       roomSide: "south",
