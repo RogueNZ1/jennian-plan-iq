@@ -1,0 +1,197 @@
+# Jennian IQ access and golden jobs operating checklist
+
+Last reviewed: 21 Jun 2026
+
+## Purpose
+
+Jennian IQ should be verified against real QS truth, not screenshots, chat memory, or one-off exports. This checklist records the access, source files, and golden-job evidence needed for Codex, Haydon, Claude, and the Haydon Council to audit the product repeatably.
+
+## Ground rules
+
+- Do not store secrets, auth links, service keys, or customer-private raw documents in Git or Linear comments.
+- Raw plans, QS workbooks, and client documents should live in the controlled Jennian SharePoint/OneDrive structure or another approved private storage location.
+- The repo may store fixtures, metadata, reduced truth JSON, and test-safe artifacts when they are intentionally allowed.
+- Missing evidence stays explicit. A missing login, DB role, workbook, or job pack is not "probably fine".
+- Every golden job must have a human-signed truth source before it is used to claim accuracy.
+
+## Current access state
+
+| Item | Current state | Action |
+| --- | --- | --- |
+| Linear | Available. JEN issues can be read and updated from Codex. | Keep product doctrine, access work, and trial gates in Linear rather than chat only. |
+| GitHub/repo | Available. Codex can commit, push, and verify local gates. | Keep using strict slices with STATE.md entries. |
+| Production deploy path | Available. `main` deploys to Cloudflare Pages project `jennian-iq-prod`; live `/version.json` and geometry health can be probed. | Continue verifying live version and geometry after every deploy. |
+| Jennian IQ test login | Not provisioned as a stable Codex-owned account. | Create a dedicated non-human test user with the minimum role needed for full upload/review/export runs. |
+| Supabase read access | No stable read-only analyst credential recorded here. Some admin/service paths exist in workflows/functions, but should not be used as normal audit access. | Provision read-only SQL/API access for schema/live-job audits, separate from service-role credentials. |
+| Canonical QS master workbook | Candidate local files exist. Newest observed: `Jennian IQ MASTER.xlsm` in `QUANTITY SURVEYING/JENNIAN MASTER SPREADSHEET`. | Haydon must confirm the single canonical master and where frozen copies should live. |
+| Golden job source folder | Partial repo fixtures exist under `tests/fixtures` for `15a`, `beddis`, `christian`, `fenner`, `harrison`, `oneil`, and `young`. | Build a controlled golden job pack with raw source docs plus signed truth metadata. |
+| SharePoint/OneDrive job access | Available only when individual files/paths are provided in the thread or already synced locally. | Provide or document the controlled folder path for golden jobs and current trial jobs. |
+| Haydon Council outputs | Available only when pasted into chat or exposed via the local skill/output path. | Save Council reports to Linear documents or a known repo/private-doc location so they can be read as evidence. |
+
+## Access requests
+
+### 1. Dedicated Jennian IQ test login
+
+Needed to let Codex run the whole product path without using Haydon's live session.
+
+Minimum setup:
+
+- Email: a dedicated test account, not a staff personal account.
+- Role: estimator or admin depending on the slice being tested.
+- Status: active with password set.
+- Permissions: can upload a plan, run takeoff, open verification, download/export workbook, and view review tables.
+- Safety: clearly named as a test account, safe to delete/reinvite, no owner role unless a specific owner-only test needs it.
+
+Record:
+
+- The account email in Linear or this doc.
+- Never record the password in Git, STATE.md, or Linear.
+
+### 2. Read-only Supabase access
+
+Needed to answer live questions such as "what did IQ persist for this job?" and "does production schema match types?" without relying on service-role paths.
+
+Minimum setup:
+
+- A read-only Postgres role or Supabase dashboard/API access scoped to read schema and selected rows.
+- No DDL permission.
+- No service-role JWT as normal operator access.
+- Access to inspect RLS policies, functions, migration table state, and job/takeoff/export rows.
+
+Use cases:
+
+- Verify live schema/type drift.
+- Inspect a failed job payload and persisted `takeoff_json`.
+- Confirm review table rows versus export data.
+- Confirm RLS policy effects without changing data.
+
+### 3. Canonical QS master workbook
+
+Needed because the IQ export is only correct if it aligns with the real workbook.
+
+Current candidate files observed locally:
+
+- `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\JENNIAN MASTER SPREADSHEET\Jennian IQ MASTER.xlsm`
+- `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\JENNIAN MASTER SPREADSHEET\Jennian_QS_Master_MASTER_BASE_PLUS_STAGE_LOADS_2026-06-17.xlsm`
+- `C:\Users\Haydon\Jennian Homes Manawatu\Company - Documents\QUANTITY SURVEYING\JENNIAN MASTER SPREADSHEET\Jennian_QS_Master_IQ_WIRED.xlsm`
+
+Decision needed:
+
+- Which file is the current canonical master?
+- Which tab/cell contract is sacred for IQ import?
+- Where are frozen historic masters stored when the master changes?
+- Who signs off changes to tab 5 openings, cladding deduction, garage doors, internal doors, and stage loads?
+
+### 4. Golden jobs pack
+
+Needed to stop chasing one plan at a time. A golden job proves whether the engine is broadly improving.
+
+Recommended private storage structure:
+
+```text
+Golden Jobs/
+  christian/
+    source/
+      floorplan.pdf
+      elevations.pdf
+      specifications.xlsm
+      signed_qs_workbook.xlsm
+    iq-runs/
+      latest-verification.pdf
+      latest-export.xlsx
+      latest-version.json
+    truth/
+      ground-truth.json
+      signoff.md
+  fenner/
+    ...
+```
+
+Minimum truth per job:
+
+- Floor area.
+- Perimeter / external wall length where used.
+- Total opening area including garage door.
+- QS/glazed opening area excluding garage door.
+- Garage door size/count.
+- Internal door counts by QS bucket.
+- Garage area, alfresco area, first-floor area, and N/A semantics.
+- Notes for drafting errors, missing elevations, or deliberate manual overrides.
+
+Repo fixture rule:
+
+- Commit reduced `ground-truth.json` and deterministic fixture metadata only when approved.
+- Keep raw private plans/workbooks in controlled storage unless explicitly cleared for repo fixture use.
+
+### 5. Cloudflare and GitHub visibility
+
+Needed for deploy confidence.
+
+Already useful:
+
+- Live `/version.json` probes.
+- Live `/api/geometry/health` probes.
+- GitHub connector for status where available.
+
+Still useful:
+
+- Dashboard links for the exact production Pages project.
+- Known owner account for DNS/domain changes.
+- A short "where to look first" note when deploy fails: GitHub Actions run, Cloudflare Pages deploy, or live domain probe.
+
+### 6. Linear as the product spine
+
+Needed so doctrine and decisions survive long sessions.
+
+Use Linear for:
+
+- Product doctrine and trial gates.
+- Access blockers.
+- Golden job readiness.
+- Security/future-hardening tasks.
+- Slice status and acceptance criteria.
+
+Do not use Linear for:
+
+- Passwords.
+- Secret values.
+- Raw client-private attachments unless the workspace policy explicitly allows it.
+
+### 7. SharePoint/OneDrive source access
+
+Needed so IQ can be audited against what a human QS actually had.
+
+For each live/golden job, record:
+
+- Job folder path.
+- Which plan revision IQ used.
+- Which elevations/specs were available.
+- Which QS workbook is the signed human truth.
+- Any known drafting errors.
+
+### 8. Haydon Council output location
+
+Needed so Council review becomes evidence, not another pasted chat artifact.
+
+Preferred options:
+
+- Linear document per Council review.
+- Repo `docs/council-reviews/` only for sanitized summaries.
+- Private SharePoint folder for raw Council reports where client data appears.
+
+Each Council report should say:
+
+- Scope.
+- Evidence inspected.
+- Findings by severity.
+- Red Team result.
+- What is verified, broken, or unproven.
+- Whether Codex may act or must report only.
+
+## Immediate next actions
+
+1. Haydon confirms the canonical QS master workbook.
+2. Haydon creates or approves a dedicated Jennian IQ test login.
+3. Haydon/IT provisions read-only Supabase access or confirms an acceptable read-only alternative.
+4. Create the first Golden Jobs pack from Christian and Fenner because they are already central to the current accuracy work.
+5. Attach this checklist to Linear, then link it to JEN-27, JEN-29, and JEN-38.
