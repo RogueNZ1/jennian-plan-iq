@@ -48,6 +48,7 @@ export function promoteFloorPlanGapOpenings(args: {
     const match = args.elevationMatches.get(gap.id);
     const type = match ? typeFromElevation(match.type) : null;
     if (!match || !type) continue;
+    if (match.faceCheck !== "matched") continue;
     if (gap.confidence === "low" || gap.routing.confidence === "low" || gap.routing.ambiguous) {
       continue;
     }

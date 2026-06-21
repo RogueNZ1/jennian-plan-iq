@@ -206,6 +206,12 @@ export function buildOpeningEvidenceLedger(args: {
       });
     }
 
+    const elevationSupportText = elevationMatch
+      ? elevationMatch.faceCheck === "matched"
+        ? `elevation ${elevationMatch.face} supports height ${elevationMatch.heightMm}mm; `
+        : `elevation ${elevationMatch.face} has matching width/height evidence, but its face is not matched to the floor-plan wall; `
+      : "";
+
     ledger.push({
       id: `floorplan-gap-${index + 1}`,
       status: promotedOpening ? "priced" : "review",
@@ -227,11 +233,7 @@ export function buildOpeningEvidenceLedger(args: {
               gap.roomLabel ? ` near ${gap.roomLabel}` : ""
             } on wall face ${gap.wallFaceId}; ${
               gap.routing.ambiguous ? `${gap.routing.reason}; ` : ""
-            }${
-              elevationMatch
-                ? `elevation ${elevationMatch.face} supports height ${elevationMatch.heightMm}mm; `
-                : ""
-            }not priced until height/type are confirmed by text, elevation, schedule, or review.`,
+            }${elevationSupportText}not priced until height/type/face are confirmed by text, elevation, schedule, or review.`,
           ],
       conflicts: gap.routing.ambiguous ? (gap.alternateRoomLabels ?? []) : [],
     });

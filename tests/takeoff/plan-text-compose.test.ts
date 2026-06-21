@@ -301,7 +301,28 @@ describe("plan-text cross-checks at compose", () => {
     expect(unknown.total_opening_sqm).toBe(withoutGap.total_opening_sqm);
     const gap = unknown.opening_evidence?.find((candidate) => candidate.id === "floorplan-gap-1");
     expect(gap?.priced).toBe(false);
-    expect(gap?.review_flags.join(" ")).toContain("not priced until height/type are confirmed");
+    expect(gap?.review_flags.join(" ")).toContain(
+      "not priced until height/type/face are confirmed",
+    );
+  });
+
+  it("generated elevation face support stays review-only instead of pricing a floor-plan gap", () => {
+    const generatedFace = compose(doorEngine, { face: "elevation-face-1" }).enriched;
+    const withoutGap = compose({
+      ...(doorEngine as Record<string, unknown>),
+      floorPlanGaps: [],
+    }).enriched;
+
+    expect(generatedFace.total_opening_sqm).toBe(withoutGap.total_opening_sqm);
+    const gap = generatedFace.opening_evidence?.find(
+      (candidate) => candidate.id === "floorplan-gap-1",
+    );
+    expect(gap?.priced).toBe(false);
+    expect(gap?.evidence.some((item) => item.source === "elevation_measurement")).toBe(true);
+    expect(gap?.review_flags.join(" ")).toContain("face is not matched");
+    expect(gap?.review_flags.join(" ")).toContain(
+      "not priced until height/type/face are confirmed",
+    );
   });
 
   it("printed ENSUITE + missing vision count => ERROR flag on the ensuite count", () => {

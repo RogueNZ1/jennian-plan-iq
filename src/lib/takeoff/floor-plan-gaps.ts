@@ -1,4 +1,5 @@
 import type { Segment } from "../doors/door-engine";
+import { createScaleRuler } from "./scale-ruler";
 
 export type FloorPlanGapCandidate = {
   id: string;
@@ -31,12 +32,9 @@ type RowGap = {
   widthPt: number;
 };
 
-const PT_PER_MM = 72 / 25.4;
-const ptToMm = (pt: number, scale: number) => (pt / PT_PER_MM) * scale;
-const mmToPt = (mm: number, scale: number) => (mm / scale) * PT_PER_MM;
-
 function axialSegments(segments: readonly Segment[], scale: number): Axial[] {
-  const minLen = mmToPt(250, scale);
+  const ruler = createScaleRuler(scale);
+  const minLen = ruler.mmToPdfPoints(250);
   const out: Axial[] = [];
   for (const segment of segments) {
     const dx = segment.x1 - segment.x0;
@@ -64,8 +62,9 @@ function axialSegments(segments: readonly Segment[], scale: number): Axial[] {
 }
 
 function clusterRows(axials: Axial[], scale: number): Row[] {
-  const rowTol = Math.max(mmToPt(35, scale), 1.2);
-  const joinTol = Math.max(mmToPt(45, scale), 1.2);
+  const ruler = createScaleRuler(scale);
+  const rowTol = Math.max(ruler.mmToPdfPoints(35), 1.2);
+  const joinTol = Math.max(ruler.mmToPdfPoints(45), 1.2);
   const rows: Row[] = [];
 
   for (const vertical of [false, true]) {
@@ -102,9 +101,10 @@ function clusterRows(axials: Axial[], scale: number): Row[] {
 }
 
 function rowGaps(rows: readonly Row[], scale: number): RowGap[] {
-  const minGap = mmToPt(350, scale);
-  const maxGap = mmToPt(6500, scale);
-  const minJamb = mmToPt(180, scale);
+  const ruler = createScaleRuler(scale);
+  const minGap = ruler.mmToPdfPoints(350);
+  const maxGap = ruler.mmToPdfPoints(6500);
+  const minJamb = ruler.mmToPdfPoints(180);
   const out: RowGap[] = [];
 
   for (const row of rows) {
@@ -136,8 +136,9 @@ function routeRoom(args: {
   vertical: boolean;
   scale: number;
 }): Pick<FloorPlanGapCandidate, "roomLabel" | "roomSide" | "alternateRoomLabels" | "routing"> {
-  const alongPad = mmToPt(2600, args.scale);
-  const maxPerp = mmToPt(6500, args.scale);
+  const ruler = createScaleRuler(args.scale);
+  const alongPad = ruler.mmToPdfPoints(2600);
+  const maxPerp = ruler.mmToPdfPoints(6500);
   const options: Array<{
     name: string;
     side: "north" | "south" | "east" | "west";
@@ -217,12 +218,13 @@ export function detectFloorPlanGaps(args: {
   scale: number;
   rooms?: readonly RoomPoint[];
 }): FloorPlanGapCandidate[] {
+  const ruler = createScaleRuler(args.scale);
   const axials = axialSegments(args.segments, args.scale);
   const rows = clusterRows(axials, args.scale);
   const gaps = rowGaps(rows, args.scale);
-  const faceMin = mmToPt(60, args.scale);
-  const faceMax = mmToPt(320, args.scale);
-  const endpointTol = mmToPt(260, args.scale);
+  const faceMin = ruler.mmToPdfPoints(60);
+  const faceMax = ruler.mmToPdfPoints(320);
+  const endpointTol = ruler.mmToPdfPoints(260);
   const candidates: FloorPlanGapCandidate[] = [];
 
   for (let i = 0; i < gaps.length; i++) {
@@ -236,7 +238,7 @@ export function detectFloorPlanGaps(args: {
 
       const lo = (a.lo + b.lo) / 2;
       const hi = (a.hi + b.hi) / 2;
-      const widthMm = Math.round(ptToMm((a.widthPt + b.widthPt) / 2, args.scale));
+      const widthMm = ruler.measureGapWidthMm((a.widthPt + b.widthPt) / 2);
       const x = a.vertical ? (a.offset + b.offset) / 2 : (lo + hi) / 2;
       const y = a.vertical ? (lo + hi) / 2 : (a.offset + b.offset) / 2;
       const route = routeRoom({
@@ -255,7 +257,7 @@ export function detectFloorPlanGaps(args: {
         y,
         orientation: a.vertical ? "vertical" : "horizontal",
         wallFaceId: wallFaceId(a.vertical, x, y),
-        wallThicknessMm: Math.round(ptToMm(faceGap, args.scale)),
+        wallThicknessMm: Math.round(ruler.pdfPointsToMm(faceGap)),
         confidence: route.routing.confidence,
         ...route,
         note: route.roomLabel
