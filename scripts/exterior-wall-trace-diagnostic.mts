@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 
 import type { Segment } from "../src/lib/doors/door-engine";
 import { extractPageGeometry } from "../src/lib/doors/pdf-adapter";
+import { traceExteriorWallEvidence } from "../src/lib/takeoff/exterior-wall-trace";
 import { parsePlanText } from "../src/lib/takeoff/plan-text";
 import { createScaleRuler } from "../src/lib/takeoff/scale-ruler";
 
@@ -326,11 +327,16 @@ async function main() {
   await doc.destroy().catch(() => {});
 
   const rooms = planText.rooms.map((room) => ({ name: room.name, x: room.x, y: room.y }));
-  const ribbons = thickWallRibbons(geom.segments, scale);
-  const runs = exteriorRuns(ribbons, rooms, scale);
-  const breaks = collinearBreaks(runs, scale);
-  const tracedLengthM = Math.round(runs.reduce((sum, run) => sum + run.lengthM, 0) * 100) / 100;
   const printedPerimeterM = planText.titleAreas?.perimeterM ?? null;
+  const trace = traceExteriorWallEvidence({
+    segments: geom.segments,
+    rooms,
+    scale,
+    printedPerimeterM,
+  });
+  const runs = trace.runs;
+  const breaks = trace.breaks;
+  const tracedLengthM = trace.tracedExteriorEvidenceM;
 
   writeFileSync(
     `${outBase}.json`,
@@ -338,12 +344,9 @@ async function main() {
       {
         plan,
         scale,
-        printedPerimeterM,
-        tracedExteriorEvidenceM: tracedLengthM,
-        shortfallM:
-          printedPerimeterM == null
-            ? null
-            : Math.round((printedPerimeterM - tracedLengthM) * 100) / 100,
+        printedPerimeterM: trace.printedPerimeterM,
+        tracedExteriorEvidenceM: trace.tracedExteriorEvidenceM,
+        shortfallM: trace.shortfallM,
         exteriorRuns: runs.map((run) => ({
           vertical: run.vertical,
           outsideOffset: Math.round(run.outsideOffset * 100) / 100,
