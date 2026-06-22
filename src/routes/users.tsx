@@ -510,6 +510,8 @@ function UsersPage() {
               </thead>
               <tbody>
                 {filtered.map((r) => (
+                  // Pending setup means auth exists but activation did not complete.
+                  // Let the owner repair it from here instead of dropping to SQL.
                   <tr
                     key={`${r.kind}:${r.id}`}
                     className="border-t border-border hover:bg-muted/25 transition-colors"
@@ -555,6 +557,15 @@ function UsersPage() {
                       <div className="flex items-center justify-end gap-1">
                         {r.kind === "profile" ? (
                           <>
+                            {r.accessHealth?.health === "pending_setup" && (
+                              <IconBtn
+                                title="Repair password setup"
+                                onClick={() => repairProfile(r.id)}
+                                disabled={!canInvite || repairingProfile === r.id}
+                              >
+                                <Wrench className="h-3 w-3 text-confidence-mid" />
+                              </IconBtn>
+                            )}
                             <IconBtn
                               title="Edit role"
                               onClick={() => setEditing(r)}

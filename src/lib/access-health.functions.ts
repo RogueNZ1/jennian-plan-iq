@@ -99,6 +99,18 @@ type RepairProfileInput = {
   status: "active" | "invited";
 };
 
+type ExistingProfile = {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  status: "active" | "invited" | "suspended";
+};
+
+type LatestInvite = {
+  id: string;
+  role: "owner" | "admin" | "estimator" | "viewer";
+} | null;
+
 export const repairUserProfileFn = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => input as RepairProfileInput)
   .handler(async ({ data }): Promise<{ ok: true; message: string }> => {
@@ -110,9 +122,6 @@ export const repairUserProfileFn = createServerFn({ method: "POST" })
     const { data: target, error: targetErr } = await admin.auth.admin.getUserById(targetId);
     if (targetErr || !target?.user) throw new Error("Auth user not found.");
 
-    const existing = await admin.from("profiles").select("id").eq("id", targetId).maybeSingle();
-    if (existing.data) throw new Error("Profile already exists.");
-
     const now = new Date().toISOString();
     const email = target.user.email ?? null;
     const fullName =
@@ -120,23 +129,74 @@ export const repairUserProfileFn = createServerFn({ method: "POST" })
         ? target.user.user_metadata.full_name
         : (email?.split("@")[0] ?? null);
 
-    const { error } = await admin.from("profiles").insert({
-      id: targetId,
+    const { data: latestInvite, error: inviteErr } = email
+      ? await admin
+          .from("user_invitations")
+          .select("id, role")
+          .ilike("email", email)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : { data: null, error: null };
+    if (inviteErr) throw new Error(`Could not read latest invite: ${inviteErr.message}`);
+
+    const { data: existingProfile, error: existingErr } = await admin
+      .from("profiles")
+      .select("id, email, full_name, status")
+      .eq("id", targetId)
+      .maybeSingle();
+    if (existingErr) throw new Error(`Could not read profile: ${existingErr.message}`);
+    const existing = existingProfile as ExistingProfile | null;
+
+    if (existing?.status === "suspended") {
+      throw new Error("This account is suspended. Enable the user instead of repairing setup.");
+    }
+
+    const profilePayload = {
       email,
-      full_name: fullName,
+      full_name: existing?.full_name ?? fullName,
       status: data.status,
       accepted_at: data.status === "active" ? now : null,
       last_login_at: data.status === "active" ? now : null,
       updated_at: now,
-    });
+    };
+    const { error } = existing
+      ? await admin.from("profiles").update(profilePayload).eq("id", targetId)
+      : await admin.from("profiles").insert({
+          id: targetId,
+          ...profilePayload,
+        });
     if (error) throw new Error(`Could not repair profile: ${error.message}`);
+
+    const invite = latestInvite as LatestInvite;
+    if (data.status === "active" && invite?.role) {
+      const { error: clearRoleErr } = await admin
+        .from("user_roles")
+        .delete()
+        .eq("user_id", targetId)
+        .neq("role", "owner");
+      if (clearRoleErr) throw new Error(`Could not clear stale roles: ${clearRoleErr.message}`);
+
+      const { error: roleErr } = await admin
+        .from("user_roles")
+        .upsert(
+          { user_id: targetId, role: invite.role },
+          { onConflict: "user_id,role", ignoreDuplicates: false },
+        );
+      if (roleErr) throw new Error(`Could not assign invited role: ${roleErr.message}`);
+
+      await admin
+        .from("user_invitations")
+        .update({ status: "accepted", accepted_at: now, updated_at: now })
+        .eq("id", invite.id);
+    }
 
     await admin.from("audit_logs").insert({
       action: "profile_repaired",
       table_name: "profiles",
       record_id: targetId,
       actor_user_id: caller.id,
-      metadata: { email, status: data.status },
+      metadata: { email, status: data.status, role: invite?.role ?? null },
     });
 
     return { ok: true, message: `Profile repaired for ${email ?? targetId}.` };
