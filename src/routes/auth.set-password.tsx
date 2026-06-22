@@ -27,23 +27,54 @@ function SetPasswordPage() {
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // Branded invite emails link straight here with ?token_hash=…&type=invite
-  // (no supabase.co redirect hop). Detect it synchronously so the
-  // "no session → back to login" redirect below waits for verification.
-  const [hasTokenHash] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      new URLSearchParams(window.location.search).has("token_hash"),
-  );
+  // Branded emails link straight here with ?token_hash=...&type=invite/recovery.
+  // Supabase's default recovery email may return ?code=... instead. Detect these
+  // synchronously so the "no session -> back to login" redirect waits for auth.
+  const [hasAuthCallback] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const sp = new URLSearchParams(window.location.search);
+    return sp.has("token_hash") || sp.has("code") || window.location.hash.includes("access_token");
+  });
   const [verifyState, setVerifyState] = useState<"idle" | "verifying" | "failed">(
-    hasTokenHash ? "verifying" : "idle",
+    hasAuthCallback ? "verifying" : "idle",
   );
 
   useEffect(() => {
-    if (!hasTokenHash || user) return;
+    if (!hasAuthCallback || user) {
+      if (user) setVerifyState("idle");
+      return;
+    }
     const sp = new URLSearchParams(window.location.search);
+    const code = sp.get("code");
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) {
+          setVerifyState("failed");
+          toast.error(
+            "This password setup link has expired or has already been used. Ask for it to be resent.",
+          );
+          navigate({ to: "/login" });
+        } else {
+          setVerifyState("idle");
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+      });
+      return;
+    }
+
     const tokenHash = sp.get("token_hash");
-    if (!tokenHash) return;
+    if (!tokenHash) {
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session) {
+          setVerifyState("idle");
+          window.history.replaceState({}, "", window.location.pathname);
+        } else {
+          setVerifyState("failed");
+          navigate({ to: "/login" });
+        }
+      });
+      return;
+    }
     const type = (sp.get("type") ?? "invite") as
       | "invite"
       | "magiclink"
@@ -64,19 +95,19 @@ function SetPasswordPage() {
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasTokenHash]);
+  }, [hasAuthCallback]);
 
   // If not authenticated at all (e.g. token already expired or link re-used),
-  // redirect to login after auth state settles. Token-hash links wait for
+  // redirect to login after auth state settles. Auth callback links wait for
   // verification above instead.
   useEffect(() => {
-    if (!loading && !user && !hasTokenHash) {
+    if (!loading && !user && !hasAuthCallback && verifyState !== "verifying") {
       toast.error(
         "This invite link has expired or has already been used. Please contact your administrator.",
       );
       navigate({ to: "/login" });
     }
-  }, [user, loading, hasTokenHash, navigate]);
+  }, [user, loading, hasAuthCallback, verifyState, navigate]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -125,10 +156,10 @@ function SetPasswordPage() {
   }
 
   // Show nothing while auth state loads
-  if (loading) {
+  if (loading || verifyState === "verifying") {
     return (
       <div className="min-h-screen grid place-items-center bg-background">
-        <div className="text-sm text-muted-foreground">Loading…</div>
+        <div className="text-sm text-muted-foreground">Loading...</div>
       </div>
     );
   }

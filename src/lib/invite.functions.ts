@@ -137,6 +137,30 @@ type InvitationRow = {
   welcome_message: string | null;
 };
 
+type ExistingProfileState = {
+  id: string;
+  status: "invited" | "active" | "suspended";
+} | null;
+
+async function findAuthUserByEmail(admin: SupabaseClient, email: string): Promise<User | null> {
+  const { data } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  return data?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase()) ?? null;
+}
+
+async function readProfileState(
+  admin: SupabaseClient,
+  userId: string | null | undefined,
+): Promise<ExistingProfileState> {
+  if (!userId) return null;
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id, status")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) throw new Error(`Could not read existing profile: ${error.message}`);
+  return data as ExistingProfileState;
+}
+
 export const sendInvitationFn = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => input as SendInviteInput)
   .handler(async ({ data }): Promise<SendInviteResult> => {
@@ -216,6 +240,7 @@ export const sendInvitationFn = createServerFn({ method: "POST" })
 
     if (branded) {
       // Branded path: mint the invite token, email our own template via Resend.
+      let linkType: "invite" | "recovery" = "invite";
       let link = await admin.auth.admin.generateLink({
         type: "invite",
         email: row.email,
@@ -223,11 +248,23 @@ export const sendInvitationFn = createServerFn({ method: "POST" })
       });
 
       if (link.error && alreadyActiveMsg(link.error.message ?? "")) {
-        // The auth user exists. If they have NEVER signed in or confirmed,
-        // this is a stale pending invite — recreate it cleanly so resend works.
-        const { data: list } = await admin.auth.admin.listUsers({ perPage: 1000 });
-        const found = list?.users?.find((u) => u.email?.toLowerCase() === row.email.toLowerCase());
-        if (found && !found.email_confirmed_at && !found.last_sign_in_at) {
+        const found = await findAuthUserByEmail(admin, row.email);
+        const profile = await readProfileState(admin, found?.id);
+        if (found && profile?.status === "invited") {
+          // The user consumed or stale-created an auth account but never completed
+          // Jennian IQ activation. Send a recovery token to the same set-password
+          // screen so they can choose a password and activate the invited profile.
+          link = await admin.auth.admin.generateLink({
+            type: "recovery",
+            email: row.email,
+            options: {
+              redirectTo: `${siteUrl()}/auth/set-password`,
+            },
+          });
+          linkType = "recovery";
+        } else if (found && !found.email_confirmed_at && !found.last_sign_in_at) {
+          // No app profile is waiting, and the auth user has never really been used:
+          // recreate it cleanly so the normal invite path can produce a fresh token.
           await admin.auth.admin.deleteUser(found.id);
           link = await admin.auth.admin.generateLink({
             type: "invite",
@@ -256,7 +293,7 @@ export const sendInvitationFn = createServerFn({ method: "POST" })
       userId = link.data.user?.id ?? null;
       const actionUrl = `${siteUrl()}/auth/set-password?token_hash=${encodeURIComponent(
         link.data.properties.hashed_token,
-      )}&type=invite`;
+      )}&type=${linkType}`;
 
       const rendered = renderInviteEmail({
         recipientEmail: row.email,
