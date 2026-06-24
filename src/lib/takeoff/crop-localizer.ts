@@ -122,7 +122,8 @@ export function buildTextRuns(words: BboxWord[], maxTokens = 4): TextRun[] {
     line.sort((a, b) => a.xMin - b.xMin);
     for (let i = 0; i < line.length; i++) {
       let text = line[i].text;
-      let xMin = line[i].xMin, yMin = line[i].yMin, xMax = line[i].xMax, yMax = line[i].yMax;
+      const xMin = line[i].xMin;
+      let yMin = line[i].yMin, xMax = line[i].xMax, yMax = line[i].yMax;
       runs.push({ text, xMin, yMin, xMax, yMax });
       for (let j = i + 1; j < Math.min(line.length, i + maxTokens); j++) {
         const prev = line[j - 1];

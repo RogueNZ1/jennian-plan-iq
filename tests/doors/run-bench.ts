@@ -41,11 +41,14 @@ async function main() {
   console.log("\n── counts ──");
   for (const k of ["singles", "doubles", "cavitySliders", "barn"] as const) {
     const got = (result.counts as any)[k], want = bench.expected[k === "cavitySliders" ? "cavitySliders" : k];
-    got === want ? ok(`${k}: ${got}`) : bad(`${k}: got ${got}, want ${want}`);
+    if (got === want) ok(`${k}: ${got}`);
+    else bad(`${k}: got ${got}, want ${want}`);
   }
-  result.flags.length === (bench.expected.flags ?? 0)
-    ? ok(`flags: ${result.flags.length}`)
-    : bad(`flags: got ${result.flags.length} (${result.flags.map(f => `${f.widthMm}@${f.x | 0},${f.y | 0} ${f.note ?? ""}`).join("; ")}), want ${bench.expected.flags ?? 0}`);
+  if (result.flags.length === (bench.expected.flags ?? 0)) {
+    ok(`flags: ${result.flags.length}`);
+  } else {
+    bad(`flags: got ${result.flags.length} (${result.flags.map(f => `${f.widthMm}@${f.x | 0},${f.y | 0} ${f.note ?? ""}`).join("; ")}), want ${bench.expected.flags ?? 0}`);
+  }
 
   console.log("\n── per-door ──");
   const matched = new Set<DoorHit>();
@@ -65,14 +68,17 @@ async function main() {
     const leak = [...all, ...result.flags].find(h =>
       Math.hypot(h.x - ex.near[0], h.y - ex.near[1]) < 30 && h.widthMm === ex.widthMm
     );
-    leak ? bad(`${ex.label} leaked into output as ${leak.type}`) : ok(`${ex.label} excluded`);
+    if (leak) bad(`${ex.label} leaked into output as ${leak.type}`);
+    else ok(`${ex.label} excluded`);
   }
 
   console.log("\n── extras ──");
   const extras = all.filter(h => !matched.has(h));
-  extras.length === 0
-    ? ok("no unexplained doors")
-    : extras.forEach(e => bad(`extra ${e.type} ${e.widthMm} @ (${e.x | 0},${e.y | 0}) ${e.note ?? ""}`));
+  if (extras.length === 0) {
+    ok("no unexplained doors");
+  } else {
+    extras.forEach(e => bad(`extra ${e.type} ${e.widthMm} @ (${e.x | 0},${e.y | 0}) ${e.note ?? ""}`));
+  }
 
   console.log(`\n${fail === 0 ? "BENCH PASS" : `BENCH FAIL (${fail})`} — ${path.basename(pdfPath)}`);
   console.log(`QS export: H187 singles=${result.counts.singles}  H192 doubles=${result.counts.doubles}  H193 cavity=${result.counts.cavitySliders}  barn=${result.counts.barn}`);
