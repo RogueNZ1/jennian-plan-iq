@@ -252,7 +252,7 @@ describe("composeTakeoff visual opening promotion", () => {
     expect(enriched.total_opening_sqm).toBe(13.23);
   });
 
-  it("uses standalone floor-plan width to choose between ambiguous elevation openings", () => {
+  it("uses confirmed physical floor-plan width to choose between ambiguous elevation openings", () => {
     const enriched = composeTakeoff({
       visionTakeoff: { ...baseVision, windows_by_room: null, window_count: null },
       geometry: null,
@@ -275,6 +275,20 @@ describe("composeTakeoff visual opening promotion", () => {
           titleAreas: {},
         },
         floorPlanGaps: [],
+        physicalOpeningWidthWitnesses: [
+          {
+            kind: "physical_opening_width",
+            widthMm: 3600,
+            x: 505,
+            y: 410,
+            vertical: true,
+            text: "3600",
+            room: "Family",
+            planSide: "plan_left",
+            evidence: { stub: true, leaf: true },
+            note: "standalone floor-plan width 3600mm with physical opening stub+leaf near Family",
+          },
+        ],
         pageMeta: {
           pageNumber: 1,
           view: [0, 0, 1000, 800],

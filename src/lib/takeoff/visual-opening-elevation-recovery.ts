@@ -1,5 +1,5 @@
 import type { ElevationData, ElevationOpeningCandidate } from "./extract-elevations";
-import type { PlanStandaloneOpeningWidth, PlanText } from "./plan-text";
+import type { PlanPhysicalOpeningWidthWitness } from "./floor-opening-witnesses";
 import type { VisualOpeningAudit, VisualOpeningAuditItem } from "./visual-opening-audit";
 
 const MALFORMED_LABEL_FLAG = "malformed dimension label";
@@ -55,15 +55,15 @@ function visualPoint(
   return { x: opening.x * page.width, y: opening.y * page.height };
 }
 
-function nearbyStandaloneWidths(
+function nearbyPhysicalOpeningWidths(
   opening: VisualOpeningAuditItem,
-  widths: readonly PlanStandaloneOpeningWidth[] | null | undefined,
+  witnesses: readonly PlanPhysicalOpeningWidthWitness[] | null | undefined,
   page: { width: number; height: number } | null | undefined,
-): PlanStandaloneOpeningWidth[] {
-  if (!widths?.length || !page) return [];
+): PlanPhysicalOpeningWidthWitness[] {
+  if (!witnesses?.length || !page) return [];
   const point = visualPoint(opening, page);
   const maxDistancePt = Math.max(page.width, page.height) * 0.18;
-  return widths
+  return witnesses
     .map((witness) => ({
       witness,
       distance: Math.hypot(witness.x - point.x, witness.y - point.y),
@@ -88,19 +88,19 @@ function recoverFromCandidate(
   };
 }
 
-function recoverWithStandaloneWidth(
+function recoverWithPhysicalOpeningWidth(
   opening: VisualOpeningAuditItem,
   candidates: UsableElevationOpening[],
   options:
     | {
-        planText?: Pick<PlanText, "standaloneOpeningWidths"> | null;
+        physicalOpeningWidthWitnesses?: readonly PlanPhysicalOpeningWidthWitness[] | null;
         page?: { width: number; height: number } | null;
       }
     | undefined,
 ): { recovered: VisualOpeningAuditItem | null; nearbyWitnessCount: number } {
-  const witnesses = nearbyStandaloneWidths(
+  const witnesses = nearbyPhysicalOpeningWidths(
     opening,
-    options?.planText?.standaloneOpeningWidths,
+    options?.physicalOpeningWidthWitnesses,
     options?.page,
   );
   if (witnesses.length === 0) return { recovered: null, nearbyWitnessCount: 0 };
@@ -120,7 +120,7 @@ function recoverWithStandaloneWidth(
     recovered: recoverFromCandidate(
       opening,
       candidate,
-      `standalone floor-plan width ${witness.widthMm}mm near the physical opening selects ${candidate.face} elevation ${candidate.label ?? "opening"} at ${candidate.widthMm}x${candidate.heightMm}mm`,
+      `physical floor-plan width ${witness.widthMm}mm with stub+leaf evidence selects ${candidate.face} elevation ${candidate.label ?? "opening"} at ${candidate.widthMm}x${candidate.heightMm}mm`,
     ),
     nearbyWitnessCount: witnesses.length,
   };
@@ -130,7 +130,7 @@ export function recoverVisualAuditFromElevationLedger(
   audit: VisualOpeningAudit | null | undefined,
   elevations: ElevationData | null | undefined,
   options?: {
-    planText?: Pick<PlanText, "standaloneOpeningWidths"> | null;
+    physicalOpeningWidthWitnesses?: readonly PlanPhysicalOpeningWidthWitness[] | null;
     page?: { width: number; height: number } | null;
   },
 ): VisualOpeningAudit | null | undefined {
@@ -150,11 +150,11 @@ export function recoverVisualAuditFromElevationLedger(
 
   const opening = unresolved[0];
   const compatible = candidates.filter((candidate) => compatibleType(opening.type, candidate.type));
-  const standaloneRecovery = recoverWithStandaloneWidth(opening, compatible, options);
+  const physicalWidthRecovery = recoverWithPhysicalOpeningWidth(opening, compatible, options);
 
   const recovered =
-    standaloneRecovery.recovered ??
-    (standaloneRecovery.nearbyWitnessCount > 0
+    physicalWidthRecovery.recovered ??
+    (physicalWidthRecovery.nearbyWitnessCount > 0
       ? null
       : compatible.length === 1
         ? recoverFromCandidate(

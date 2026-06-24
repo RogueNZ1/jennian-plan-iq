@@ -13,6 +13,10 @@ import { extractPageGeometry } from "./pdf-adapter";
 import { parsePlanText, type PlanText } from "../takeoff/plan-text";
 import { traceInteriorWalls, type WallTrace } from "../takeoff/wall-trace";
 import { detectFloorPlanGaps, type FloorPlanGapCandidate } from "../takeoff/floor-plan-gaps";
+import {
+  detectPhysicalOpeningWidthWitnesses,
+  type PlanPhysicalOpeningWidthWitness,
+} from "../takeoff/floor-opening-witnesses";
 
 /**
  * Which page the engine ran on, in the adapter's coordinate contract — persisted with the
@@ -44,6 +48,7 @@ export async function runDoorEngine(
       planText?: PlanText;
       wallTrace?: WallTrace;
       floorPlanGaps?: FloorPlanGapCandidate[];
+      physicalOpeningWidthWitnesses?: PlanPhysicalOpeningWidthWitness[];
     })
   | null
 > {
@@ -96,11 +101,18 @@ export async function runDoorEngine(
         scale,
         rooms: planText.rooms.map((r) => ({ name: r.name, x: r.x, y: r.y })),
       });
+      const physicalOpeningWidthWitnesses = detectPhysicalOpeningWidthWitnesses({
+        planText,
+        segments: geom.segments,
+        labels: geom.labels,
+        scale,
+      });
       return {
         ...result,
         planText,
         wallTrace,
         floorPlanGaps,
+        physicalOpeningWidthWitnesses,
         pageMeta: {
           pageNumber,
           view: [...view],

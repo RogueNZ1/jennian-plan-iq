@@ -93,6 +93,7 @@ export type ComposeTakeoffInput = {
         planText?: import("./plan-text").PlanText;
         wallTrace?: import("./wall-trace").WallTrace;
         floorPlanGaps?: import("./floor-plan-gaps").FloorPlanGapCandidate[];
+        physicalOpeningWidthWitnesses?: import("./floor-opening-witnesses").PlanPhysicalOpeningWidthWitness[];
       })
     | null;
   /** Visual QS external-opening audit; promoted only through strict plausibility/recovery gates. */
@@ -762,7 +763,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     visualOpeningAudit,
     elevationData,
     {
-      planText,
+      physicalOpeningWidthWitnesses: doorEngine?.physicalOpeningWidthWitnesses,
       page: doorEngine?.pageMeta
         ? { width: doorEngine.pageMeta.width, height: doorEngine.pageMeta.height }
         : null,

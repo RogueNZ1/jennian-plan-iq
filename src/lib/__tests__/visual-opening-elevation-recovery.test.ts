@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ElevationData } from "../takeoff/extract-elevations";
-import type { PlanText } from "../takeoff/plan-text";
+import type { PlanPhysicalOpeningWidthWitness } from "../takeoff/floor-opening-witnesses";
 import type { VisualOpeningAudit, VisualOpeningAuditItem } from "../takeoff/visual-opening-audit";
 import { recoverVisualAuditFromElevationLedger } from "../takeoff/visual-opening-elevation-recovery";
 
@@ -67,14 +67,23 @@ const elevations: ElevationData = {
 
 const page = { width: 1000, height: 800 };
 
-const planTextWith3600Witness: PlanText = {
-  rooms: [],
-  windowCodes: [],
-  frameOpenings: [],
-  draftingIssues: [],
-  standaloneOpeningWidths: [{ widthMm: 3600, x: 505, y: 410, vertical: true, text: "3600" }],
-  titleAreas: {},
-};
+function physicalWidthWitness(
+  overrides: Partial<PlanPhysicalOpeningWidthWitness> = {},
+): PlanPhysicalOpeningWidthWitness {
+  return {
+    kind: "physical_opening_width",
+    widthMm: 3600,
+    x: 505,
+    y: 410,
+    vertical: true,
+    text: "3600",
+    room: "Family",
+    planSide: "plan_left",
+    evidence: { stub: true, leaf: true },
+    note: "standalone floor-plan width 3600mm with physical opening stub+leaf near Family",
+    ...overrides,
+  };
+}
 
 describe("recoverVisualAuditFromElevationLedger", () => {
   it("recovers a single malformed visual opening from one compatible elevation candidate", () => {
@@ -112,7 +121,52 @@ describe("recoverVisualAuditFromElevationLedger", () => {
     expect(recovered).toBe(original);
   });
 
-  it("uses a nearby standalone width witness to select the matching elevation opening", () => {
+  it("does not let raw standalone width text choose between ambiguous elevation openings", () => {
+    const ambiguousByElevationOnly: ElevationData = {
+      ...elevations,
+      elevationOpenings: [
+        {
+          face: "North",
+          type: "slider",
+          label: "RS1",
+          widthMm: 3000,
+          heightMm: 2100,
+          quantity: 1,
+          cladding: null,
+          confidence: "high",
+          notes: [],
+        },
+        {
+          face: "North",
+          type: "slider",
+          label: "RS2",
+          widthMm: 3600,
+          heightMm: 2100,
+          quantity: 1,
+          cladding: null,
+          confidence: "high",
+          notes: [],
+        },
+      ],
+    };
+    const legacyRawWidthOptions = {
+      planText: {
+        standaloneOpeningWidths: [{ widthMm: 3600, x: 505, y: 410, vertical: true, text: "3600" }],
+      },
+      page,
+    } as unknown as Parameters<typeof recoverVisualAuditFromElevationLedger>[2];
+
+    const original = audit([visualOpening({ x: 0.5, y: 0.5 })]);
+    const recovered = recoverVisualAuditFromElevationLedger(
+      original,
+      ambiguousByElevationOnly,
+      legacyRawWidthOptions,
+    );
+
+    expect(recovered).toBe(original);
+  });
+
+  it("uses a nearby physical opening width witness to select the matching elevation opening", () => {
     const ambiguousByElevationOnly: ElevationData = {
       ...elevations,
       elevationOpenings: [
@@ -144,7 +198,7 @@ describe("recoverVisualAuditFromElevationLedger", () => {
     const recovered = recoverVisualAuditFromElevationLedger(
       audit([visualOpening({ x: 0.5, y: 0.5 })]),
       ambiguousByElevationOnly,
-      { planText: planTextWith3600Witness, page },
+      { physicalOpeningWidthWitnesses: [physicalWidthWitness()], page },
     )!;
 
     expect(recovered.openings[0]).toMatchObject({
@@ -153,7 +207,7 @@ describe("recoverVisualAuditFromElevationLedger", () => {
       confidence: "high",
       flags: [],
     });
-    expect(recovered.openings[0].evidence).toContain("standalone floor-plan width 3600mm");
+    expect(recovered.openings[0].evidence).toContain("physical floor-plan width 3600mm");
     expect(recovered.openings[0].evidence).toContain("RS2");
     expect(recovered.summary.uncertain).toBe(0);
   });
@@ -178,23 +232,18 @@ describe("recoverVisualAuditFromElevationLedger", () => {
 
     const original = audit([visualOpening({ x: 0.5, y: 0.5 })]);
     const recovered = recoverVisualAuditFromElevationLedger(original, disagreeingElevation, {
-      planText: planTextWith3600Witness,
+      physicalOpeningWidthWitnesses: [physicalWidthWitness()],
       page,
     });
 
     expect(recovered).toBe(original);
   });
 
-  it("still recovers a single compatible elevation when standalone width text is elsewhere", () => {
-    const planTextWithDistantWitness: PlanText = {
-      ...planTextWith3600Witness,
-      standaloneOpeningWidths: [{ widthMm: 3600, x: 900, y: 100, vertical: true, text: "3600" }],
-    };
-
+  it("still recovers a single compatible elevation when physical width evidence is elsewhere", () => {
     const recovered = recoverVisualAuditFromElevationLedger(
       audit([visualOpening({ x: 0.1, y: 0.75 })]),
       elevations,
-      { planText: planTextWithDistantWitness, page },
+      { physicalOpeningWidthWitnesses: [physicalWidthWitness({ x: 900, y: 100 })], page },
     )!;
 
     expect(recovered.openings[0]).toMatchObject({
