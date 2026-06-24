@@ -18,6 +18,10 @@ import {
   detectPhysicalOpeningWidthWitnesses,
   detectPrintedWindowCodeWitnesses,
 } from "../src/lib/takeoff/floor-opening-witnesses";
+import { detectFrameOpeningSlots } from "../src/lib/takeoff/elevation-opening-slots";
+import { detectPlanSideLengthWitnesses } from "../src/lib/takeoff/floor-side-lengths";
+import { buildOpeningSignatureFloorRows } from "../src/lib/takeoff/opening-floor-signatures";
+import { buildOpeningFaceMap } from "../src/lib/takeoff/opening-face-map";
 import { parsePlanText, type PlanText } from "../src/lib/takeoff/plan-text";
 
 type Job = {
@@ -1723,6 +1727,32 @@ async function auditJob(job: Job) {
     lengthWitnesses: base.plan.floorSideLengthWitnesses,
   });
   const orderedFaceSignatureStatus = orderedFaceSignatureSummary(orderedFaceSignatures);
+  const productionFaceMap = buildOpeningFaceMap({
+    planText,
+    elevationOpenings,
+    faceBands,
+    physicalOpeningWitnesses: physicalWitnesses,
+    openingSlots: detectFrameOpeningSlots({
+      segments: elevationGeom.segments,
+      faceBands,
+    }),
+    floorSignatureRows: buildOpeningSignatureFloorRows({
+      planText,
+      printedCodeWitnesses,
+      physicalWitnesses,
+    }),
+    floorSideLengthWitnesses: detectPlanSideLengthWitnesses(floorGeom.labels),
+  });
+  const productionOrderedLengthAnchors = productionFaceMap.orderedLengthAnchors.map((anchor) => ({
+    planSide: anchor.planSide,
+    elevationFace: anchor.elevationFace,
+    orientation: anchor.orientation,
+    rowMatches: anchor.rowMatches.length,
+    lengthDeltaMm: anchor.lengthDeltaMm,
+    complete:
+      anchor.rowMatches.length ===
+      floorRows.filter((row) => row.planSide === anchor.planSide).length,
+  }));
   const directionLabels = detectElevationFaceLabels(elevationGeom.labels, faceBands);
   const compassLabels = directionLabels.filter((label) => label.kind === "compass");
   const letterLabels = directionLabels.filter((label) => label.kind === "letter");
@@ -1798,6 +1828,7 @@ async function auditJob(job: Job) {
       slotGuidedQueries,
       orderedFaceSignatures,
       orderedFaceSignatureStatus,
+      productionOrderedLengthAnchors,
       compassElevationLabels: compassLabels,
       letterElevationLabels: letterLabels,
       conventionSignal:
@@ -1834,7 +1865,7 @@ for (const result of results) {
       `northText=${result.plan.usableFloorNorthReferenceLabels}/${result.plan.exactNorthTextLabels}`,
       `titleNorth=${result.plan.titleBlockNorthTextLabels}`,
       elevation
-        ? `elev=${elevation.conventionSignal} bands=${elevation.faceBands} openings=${elevation.openings} dimMatches=${elevation.dimensionMatchesAgainstTruth}/${result.truthOpeningRows} framePool=${elevation.frameRectangleDimensionMatchesAgainstTruth}/${result.truthOpeningRows}(${elevation.frameRectangleCandidates}) assemblies=${elevation.frameAssemblyDimensionMatchesAgainstTruth}/${result.truthOpeningRows}(${elevation.frameAssemblyCandidates}) assemblyGroups=${elevation.frameAssemblyGroupDimensionMatchesAgainstTruth}/${result.truthOpeningRows}(${elevation.frameAssemblyGroups}) slots=${elevation.openingSlotDimensionMatchesAgainstTruth}/${result.truthOpeningRows}(${elevation.openingSlots}) multiSlots=${elevation.multiOpeningClusterSlots} nestedGroups=${elevation.nestedFrameAssemblyGroups} nonNested=${elevation.frameSeparability.nonNestedCandidates} nonNestedDim=${elevation.frameSeparability.nonNestedDimensionMatchesAgainstTruth}/${result.truthOpeningRows} rowGuided=${elevation.rowGuided.truthCompatibleRowsWithAnyCandidates}/${result.truthOpeningRows} rows=${elevation.rowGuided.rowsWithAnyCandidates}/${elevation.rowGuided.floorEvidenceRows} med=${elevation.rowGuided.medianCandidates} assemblyGuided=${elevation.assemblyGuided.truthCompatibleRowsWithAnyCandidates}/${result.truthOpeningRows} rows=${elevation.assemblyGuided.rowsWithAnyCandidates}/${elevation.assemblyGuided.floorEvidenceRows} med=${elevation.assemblyGuided.medianCandidates} groupGuided=${elevation.assemblyGroupGuided.truthCompatibleRowsWithAnyCandidates}/${result.truthOpeningRows} rows=${elevation.assemblyGroupGuided.rowsWithAnyCandidates}/${elevation.assemblyGroupGuided.floorEvidenceRows} med=${elevation.assemblyGroupGuided.medianCandidates} slotGuided=${elevation.slotGuided.truthCompatibleRowsWithAnyCandidates}/${result.truthOpeningRows} rows=${elevation.slotGuided.rowsWithAnyCandidates}/${elevation.slotGuided.floorEvidenceRows} med=${elevation.slotGuided.medianCandidates}`
+        ? `elev=${elevation.conventionSignal} bands=${elevation.faceBands} openings=${elevation.openings} dimMatches=${elevation.dimensionMatchesAgainstTruth}/${result.truthOpeningRows} framePool=${elevation.frameRectangleDimensionMatchesAgainstTruth}/${result.truthOpeningRows}(${elevation.frameRectangleCandidates}) assemblies=${elevation.frameAssemblyDimensionMatchesAgainstTruth}/${result.truthOpeningRows}(${elevation.frameAssemblyCandidates}) assemblyGroups=${elevation.frameAssemblyGroupDimensionMatchesAgainstTruth}/${result.truthOpeningRows}(${elevation.frameAssemblyGroups}) slots=${elevation.openingSlotDimensionMatchesAgainstTruth}/${result.truthOpeningRows}(${elevation.openingSlots}) multiSlots=${elevation.multiOpeningClusterSlots} nestedGroups=${elevation.nestedFrameAssemblyGroups} nonNested=${elevation.frameSeparability.nonNestedCandidates} nonNestedDim=${elevation.frameSeparability.nonNestedDimensionMatchesAgainstTruth}/${result.truthOpeningRows} rowGuided=${elevation.rowGuided.truthCompatibleRowsWithAnyCandidates}/${result.truthOpeningRows} rows=${elevation.rowGuided.rowsWithAnyCandidates}/${elevation.rowGuided.floorEvidenceRows} med=${elevation.rowGuided.medianCandidates} assemblyGuided=${elevation.assemblyGuided.truthCompatibleRowsWithAnyCandidates}/${result.truthOpeningRows} rows=${elevation.assemblyGuided.rowsWithAnyCandidates}/${elevation.assemblyGuided.floorEvidenceRows} med=${elevation.assemblyGuided.medianCandidates} groupGuided=${elevation.assemblyGroupGuided.truthCompatibleRowsWithAnyCandidates}/${result.truthOpeningRows} rows=${elevation.assemblyGroupGuided.rowsWithAnyCandidates}/${elevation.assemblyGroupGuided.floorEvidenceRows} med=${elevation.assemblyGroupGuided.medianCandidates} slotGuided=${elevation.slotGuided.truthCompatibleRowsWithAnyCandidates}/${result.truthOpeningRows} rows=${elevation.slotGuided.rowsWithAnyCandidates}/${elevation.slotGuided.floorEvidenceRows} med=${elevation.slotGuided.medianCandidates} prodOrdered=${elevation.productionOrderedLengthAnchors.length}(${elevation.productionOrderedLengthAnchors.map((anchor) => `${anchor.planSide}->${anchor.elevationFace}:${anchor.rowMatches}${anchor.complete ? "f" : "p"}`).join("|")})`
         : "elev=missing",
     ].join("\t"),
   );

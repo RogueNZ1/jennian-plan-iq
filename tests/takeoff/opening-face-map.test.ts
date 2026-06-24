@@ -414,10 +414,13 @@ describe("opening face map", () => {
       orientation: "reverse",
       lengthDeltaMm: 259,
     });
-    expect(map.orderedLengthAnchors).toHaveLength(1);
-    expect(map.orderedLengthAnchors[0].rowMatches).toHaveLength(4);
+    const planRightAnchor = map.orderedLengthAnchors.find(
+      (anchor) => anchor.planSide === "plan_right",
+    );
+    expect(planRightAnchor).toBeDefined();
+    expect(planRightAnchor?.rowMatches).toHaveLength(4);
     expect(
-      map.orderedLengthAnchors[0].rowMatches.map((match) => ({
+      planRightAnchor?.rowMatches.map((match) => ({
         room: match.row.room,
         recovered: `${match.member.widthMm}x${match.member.heightMm}`,
       })),
@@ -429,14 +432,59 @@ describe("opening face map", () => {
     ]);
     expect(
       Math.round(
-        map.orderedLengthAnchors[0].rowMatches.reduce(
+        planRightAnchor!.rowMatches.reduce(
           (sum, match) => sum + (match.row.widthMm / 1000) * (match.member.heightMm / 1000),
           0,
         ) * 100,
       ) / 100,
     ).toBe(7.38);
     expect(map.byPlanSide.has("plan_top")).toBe(false);
-    expect(map.byPlanSide.has("plan_bottom")).toBe(false);
+  }, 60_000);
+
+  it("anchors a partial ordered side only when printed-code side evidence is uniquely length-compatible", async () => {
+    const floorGeom = await pageGeometry(FIFTEEN_A_FLOORPLAN);
+    const planTextEvidence = parsePlanText(floorGeom.labels);
+    const physicalWitnesses = detectPhysicalOpeningWidthWitnesses({
+      planText: planTextEvidence,
+      segments: floorGeom.segments,
+      labels: floorGeom.labels,
+      scale: 100,
+    });
+    const elevationGeom = await pageGeometry(FIFTEEN_A_ELEVATIONS);
+    const faceBands = detectElevationFaceBands(elevationGeom.segments);
+    const openingSlots = detectFrameOpeningSlots({
+      segments: elevationGeom.segments,
+      faceBands,
+    });
+
+    const map = buildOpeningFaceMap({
+      planText: planTextEvidence,
+      elevationOpenings: detectElevationVectorOpenings(elevationGeom.segments),
+      faceBands,
+      physicalOpeningWitnesses: physicalWitnesses,
+      openingSlots,
+      floorSignatureRows: buildOpeningSignatureFloorRows({
+        planText: planTextEvidence,
+        physicalWitnesses,
+        printedCodeWitnesses: detectPrintedWindowCodeWitnesses(planTextEvidence),
+      }),
+      floorSideLengthWitnesses: detectPlanSideLengthWitnesses(floorGeom.labels),
+    });
+
+    expect(map.byPlanSide.get("plan_bottom")).toMatchObject({
+      kind: "ordered_length_signature",
+      elevationFace: "elevation-face-10",
+      lengthDeltaMm: 262,
+    });
+    expect(map.byPlanSide.has("plan_left")).toBe(false);
+    expect(
+      map.byPlanSide
+        .get("plan_bottom")
+        ?.rowMatches.map((match) => [match.row.source, match.row.room, match.row.widthMm]),
+    ).toEqual([
+      ["printed_code", "BATH", 1200],
+      ["printed_code", "ENAUITE", 600],
+    ]);
   }, 60_000);
 
   it("does not anchor the 15a ordered sequence when the side length disagrees", async () => {

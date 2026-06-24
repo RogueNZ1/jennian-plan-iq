@@ -119,6 +119,7 @@ const ORDERED_SIGNATURE_WIDTH_TOLERANCE_MM = 250;
 const ORDERED_SIGNATURE_HEIGHT_TOLERANCE_MM = 250;
 const FLOOR_ELEVATION_LENGTH_TOLERANCE_MM = 650;
 const MIN_ORDERED_SIGNATURE_ROWS = 2;
+const MIN_PARTIAL_ORDERED_SIGNATURE_ROWS = 2;
 // This opposite-face bootstrap is only for wide sliders/doors. Window-height
 // rows need a row-aware height target, not this standard slider/door bias.
 const WIDE_OPENING_SIGNATURE_HEIGHT_MM = 2100;
@@ -538,7 +539,8 @@ function buildOrderedLengthFaceAnchors(args: {
     const planSideLengthMm = lengthBySide.get(planSide);
     if (planSideLengthMm == null || sideRows.length < MIN_ORDERED_SIGNATURE_ROWS) continue;
     const orderedRows = [...sideRows].sort((a, b) => planSideOrderValue(a) - planSideOrderValue(b));
-    const candidates = [...slotsByFace.entries()]
+    const allSideRowsArePrintedCodes = orderedRows.every((row) => row.source === "printed_code");
+    const rawCandidates = [...slotsByFace.entries()]
       .map(([faceBandId, faceSlots]) => {
         const band = faceBandById.get(faceBandId);
         if (!band) return null;
@@ -548,35 +550,56 @@ function buildOrderedLengthFaceAnchors(args: {
         const orderedSlots = [...faceSlots].sort((a, b) => a.x - b.x);
         const forward = orderedSlotMatch(orderedRows, orderedSlots);
         const reverse = orderedSlotMatch([...orderedRows].reverse(), orderedSlots);
-        if (forward.matches !== orderedRows.length && reverse.matches !== orderedRows.length) {
-          return null;
-        }
-        const sameStrength =
-          forward.matches === reverse.matches && Math.abs(forward.score - reverse.score) <= 150;
-        if (sameStrength) return null;
         const best =
           reverse.matches > forward.matches ||
           (reverse.matches === forward.matches && reverse.score < forward.score)
             ? { orientation: "reverse" as const, state: reverse }
             : { orientation: "forward" as const, state: forward };
-        if (best.state.matches !== orderedRows.length) return null;
+        const complete =
+          forward.matches === orderedRows.length || reverse.matches === orderedRows.length;
+        const sameStrength =
+          forward.matches === reverse.matches && Math.abs(forward.score - reverse.score) <= 150;
+        if (complete && sameStrength) return null;
+
+        const state = best.state;
+        if (!complete && !allSideRowsArePrintedCodes) return null;
+        if (!complete && state.matches < MIN_PARTIAL_ORDERED_SIGNATURE_ROWS) return null;
+        if (complete && state.matches !== orderedRows.length) return null;
         return {
           faceBandId,
           band,
           lengthDeltaMm,
           orientation: best.orientation,
-          state: best.state,
+          complete,
+          state,
         };
       })
-      .filter((candidate): candidate is NonNullable<typeof candidate> => candidate != null)
-      .sort((a, b) => a.lengthDeltaMm - b.lengthDeltaMm || a.state.score - b.state.score);
+      .filter((candidate): candidate is NonNullable<typeof candidate> => candidate != null);
+    const completeCandidates = rawCandidates.filter((candidate) => candidate.complete);
+    const candidatePool =
+      completeCandidates.length > 0
+        ? completeCandidates
+        : rawCandidates.filter((candidate) => !candidate.complete);
+    const maxMatches = Math.max(0, ...candidatePool.map((candidate) => candidate.state.matches));
+    const candidates = candidatePool
+      .filter((candidate) => candidate.complete || candidate.state.matches === maxMatches)
+      .sort(
+        (a, b) =>
+          Number(!a.complete) - Number(!b.complete) ||
+          a.lengthDeltaMm - b.lengthDeltaMm ||
+          b.state.matches - a.state.matches ||
+          a.state.score - b.state.score,
+      );
 
     if (candidates.length !== 1) continue;
     const [candidate] = candidates;
     const layoutEvidence =
       `${candidate.faceBandId} is the only unmapped elevation band whose width matches ${planSide}` +
       ` (${candidate.band.widthMm}mm elevation vs ${planSideLengthMm}mm floor side)`;
-    const signatureEvidence = `${planSide} ordered floor sequence ${candidate.state.pairs
+    const sequenceKind = candidate.complete
+      ? "ordered floor sequence"
+      : "ordered partial floor sequence";
+    const signatureEvidence = `${planSide} ${sequenceKind} ${candidate.state.pairs
       .map(
         ({ row, member }) =>
           `${row.room} ${row.widthMm}x${row.heightMm}->${member.widthMm}x${member.heightMm}`,
