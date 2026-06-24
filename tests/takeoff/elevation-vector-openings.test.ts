@@ -12,15 +12,17 @@ import {
 import { runElevationVectorOpenings } from "../../src/lib/takeoff/run-elevation-vector-openings";
 
 const FENNER_ELEVATIONS = resolve(process.cwd(), "tests/doors/plans/fenner-elevations.pdf");
+const BEDDIS_PRELIM = resolve(process.cwd(), "tests/fixtures/beddis/prelim.pdf");
+const BEDDIS_TRUTH = resolve(process.cwd(), "tests/fixtures/beddis/ground-truth.json");
 
-async function pageSegments(pdfPath: string) {
+async function pageSegments(pdfPath: string, pageNumber = 1) {
   const pdfjs = await import("pdfjs-dist-door/legacy/build/pdf.mjs");
   const doc = await pdfjs.getDocument({
     data: new Uint8Array(readFileSync(pdfPath)),
     disableFontFace: true,
   } as never).promise;
   try {
-    const geom = await extractPageGeometry((await doc.getPage(1)) as never);
+    const geom = await extractPageGeometry((await doc.getPage(pageNumber)) as never);
     return geom.segments;
   } finally {
     await doc.destroy().catch(() => {});
@@ -33,6 +35,37 @@ async function fennerSegments() {
 
 const near = (value: number | null | undefined, target: number, tolerance: number) =>
   value != null && Math.abs(value - target) <= tolerance;
+
+function beddisTruthOpenings(): Array<{ widthMm: number; heightMm: number }> {
+  const truth = JSON.parse(readFileSync(BEDDIS_TRUTH, "utf8")) as {
+    joinery_bench: { openings: Array<{ width_m: number; height_m: number }> };
+  };
+  return truth.joinery_bench.openings.map((opening) => ({
+    widthMm: Math.round(opening.width_m * 1000),
+    heightMm: Math.round(opening.height_m * 1000),
+  }));
+}
+
+function dimensionMatchCount(
+  truthRows: readonly { widthMm: number; heightMm: number }[],
+  openings: readonly { widthMm: number | null; heightMm: number | null }[],
+): number {
+  const unused = openings.filter((opening) => opening.widthMm != null && opening.heightMm != null);
+  let count = 0;
+  for (const row of truthRows) {
+    const index = unused.findIndex(
+      (opening) =>
+        opening.widthMm != null &&
+        opening.heightMm != null &&
+        Math.abs(opening.widthMm - row.widthMm) <= 250 &&
+        Math.abs(opening.heightMm - row.heightMm) <= 250,
+    );
+    if (index < 0) continue;
+    count += 1;
+    unused.splice(index, 1);
+  }
+  return count;
+}
 
 const PT_PER_MM = 72 / 25.4;
 const ELEVATION_SCALE = 100;
@@ -163,6 +196,18 @@ describe("elevation vector opening detector", () => {
     expect(openings.length).toBeGreaterThan(15);
     expect(openings.length).toBeLessThan(60);
     expect(openings.some((opening) => opening.source === "vector_face_band")).toBe(true);
+  }, 60_000);
+
+  it("keeps Beddis vector evidence bounded while preserving signed-dimension coverage", async () => {
+    const segments = await pageSegments(BEDDIS_PRELIM, 5);
+    const bands = detectElevationFaceBands(segments);
+    const openings = detectElevationVectorOpenings(segments);
+
+    expect(bands.length).toBeGreaterThan(4);
+    expect(bands.length).toBeLessThanOrEqual(24);
+    expect(openings.length).toBeGreaterThanOrEqual(11);
+    expect(openings.length).toBeLessThanOrEqual(20);
+    expect(dimensionMatchCount(beddisTruthOpenings(), openings)).toBeGreaterThanOrEqual(6);
   }, 60_000);
 
   it("merges vector candidates into elevation data without duplicating matching AI openings", async () => {

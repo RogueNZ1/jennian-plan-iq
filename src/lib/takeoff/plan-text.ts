@@ -273,7 +273,6 @@ export function parseTitleAreas(labels: TextLabel[]): PlanTitleAreas {
       // value label sits to the RIGHT on the same line: "139.4m²" / "56.2m"
       let best: { v: number; dx: number } | null = null;
       for (const v of labels) {
-        const m = v.text.trim().match(/^([\d.]+)\s*m²?$/i);
         const parsedValue = titleValueFor(v.text, key);
         if (parsedValue == null) continue;
         const dx = v.x - l.x,
