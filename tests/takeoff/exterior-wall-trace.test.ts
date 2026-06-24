@@ -83,4 +83,45 @@ describe("exterior wall trace evidence", () => {
       ]),
     );
   });
+
+  it("does not count dense deck hatch stripes as exterior wall runs", () => {
+    const scale = 100;
+    const x0 = 100;
+    const y0 = 100;
+    const width = mmToPt(10_000, scale);
+    const depth = mmToPt(6_000, scale);
+    const thickness = mmToPt(200, scale);
+    const deckX0 = x0 + mmToPt(1_000, scale);
+    const deckX1 = x0 + mmToPt(7_000, scale);
+    const deckY0 = y0 - mmToPt(2_000, scale);
+    const stripeGap = mmToPt(350, scale);
+
+    const deckStripes: Segment[] = [];
+    for (let i = 0; i < 7; i++) {
+      const y = deckY0 + i * stripeGap;
+      deckStripes.push(h(deckX0, deckX1, y), h(deckX0, deckX1, y + thickness));
+    }
+
+    const trace = traceExteriorWallEvidence({
+      scale,
+      printedPerimeterM: 32,
+      rooms: [{ name: "LIVING", x: x0 + width / 2, y: y0 + depth / 2 }],
+      segments: [
+        h(x0, x0 + width, y0),
+        h(x0, x0 + width, y0 + thickness),
+        h(x0, x0 + width, y0 + depth - thickness),
+        h(x0, x0 + width, y0 + depth),
+        v(x0, y0, y0 + depth),
+        v(x0 + thickness, y0, y0 + depth),
+        v(x0 + width - thickness, y0, y0 + depth),
+        v(x0 + width, y0, y0 + depth),
+        ...deckStripes,
+      ],
+    });
+
+    expect(trace.tracedExteriorEvidenceM).toBeCloseTo(32, 1);
+    expect(trace.runs.every((run) => run.lengthM < 6.1 || run.rooms.includes("LIVING"))).toBe(
+      true,
+    );
+  });
 });

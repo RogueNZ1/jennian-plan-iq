@@ -17,7 +17,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { Segment } from "../src/lib/doors/door-engine";
@@ -48,11 +48,21 @@ type BreakRun = {
   hi: number;
   widthMm: number;
 };
+type CanvasPoint = { x: number; y: number };
+type RasterExteriorBoundary = {
+  points: CanvasPoint[];
+  estimatedLengthM: number | null;
+  crop: { x0: number; y0: number; x1: number; y1: number };
+};
 
 function argValue(name: string, fallback: string): string {
   const prefix = `--${name}=`;
   const found = process.argv.find((arg) => arg.startsWith(prefix));
   return found ? resolve(root, found.slice(prefix.length)) : fallback;
+}
+
+function hasFlag(name: string) {
+  return process.argv.includes(`--${name}`);
 }
 
 function pageBounds(segments: readonly Segment[]) {
@@ -279,7 +289,7 @@ function findPdftoppm(): string {
 function renderPlan(plan: string, outBase: string): string {
   const renderDir = resolve(dirname(outBase), "_render");
   mkdirSync(renderDir, { recursive: true });
-  const prefix = resolve(renderDir, "exterior-trace-plan");
+  const prefix = resolve(renderDir, basename(outBase));
   execFileSync(findPdftoppm(), [
     "-f",
     "1",
@@ -310,6 +320,209 @@ function drawLabel(
   ctx.fillText(text, x, y);
 }
 
+function dilate(mask: Uint8Array, width: number, height: number, radius: number) {
+  const out = new Uint8Array(mask.length);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let found = false;
+      for (let dy = -radius; dy <= radius && !found; dy++) {
+        const yy = y + dy;
+        if (yy < 0 || yy >= height) continue;
+        for (let dx = -radius; dx <= radius; dx++) {
+          const xx = x + dx;
+          if (xx < 0 || xx >= width) continue;
+          if (mask[yy * width + xx]) {
+            found = true;
+            break;
+          }
+        }
+      }
+      if (found) out[y * width + x] = 1;
+    }
+  }
+  return out;
+}
+
+function erode(mask: Uint8Array, width: number, height: number, radius: number) {
+  const out = new Uint8Array(mask.length);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let ok = true;
+      for (let dy = -radius; dy <= radius && ok; dy++) {
+        const yy = y + dy;
+        if (yy < 0 || yy >= height) {
+          ok = false;
+          break;
+        }
+        for (let dx = -radius; dx <= radius; dx++) {
+          const xx = x + dx;
+          if (xx < 0 || xx >= width || !mask[yy * width + xx]) {
+            ok = false;
+            break;
+          }
+        }
+      }
+      if (ok) out[y * width + x] = 1;
+    }
+  }
+  return out;
+}
+
+function closeMask(mask: Uint8Array, width: number, height: number, radius: number) {
+  return erode(dilate(mask, width, height, radius), width, height, radius);
+}
+
+function traceRasterExteriorBoundary(args: {
+  ctx: import("@napi-rs/canvas").CanvasRenderingContext2D;
+  imageWidth: number;
+  imageHeight: number;
+  renderScale: number;
+  rooms: readonly RoomPoint[];
+  runs: readonly ExteriorRun[];
+  scale: number;
+}): RasterExteriorBoundary | null {
+  if (args.rooms.length === 0) return null;
+  const runPoints = args.runs
+    .filter((run) => run.lengthM >= 1)
+    .flatMap((run) =>
+      run.vertical
+        ? [
+            { x: run.outsideOffset, y: run.lo },
+            { x: run.outsideOffset, y: run.hi },
+          ]
+        : [
+            { x: run.lo, y: run.outsideOffset },
+            { x: run.hi, y: run.outsideOffset },
+          ],
+    );
+  const basis = runPoints.length > 0 ? runPoints : args.rooms;
+  const xs = basis.map((point) => point.x * args.renderScale);
+  const ys = basis.map((point) => point.y * args.renderScale);
+  const pad = 90;
+  const crop = {
+    x0: Math.max(0, Math.floor(Math.min(...xs) - pad)),
+    y0: Math.max(0, Math.floor(Math.min(...ys) - pad)),
+    x1: Math.min(args.imageWidth - 1, Math.ceil(Math.max(...xs) + pad)),
+    y1: Math.min(args.imageHeight - 1, Math.ceil(Math.max(...ys) + pad)),
+  };
+  const width = crop.x1 - crop.x0 + 1;
+  const height = crop.y1 - crop.y0 + 1;
+  if (width < 50 || height < 50) return null;
+
+  const data = args.ctx.getImageData(crop.x0, crop.y0, width, height).data;
+  const dark = new Uint8Array(width * height);
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const a = data[i + 3];
+    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    if (a > 180 && luminance < 92 && Math.max(r, g, b) - Math.min(r, g, b) < 42) dark[p] = 1;
+  }
+
+  const wall = closeMask(closeMask(dark, width, height, 5), width, height, 9);
+  const outside = new Uint8Array(width * height);
+  const queue: number[] = [];
+  const pushOutside = (x: number, y: number) => {
+    if (x < 0 || x >= width || y < 0 || y >= height) return;
+    const idx = y * width + x;
+    if (outside[idx] || wall[idx]) return;
+    outside[idx] = 1;
+    queue.push(idx);
+  };
+  for (let x = 0; x < width; x++) {
+    pushOutside(x, 0);
+    pushOutside(x, height - 1);
+  }
+  for (let y = 0; y < height; y++) {
+    pushOutside(0, y);
+    pushOutside(width - 1, y);
+  }
+  for (let head = 0; head < queue.length; head++) {
+    const idx = queue[head];
+    const x = idx % width;
+    const y = Math.floor(idx / width);
+    pushOutside(x + 1, y);
+    pushOutside(x - 1, y);
+    pushOutside(x, y + 1);
+    pushOutside(x, y - 1);
+  }
+
+  const boundary = new Uint8Array(width * height);
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const idx = y * width + x;
+      if (!wall[idx]) continue;
+      if (
+        outside[idx - 1] ||
+        outside[idx + 1] ||
+        outside[idx - width] ||
+        outside[idx + width]
+      ) {
+        boundary[idx] = 1;
+      }
+    }
+  }
+
+  const seen = new Uint8Array(width * height);
+  const components: CanvasPoint[][] = [];
+  for (let i = 0; i < boundary.length; i++) {
+    if (!boundary[i] || seen[i]) continue;
+    const component: CanvasPoint[] = [];
+    const stack = [i];
+    seen[i] = 1;
+    while (stack.length) {
+      const idx = stack.pop()!;
+      const x = idx % width;
+      const y = Math.floor(idx / width);
+      component.push({ x: x + crop.x0, y: y + crop.y0 });
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const xx = x + dx;
+          const yy = y + dy;
+          if (xx < 0 || xx >= width || yy < 0 || yy >= height) continue;
+          const next = yy * width + xx;
+          if (boundary[next] && !seen[next]) {
+            seen[next] = 1;
+            stack.push(next);
+          }
+        }
+      }
+    }
+    if (component.length >= 80) components.push(component);
+  }
+
+  if (components.length === 0) return null;
+  const runDistance = (point: CanvasPoint, run: ExteriorRun) => {
+    const offset = run.outsideOffset * args.renderScale;
+    const lo = run.lo * args.renderScale;
+    const hi = run.hi * args.renderScale;
+    if (run.vertical) {
+      const y = Math.min(Math.max(point.y, lo), hi);
+      return Math.hypot(point.x - offset, point.y - y);
+    }
+    const x = Math.min(Math.max(point.x, lo), hi);
+    return Math.hypot(point.x - x, point.y - offset);
+  };
+  const wallRuns = args.runs.filter((run) => run.lengthM >= 1.5);
+  const scored = components
+    .map((component) => {
+      const nearWall = component.filter((point) =>
+        wallRuns.some((run) => runDistance(point, run) <= 18),
+      ).length;
+      return { component, nearWall };
+    })
+    .filter(({ component, nearWall }) => nearWall >= Math.min(40, component.length * 0.2));
+
+  const selected = scored.length > 0 ? scored.map((item) => item.component) : components;
+  selected.sort((a, b) => b.length - a.length);
+  const points = selected.slice(0, 6).flat();
+  const pxPerM = args.renderScale * createScaleRuler(args.scale).mmToPdfPoints(1000);
+  const estimatedLengthM = points.length > 0 ? Math.round((points.length / pxPerM) * 100) / 100 : null;
+  return { points, estimatedLengthM, crop };
+}
+
 async function main() {
   const plan = argValue("plan", defaultPlan);
   const outBase = argValue("out", defaultOutBase);
@@ -326,7 +539,13 @@ async function main() {
   const planText = parsePlanText(geom.labels);
   await doc.destroy().catch(() => {});
 
-  const rooms = planText.rooms.map((room) => ({ name: room.name, x: room.x, y: room.y }));
+  const rooms = planText.rooms.map((room) => ({
+    name: room.name,
+    x: room.x,
+    y: room.y,
+    widthMm: room.widthMm,
+    depthMm: room.depthMm,
+  }));
   const printedPerimeterM = planText.titleAreas?.perimeterM ?? null;
   const trace = traceExteriorWallEvidence({
     segments: geom.segments,
@@ -336,32 +555,10 @@ async function main() {
   });
   const runs = trace.runs;
   const breaks = trace.breaks;
+  const perimeterRuns = trace.perimeterRuns;
+  const perimeterBridges = trace.perimeterBridges;
+  const perimeterLine = trace.perimeterLine;
   const tracedLengthM = trace.tracedExteriorEvidenceM;
-
-  writeFileSync(
-    `${outBase}.json`,
-    `${JSON.stringify(
-      {
-        plan,
-        scale,
-        printedPerimeterM: trace.printedPerimeterM,
-        tracedExteriorEvidenceM: trace.tracedExteriorEvidenceM,
-        shortfallM: trace.shortfallM,
-        exteriorRuns: runs.map((run) => ({
-          vertical: run.vertical,
-          outsideOffset: Math.round(run.outsideOffset * 100) / 100,
-          lo: Math.round(run.lo * 100) / 100,
-          hi: Math.round(run.hi * 100) / 100,
-          lengthM: run.lengthM,
-          thicknessMm: run.thicknessMm,
-          rooms: run.rooms,
-        })),
-        collinearBreaks: breaks,
-      },
-      null,
-      2,
-    )}\n`,
-  );
 
   const renderPath = renderPlan(plan, outBase);
   const { createCanvas, loadImage } = await import("@napi-rs/canvas");
@@ -375,26 +572,100 @@ async function main() {
   ctx.drawImage(image, 0, 0);
 
   const toCanvas = (x: number, y: number): [number, number] => [x * renderScale, y * renderScale];
+  const rasterBoundary = hasFlag("raster-boundary")
+    ? traceRasterExteriorBoundary({
+        ctx,
+        imageWidth: image.width,
+        imageHeight: image.height,
+        renderScale,
+        rooms,
+        runs,
+        scale,
+      })
+    : null;
 
-  for (const run of runs) {
-    const [x0, y0] = run.vertical
-      ? toCanvas(run.outsideOffset, run.lo)
-      : toCanvas(run.lo, run.outsideOffset);
-    const [x1, y1] = run.vertical
-      ? toCanvas(run.outsideOffset, run.hi)
-      : toCanvas(run.hi, run.outsideOffset);
-    ctx.strokeStyle = run.lengthM >= 2 ? "#dc2626" : "#f97316";
-    ctx.lineWidth = run.lengthM >= 2 ? 5 : 3;
+  writeFileSync(
+    `${outBase}.json`,
+    `${JSON.stringify(
+      {
+        plan,
+        scale,
+        geometryBounds: { width: geom.width, height: geom.height },
+        renderScale,
+        printedPerimeterM: trace.printedPerimeterM,
+        tracedExteriorEvidenceM: trace.tracedExteriorEvidenceM,
+        bridgedExteriorEvidenceM: trace.bridgedExteriorEvidenceM,
+        shortfallM: trace.shortfallM,
+        bridgedShortfallM: trace.bridgedShortfallM,
+        perimeterCandidateM: trace.perimeterCandidateM,
+        perimeterCandidateSource: trace.perimeterCandidateSource,
+        perimeterMeasurementTrusted: trace.perimeterMeasurementTrusted,
+        perimeterCandidateTrusted: trace.perimeterCandidateTrusted,
+        perimeterLineM: trace.perimeterLineM,
+        visualLoopClosed: trace.visualLoopClosed,
+        rasterExteriorBoundaryM: rasterBoundary?.estimatedLengthM ?? null,
+        rasterExteriorBoundaryCrop: rasterBoundary?.crop ?? null,
+        exteriorRuns: runs.map((run) => ({
+          vertical: run.vertical,
+          outsideOffset: Math.round(run.outsideOffset * 100) / 100,
+          lo: Math.round(run.lo * 100) / 100,
+          hi: Math.round(run.hi * 100) / 100,
+          lengthM: run.lengthM,
+          thicknessMm: run.thicknessMm,
+          confidence: run.confidence,
+          rooms: run.rooms,
+        })),
+        collinearBreaks: breaks,
+        perimeterRuns: perimeterRuns.map((run) => ({
+          vertical: run.vertical,
+          outsideOffset: Math.round(run.outsideOffset * 100) / 100,
+          lo: Math.round(run.lo * 100) / 100,
+          hi: Math.round(run.hi * 100) / 100,
+          lengthM: run.lengthM,
+          thicknessMm: run.thicknessMm,
+          confidence: run.confidence,
+          rooms: run.rooms,
+        })),
+        perimeterBridges,
+        perimeterLine,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+
+  if (rasterBoundary) {
+    ctx.fillStyle = "rgba(190, 24, 93, 0.85)";
+    for (const point of rasterBoundary.points) {
+      ctx.fillRect(point.x, point.y, 1.5, 1.5);
+    }
+  }
+
+  for (const line of perimeterLine) {
+    const [x0, y0] = line.vertical ? toCanvas(line.offset, line.lo) : toCanvas(line.lo, line.offset);
+    const [x1, y1] = line.vertical ? toCanvas(line.offset, line.hi) : toCanvas(line.hi, line.offset);
+    ctx.strokeStyle = trace.perimeterCandidateTrusted ? "#dc2626" : "#ea580c";
+    ctx.lineWidth = 5;
     ctx.beginPath();
     ctx.moveTo(x0, y0);
     ctx.lineTo(x1, y1);
     ctx.stroke();
-    if (run.lengthM >= 1.5) {
-      drawLabel(ctx, `${run.lengthM.toFixed(2)}m`, (x0 + x1) / 2 + 7, (y0 + y1) / 2 - 7, "#dc2626");
+    if (line.kind === "opening") {
+      drawLabel(ctx, `${(line.widthMm / 1000).toFixed(2)}m bridged`, (x0 + x1) / 2 + 7, (y0 + y1) / 2 + 18, "#dc2626");
     }
   }
 
   for (const gap of breaks) {
+    if (
+      perimeterBridges.some(
+        (bridge) =>
+          bridge.vertical === gap.vertical &&
+          Math.abs(bridge.offset - gap.offset) < 0.01 &&
+          Math.abs(bridge.lo - gap.lo) < 0.01 &&
+          Math.abs(bridge.hi - gap.hi) < 0.01,
+      )
+    )
+      continue;
     const [x0, y0] = gap.vertical ? toCanvas(gap.offset, gap.lo) : toCanvas(gap.lo, gap.offset);
     const [x1, y1] = gap.vertical ? toCanvas(gap.offset, gap.hi) : toCanvas(gap.hi, gap.offset);
     ctx.strokeStyle = "#2563eb";
@@ -415,33 +686,72 @@ async function main() {
   ctx.font = "13px sans-serif";
   ctx.fillText(`Printed perimeter: ${printedPerimeterM ?? "?"}m`, panelX, 62);
   ctx.fillText(`Detected wall evidence: ${tracedLengthM.toFixed(2)}m`, panelX, 84);
+  ctx.fillText(`Bridged evidence: ${trace.bridgedExteriorEvidenceM.toFixed(2)}m`, panelX, 106);
+  ctx.fillText(
+    `Selected candidate: ${trace.perimeterCandidateM.toFixed(2)}m`,
+    panelX,
+    128,
+  );
+  ctx.fillText(`Drawn line: ${trace.perimeterLineM.toFixed(2)}m`, panelX, 150);
+  ctx.fillText(
+    `Raster outside boundary: ${rasterBoundary?.estimatedLengthM?.toFixed(2) ?? "?"}m`,
+    panelX,
+    172,
+  );
   if (printedPerimeterM != null) {
     ctx.fillText(
-      `Shortfall before bridging: ${(printedPerimeterM - tracedLengthM).toFixed(2)}m`,
+      `Candidate delta: ${trace.bridgedShortfallM?.toFixed(2) ?? "?"}m`,
       panelX,
-      106,
+      194,
     );
   }
   ctx.fillStyle = "#dc2626";
-  ctx.fillRect(panelX, 134, 30, 5);
+  ctx.fillRect(panelX, 200, 30, 5);
   ctx.fillStyle = "#111827";
-  ctx.fillText("Exterior wall face evidence", panelX + 42, 140);
+  ctx.fillText(
+    trace.visualLoopClosed
+      ? "Closed exterior wall line"
+      : "Exterior wall evidence, not a closed line",
+    panelX + 42,
+    206,
+  );
+  ctx.fillStyle = "#be185d";
+  ctx.fillRect(panelX, 224, 30, 5);
+  ctx.fillStyle = "#111827";
+  ctx.fillText("Raster boundary touching outside air", panelX + 42, 230);
   ctx.strokeStyle = "#2563eb";
   ctx.lineWidth = 4;
   ctx.setLineDash([10, 8]);
   ctx.beginPath();
-  ctx.moveTo(panelX, 166);
-  ctx.lineTo(panelX + 30, 166);
+  ctx.moveTo(panelX, 254);
+  ctx.lineTo(panelX + 30, 254);
   ctx.stroke();
   ctx.setLineDash([]);
-  ctx.fillText("Collinear break to review as opening/door", panelX + 42, 170);
+  ctx.fillText("Collinear break to review as opening/door", panelX + 42, 258);
   ctx.font = "bold 15px sans-serif";
-  ctx.fillText("Longest traced runs", panelX, 214);
+  ctx.fillText(
+    trace.perimeterMeasurementTrusted
+      ? `Measurement candidate: trusted (${trace.perimeterCandidateSource})`
+      : `Measurement candidate: untrusted (${trace.perimeterCandidateSource})`,
+    panelX,
+    302,
+  );
+  ctx.fillText(
+    trace.visualLoopClosed ? "Visual loop: closed" : "Visual loop: NOT CLOSED",
+    panelX,
+    324,
+  );
+  ctx.fillText(
+    trace.perimeterCandidateTrusted ? "Perimeter trace: trusted" : "Perimeter trace: NOT TRUSTED",
+    panelX,
+    346,
+  );
+  ctx.fillText("Longest traced runs", panelX, 384);
   ctx.font = "12px sans-serif";
-  let y = 238;
-  for (const run of runs.slice(0, 16)) {
+  let y = 408;
+  for (const run of perimeterRuns.slice(0, 16)) {
     ctx.fillText(
-      `${run.vertical ? "V" : "H"} ${run.lengthM.toFixed(2)}m ${run.rooms.slice(0, 3).join("/")}`,
+      `${run.vertical ? "V" : "H"} ${run.lengthM.toFixed(2)}m ${run.confidence} ${run.rooms.slice(0, 2).join("/")}`,
       panelX,
       y,
     );
