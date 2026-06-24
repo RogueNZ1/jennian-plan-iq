@@ -3,6 +3,7 @@ import type { ElevationData, ElevationOpeningCandidate } from "./extract-elevati
 
 type AxialHorizontal = { y: number; x0: number; x1: number; len: number; count: number };
 type AxialVertical = { x: number; y0: number; y1: number; len: number };
+type Bounds = { x0: number; x1: number; y0: number; y1: number };
 
 export type ElevationFaceBand = {
   id: string;
@@ -25,6 +26,111 @@ const PT_PER_MM = 72 / 25.4;
 const ELEVATION_SCALE = 100;
 const ptToMm = (pt: number) => (pt / PT_PER_MM) * ELEVATION_SCALE;
 const mmToPt = (mm: number) => (mm / ELEVATION_SCALE) * PT_PER_MM;
+
+function boundsFromSegments(segments: readonly Segment[]): Bounds | null {
+  if (segments.length === 0) return null;
+  let x0 = Infinity;
+  let x1 = -Infinity;
+  let y0 = Infinity;
+  let y1 = -Infinity;
+  for (const segment of segments) {
+    x0 = Math.min(x0, segment.x0, segment.x1);
+    x1 = Math.max(x1, segment.x0, segment.x1);
+    y0 = Math.min(y0, segment.y0, segment.y1);
+    y1 = Math.max(y1, segment.y0, segment.y1);
+  }
+  return Number.isFinite(x0) && Number.isFinite(x1) && Number.isFinite(y0) && Number.isFinite(y1)
+    ? { x0, x1, y0, y1 }
+    : null;
+}
+
+function boundsFromAxes(
+  horizontals: readonly AxialHorizontal[],
+  verticals: readonly AxialVertical[],
+): Bounds | null {
+  const xValues = [
+    ...horizontals.flatMap((h) => [h.x0, h.x1]),
+    ...verticals.map((v) => v.x),
+  ];
+  const yValues = [
+    ...horizontals.map((h) => h.y),
+    ...verticals.flatMap((v) => [v.y0, v.y1]),
+  ];
+  if (xValues.length === 0 || yValues.length === 0) return null;
+  return {
+    x0: Math.min(...xValues),
+    x1: Math.max(...xValues),
+    y0: Math.min(...yValues),
+    y1: Math.max(...yValues),
+  };
+}
+
+function boundsFromHorizontals(horizontals: readonly AxialHorizontal[]): Bounds | null {
+  if (horizontals.length === 0) return null;
+  const percentile = (values: number[], p: number) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor((sorted.length - 1) * p)))];
+  };
+  const xs = horizontals.flatMap((h) => [h.x0, h.x1]);
+  return {
+    x0: percentile(xs, 0.05),
+    x1: percentile(xs, 0.95),
+    y0: Math.min(...horizontals.map((h) => h.y)),
+    y1: Math.max(...horizontals.map((h) => h.y)),
+  };
+}
+
+
+function insetBounds(bounds: Bounds, xRatio: number, topRatio: number, bottomRatio: number): Bounds {
+  const width = bounds.x1 - bounds.x0;
+  const height = bounds.y1 - bounds.y0;
+  return {
+    x0: bounds.x0 + width * xRatio,
+    x1: bounds.x1 - width * xRatio,
+    y0: bounds.y0 + height * topRatio,
+    y1: bounds.y1 - height * bottomRatio,
+  };
+}
+
+function insetBoundsByRatio(
+  bounds: Bounds,
+  ratios: { left: number; right: number; top: number; bottom: number },
+): Bounds {
+  const width = bounds.x1 - bounds.x0;
+  const height = bounds.y1 - bounds.y0;
+  return {
+    x0: bounds.x0 + width * ratios.left,
+    x1: bounds.x1 - width * ratios.right,
+    y0: bounds.y0 + height * ratios.top,
+    y1: bounds.y1 - height * ratios.bottom,
+  };
+}
+
+function boundsFromPageFrameHorizontals(horizontals: readonly AxialHorizontal[]): Bounds | null {
+  if (horizontals.length < 2) return null;
+  const maxLen = Math.max(...horizontals.map((h) => h.len));
+  const pageRails = horizontals.filter((h) => h.len >= maxLen * 0.95 && h.x0 >= -5);
+  if (pageRails.length < 2) return null;
+  return {
+    x0: Math.min(...pageRails.map((h) => h.x0)),
+    x1: Math.max(...pageRails.map((h) => h.x1)),
+    y0: Math.min(...pageRails.map((h) => h.y)),
+    y1: Math.max(...pageRails.map((h) => h.y)),
+  };
+}
+
+function rectWithinBounds(
+  r: { x0: number; x1: number; y0: number; y1: number },
+  bounds: Bounds,
+  pad = 0,
+): boolean {
+  return (
+    r.x0 >= bounds.x0 - pad &&
+    r.x1 <= bounds.x1 + pad &&
+    r.y0 >= bounds.y0 - pad &&
+    r.y1 <= bounds.y1 + pad
+  );
+}
 
 function axisSegments(segments: readonly Segment[]): {
   horizontals: AxialHorizontal[];
@@ -79,8 +185,22 @@ function overlap(a0: number, a1: number, b0: number, b1: number): number {
 
 export function detectElevationFaceBands(segments: readonly Segment[]): ElevationFaceBand[] {
   const { horizontals } = axisSegments(segments);
+  const axisBounds =
+    boundsFromPageFrameHorizontals(horizontals) ??
+    boundsFromHorizontals(horizontals) ??
+    boundsFromSegments(segments);
+  const searchBounds = axisBounds
+    ? insetBoundsByRatio(axisBounds, { left: 0.01, right: 0.018, top: 0.135, bottom: 0.135 })
+    : null;
+  const minFaceRailLen = axisBounds ? Math.max(250, (axisBounds.x1 - axisBounds.x0) * 0.18) : 250;
   const long = horizontals.filter(
-    (h) => h.len >= 250 && h.y > 120 && h.y < 720 && h.x0 > 20 && h.x1 < 1160,
+    (h) =>
+      h.len >= minFaceRailLen &&
+      (!searchBounds ||
+        (h.y > searchBounds.y0 &&
+          h.y < searchBounds.y1 &&
+          h.x0 > searchBounds.x0 &&
+          h.x1 < searchBounds.x1)),
   );
   const bands: ElevationFaceBand[] = [];
 
@@ -231,6 +351,8 @@ function detectSectionalGarageDoorOpenings(
   bands: readonly ElevationFaceBand[],
 ): ElevationVectorOpening[] {
   const out: ElevationVectorOpening[] = [];
+  const axialBounds = boundsFromAxes(horizontals, verticals);
+  const fallbackBounds = axialBounds ? insetBounds(axialBounds, 0.015, 0.04, 0.1) : null;
   for (let i = 0; i < verticals.length; i += 1) {
     for (let j = i + 1; j < verticals.length; j += 1) {
       const a = verticals[i];
@@ -238,17 +360,17 @@ function detectSectionalGarageDoorOpenings(
       const x0 = Math.min(a.x, b.x);
       const x1 = Math.max(a.x, b.x);
       const widthMm = Math.round(ptToMm(x1 - x0));
-      if (widthMm < 4200 || widthMm > 5200) continue;
+      if (widthMm < 2200 || widthMm > 6000) continue;
 
       const y0 = Math.max(a.y0, b.y0);
       const y1 = Math.min(a.y1, b.y1);
       if (y1 <= y0) continue;
-      if (y0 <= 120 || y1 >= 720) continue;
       const heightMm = Math.round(ptToMm(y1 - y0));
       if (heightMm < 1800 || heightMm > 2400) continue;
       if (a.len < mmToPt(1600) || b.len < mmToPt(1600)) continue;
 
       const r = { x0, x1, y0, y1 };
+      if (fallbackBounds && !rectWithinBounds(r, fallbackBounds, mmToPt(900))) continue;
       const rails = sectionalRailPattern(horizontals, r);
       if (!rails) continue;
 
@@ -327,9 +449,11 @@ function detectMultiPanelSliderOpenings(
   bands: readonly ElevationFaceBand[],
 ): ElevationVectorOpening[] {
   const raw: Array<ElevationVectorOpening & { shapeScore: number }> = [];
+  const axialBounds = boundsFromAxes(horizontals, verticals);
+  const fallbackBounds = axialBounds ? insetBounds(axialBounds, 0.015, 0.04, 0.1) : null;
   const searchRegions = [
     ...bands,
-    { id: "elevation-face-unmapped", x0: 20, x1: 1160, y0: 120, y1: 720 },
+    ...(fallbackBounds ? [{ id: "elevation-face-unmapped", ...fallbackBounds }] : []),
   ];
   for (const band of searchRegions) {
     const bandVerticals = verticals.filter(

@@ -7,7 +7,13 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { parsePlanText, type PlanText } from "../../src/lib/takeoff/plan-text";
+import type { TextLabel } from "../../src/lib/doors/door-engine";
+import {
+  parsePlanText,
+  parseTitleAreas,
+  parseWindowCodes,
+  type PlanText,
+} from "../../src/lib/takeoff/plan-text";
 
 async function extract(planPath: string, pageNumber = 1): Promise<PlanText> {
   const { extractPageGeometry } = await import("../../src/lib/doors/pdf-adapter");
@@ -195,4 +201,46 @@ describe("plan-text - standalone opening width witnesses", () => {
       }),
     );
   }, 60_000);
+});
+
+describe("plan-text - parser hardening", () => {
+  const label = (text: string, x: number, y: number): TextLabel => ({
+    text,
+    x,
+    y,
+    vertical: false,
+  });
+
+  it("requires anonymous lowercase opening dimensions to belong to an opening-label cluster", () => {
+    expect(parseWindowCodes([label("1300 x 1750", 100, 100)], [])).toHaveLength(0);
+
+    const clustered = parseWindowCodes(
+      [
+        label("1300 x 1500", 100, 100),
+        label("1100 x 600", 110, 165),
+        label("1100 x 1200", 180, 165),
+      ],
+      [],
+    );
+
+    expect(clustered.map((code) => `${code.heightMm}x${code.widthMm}`).sort()).toEqual([
+      "1100x1200",
+      "1100x600",
+      "1300x1500",
+    ]);
+  });
+
+  it("uses unit-compatible title values across the widened association radius", () => {
+    const titleAreas = parseTitleAreas([
+      label("TOTALAREA:", 10, 20),
+      label("56.2m", 240, 20),
+      label("139.4m²", 305, 20),
+      label("PERIMETER:", 10, 40),
+      label("147.6m²", 220, 40),
+      label("56.2m", 305, 40),
+    ]);
+
+    expect(titleAreas.totalAreaM2).toBeCloseTo(139.4, 1);
+    expect(titleAreas.perimeterM).toBeCloseTo(56.2, 1);
+  });
 });

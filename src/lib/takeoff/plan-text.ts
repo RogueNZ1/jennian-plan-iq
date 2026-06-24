@@ -89,6 +89,8 @@ const WINDOW_CODE_STRICT_RE = /^(\d[\d, ]{2,5})x(\d[\d, ]{2,5})(?:\s*mm)?$/;
 const WINDOW_CODE_DIMS_RE = /^(\d[\d, ]{2,5})\s*[xX]\s*(\d[\d, ]{2,5})(?:\s*mm)?$/i;
 const WINDOW_CODE_PREFIX_RE = /^(\d[\d, ]{2,5})\s*[xX]\s*(\d[\d, ]{2,5})(?=\D|$)/i;
 const num = (s: string) => parseInt(s.replace(/[, ]/g, ""), 10);
+const TITLE_AREA_VALUE_RE = /^([\d.]+)\s*m(?:²|2)$/i;
+const TITLE_LENGTH_VALUE_RE = /^([\d.]+)\s*m$/i;
 const KNOWN_ROOM_NAME_RE =
   /^(GARAGE|LOUNGE|LIVING|FAMILY|DINING|KITCHEN|ENTRY|HALL|BED(?:ROOM)? ?\d|MASTER(?: BED(?:ROOM)?)?|ENS(?:UITE)?|BATH(?:ROOM)?|WC|TOILET|LAUNDRY|WIR|ROBE|STORE|LINEN|HWC|PANTRY|TV|STUDY|OFFICE)$/i;
 
@@ -103,6 +105,56 @@ function isRoomName(t: string): boolean {
   if (/AREA|PERIMETER|COVERAGE|SCALE|SHEET|FLOORPLAN|ELEVATION|NORTH|DESCRIPTION/i.test(t))
     return false;
   return true;
+}
+
+function isRoomFootprintLabel(
+  label: TextLabel,
+  rooms: readonly PlanRoom[],
+  h: number,
+  w: number,
+): boolean {
+  return rooms.some(
+    (r) =>
+      r.widthMm === h &&
+      r.depthMm === w &&
+      Math.abs(r.x - label.x) < 48 &&
+      label.y - r.y > 0 &&
+      label.y - r.y <= 24,
+  );
+}
+
+function compactAnonymousOpeningLabels(
+  labels: readonly TextLabel[],
+  rooms: readonly PlanRoom[],
+): TextLabel[] {
+  return labels.filter((candidate) => {
+    const text = candidate.text.trim();
+    const m = text.match(WINDOW_CODE_DIMS_RE);
+    if (!m || !/x/.test(text) || /X/.test(text)) return false;
+    const h = num(m[1]);
+    const w = num(m[2]);
+    if (h < 300 || h > 3000 || w < 300 || w > 6000) return false;
+    if (isRoomFootprintLabel(candidate, rooms, h, w)) return false;
+    return true;
+  });
+}
+
+function hasAnonymousOpeningCluster(label: TextLabel, clusterLabels: readonly TextLabel[]): boolean {
+  const siblings = clusterLabels.filter((candidate) => candidate !== label);
+  const sameColumn = siblings.filter((candidate) => Math.abs(candidate.x - label.x) <= 16).length;
+  const sameRow = siblings.filter((candidate) => Math.abs(candidate.y - label.y) <= 10).length;
+  const nearby = siblings.filter((candidate) => Math.hypot(candidate.x - label.x, candidate.y - label.y) <= 260)
+    .length;
+  return sameColumn >= 1 || sameRow >= 1 || nearby >= 2;
+}
+
+function titleValueFor(text: string, key: keyof PlanTitleAreas): number | null {
+  const trimmed = text.trim();
+  const m =
+    key === "perimeterM"
+      ? trimmed.match(TITLE_LENGTH_VALUE_RE)
+      : trimmed.match(TITLE_AREA_VALUE_RE);
+  return m ? parseFloat(m[1]) : null;
 }
 
 export function parseRoomDims(labels: TextLabel[]): PlanRoom[] {
@@ -148,6 +200,7 @@ export function parseWindowCodes(labels: TextLabel[], rooms: PlanRoom[]): PlanWi
   type WindowCandidate = PlanWindowCode & { idDist: number | null };
   const out: WindowCandidate[] = [];
   const wLabels = labels.filter((candidate) => /^W\d{1,3}$/i.test(candidate.text.trim()));
+  const anonymousClusterLabels = compactAnonymousOpeningLabels(labels, rooms);
   for (const l of labels) {
     const text = l.text.trim();
     const strictMatch = text.match(WINDOW_CODE_STRICT_RE);
@@ -174,22 +227,14 @@ export function parseWindowCodes(labels: TextLabel[], rooms: PlanRoom[]): PlanWi
     const id = idMatch?.id;
     // Anonymous room footprints are not joinery candidates. If a nearby W-code
     // labels the same text, keep it because that is a real opening identity.
-    if (
-      !id &&
-      rooms.some(
-        (r) =>
-          r.widthMm === h &&
-          r.depthMm === w &&
-          Math.abs(r.x - l.x) < 48 &&
-          l.y - r.y > 0 &&
-          l.y - r.y <= 24,
-      )
-    )
-      continue;
+    if (!id && isRoomFootprintLabel(l, rooms, h, w)) continue;
     // Prefix matches tolerate PDF text that has jammed trailing words, but only
     // when a nearby W-code proves the text belongs to a joinery callout.
     if (prefixMatch && !id) continue;
-    const anonymousLowercaseOpeningLabel = exactMatch != null && /x/.test(text) && !/X/.test(text);
+    const anonymousLowercaseOpeningLabel =
+      exactMatch != null &&
+      anonymousClusterLabels.includes(l) &&
+      hasAnonymousOpeningCluster(l, anonymousClusterLabels);
     if (!id && !strictMatch && !anonymousLowercaseOpeningLabel) continue;
     out.push({
       ...(id ? { id } : {}),
@@ -229,11 +274,12 @@ export function parseTitleAreas(labels: TextLabel[]): PlanTitleAreas {
       let best: { v: number; dx: number } | null = null;
       for (const v of labels) {
         const m = v.text.trim().match(/^([\d.]+)\s*m²?$/i);
-        if (!m) continue;
+        const parsedValue = titleValueFor(v.text, key);
+        if (parsedValue == null) continue;
         const dx = v.x - l.x,
           dy = Math.abs(v.y - l.y);
         if (dx <= 0 || dx > 320 || dy > 3.5) continue;
-        if (!best || dx < best.dx) best = { v: parseFloat(m[1]), dx };
+        if (!best || dx < best.dx) best = { v: parsedValue, dx };
       }
       if (best && out[key] == null) out[key] = best.v;
     }
