@@ -7,6 +7,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import type { ExtractedFile } from "./pdf-text";
+import type { Opening, OpeningType } from "./takeoff-types";
 
 export type OpeningKind =
   | "window"
@@ -181,4 +182,144 @@ export async function persistOpening(args: {
     created_by: args.createdBy,
   });
   return { status: "inserted" };
+}
+
+/**
+ * Map an enriched flat-opening type onto the relational opening_schedule vocabulary.
+ *
+ * Glazed window-types (window / slider / garage_window) collapse to "window" so the
+ * relational QS window count AND the Windows & Doors tab include the slider — the same
+ * glazed set the flat-block export counts. The solid sectional becomes the garage door;
+ * the entrance / PA door become external doors. The true type is preserved in `notes`.
+ */
+export const OPENING_TYPE_TO_SCHEDULE: Record<OpeningType, string> = {
+  window: "window",
+  slider: "window",
+  garage_window: "window",
+  sectional_door: "garage_door",
+  pa_door: "external_door",
+  entrance: "external_door",
+};
+
+/** A relational opening_schedule row composed from one enriched opening (job/created_by/
+ * status fields are added at the IO boundary). */
+export type ComposedOpeningRow = {
+  opening_type: string;
+  width_mm: number;
+  height_mm: number | null;
+  room_name: string | null;
+  confidence: "high" | "mid" | "low";
+  source_evidence: string;
+  notes: string;
+};
+
+/** The dedup key for an opening_schedule row: type + dims, source-agnostic. */
+export function openingRowKey(
+  opening_type: string,
+  width_mm: number | null,
+  height_mm: number | null,
+): string {
+  return `${opening_type}|${width_mm ?? "n"}|${height_mm ?? "n"}`;
+}
+
+/**
+ * PURE seam — map composed enriched openings[] onto relational opening_schedule rows.
+ *
+ * Never fabricates: an opening with no resolved width (e.g. the w=0 entrance) is skipped
+ * — it carries no QS value and would be a junk relational row (the flat-block export still
+ * shows it from openings[]). Dedupes against rows ALREADY in the table — passed in as
+ * `existingKeys` (a FIXED pre-existing snapshot) on (opening_type, width, height), source-
+ * agnostic — so a composed window never piles on an identical vision/text row. Genuine
+ * duplicates WITHIN the composed set (e.g. two matching bedroom windows) are preserved,
+ * because dedup is only against the pre-existing snapshot, not against rows built here.
+ */
+export function buildComposedOpeningRows(
+  openings: Opening[],
+  existingKeys: ReadonlySet<string>,
+): { rows: ComposedOpeningRow[]; skipped: number } {
+  const rows: ComposedOpeningRow[] = [];
+  let skipped = 0;
+  for (const o of openings) {
+    // width 0 = unresolved (the entrance) — never priced; skip the relational row.
+    if (!(o.width_m > 0)) {
+      skipped++;
+      continue;
+    }
+    const opening_type = OPENING_TYPE_TO_SCHEDULE[o.type] ?? "window";
+    const width_mm = Math.round(o.width_m * 1000);
+    const height_mm = o.height_m > 0 ? Math.round(o.height_m * 1000) : null;
+
+    if (existingKeys.has(openingRowKey(opening_type, width_mm, height_mm))) {
+      skipped++;
+      continue;
+    }
+
+    const conf = o.confidence === "high" ? "high" : o.confidence === "medium" ? "mid" : "low";
+    rows.push({
+      opening_type,
+      width_mm,
+      height_mm,
+      room_name: o.room,
+      // Heightless rows are flagged mid: the head-datum safeguard or an unread pane left
+      // the height unresolved — the reviewer confirms before QS.
+      confidence: height_mm != null ? conf : "mid",
+      source_evidence: `Composed takeoff — ${o.type} ${width_mm}${height_mm != null ? `×${height_mm}` : ""}${o.room ? ` (${o.room})` : ""}`,
+      notes: o.type, // preserve the true flat-opening type for traceability
+    });
+  }
+  return { rows, skipped };
+}
+
+/**
+ * Persist the composed, enriched openings[] (the slider-inclusive set the flat-block QS
+ * export reads) into the relational opening_schedule table.
+ *
+ * This is the SINGLE opening-write path the auto flow uses. Without it the slider and
+ * any callout-only window live only in the enriched takeoff JSON: the vision/text pass
+ * drops every dimensionless callout (vision.functions.ts: `if (w.width_mm == null)
+ * continue`), so on a no-schedule plan opening_schedule is empty and the Windows & Doors
+ * tab + relational QS path disagree with the workbook (which reads openings[] directly).
+ *
+ * Re-run safe and never touches confirmed rows: a re-run sees its own prior drafts in the
+ * pre-existing snapshot and skips them. IO only — the mapping/dedup is buildComposedOpeningRows.
+ */
+export async function persistComposedOpenings(args: {
+  jobId: string;
+  createdBy: string;
+  openings: Opening[];
+}): Promise<{ inserted: number; skipped: number }> {
+  // Snapshot what's already in the table ONCE, so dedup is against other sources / prior
+  // runs only — never against duplicates we insert in this same call.
+  const { data: preExisting } = await supabase
+    .from("opening_schedule")
+    .select("opening_type, width_mm, height_mm")
+    .eq("job_id", args.jobId);
+  const existingKeys = new Set<string>(
+    (preExisting ?? []).map(
+      (r: { opening_type: string; width_mm: number | null; height_mm: number | null }) =>
+        openingRowKey(r.opening_type, r.width_mm, r.height_mm),
+    ),
+  );
+
+  const { rows, skipped } = buildComposedOpeningRows(args.openings, existingKeys);
+
+  let inserted = 0;
+  let failed = 0;
+  for (const row of rows) {
+    const { error } = await supabase.from("opening_schedule").insert({
+      job_id: args.jobId,
+      plan_page_number: 1,
+      quantity: 1,
+      source: "Composed takeoff",
+      review_status: "review_required",
+      created_by: args.createdBy,
+      ...row,
+    });
+    if (error) {
+      failed++;
+      continue;
+    }
+    inserted++;
+  }
+  return { inserted, skipped: skipped + failed };
 }

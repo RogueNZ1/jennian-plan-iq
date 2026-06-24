@@ -18,6 +18,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 import { extractJobHeaderFromFile } from "@/lib/takeoff/extract-spec";
+import { OPENING_TYPE_TO_SCHEDULE } from "@/lib/takeoff/extract-openings";
+import type { Opening } from "@/lib/takeoff/takeoff-types";
 import type { ExtractedFile } from "@/lib/takeoff/pdf-text";
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -580,8 +582,31 @@ export async function buildCartersInputs(
 
   const job = jobRes.data as Record<string, unknown>;
   const qtys = (qtyRes.data ?? []) as Record<string, unknown>[];
-  const openings = (openingsRes.data ?? []) as Record<string, unknown>[];
   const items = (itemsRes.data ?? []) as Record<string, unknown>[];
+
+  // X — canonical opening source. The complete opening set lives in
+  // takeoff_runs.takeoff_json.openings[] (the same source the QS export reads). When present,
+  // map each opening to the relational shape the filters below expect:
+  //   window/slider/garage_window → "window" (area-based windowTotalAreaM2)
+  //   entrance/pa_door            → "external_door" (doorCount ×1.98)
+  //   sectional_door              → "garage_door"  (garageDoorCount ×10.08)
+  // Parity with the QS export (applyEnrichedTakeoff REPLACE): when openings[] exists, the
+  // relational opening_schedule — including any manual rows — is IGNORED, no overlay/dedup.
+  // Fail-soft: a pre-convergence job (no enriched takeoff) falls back to opening_schedule, unchanged.
+  // Dynamic import sidesteps the iq-qs-export ↔ iq-carters-loads cycle (re-export at the bottom of
+  // iq-qs-export). READ-only — never writes openings[]/takeoff_json; no glass imports.
+  const { loadEnrichedTakeoffJson } = await import("@/lib/iq-qs-export");
+  const enriched = await loadEnrichedTakeoffJson(jobId);
+  const enrichedOps: Opening[] = enriched?.openings ?? [];
+  const openings: Record<string, unknown>[] =
+    enrichedOps.length > 0
+      ? enrichedOps.map((o) => ({
+          opening_type: OPENING_TYPE_TO_SCHEDULE[o.type] ?? "window",
+          width_mm: o.width_m > 0 ? Math.round(o.width_m * 1000) : 0,
+          height_mm: o.height_m > 0 ? Math.round(o.height_m * 1000) : null,
+          quantity: 1,
+        }))
+      : ((openingsRes.data ?? []) as Record<string, unknown>[]);
 
   const qty = (type: string): number => {
     const q = qtys.find((q) => q["quantity_type"] === type);
@@ -600,10 +625,16 @@ export async function buildCartersInputs(
   const studHeight = 2.4;
 
   const windows = openings.filter((o) => o["opening_type"] === "window");
+  // External-envelope door openings that pierce the cladding/lining (feed openingAreaM2 →
+  // gibWallStdM2). Match the persisted vocabulary: external_door, plus ranchsliders as
+  // sliding_door (vision path) or slider (manual entry). INTERNAL doors are deliberately NOT
+  // matched — this deduction is external-opening-based (perimeter-seeded), and internal doors
+  // aren't in opening_schedule on the enriched path (they live in door_counts). See ALL writers:
+  // extract-openings.ts (external_door/garage_door/window) + vision.functions.ts + OpeningScheduleTab.
   const doors = openings.filter((o) =>
-    ["external", "internal", "sliding"].includes(String(o["opening_type"] ?? "")),
+    ["external_door", "sliding_door", "slider"].includes(String(o["opening_type"] ?? "")),
   );
-  const garageDoors = openings.filter((o) => o["opening_type"] === "garage");
+  const garageDoors = openings.filter((o) => o["opening_type"] === "garage_door");
 
   const windowArea = windows.reduce((s, w) => {
     const width = Number(w["width_mm"] ?? 0) / 1000;
@@ -672,7 +703,7 @@ export async function buildCartersInputs(
     doorCount: doors.reduce((s, d) => s + Number(d["quantity"] ?? 1), 0),
     garageDoorCount: garageDoors.reduce((s, g) => s + Number(g["quantity"] ?? 1), 0),
     slidingDoorCount: openings
-      .filter((o) => o["opening_type"] === "sliding")
+      .filter((o) => ["sliding_door", "slider"].includes(String(o["opening_type"] ?? "")))
       .reduce((s, d) => s + Number(d["quantity"] ?? 1), 0),
 
     bedroomCount,

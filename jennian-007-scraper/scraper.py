@@ -925,91 +925,203 @@ async def scrape_trademe():
     log.info("  TradeMe: %d total listings/sections", total)
 
 # ---------------------------------------------------------------------------
-# 2.4 PNCC Building Consents
+# 2.4 PNCC Building Consents via Stats NZ Monthly CSV Release
+#
+# PNCC's website (pncc.govt.nz) returns HTTP 403 for all programmatic access.
+# Stats NZ publishes the same Palmerston North City aggregate building consent
+# statistics as a public monthly ZIP/CSV release. Individual consent records
+# with street addresses and applicant names are not available through any
+# known public NZ government API — PNCC uses the AlphaOne/ABCS system which
+# requires authentication.
+#
+# This function downloads the latest Stats NZ building consent ZIP, extracts
+# Palmerston North City data for the past 12 months, and stores monthly
+# aggregate records in consent_notices. Each record represents one building
+# type (Houses / Residential / All Buildings) for one calendar month.
 # ---------------------------------------------------------------------------
-PNCC_URL = "https://www.pncc.govt.nz/building-and-resource-consents/building-consents/"
+
+_STATS_NZ_ZIP_TEMPLATE = (
+    "https://www.stats.govt.nz/assets/Uploads/Building-consents-issued/"
+    "Building-consents-issued-{month_title}-{year}/"
+    "Download-data/building-consents-issued-{month_lower}-{year}.zip"
+)
+_STATS_NZ_TA_CSV = "Building consents by territorial authority (Monthly).csv"
+_PNCC_TA_NAME = "Palmerston North City"
+_CONSENT_BTYPES = {"Houses", "Residential buildings", "All buildings"}
+_BTYPE_LABEL = {
+    "Houses": "New Houses",
+    "Residential buildings": "New Residential Buildings",
+    "All buildings": "All New Buildings",
+}
+
+# source_url prefix written to DB — used as the delete-before-insert key
+_STATS_NZ_SOURCE_PREFIX = "https://www.stats.govt.nz/assets/Uploads/Building-consents-issued/"
+
+
+def _stats_nz_zip_info(months_back: int) -> tuple[str, str]:
+    """Return (url, period '2026.03') for a Stats NZ release N months ago."""
+    import calendar as _cal
+    now = datetime.now()
+    m = (now.month - months_back - 1) % 12 + 1
+    y = now.year + (now.month - months_back - 1) // 12
+    month_title = _cal.month_name[m]          # "March"
+    period = f"{y}.{m:02d}"                   # "2026.03"
+    url = _STATS_NZ_ZIP_TEMPLATE.format(
+        month_title=month_title,
+        year=y,
+        month_lower=month_title.lower(),
+    )
+    return url, period
+
+
+def _parse_stats_nz_pncc(zip_bytes: bytes) -> list[dict]:
+    """Stream-parse the TA monthly CSV and return Palmerston North rows."""
+    import zipfile, io, csv
+    rows = []
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
+        with z.open(_STATS_NZ_TA_CSV) as f:
+            reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8-sig"))
+            for row in reader:
+                if _PNCC_TA_NAME not in row.get("Series_title_1", ""):
+                    continue
+                if row.get("Series_title_2") not in _CONSENT_BTYPES:
+                    continue
+                if row.get("Series_title_3") != "New":
+                    continue
+                rows.append(row)
+    return rows
+
 
 async def scrape_pncc_consents():
-    log.info("Scraping PNCC Building Consents...")
-    async with async_playwright() as p:
-        browser = await new_browser(p)
-        page = await new_page(browser)
+    """Fetch PNCC building consent stats from Stats NZ monthly release."""
+    import asyncio
+    import calendar as _cal
+    import urllib.request
+    import urllib.error
+
+    log.info("Fetching PNCC consent data via Stats NZ building consent release...")
+
+    # Stats NZ releases ~5–8 weeks after the reference month end.
+    # Try months 2–6 back from now to find the most recent published release.
+    zip_bytes: bytes | None = None
+    zip_url: str | None = None
+    release_period: str | None = None
+
+    for months_back in range(2, 7):
+        url, period = _stats_nz_zip_info(months_back)
+
+        # Fast-path: if this release is already stored, nothing to do.
+        already = (
+            supabase.table("consent_notices")
+            .select("id", count="exact")
+            .eq("source_url", url)
+            .execute()
+        )
+        if already.count and already.count > 0:
+            log.info("  Stats NZ: release %s already in DB — skipping download", period)
+            return
+
         try:
-            await page.goto(PNCC_URL, wait_until="networkidle", timeout=40000)
-            await page.wait_for_timeout(3000)
-            content = await page.content()
-            soup = BeautifulSoup(content, "html.parser")
-            text = soup.get_text(" ", strip=True)
-
-            # Check if the page is machine-readable
-            if len(text.strip()) < 200:
-                log.warning("  PNCC: page appears empty — manual check required")
-                supabase.table("consent_notices").insert({
-                    "consent_type": "DATA GAP",
-                    "source_url": PNCC_URL,
-                    "applicant": "Manual check required — page not machine-readable",
-                    "captured_at": datetime.now(timezone.utc).isoformat(),
-                }).execute()
-                return
-
-            # Look for consent table or list
-            rows = soup.select("table tr, .consent-item, [class*='consent'], [class*='application']")
-            count = 0
-            for row in rows:
-                row_text = row.get_text(" ", strip=True)
-                # Only residential dwellings
-                if not re.search(r"residential|dwelling|house|new home", row_text, re.I):
-                    continue
-                # Find suburb
-                suburb = None
-                for s in MANAWATU_SUBURBS:
-                    if s in row_text.lower():
-                        suburb = s.title()
-                        break
-                if not suburb:
-                    continue
-                # Applicant / builder name
-                applicant_m = re.search(r"(?:applicant|builder|owner)[:\s]+([A-Z][a-zA-Z\s&]{2,40})", row_text)
-                applicant = applicant_m.group(1).strip() if applicant_m else ""
-                # Date
-                date_m = re.search(r"(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}|\d{4}-\d{2}-\d{2})", row_text)
-                date_filed = date_m.group(1) if date_m else None
-
-                # Competitor check
-                is_competitor = False
-                competitor_name = None
-                for comp in COMPETITOR_BUILDERS:
-                    if comp in row_text.lower() or comp in applicant.lower():
-                        is_competitor = True
-                        competitor_name = comp.title()
-                        break
-
-                supabase.table("consent_notices").insert({
-                    "address": row_text[:200],
-                    "suburb": suburb,
-                    "applicant": applicant,
-                    "consent_type": "Residential Dwelling",
-                    "is_competitor": is_competitor,
-                    "competitor_name": competitor_name,
-                    "source_url": PNCC_URL,
-                    "captured_at": datetime.now(timezone.utc).isoformat(),
-                }).execute()
-                count += 1
-
-            if count == 0:
-                log.warning("  PNCC: no consent records found — manual check recommended")
-                supabase.table("consent_notices").insert({
-                    "consent_type": "DATA GAP",
-                    "source_url": PNCC_URL,
-                    "applicant": "No machine-readable consent data found this week",
-                    "captured_at": datetime.now(timezone.utc).isoformat(),
-                }).execute()
-            else:
-                log.info("  PNCC: %d consent notices saved", count)
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                if r.status == 200:
+                    zip_bytes = r.read()
+                    zip_url = url
+                    release_period = period
+                    log.info("  Stats NZ: downloaded %s (%d bytes)", period, len(zip_bytes))
+                    break
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                log.warning("  Stats NZ HTTP %d: %s", e.code, url)
         except Exception as e:
-            log.error("  PNCC error: %s", e)
-        finally:
-            await browser.close()
+            log.debug("  Stats NZ: %s — %s", url[:70], e)
+
+    if not zip_bytes:
+        log.warning("  PNCC/Stats NZ: no recent building consent release found")
+        supabase.table("consent_notices").insert({
+            "consent_type": "DATA GAP",
+            "source_url": _STATS_NZ_SOURCE_PREFIX,
+            "applicant": "Stats NZ building consent data unavailable this cycle",
+            "suburb": "Palmerston North City",
+            "captured_at": datetime.now(timezone.utc).isoformat(),
+        }).execute()
+        return
+
+    # Parse the 748 MB CSV inside the ZIP (run in thread to avoid blocking event loop)
+    raw_rows = await asyncio.to_thread(_parse_stats_nz_pncc, zip_bytes)
+    log.info("  Stats NZ: %d Palmerston North City rows parsed", len(raw_rows))
+
+    # Pivot separate Number / Value rows into one record per (period, btype)
+    from collections import defaultdict
+    pivoted: dict[tuple, dict] = defaultdict(lambda: {"number": None, "value": None})
+    for row in raw_rows:
+        key = (row["Period"], row["Series_title_2"])
+        metric = row.get("Series_title_4", "")
+        raw_val = row.get("Data_value", "")
+        try:
+            val = int(float(raw_val)) if raw_val else None
+        except (ValueError, TypeError):
+            val = None
+        if metric == "Number":
+            pivoted[key]["number"] = val
+        elif metric == "Value":
+            pivoted[key]["value"] = val
+
+    # Keep only the 13 most recent calendar months
+    all_periods = sorted({k[0] for k in pivoted})
+    recent = set(all_periods[-13:])
+
+    # Remove any stale Stats NZ records before writing fresh ones
+    supabase.table("consent_notices").delete().like(
+        "source_url", f"{_STATS_NZ_SOURCE_PREFIX}%"
+    ).execute()
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    count = 0
+
+    for (period, btype) in sorted(k for k in pivoted if k[0] in recent):
+        d = pivoted[(period, btype)]
+        num = d["number"]
+        val = d["value"]
+        if num is None and val is None:
+            continue
+
+        # Format "2026.03" → "Mar 2026"
+        try:
+            y_str, m_str = period.split(".")
+            period_label = f"{_cal.month_abbr[int(m_str)]} {y_str}"
+        except Exception:
+            period_label = period
+
+        num_str = f"{num} consent{'s' if (num or 0) != 1 else ''}" if num is not None else ""
+        val_str = f"${val:,.0f}" if val else ""
+        parts = ["Palmerston North City", period_label]
+        if num_str:
+            parts.append(num_str)
+        if val_str:
+            parts.append(val_str)
+        address = " — ".join(parts)
+
+        # Parse period into a date string for date_filed ("2026.03" → "2026-03-01")
+        try:
+            y_str, m_str = period.split(".")
+            date_filed = f"{y_str}-{m_str}-01"
+        except Exception:
+            date_filed = None
+
+        supabase.table("consent_notices").insert({
+            "address":        address[:255],
+            "suburb":         "Palmerston North City",
+            "applicant":      "Palmerston North City (Stats NZ)",
+            "consent_type":   _BTYPE_LABEL.get(btype, btype),
+            "date_filed":     date_filed,
+            "is_competitor":  False,
+            "source_url":     zip_url,
+            "captured_at":    now_iso,
+        }).execute()
+        count += 1
+
+    log.info("  Stats NZ PNCC: %d consent records saved (last 13 months)", count)
 
 # ---------------------------------------------------------------------------
 # 2.5 Tamakuku Terrace — section-level detail with stage tracking

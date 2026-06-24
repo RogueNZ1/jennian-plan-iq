@@ -658,6 +658,31 @@ export async function runAutomaticTakeoff(args: {
                     runId,
                     composed.enriched,
                   );
+
+                  // Unify the opening-write path: persist the composed openings[] (the
+                  // slider-inclusive set the QS export reads) into opening_schedule. The
+                  // text/vision pass above drops dimensionless callouts → empty on a
+                  // no-schedule plan, leaving the Windows & Doors tab + relational QS path
+                  // out of sync with the workbook. Dedup-safe against the rows that pass
+                  // already wrote, and never touches confirmed rows. Fails soft.
+                  try {
+                    const { persistComposedOpenings } = await import("./extract-openings");
+                    const r = await persistComposedOpenings({
+                      jobId,
+                      createdBy: userId,
+                      openings: composed.enriched.openings ?? [],
+                    });
+                    if (r.inserted > 0) {
+                      await logAudit({
+                        jobId,
+                        userId,
+                        action: "opening_created",
+                        notes: `${r.inserted} composed openings`,
+                      });
+                    }
+                  } catch (openErr) {
+                    console.warn("[concept-compose] persistComposedOpenings failed — run continues:", openErr);
+                  }
                 }
               } catch (reconErr) {
                 console.warn("[concept-recon] recognise/compose failed — run continues:", reconErr);
