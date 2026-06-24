@@ -12,10 +12,10 @@ import { runElevationVectorOpenings } from "../../src/lib/takeoff/run-elevation-
 
 const FENNER_ELEVATIONS = resolve(process.cwd(), "tests/doors/plans/fenner-elevations.pdf");
 
-async function fennerSegments() {
+async function pageSegments(pdfPath: string) {
   const pdfjs = await import("pdfjs-dist-door/legacy/build/pdf.mjs");
   const doc = await pdfjs.getDocument({
-    data: new Uint8Array(readFileSync(FENNER_ELEVATIONS)),
+    data: new Uint8Array(readFileSync(pdfPath)),
     disableFontFace: true,
   } as never).promise;
   try {
@@ -24,6 +24,10 @@ async function fennerSegments() {
   } finally {
     await doc.destroy().catch(() => {});
   }
+}
+
+async function fennerSegments() {
+  return pageSegments(FENNER_ELEVATIONS);
 }
 
 const near = (value: number | null | undefined, target: number, tolerance: number) =>
@@ -41,20 +45,49 @@ describe("elevation vector opening detector", () => {
 
   it("finds Fenner-sized elevation opening candidates without flooding low-confidence noise", async () => {
     const openings = detectElevationVectorOpenings(await fennerSegments());
+    const garageDoors = openings.filter((opening) => opening.type === "garage_door");
 
     expect(openings.length).toBeGreaterThan(15);
     expect(openings.length).toBeLessThan(60);
     expect(openings.every((opening) => opening.confidence === "medium")).toBe(true);
-    expect(openings.every((opening) => opening.source === "vector_face_band")).toBe(true);
-
     expect(
-      openings.some(
-        (opening) => opening.type === "garage_door" && near(opening.widthMm, 4800, 350),
+      openings.every((opening) =>
+        ["vector_face_band", "multi_panel_slider", "sectional_garage_door"].includes(
+          opening.source,
+        ),
       ),
     ).toBe(true);
+
+    expect(garageDoors).toHaveLength(1);
+    expect(garageDoors[0].source).toBe("sectional_garage_door");
+    expect(near(garageDoors[0].widthMm, 4800, 120)).toBe(true);
+    expect(near(garageDoors[0].heightMm, 2100, 120)).toBe(true);
     expect(
       openings.some((opening) => opening.type === "slider" && near(opening.widthMm, 2400, 250)),
     ).toBe(true);
+    expect(
+      openings.some(
+        (opening) =>
+          opening.source === "multi_panel_slider" &&
+          opening.type === "slider" &&
+          near(opening.widthMm, 3600, 250) &&
+          near(opening.heightMm, 2100, 180),
+      ),
+    ).toBe(true);
+    expect(
+      openings.filter(
+        (opening) =>
+          opening.source === "multi_panel_slider" &&
+          opening.face === "elevation-face-4" &&
+          near(opening.widthMm, 3600, 250) &&
+          near(opening.heightMm, 2100, 180),
+      ),
+    ).toHaveLength(2);
+    expect(
+      openings.some(
+        (opening) => opening.source === "multi_panel_slider" && opening.face === "elevation-face-5",
+      ),
+    ).toBe(false);
     expect(openings.some((opening) => near(opening.widthMm, 1500, 250))).toBe(true);
     expect(openings.some((opening) => near(opening.heightMm, 2100, 250))).toBe(true);
   }, 60_000);

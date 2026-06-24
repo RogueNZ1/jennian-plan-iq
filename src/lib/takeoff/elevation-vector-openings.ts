@@ -15,7 +15,7 @@ export type ElevationFaceBand = {
 };
 
 export type ElevationVectorOpening = ElevationOpeningCandidate & {
-  source: "vector_face_band";
+  source: "vector_face_band" | "multi_panel_slider" | "sectional_garage_door";
   faceBandId: string;
   x: number;
   y: number;
@@ -24,6 +24,7 @@ export type ElevationVectorOpening = ElevationOpeningCandidate & {
 const PT_PER_MM = 72 / 25.4;
 const ELEVATION_SCALE = 100;
 const ptToMm = (pt: number) => (pt / PT_PER_MM) * ELEVATION_SCALE;
+const mmToPt = (mm: number) => (mm / ELEVATION_SCALE) * PT_PER_MM;
 
 function axisSegments(segments: readonly Segment[]): {
   horizontals: AxialHorizontal[];
@@ -136,10 +137,278 @@ function interiorVerticalCount(
   ).length;
 }
 
+function interiorVerticalClusters(
+  verticals: readonly AxialVertical[],
+  r: { x0: number; x1: number; y0: number; y1: number },
+): number[] {
+  return clusteredValues(
+    verticals
+      .filter((v) => v.x > r.x0 + 2 && v.x < r.x1 - 2 && v.y0 <= r.y0 + 4 && v.y1 >= r.y1 - 4)
+      .map((v) => v.x),
+    4.5,
+  );
+}
+
 function openingType(widthMm: number, heightMm: number): ElevationOpeningCandidate["type"] {
-  if (widthMm >= 4200 && heightMm >= 1800) return "garage_door";
   if (heightMm >= 1800 && widthMm >= 1200) return "slider";
   return "window";
+}
+
+function clusteredValues(values: readonly number[], tolerance: number): number[] {
+  const clustered: Array<{ value: number; count: number }> = [];
+  for (const value of [...values].sort((a, b) => a - b)) {
+    const existing = clustered.find((candidate) => Math.abs(candidate.value - value) <= tolerance);
+    if (!existing) {
+      clustered.push({ value, count: 1 });
+    } else {
+      existing.value = (existing.value * existing.count + value) / (existing.count + 1);
+      existing.count += 1;
+    }
+  }
+  return clustered.map((cluster) => cluster.value);
+}
+
+function fullWidthRailYs(
+  horizontals: readonly AxialHorizontal[],
+  r: { x0: number; x1: number; y0: number; y1: number },
+): number[] {
+  const width = r.x1 - r.x0;
+  const rails = horizontals
+    .filter(
+      (h) =>
+        h.y >= r.y0 - 1.6 &&
+        h.y <= r.y1 + 1.6 &&
+        h.len >= width * 0.85 &&
+        h.x0 <= r.x0 + 3 &&
+        h.x1 >= r.x1 - 3,
+    )
+    .map((h) => h.y);
+  return clusteredValues(rails, 1.2);
+}
+
+function sectionalRailPattern(
+  horizontals: readonly AxialHorizontal[],
+  r: { x0: number; x1: number; y0: number; y1: number },
+): number[] | null {
+  const rails = fullWidthRailYs(horizontals, r);
+  if (rails.length < 4 || rails.length > 7) return null;
+  if (!rails.some((y) => Math.abs(y - r.y0) <= 2.2)) return null;
+  if (!rails.some((y) => Math.abs(y - r.y1) <= 2.2)) return null;
+
+  const gaps = rails
+    .slice(1)
+    .map((y, index) => y - rails[index])
+    .filter((gap) => gap >= 4);
+  if (gaps.length < 3) return null;
+  const avg = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
+  const evenlyPanelled = gaps.every((gap) => gap >= avg * 0.55 && gap <= avg * 1.45);
+  return evenlyPanelled ? rails : null;
+}
+
+function nearestFaceBand(
+  bands: readonly ElevationFaceBand[],
+  r: { x0: number; x1: number; y0: number; y1: number },
+): ElevationFaceBand | null {
+  const cx = (r.x0 + r.x1) / 2;
+  const cy = (r.y0 + r.y1) / 2;
+  return (
+    [...bands].sort((a, b) => {
+      const overlapA = overlapRatio(r, a);
+      const overlapB = overlapRatio(r, b);
+      if (overlapA !== overlapB) return overlapB - overlapA;
+      const acx = (a.x0 + a.x1) / 2;
+      const acy = (a.y0 + a.y1) / 2;
+      const bcx = (b.x0 + b.x1) / 2;
+      const bcy = (b.y0 + b.y1) / 2;
+      return Math.hypot(cx - acx, cy - acy) - Math.hypot(cx - bcx, cy - bcy);
+    })[0] ?? null
+  );
+}
+
+function detectSectionalGarageDoorOpenings(
+  horizontals: readonly AxialHorizontal[],
+  verticals: readonly AxialVertical[],
+  bands: readonly ElevationFaceBand[],
+): ElevationVectorOpening[] {
+  const out: ElevationVectorOpening[] = [];
+  for (let i = 0; i < verticals.length; i += 1) {
+    for (let j = i + 1; j < verticals.length; j += 1) {
+      const a = verticals[i];
+      const b = verticals[j];
+      const x0 = Math.min(a.x, b.x);
+      const x1 = Math.max(a.x, b.x);
+      const widthMm = Math.round(ptToMm(x1 - x0));
+      if (widthMm < 4200 || widthMm > 5200) continue;
+
+      const y0 = Math.max(a.y0, b.y0);
+      const y1 = Math.min(a.y1, b.y1);
+      if (y1 <= y0) continue;
+      if (y0 <= 120 || y1 >= 720) continue;
+      const heightMm = Math.round(ptToMm(y1 - y0));
+      if (heightMm < 1800 || heightMm > 2400) continue;
+      if (a.len < mmToPt(1600) || b.len < mmToPt(1600)) continue;
+
+      const r = { x0, x1, y0, y1 };
+      const rails = sectionalRailPattern(horizontals, r);
+      if (!rails) continue;
+
+      const faceBand = nearestFaceBand(bands, r);
+      const faceBandId = faceBand?.id ?? "elevation-face-unmapped";
+      out.push({
+        source: "sectional_garage_door",
+        faceBandId,
+        face: faceBandId,
+        type: "garage_door",
+        label: null,
+        widthMm,
+        heightMm,
+        quantity: 1,
+        cladding: null,
+        confidence: "medium",
+        notes: [
+          `sectional garage door candidate from ${rails.length} full-width horizontal panel rails; review before pricing because elevation face labels are not explicit`,
+        ],
+        x: Math.round(((x0 + x1) / 2) * 10) / 10,
+        y: Math.round(((y0 + y1) / 2) * 10) / 10,
+      });
+    }
+  }
+  return out;
+}
+
+function modularSliderWidthScore(widthMm: number): number {
+  const commonWidths = [2400, 3000, 3600, 4200];
+  return Math.min(...commonWidths.map((width) => Math.abs(widthMm - width)));
+}
+
+function sliderShapeScore(candidate: {
+  widthMm: number;
+  heightMm: number;
+  railCount: number;
+  verticalClusterCount: number;
+}): number {
+  const heightScore = Math.abs(candidate.heightMm - 2100);
+  const widthScore = modularSliderWidthScore(candidate.widthMm) * 0.35;
+  const railScore = Math.abs(candidate.railCount - 2) * 60;
+  const clusterScore =
+    candidate.verticalClusterCount >= 2 && candidate.verticalClusterCount <= 5 ? 0 : 120;
+  const fullAssemblyBonus =
+    candidate.widthMm >= 2800 && candidate.railCount === 2 && candidate.verticalClusterCount >= 3
+      ? -80
+      : 0;
+  return heightScore + widthScore + railScore + clusterScore + fullAssemblyBonus;
+}
+
+function hasGlazedPanelBaySpacing(verticalClusters: readonly number[], widthPt: number): boolean {
+  if (verticalClusters.length <= 1) return true;
+  const sorted = [...verticalClusters].sort((a, b) => a - b);
+  const gaps = sorted.slice(1).map((value, index) => value - sorted[index]);
+  const wideGapThreshold = Math.max(14, widthPt * 0.16);
+  return gaps.some((gap) => gap >= wideGapThreshold);
+}
+
+function candidateBounds(candidate: ElevationVectorOpening): {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+} {
+  return {
+    x0: candidate.x - ((candidate.widthMm ?? 0) / ELEVATION_SCALE) * (PT_PER_MM / 2),
+    x1: candidate.x + ((candidate.widthMm ?? 0) / ELEVATION_SCALE) * (PT_PER_MM / 2),
+    y0: candidate.y - ((candidate.heightMm ?? 0) / ELEVATION_SCALE) * (PT_PER_MM / 2),
+    y1: candidate.y + ((candidate.heightMm ?? 0) / ELEVATION_SCALE) * (PT_PER_MM / 2),
+  };
+}
+
+function detectMultiPanelSliderOpenings(
+  horizontals: readonly AxialHorizontal[],
+  verticals: readonly AxialVertical[],
+  bands: readonly ElevationFaceBand[],
+): ElevationVectorOpening[] {
+  const raw: Array<ElevationVectorOpening & { shapeScore: number }> = [];
+  const searchRegions = [
+    ...bands,
+    { id: "elevation-face-unmapped", x0: 20, x1: 1160, y0: 120, y1: 720 },
+  ];
+  for (const band of searchRegions) {
+    const bandVerticals = verticals.filter(
+      (v) =>
+        v.x >= band.x0 &&
+        v.x <= band.x1 &&
+        v.y0 >= band.y0 - 25 &&
+        v.y1 <= band.y1 + 45 &&
+        v.len >= mmToPt(1600),
+    );
+    for (let i = 0; i < bandVerticals.length; i += 1) {
+      for (let j = i + 1; j < bandVerticals.length; j += 1) {
+        const a = bandVerticals[i];
+        const b = bandVerticals[j];
+        const x0 = Math.min(a.x, b.x);
+        const x1 = Math.max(a.x, b.x);
+        const widthMm = Math.round(ptToMm(x1 - x0));
+        if (widthMm < 2200 || widthMm > 4200) continue;
+
+        const y0 = Math.max(a.y0, b.y0);
+        const y1 = Math.min(a.y1, b.y1);
+        if (y1 <= y0) continue;
+        const heightMm = Math.round(ptToMm(y1 - y0));
+        if (heightMm < 1750 || heightMm > 2350) continue;
+        if (!horizontalSpans(horizontals, y0, x0, x1)) continue;
+        if (!horizontalSpans(horizontals, y1, x0, x1)) continue;
+
+        const r = { x0, x1, y0, y1 };
+        const rails = fullWidthRailYs(horizontals, r);
+        if (rails.length < 2 || rails.length > 5) continue;
+        if (sectionalRailPattern(horizontals, r)) continue;
+
+        const mullionClusters = interiorVerticalClusters(verticals, r);
+        if (mullionClusters.length < 1 || mullionClusters.length > 7) continue;
+        if (!hasGlazedPanelBaySpacing(mullionClusters, x1 - x0)) continue;
+
+        const faceBand = nearestFaceBand(bands, r);
+        const faceBandId = faceBand?.id ?? band.id;
+        const shapeScore = sliderShapeScore({
+          widthMm,
+          heightMm,
+          railCount: rails.length,
+          verticalClusterCount: mullionClusters.length,
+        });
+        raw.push({
+          source: "multi_panel_slider",
+          faceBandId,
+          face: faceBandId,
+          type: "slider",
+          label: null,
+          widthMm,
+          heightMm,
+          quantity: 1,
+          cladding: null,
+          confidence: "medium",
+          notes: [
+            `multi-panel glazed opening candidate from ${mullionClusters.length} vertical frame/mullion clusters and ${rails.length} full-width rails; review before pricing because elevation face labels are not explicit`,
+          ],
+          x: Math.round(((x0 + x1) / 2) * 10) / 10,
+          y: Math.round(((y0 + y1) / 2) * 10) / 10,
+          shapeScore,
+        });
+      }
+    }
+  }
+
+  raw.sort(
+    (a, b) =>
+      a.shapeScore - b.shapeScore ||
+      (b.widthMm ?? 0) * (b.heightMm ?? 0) - (a.widthMm ?? 0) * (a.heightMm ?? 0),
+  );
+  const kept: Array<ElevationVectorOpening & { shapeScore: number }> = [];
+  for (const candidate of raw) {
+    const duplicate = kept.some(
+      (existing) => overlapRatio(candidateBounds(candidate), candidateBounds(existing)) > 0.7,
+    );
+    if (!duplicate) kept.push(candidate);
+  }
+  return kept.map(({ shapeScore: _shapeScore, ...candidate }) => candidate);
 }
 
 function overlapRatio(
@@ -161,6 +430,8 @@ export function detectElevationVectorOpenings(
   const { horizontals, verticals } = axisSegments(segments);
   const bands = detectElevationFaceBands(segments);
   const candidates: ElevationVectorOpening[] = [];
+  candidates.push(...detectSectionalGarageDoorOpenings(horizontals, verticals, bands));
+  candidates.push(...detectMultiPanelSliderOpenings(horizontals, verticals, bands));
 
   for (const band of bands) {
     const bandVerticals = verticals.filter(
@@ -189,6 +460,13 @@ export function detectElevationVectorOpenings(
         const density = interiorVerticalCount(verticals, { x0, x1, y0, y1 });
         if (density > 8) continue;
 
+        if (
+          widthMm >= 4200 &&
+          heightMm >= 1800 &&
+          fullWidthRailYs(horizontals, { x0, x1, y0, y1 }).length > 8
+        )
+          continue;
+
         if (density > 2) continue;
         candidates.push({
           source: "vector_face_band",
@@ -211,27 +489,22 @@ export function detectElevationVectorOpenings(
     }
   }
 
+  const priority = (candidate: ElevationVectorOpening) =>
+    candidate.source === "sectional_garage_door"
+      ? 0
+      : candidate.source === "multi_panel_slider"
+        ? 1
+        : 2;
   candidates.sort(
-    (a, b) => (b.widthMm ?? 0) * (b.heightMm ?? 0) - (a.widthMm ?? 0) * (a.heightMm ?? 0),
+    (a, b) =>
+      priority(a) - priority(b) ||
+      (b.widthMm ?? 0) * (b.heightMm ?? 0) - (a.widthMm ?? 0) * (a.heightMm ?? 0),
   );
   const kept: ElevationVectorOpening[] = [];
   for (const candidate of candidates) {
     const duplicate = kept.some(
       (k) =>
-        overlapRatio(
-          {
-            x0: candidate.x - ((candidate.widthMm ?? 0) / ELEVATION_SCALE) * (PT_PER_MM / 2),
-            x1: candidate.x + ((candidate.widthMm ?? 0) / ELEVATION_SCALE) * (PT_PER_MM / 2),
-            y0: candidate.y - ((candidate.heightMm ?? 0) / ELEVATION_SCALE) * (PT_PER_MM / 2),
-            y1: candidate.y + ((candidate.heightMm ?? 0) / ELEVATION_SCALE) * (PT_PER_MM / 2),
-          },
-          {
-            x0: k.x - ((k.widthMm ?? 0) / ELEVATION_SCALE) * (PT_PER_MM / 2),
-            x1: k.x + ((k.widthMm ?? 0) / ELEVATION_SCALE) * (PT_PER_MM / 2),
-            y0: k.y - ((k.heightMm ?? 0) / ELEVATION_SCALE) * (PT_PER_MM / 2),
-            y1: k.y + ((k.heightMm ?? 0) / ELEVATION_SCALE) * (PT_PER_MM / 2),
-          },
-        ) > 0.65 ||
+        overlapRatio(candidateBounds(candidate), candidateBounds(k)) > 0.65 ||
         (Math.abs(k.x - candidate.x) < 5 &&
           Math.abs(k.y - candidate.y) < 5 &&
           Math.abs((k.widthMm ?? 0) - (candidate.widthMm ?? 0)) < 200 &&

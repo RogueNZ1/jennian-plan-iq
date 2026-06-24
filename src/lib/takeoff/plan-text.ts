@@ -55,6 +55,18 @@ export type PlanStandaloneOpeningWidth = {
   vertical: boolean;
   text: string;
 };
+export type PlanGarageDoorWitness = {
+  widthMm: number;
+  x: number;
+  y: number;
+  vertical: boolean;
+  text: string;
+  markerText: string;
+  markerX: number;
+  markerY: number;
+  room: string | null;
+  planSide: "plan_left" | "plan_right" | "plan_top" | "plan_bottom" | null;
+};
 export type PlanDraftingIssue = {
   kind: "malformed_dimension_label";
   text: string;
@@ -67,6 +79,7 @@ export type PlanText = {
   windowCodes: PlanWindowCode[];
   frameOpenings?: PlanFrameOpening[];
   standaloneOpeningWidths?: PlanStandaloneOpeningWidth[];
+  garageDoorWitnesses?: PlanGarageDoorWitness[];
   draftingIssues?: PlanDraftingIssue[];
   titleAreas: PlanTitleAreas;
 };
@@ -176,7 +189,8 @@ export function parseWindowCodes(labels: TextLabel[], rooms: PlanRoom[]): PlanWi
     // Prefix matches tolerate PDF text that has jammed trailing words, but only
     // when a nearby W-code proves the text belongs to a joinery callout.
     if (prefixMatch && !id) continue;
-    if (!id && !strictMatch) continue;
+    const anonymousLowercaseOpeningLabel = exactMatch != null && /x/.test(text) && !/X/.test(text);
+    if (!id && !strictMatch && !anonymousLowercaseOpeningLabel) continue;
     out.push({
       ...(id ? { id } : {}),
       heightMm: h,
@@ -202,7 +216,7 @@ export function parseWindowCodes(labels: TextLabel[], rooms: PlanRoom[]): PlanWi
 export function parseTitleAreas(labels: TextLabel[]): PlanTitleAreas {
   const out: PlanTitleAreas = {};
   const keys: Array<[RegExp, keyof PlanTitleAreas]> = [
-    [/^TOTAL ?AREA/i, "totalAreaM2"],
+    [/^(TOTAL ?AREA|AREA ?OVER ?FRAME|OVER ?FRAME ?AREA)/i, "totalAreaM2"],
     [/^CLADDING ?AREA/i, "claddingAreaM2"],
     [/^PORCH ?AREA/i, "porchAreaM2"],
     [/^COVERAGE ?AREA/i, "coverageAreaM2"],
@@ -218,7 +232,7 @@ export function parseTitleAreas(labels: TextLabel[]): PlanTitleAreas {
         if (!m) continue;
         const dx = v.x - l.x,
           dy = Math.abs(v.y - l.y);
-        if (dx <= 0 || dx > 240 || dy > 3.5) continue;
+        if (dx <= 0 || dx > 320 || dy > 3.5) continue;
         if (!best || dx < best.dx) best = { v: parseFloat(m[1]), dx };
       }
       if (best && out[key] == null) out[key] = best.v;
@@ -243,13 +257,81 @@ export function parseStandaloneOpeningWidths(labels: TextLabel[]): PlanStandalon
   const out: PlanStandaloneOpeningWidth[] = [];
   for (const l of labels) {
     const text = l.text.trim();
-    if (!/^\d[\d, ]{2,5}$/.test(text)) continue;
-    const widthMm = num(text);
+    const widthText = /^\d[\d, ]{2,5}$/.test(text) ? text : null;
+    if (!widthText) continue;
+    const widthMm = num(widthText);
     // Width-only exterior opening witnesses are typically sliders/large frames.
     // Internal door leaves and dimension ticks stay below this band and must not
     // become opening evidence without a separate physical-symbol/elevation match.
     if (widthMm < 1200 || widthMm > 6000) continue;
     out.push({ widthMm, x: l.x, y: l.y, vertical: l.vertical, text });
+  }
+  return out;
+}
+
+function garageDoorMarkerText(text: string): boolean {
+  return /\b(garage\s*door|sectional\s+door|roller\s+door)\b/i.test(text.trim());
+}
+
+function inferWitnessPlanSide(
+  witness: PlanStandaloneOpeningWidth,
+  room: PlanRoom | null,
+): PlanGarageDoorWitness["planSide"] {
+  if (!room) return null;
+  const dx = witness.x - room.x;
+  const dy = witness.y - room.y;
+  if (witness.vertical || Math.abs(dx) >= Math.abs(dy)) {
+    return dx >= 0 ? "plan_right" : "plan_left";
+  }
+  return dy >= 0 ? "plan_bottom" : "plan_top";
+}
+
+export function parseGarageDoorWitnesses(
+  labels: TextLabel[],
+  standaloneWidths: readonly PlanStandaloneOpeningWidth[],
+  rooms: readonly PlanRoom[],
+): PlanGarageDoorWitness[] {
+  const garageRooms = rooms.filter((room) => /^GARAGE\b/i.test(room.name.trim()));
+  const out: PlanGarageDoorWitness[] = [];
+  for (const marker of labels.filter((label) => garageDoorMarkerText(label.text))) {
+    const witness = standaloneWidths
+      .filter((candidate) => candidate.widthMm >= 1800 && candidate.widthMm <= 6000)
+      .map((candidate) => ({
+        candidate,
+        distance: Math.hypot(candidate.x - marker.x, candidate.y - marker.y),
+      }))
+      .filter((candidate) => candidate.distance <= 90)
+      .sort((a, b) => a.distance - b.distance)[0]?.candidate;
+    if (!witness) continue;
+
+    const room =
+      garageRooms
+        .map((candidate) => ({
+          candidate,
+          distance: Math.hypot(candidate.x - witness.x, candidate.y - witness.y),
+        }))
+        .filter((candidate) => candidate.distance <= 220)
+        .sort((a, b) => a.distance - b.distance)[0]?.candidate ?? null;
+
+    const duplicate = out.some(
+      (existing) =>
+        existing.widthMm === witness.widthMm &&
+        Math.hypot(existing.x - witness.x, existing.y - witness.y) <= 3,
+    );
+    if (duplicate) continue;
+
+    out.push({
+      widthMm: witness.widthMm,
+      x: witness.x,
+      y: witness.y,
+      vertical: witness.vertical,
+      text: witness.text,
+      markerText: marker.text.trim(),
+      markerX: marker.x,
+      markerY: marker.y,
+      room: room?.name ?? null,
+      planSide: inferWitnessPlanSide(witness, room),
+    });
   }
   return out;
 }
@@ -280,11 +362,13 @@ export function parsePlanText(labels: TextLabel[]): PlanText {
     return { rooms: [], windowCodes: [], frameOpenings: [], draftingIssues: [], titleAreas: {} };
   }
   const rooms = parseRoomDims(labels);
+  const standaloneOpeningWidths = parseStandaloneOpeningWidths(labels);
   return {
     rooms,
     windowCodes: parseWindowCodes(labels, rooms),
     frameOpenings: parseFrameOpenings(labels),
-    standaloneOpeningWidths: parseStandaloneOpeningWidths(labels),
+    standaloneOpeningWidths,
+    garageDoorWitnesses: parseGarageDoorWitnesses(labels, standaloneOpeningWidths, rooms),
     draftingIssues: parseDraftingIssues(labels),
     titleAreas: parseTitleAreas(labels),
   };

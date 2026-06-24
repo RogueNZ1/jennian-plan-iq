@@ -144,9 +144,27 @@ describe("window auto-routing — West Street against Haydon's hand-verified wor
     const area = routed.reduce((sum, r) => sum + (r.heightMm / 1000) * (r.widthMm / 1000), 0);
     expect(area).toBeCloseTo(13.56, 2);
   }, 60_000);
+
+  it("parses spaced lowercase 15a opening labels without promoting uppercase room dimensions", async () => {
+    const pt = await extract(resolve(__dirname, "../fixtures/15a/floorplan.pdf"));
+    const codes = pt.windowCodes.map((code) => `${code.heightMm}x${code.widthMm}`);
+
+    expect(codes).toContain("1300x1500");
+    expect(codes).toContain("1100x1200");
+    expect(codes).toContain("1100x600");
+    expect(codes).toContain("800x1800");
+    expect(codes).not.toContain("5030x4314");
+    expect(codes).not.toContain("2900x3600");
+  }, 60_000);
 });
 
 describe("plan-text - standalone opening width witnesses", () => {
+  it("reads Fenner's OVERFRAMEAREA title label as total area", async () => {
+    const pt = await extract(resolve(__dirname, "../doors/plans/fenner-floorplan.pdf"));
+
+    expect(pt.titleAreas.totalAreaM2).toBeCloseTo(249.9, 1);
+  }, 60_000);
+
   it("collects width-only labels as evidence without turning them into window codes", async () => {
     const pt = await extract(resolve(__dirname, "../doors/plans/fenner-floorplan.pdf"));
 
@@ -154,5 +172,27 @@ describe("plan-text - standalone opening width witnesses", () => {
       false,
     );
     expect(pt.standaloneOpeningWidths?.some((witness) => witness.widthMm === 3600)).toBe(true);
+    expect(
+      pt.standaloneOpeningWidths?.some((witness) => witness.text === "1300x175036001300x1750"),
+    ).toBe(false);
+    expect(pt.draftingIssues).toContainEqual(
+      expect.objectContaining({
+        kind: "malformed_dimension_label",
+        text: "1300x175036001300x1750",
+      }),
+    );
+  }, 60_000);
+
+  it("ties Fenner's 4800 width witness to the physical garage-door marker", async () => {
+    const pt = await extract(resolve(__dirname, "../doors/plans/fenner-floorplan.pdf"));
+
+    expect(pt.garageDoorWitnesses).toContainEqual(
+      expect.objectContaining({
+        widthMm: 4800,
+        markerText: expect.stringMatching(/garage door/i),
+        room: "GARAGE",
+        planSide: "plan_right",
+      }),
+    );
   }, 60_000);
 });

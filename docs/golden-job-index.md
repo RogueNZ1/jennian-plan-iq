@@ -8,7 +8,9 @@ This is the working index for the first repeatable Jennian IQ accuracy gates. Ra
 
 - Do not claim a job is pricing-accurate until its witness rows are signed/reviewed by Haydon or another nominated QS.
 - Treat historic IQ exports as evidence of failure or progress, not as final pricing evidence.
-- A physical floor-plan wall gap is real width evidence.
+- A physical floor-plan wall gap is real width evidence only when it is tied to a physical
+  opening on the building wall. Room-width, structural, alfresco, concrete, slab, and drafting
+  artefact gaps are not pricing evidence.
 - The building wall perimeter is the QS witness for openings and cladding. Roof,
   concrete, paving, and covered-alfresco outlines are separate witnesses; their
   open edges must not be priced as exterior walls, and they must not hide the real
@@ -73,7 +75,19 @@ Current test map:
 
 Next required product slice:
 
-Candidate-level reconciliation must price supported Fenner exterior candidates and quarantine only unsupported candidates. The expected-fail should turn green only when deterministic evidence recovers the signed 58.13 m2 / 48.05 m2 witness set without blind standard-height assertions or borrowing dimensions from interior/slab/drafting artefacts.
+Candidate-level reconciliation must price supported Fenner exterior candidates and quarantine only unsupported candidates. The expected-fail should turn green only when deterministic evidence recovers the signed 58.13 m2 / 48.05 m2 witness set row by row, without blind standard-height assertions or borrowing dimensions from interior/slab/alfresco/room-width/drafting artefacts.
+
+Current reset milestone, 23 Jun 2026:
+
+- Park exterior/perimeter trace work as diagnostic until it produces a trusted closed loop on the
+  four-job rail. Do not use it as the primary Fenner opening-recovery path.
+- Use the Fenner opening ledger as the scoreboard. Soft elevation hints are not recovery; the
+  meaningful counters are face-aware elevation dimensions, floor + face-aware dimensions,
+  production-priceable rows, and priceable area.
+- First recovery proof should target three distinctive rows only: Garage Door 1 `4.8x2.1`,
+  Lounge `3.6x2.1`, and Family slider `3.0x2.1`.
+- Each priced pilot row must independently prove `W x H x face` from a physical floor-plan opening
+  symbol/local width witness plus same-face elevation height/type. No aggregate-only pass counts.
 
 ## Beddis
 
@@ -99,7 +113,7 @@ Live run on 21 Jun 2026 using production geometry:
 Current test map:
 
 - `tests/beddis/baseline.test.ts` verifies schedule-path height recovery, garage size, field provenance, and the shared aggregate opening/glazed/external-wall product rail.
-- The shared `2m2` aggregate rail should not be confused with candidate correctness; row identity/recovery still has to explain which local opening is wrong.
+- The shared `0.5m2` aggregate rail should not be confused with candidate correctness; row identity/recovery still has to explain which local opening is wrong.
 
 Next required product slice:
 
@@ -126,7 +140,7 @@ Live run on 21 Jun 2026 using production geometry:
 
 Current observed state:
 
-- Harrison, Beddis, and the Fenner expected-fail recovery gate now use the shared `GOLDEN_AGGREGATE_OPENING_AREA_TOLERANCE_M2 = 2` product rail for aggregate opening/glazed/external-wall area. This is not job-specific and not a per-opening matcher; row identity and unsupported candidates still remain visible rather than being hidden by the aggregate pass.
+- Harrison, Beddis, and the Fenner expected-fail recovery gate now use the shared `GOLDEN_AGGREGATE_OPENING_AREA_TOLERANCE_M2 = 0.5` product rail for aggregate opening/glazed/external-wall area. This is not job-specific and not a per-opening matcher; row identity and unsupported candidates still remain visible rather than being hidden by the aggregate pass.
 - The floor plan and reviewed joinery bench are both evidence. A QS/manual row can be wrong or normalised; a plan label can be duplicated, datum-contaminated, or attached to the wrong physical opening. IQ must surface the contradiction, not blindly tune to either source.
 - The no-schedule path still needs clearer candidate identity: several `2.15m` datum-ish heights remain priceable, the remaining anonymous `1000x1000` candidate needs review, and room routing collapses many rows to `ENS` / `GD`.
 - Garage size is now correctly `4.8x2.1` with the `garage_door_width` reconciliation flag preserved.

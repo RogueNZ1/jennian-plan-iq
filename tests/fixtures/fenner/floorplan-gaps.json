@@ -1,0 +1,500 @@
+[
+  {
+    "id": "floorplan-gap-1",
+    "widthMm": 2747,
+    "x": 666.6546428571428,
+    "y": 145.56,
+    "orientation": "vertical",
+    "wallFaceId": "V-111",
+    "wallThicknessMm": 78,
+    "envelopeSide": "exterior",
+    "confidence": "medium",
+    "roomLabel": "PANTRY",
+    "roomSide": "west",
+    "alternateRoomLabels": [],
+    "routing": {
+      "confidence": "medium",
+      "ambiguous": false,
+      "reason": "gap routed to PANTRY on the west side of the wall"
+    },
+    "note": "measured floor-plan exterior wall gap near PANTRY; gap routed to PANTRY on the west side of the wall; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-2",
+    "widthMm": 1994,
+    "x": 311.7675,
+    "y": 666.72,
+    "orientation": "vertical",
+    "wallFaceId": "V-52",
+    "wallThicknessMm": 89,
+    "envelopeSide": "exterior",
+    "confidence": "medium",
+    "roomLabel": "ENSUITE",
+    "roomSide": "east",
+    "alternateRoomLabels": [],
+    "routing": {
+      "confidence": "medium",
+      "ambiguous": false,
+      "reason": "gap routed to ENSUITE on the east side of the wall"
+    },
+    "note": "measured floor-plan exterior wall gap near ENSUITE; gap routed to ENSUITE on the east side of the wall; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-3",
+    "widthMm": 381,
+    "x": 206.87802352941173,
+    "y": 689.5799999999999,
+    "orientation": "vertical",
+    "wallFaceId": "V-34",
+    "wallThicknessMm": 128,
+    "envelopeSide": "exterior",
+    "confidence": "medium",
+    "roomLabel": "ENSUITE",
+    "roomSide": "east",
+    "alternateRoomLabels": [],
+    "routing": {
+      "confidence": "medium",
+      "ambiguous": false,
+      "reason": "gap routed to ENSUITE on the east side of the wall"
+    },
+    "note": "measured floor-plan exterior wall gap near ENSUITE; gap routed to ENSUITE on the east side of the wall; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-4",
+    "widthMm": 4983,
+    "x": 459.18750000000006,
+    "y": 426.59999999999997,
+    "orientation": "vertical",
+    "wallFaceId": "V-77",
+    "wallThicknessMm": 314,
+    "envelopeSide": "interior",
+    "confidence": "low",
+    "roomLabel": "LOUNGE",
+    "roomSide": "west",
+    "alternateRoomLabels": [],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap routed to LOUNGE on the west side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven"
+    },
+    "note": "measured floor-plan interior wall gap near LOUNGE; gap routed to LOUNGE on the west side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-5",
+    "widthMm": 4589,
+    "x": 364.43399999999997,
+    "y": 607.02,
+    "orientation": "vertical",
+    "wallFaceId": "V-61",
+    "wallThicknessMm": 89,
+    "envelopeSide": "interior",
+    "confidence": "low",
+    "roomLabel": "ENSUITE",
+    "roomSide": "west",
+    "alternateRoomLabels": [],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap routed to ENSUITE on the west side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven"
+    },
+    "note": "measured floor-plan interior wall gap near ENSUITE; gap routed to ENSUITE on the west side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-6",
+    "widthMm": 4310,
+    "x": 178.74,
+    "y": 357.30188108108104,
+    "orientation": "horizontal",
+    "wallFaceId": "H-60",
+    "wallThicknessMm": 88,
+    "envelopeSide": "interior",
+    "confidence": "low",
+    "roomLabel": "MASTERBED",
+    "roomSide": "south",
+    "alternateRoomLabels": [],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap routed to MASTERBED on the south side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven"
+    },
+    "note": "measured floor-plan interior wall gap near MASTERBED; gap routed to MASTERBED on the south side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-7",
+    "widthMm": 3645,
+    "x": 455.64,
+    "y": 592.7606060606059,
+    "orientation": "horizontal",
+    "wallFaceId": "H-99",
+    "wallThicknessMm": 108,
+    "envelopeSide": "interior",
+    "confidence": "low",
+    "roomLabel": "BATH",
+    "roomSide": "south",
+    "alternateRoomLabels": [
+      "WIR"
+    ],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap is near BATH and WIR; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven"
+    },
+    "note": "measured floor-plan interior wall gap near BATH; gap is near BATH and WIR; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-8",
+    "widthMm": 3630,
+    "x": 151.35,
+    "y": 640.7240909090907,
+    "orientation": "horizontal",
+    "wallFaceId": "H-107",
+    "wallThicknessMm": 108,
+    "envelopeSide": "interior",
+    "confidence": "low",
+    "roomLabel": "MASTERBED",
+    "roomSide": "north",
+    "alternateRoomLabels": [],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap routed to MASTERBED on the north side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven"
+    },
+    "note": "measured floor-plan interior wall gap near MASTERBED; gap routed to MASTERBED on the north side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-9",
+    "widthMm": 3183,
+    "x": 569.6959999999999,
+    "y": 468.53999999999996,
+    "orientation": "vertical",
+    "wallFaceId": "V-95",
+    "wallThicknessMm": 310,
+    "envelopeSide": "interior",
+    "confidence": "low",
+    "roomLabel": "STUDY/BED4",
+    "roomSide": "east",
+    "alternateRoomLabels": [
+      "ENTRY"
+    ],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap is near STUDY/BED4 and ENTRY; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven"
+    },
+    "note": "measured floor-plan interior wall gap near STUDY/BED4; gap is near STUDY/BED4 and ENTRY; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-10",
+    "widthMm": 3111,
+    "x": 161.76,
+    "y": 512.3032258064517,
+    "orientation": "horizontal",
+    "wallFaceId": "H-85",
+    "wallThicknessMm": 91,
+    "envelopeSide": "interior",
+    "confidence": "low",
+    "roomLabel": "MASTERBED",
+    "roomSide": "south",
+    "alternateRoomLabels": [],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap routed to MASTERBED on the south side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven"
+    },
+    "note": "measured floor-plan interior wall gap near MASTERBED; gap routed to MASTERBED on the south side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-11",
+    "widthMm": 1960,
+    "x": 500.00181818181807,
+    "y": 667.2,
+    "orientation": "vertical",
+    "wallFaceId": "V-83",
+    "wallThicknessMm": 92,
+    "envelopeSide": "exterior",
+    "confidence": "low",
+    "roomLabel": "BATH",
+    "roomSide": "west",
+    "alternateRoomLabels": [
+      "BED2"
+    ],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap is near BATH and BED2; keep room routing under review"
+    },
+    "note": "measured floor-plan exterior wall gap near BATH; gap is near BATH and BED2; keep room routing under review; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-12",
+    "widthMm": 1960,
+    "x": 598.7869999999999,
+    "y": 667.2,
+    "orientation": "vertical",
+    "wallFaceId": "V-100",
+    "wallThicknessMm": 90,
+    "envelopeSide": "exterior",
+    "confidence": "low",
+    "roomLabel": "BED2",
+    "roomSide": "west",
+    "alternateRoomLabels": [
+      "BED3"
+    ],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap is near BED2 and BED3; keep room routing under review"
+    },
+    "note": "measured floor-plan exterior wall gap near BED2; gap is near BED2 and BED3; keep room routing under review; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-13",
+    "widthMm": 1960,
+    "x": 617.9333333333333,
+    "y": 667.2,
+    "orientation": "vertical",
+    "wallFaceId": "V-103",
+    "wallThicknessMm": 101,
+    "envelopeSide": "exterior",
+    "confidence": "low",
+    "roomLabel": "BED3",
+    "roomSide": "east",
+    "alternateRoomLabels": [
+      "BED2"
+    ],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap is near BED3 and BED2; keep room routing under review"
+    },
+    "note": "measured floor-plan exterior wall gap near BED3; gap is near BED3 and BED2; keep room routing under review; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-14",
+    "widthMm": 1875,
+    "x": 374.1427826086956,
+    "y": 570,
+    "orientation": "vertical",
+    "wallFaceId": "V-62",
+    "wallThicknessMm": 318,
+    "envelopeSide": "interior",
+    "confidence": "low",
+    "roomLabel": "WIR",
+    "roomSide": "west",
+    "alternateRoomLabels": [],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap routed to WIR on the west side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven"
+    },
+    "note": "measured floor-plan interior wall gap near WIR; gap routed to WIR on the west side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-15",
+    "widthMm": 1871,
+    "x": 278.34000000000003,
+    "y": 357.30188108108104,
+    "orientation": "horizontal",
+    "wallFaceId": "H-60",
+    "wallThicknessMm": 88,
+    "envelopeSide": "interior",
+    "confidence": "low",
+    "roomLabel": "FAMILY",
+    "roomSide": "north",
+    "alternateRoomLabels": [],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap routed to FAMILY on the north side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven"
+    },
+    "note": "measured floor-plan interior wall gap near FAMILY; gap routed to FAMILY on the north side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-16",
+    "widthMm": 1854,
+    "x": 198.4,
+    "y": 576.54,
+    "orientation": "vertical",
+    "wallFaceId": "V-33",
+    "wallThicknessMm": 286,
+    "envelopeSide": "interior",
+    "confidence": "low",
+    "roomLabel": "MASTERBED",
+    "roomSide": "east",
+    "alternateRoomLabels": [],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap routed to MASTERBED on the east side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven"
+    },
+    "note": "measured floor-plan interior wall gap near MASTERBED; gap routed to MASTERBED on the east side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-17",
+    "widthMm": 1848,
+    "x": 638.7230039525693,
+    "y": 398.13,
+    "orientation": "vertical",
+    "wallFaceId": "V-106",
+    "wallThicknessMm": 105,
+    "envelopeSide": "exterior",
+    "confidence": "low",
+    "roomLabel": "LAUNDRY/MUDROOM",
+    "roomSide": "east",
+    "alternateRoomLabels": [
+      "ENTRY"
+    ],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap is near LAUNDRY/MUDROOM and ENTRY; keep room routing under review"
+    },
+    "note": "measured floor-plan exterior wall gap near LAUNDRY/MUDROOM; gap is near LAUNDRY/MUDROOM and ENTRY; keep room routing under review; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-18",
+    "widthMm": 1774,
+    "x": 290.64,
+    "y": 598.5609890109889,
+    "orientation": "horizontal",
+    "wallFaceId": "H-100",
+    "wallThicknessMm": 133,
+    "envelopeSide": "interior",
+    "confidence": "low",
+    "roomLabel": "MASTERBED",
+    "roomSide": "north",
+    "alternateRoomLabels": [
+      "ENSUITE"
+    ],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap is near MASTERBED and ENSUITE; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven"
+    },
+    "note": "measured floor-plan interior wall gap near MASTERBED; gap is near MASTERBED and ENSUITE; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-19",
+    "widthMm": 1767,
+    "x": 276.87,
+    "y": 183.43598398169343,
+    "orientation": "horizontal",
+    "wallFaceId": "H-31",
+    "wallThicknessMm": 79,
+    "envelopeSide": "interior",
+    "confidence": "low",
+    "roomLabel": "FAMILY",
+    "roomSide": "south",
+    "alternateRoomLabels": [],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap routed to FAMILY on the south side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven"
+    },
+    "note": "measured floor-plan interior wall gap near FAMILY; gap routed to FAMILY on the south side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-20",
+    "widthMm": 1659,
+    "x": 430.38,
+    "y": 521.3399999999999,
+    "orientation": "horizontal",
+    "wallFaceId": "H-87",
+    "wallThicknessMm": 313,
+    "envelopeSide": "interior",
+    "confidence": "low",
+    "roomLabel": "BATH",
+    "roomSide": "south",
+    "alternateRoomLabels": [
+      "LOUNGE"
+    ],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap is near BATH and LOUNGE; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven"
+    },
+    "note": "measured floor-plan interior wall gap near BATH; gap is near BATH and LOUNGE; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-21",
+    "widthMm": 508,
+    "x": 1126.62,
+    "y": 357.30188108108104,
+    "orientation": "horizontal",
+    "wallFaceId": "H-60",
+    "wallThicknessMm": 88,
+    "envelopeSide": "interior",
+    "confidence": "low",
+    "roomLabel": null,
+    "roomSide": null,
+    "alternateRoomLabels": [],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "no room label found near the measured wall gap; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven"
+    },
+    "note": "measured floor-plan wall gap; room and height still need confirmation"
+  },
+  {
+    "id": "floorplan-gap-22",
+    "widthMm": 466,
+    "x": 595.5,
+    "y": 545.0446153846153,
+    "orientation": "horizontal",
+    "wallFaceId": "H-91",
+    "wallThicknessMm": 309,
+    "envelopeSide": "interior",
+    "confidence": "low",
+    "roomLabel": "BED2",
+    "roomSide": "south",
+    "alternateRoomLabels": [
+      "STUDY/BED4"
+    ],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "gap is near BED2 and STUDY/BED4; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven"
+    },
+    "note": "measured floor-plan interior wall gap near BED2; gap is near BED2 and STUDY/BED4; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation"
+  },
+  {
+    "id": "floorplan-gap-23",
+    "widthMm": 402,
+    "x": 712.0628985507246,
+    "y": 689.28,
+    "orientation": "vertical",
+    "wallFaceId": "V-119",
+    "wallThicknessMm": 106,
+    "envelopeSide": "exterior",
+    "confidence": "low",
+    "roomLabel": null,
+    "roomSide": null,
+    "alternateRoomLabels": [],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "no room label found near the measured wall gap"
+    },
+    "note": "measured floor-plan wall gap; room and height still need confirmation"
+  },
+  {
+    "id": "floorplan-gap-24",
+    "widthMm": 398,
+    "x": 305.8807499999999,
+    "y": 112.25999999999999,
+    "orientation": "vertical",
+    "wallFaceId": "V-51",
+    "wallThicknessMm": 113,
+    "envelopeSide": "exterior",
+    "confidence": "low",
+    "roomLabel": null,
+    "roomSide": null,
+    "alternateRoomLabels": [],
+    "routing": {
+      "confidence": "low",
+      "ambiguous": true,
+      "reason": "no room label found near the measured wall gap"
+    },
+    "note": "measured floor-plan wall gap; room and height still need confirmation"
+  }
+]
