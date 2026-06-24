@@ -1,3 +1,9 @@
+## 25 Jun 2026 - Takeoff recovery priority resumed
+- HAYDON PRIORITY DECISION: 007 is deliberately parked on the back burner. The dirty `C:\Users\Haydon\Documents\jennian-007-v2` repo remains local-only/quarantined and must not be pushed as-is; the clean `jennian-007-v2-clean` baseline and scheduler move remain later `JEN-43` work. Do not touch the 007 scheduled task while takeoff recovery is the priority.
+- PHASE 0 UNBLOCKED: JEN-42 is complete in Linear. The preservation gate is satisfied because material stashes are pushed to preservation branches, the unsafe 007 repo is quarantined, and the remaining 007 promotion/key/scheduler decisions are explicitly deferred instead of blocking takeoff.
+- JEN-41 CLOSED: parser/detector hardening is complete and pushed through `994d69b`; Beddis detector surface is pinned by test, Fenner remains honest at `2/17`, and no fake priceable rows were introduced.
+- NEXT TAKEOFF WORK: resume JEN-40/JEN-38 from the physical floor-plan opening marker path. Width-only text such as `3600` remains only supporting evidence; a row can price only when tied to a physical wall-opening marker and agreeing elevation evidence. Covered alfresco/concrete/roof/outdoor outlines remain review-only.
+
 ## 24 Jun 2026 - Phase 0 Council preservation gate
 - COUNCIL PHASE 0 ACTIVE: JEN-38 recovery work is frozen while local-only work and repo truth are made recoverable. No production deploy and no new opening-recovery feature work should happen until this gate and JEN-41 parser/detector hardening are cleared.
 - TRACKED TRUTH CORRECTION: the 23 Jun reset entry is now superseded on current ledger state. Fenner is no longer `0/17`; saved diagnostics show `2/17` production-priceable rows, `17.73m2` recovered priceable area against signed `58.13m2`, with `40.40m2` still unsupported. 15a saved diagnostics show `2/15`, `4.35m2` recovered priceable area against signed `33.66m2`. Fenner remains an expected-fail overall.
