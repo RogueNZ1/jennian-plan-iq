@@ -4,6 +4,8 @@
  * external openings, gable ends, and garage door presence from an elevation sheet.
  */
 import { createServerFn } from "@tanstack/react-start";
+import type { FrameOpeningSlot } from "./elevation-opening-slots";
+import type { ElevationFaceBand } from "./elevation-vector-openings";
 
 export type ElevationOpeningType =
   | "window"
@@ -42,6 +44,10 @@ export interface ElevationData {
    * have this field, so consumers must fall back to the summary counts above.
    */
   elevationOpenings?: ElevationOpeningCandidate[];
+  /** Deterministic vector face bands, when the elevation PDF has a usable vector layer. */
+  elevationFaceBands?: ElevationFaceBand[];
+  /** Deterministic grouped elevation opening slots used only for strict face/row matching. */
+  elevationOpeningSlots?: FrameOpeningSlot[];
 }
 
 const SYSTEM_PROMPT = `Return ONLY valid JSON. No markdown, no prose.

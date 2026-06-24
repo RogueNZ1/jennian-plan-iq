@@ -1,13 +1,31 @@
 import { extractPageGeometry } from "../doors/pdf-adapter";
+import { detectFrameOpeningSlots } from "./elevation-opening-slots";
 import {
+  detectElevationFaceBands,
   detectElevationVectorOpenings,
+  type ElevationFaceBand,
   type ElevationVectorOpening,
 } from "./elevation-vector-openings";
+import type { FrameOpeningSlot } from "./elevation-opening-slots";
+
+export type ElevationVectorEvidence = {
+  elevationOpenings: ElevationVectorOpening[];
+  elevationFaceBands: ElevationFaceBand[];
+  elevationOpeningSlots: FrameOpeningSlot[];
+};
 
 export async function runElevationVectorOpenings(
   pdfData: ArrayBuffer | Uint8Array,
   pageNumber = 1,
 ): Promise<ElevationVectorOpening[]> {
+  const evidence = await runElevationVectorEvidence(pdfData, pageNumber);
+  return evidence.elevationOpenings;
+}
+
+export async function runElevationVectorEvidence(
+  pdfData: ArrayBuffer | Uint8Array,
+  pageNumber = 1,
+): Promise<ElevationVectorEvidence> {
   try {
     const pdfjs = await import("pdfjs-dist-door/legacy/build/pdf.mjs");
     if (!pdfjs.GlobalWorkerOptions.workerSrc) {
@@ -30,7 +48,15 @@ export async function runElevationVectorOpenings(
     try {
       const page = await doc.getPage(pageNumber);
       const geom = await extractPageGeometry(page as Parameters<typeof extractPageGeometry>[0]);
-      return detectElevationVectorOpenings(geom.segments);
+      const elevationFaceBands = detectElevationFaceBands(geom.segments);
+      return {
+        elevationOpenings: detectElevationVectorOpenings(geom.segments),
+        elevationFaceBands,
+        elevationOpeningSlots: detectFrameOpeningSlots({
+          segments: geom.segments,
+          faceBands: elevationFaceBands,
+        }),
+      };
     } finally {
       await doc.destroy().catch(() => {});
     }
@@ -39,6 +65,10 @@ export async function runElevationVectorOpenings(
       "[elevation-vector-openings] pass failed - elevation openings stay on AI/image path:",
       e instanceof Error ? e.message : e,
     );
-    return [];
+    return {
+      elevationOpenings: [],
+      elevationFaceBands: [],
+      elevationOpeningSlots: [],
+    };
   }
 }

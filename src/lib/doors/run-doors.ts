@@ -15,8 +15,13 @@ import { traceInteriorWalls, type WallTrace } from "../takeoff/wall-trace";
 import { detectFloorPlanGaps, type FloorPlanGapCandidate } from "../takeoff/floor-plan-gaps";
 import {
   detectPhysicalOpeningWidthWitnesses,
+  detectPrintedWindowCodeWitnesses,
   type PlanPhysicalOpeningWidthWitness,
+  type PlanPrintedWindowCodeWitness,
 } from "../takeoff/floor-opening-witnesses";
+import { buildOpeningSignatureFloorRows } from "../takeoff/opening-floor-signatures";
+import type { OpeningSignatureFloorRow, PlanSideLengthWitness } from "../takeoff/opening-face-map";
+import { detectPlanSideLengthWitnesses } from "../takeoff/floor-side-lengths";
 
 /**
  * Which page the engine ran on, in the adapter's coordinate contract — persisted with the
@@ -49,6 +54,9 @@ export async function runDoorEngine(
       wallTrace?: WallTrace;
       floorPlanGaps?: FloorPlanGapCandidate[];
       physicalOpeningWidthWitnesses?: PlanPhysicalOpeningWidthWitness[];
+      printedWindowCodeWitnesses?: PlanPrintedWindowCodeWitness[];
+      floorSignatureRows?: OpeningSignatureFloorRow[];
+      floorSideLengthWitnesses?: PlanSideLengthWitness[];
     })
   | null
 > {
@@ -107,12 +115,22 @@ export async function runDoorEngine(
         labels: geom.labels,
         scale,
       });
+      const printedWindowCodeWitnesses = detectPrintedWindowCodeWitnesses(planText);
+      const floorSignatureRows = buildOpeningSignatureFloorRows({
+        planText,
+        printedCodeWitnesses: printedWindowCodeWitnesses,
+        physicalWitnesses: physicalOpeningWidthWitnesses,
+      });
+      const floorSideLengthWitnesses = detectPlanSideLengthWitnesses(geom.labels);
       return {
         ...result,
         planText,
         wallTrace,
         floorPlanGaps,
         physicalOpeningWidthWitnesses,
+        printedWindowCodeWitnesses,
+        floorSignatureRows,
+        floorSideLengthWitnesses,
         pageMeta: {
           pageNumber,
           view: [...view],

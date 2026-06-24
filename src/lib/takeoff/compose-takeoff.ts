@@ -66,6 +66,9 @@ import { promoteVisualOpenings } from "./visual-opening-promotion";
 import { buildOpeningEvidenceLedger } from "./opening-evidence";
 import { matchElevationToFloorPlanGaps } from "./elevation-gap-match";
 import { promoteFloorPlanGapOpenings } from "./floor-plan-gap-promotion";
+import { promoteOrderedFaceSignatureOpenings } from "./opening-face-promotion";
+import { buildOpeningFaceMap } from "./opening-face-map";
+import type { ElevationVectorOpening } from "./elevation-vector-openings";
 import { classifyGarageDoorAnnotation } from "./classify";
 import { normaliseGarageDoorSizeLabel } from "./garage-door-size";
 import {
@@ -94,6 +97,8 @@ export type ComposeTakeoffInput = {
         wallTrace?: import("./wall-trace").WallTrace;
         floorPlanGaps?: import("./floor-plan-gaps").FloorPlanGapCandidate[];
         physicalOpeningWidthWitnesses?: import("./floor-opening-witnesses").PlanPhysicalOpeningWidthWitness[];
+        floorSignatureRows?: import("./opening-face-map").OpeningSignatureFloorRow[];
+        floorSideLengthWitnesses?: import("./opening-face-map").PlanSideLengthWitness[];
       })
     | null;
   /** Visual QS external-opening audit; promoted only through strict plausibility/recovery gates. */
@@ -152,6 +157,18 @@ function elevationGarageDoorOpening(
       `Garage door recovered from ${best.opening.face} elevation vector candidate ${best.opening.widthMm}x${best.opening.heightMm}mm and snapped to QS size ${best.classified.label}.`,
     ],
   };
+}
+
+function vectorElevationOpenings(
+  elevationData: ElevationData | null | undefined,
+): ElevationVectorOpening[] {
+  return (elevationData?.elevationOpenings ?? []).filter(
+    (opening): opening is ElevationVectorOpening =>
+      "source" in opening &&
+      "faceBandId" in opening &&
+      typeof (opening as { x?: unknown }).x === "number" &&
+      typeof (opening as { y?: unknown }).y === "number",
+  );
 }
 
 export type ComposeTakeoffResult = {
@@ -782,6 +799,22 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       ? (planTextRecoveredOpenings ?? rawComposedOpenings)
       : null;
   const elevationGarageDoor = elevationGarageDoorOpening(elevationData);
+  const vectorElevationOpeningRows = vectorElevationOpenings(elevationData);
+  const hasFaceMapEvidence =
+    vectorElevationOpeningRows.length > 0 ||
+    ((elevationData?.elevationFaceBands?.length ?? 0) > 0 &&
+      (elevationData?.elevationOpeningSlots?.length ?? 0) > 0);
+  const openingFaceMap = hasFaceMapEvidence
+    ? buildOpeningFaceMap({
+        planText,
+        elevationOpenings: vectorElevationOpeningRows,
+        faceBands: elevationData?.elevationFaceBands,
+        physicalOpeningWitnesses: doorEngine?.physicalOpeningWidthWitnesses,
+        openingSlots: elevationData?.elevationOpeningSlots,
+        floorSignatureRows: doorEngine?.floorSignatureRows,
+        floorSideLengthWitnesses: doorEngine?.floorSideLengthWitnesses,
+      })
+    : null;
   const selectedOpeningCandidates = visualPromotedOpenings
     ? planTextPricedWindowBase
       ? mergePlanTextAndVisualOpenings(planTextPricedWindowBase, visualPromotedOpenings)
@@ -799,8 +832,14 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
         ]
       : selectedOpeningCandidates,
   );
+  const orderedFaceSignaturePromotion = !schedule?.windows?.length
+    ? promoteOrderedFaceSignatureOpenings({
+        openings: selectedOpenings,
+        faceMap: openingFaceMap,
+      })
+    : { openings: selectedOpenings, promotions: [] };
   const floorPlanGapPromotion = promoteFloorPlanGapOpenings({
-    openings: selectedOpenings,
+    openings: orderedFaceSignaturePromotion.openings,
     floorPlanGaps: doorEngine?.floorPlanGaps,
     elevationMatches: floorPlanGapElevationMatches,
   });

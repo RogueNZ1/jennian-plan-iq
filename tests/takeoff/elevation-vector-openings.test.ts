@@ -251,4 +251,54 @@ describe("elevation vector opening detector", () => {
     expect(created?.facesPresent).toContain(candidate.face);
     expect(created?.elevationOpenings).toHaveLength(1);
   }, 60_000);
+
+  it("preserves rich vector face evidence even when no opening rectangles are selected", () => {
+    const slotMember = {
+      widthMm: 1200,
+      heightMm: 1100,
+      x: 42,
+      y: 80,
+      x0: 36,
+      x1: 48,
+      y0: 40,
+      y1: 120,
+      areaPt2: 960,
+      faceBandId: "elevation-face-empty",
+      containingRects: 0,
+      childRects: 0,
+    };
+    const merged = mergeElevationVectorOpenings(null, {
+      elevationOpenings: [],
+      elevationFaceBands: [
+        {
+          id: "elevation-face-empty",
+          x0: 10,
+          x1: 210,
+          y0: 20,
+          y1: 150,
+          widthMm: 5000,
+          heightMm: 2600,
+        },
+      ],
+      elevationOpeningSlots: [
+        {
+          ...slotMember,
+          id: "opening-slot-empty",
+          groupId: "assembly-group-empty",
+          groupWidthMm: 1300,
+          groupHeightMm: 1200,
+          groupMemberRects: 1,
+          groupLikelyMultiOpening: false,
+          slotMemberRects: 1,
+          nestedSlotMemberRects: 0,
+          members: [slotMember],
+        },
+      ],
+    });
+
+    expect(merged?.elevationOpenings).toEqual([]);
+    expect(merged?.facesPresent).toEqual(["elevation-face-empty"]);
+    expect(merged?.elevationFaceBands).toHaveLength(1);
+    expect(merged?.elevationOpeningSlots).toHaveLength(1);
+  });
 });

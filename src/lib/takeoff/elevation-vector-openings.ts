@@ -1,5 +1,6 @@
 import type { Segment } from "../doors/door-engine";
 import type { ElevationData, ElevationOpeningCandidate } from "./extract-elevations";
+import type { ElevationVectorEvidence } from "./run-elevation-vector-openings";
 
 type AxialHorizontal = { y: number; x0: number; x1: number; len: number; count: number };
 type AxialVertical = { x: number; y0: number; y1: number; len: number };
@@ -48,14 +49,8 @@ function boundsFromAxes(
   horizontals: readonly AxialHorizontal[],
   verticals: readonly AxialVertical[],
 ): Bounds | null {
-  const xValues = [
-    ...horizontals.flatMap((h) => [h.x0, h.x1]),
-    ...verticals.map((v) => v.x),
-  ];
-  const yValues = [
-    ...horizontals.map((h) => h.y),
-    ...verticals.flatMap((v) => [v.y0, v.y1]),
-  ];
+  const xValues = [...horizontals.flatMap((h) => [h.x0, h.x1]), ...verticals.map((v) => v.x)];
+  const yValues = [...horizontals.map((h) => h.y), ...verticals.flatMap((v) => [v.y0, v.y1])];
   if (xValues.length === 0 || yValues.length === 0) return null;
   return {
     x0: Math.min(...xValues),
@@ -80,8 +75,12 @@ function boundsFromHorizontals(horizontals: readonly AxialHorizontal[]): Bounds 
   };
 }
 
-
-function insetBounds(bounds: Bounds, xRatio: number, topRatio: number, bottomRatio: number): Bounds {
+function insetBounds(
+  bounds: Bounds,
+  xRatio: number,
+  topRatio: number,
+  bottomRatio: number,
+): Bounds {
   const width = bounds.x1 - bounds.x0;
   const height = bounds.y1 - bounds.y0;
   return {
@@ -649,9 +648,20 @@ function sameOpening(a: ElevationOpeningCandidate, b: ElevationOpeningCandidate)
 
 export function mergeElevationVectorOpenings(
   elevation: ElevationData | null,
-  vectorOpenings: readonly ElevationVectorOpening[],
+  vectorEvidence: readonly ElevationVectorOpening[] | ElevationVectorEvidence,
 ): ElevationData | null {
-  if (vectorOpenings.length === 0) return elevation;
+  const richEvidence = Array.isArray(vectorEvidence)
+    ? null
+    : (vectorEvidence as ElevationVectorEvidence);
+  const vectorOpenings: readonly ElevationVectorOpening[] =
+    richEvidence?.elevationOpenings ?? (vectorEvidence as readonly ElevationVectorOpening[]);
+  if (
+    vectorOpenings.length === 0 &&
+    (richEvidence?.elevationFaceBands.length ?? 0) === 0 &&
+    (richEvidence?.elevationOpeningSlots.length ?? 0) === 0
+  ) {
+    return elevation;
+  }
   const base: ElevationData = elevation ?? {
     claddingTypes: [],
     claddingTypeCode: null,
@@ -676,9 +686,21 @@ export function mergeElevationVectorOpenings(
     facesPresent:
       base.facesPresent.length > 0
         ? base.facesPresent
-        : Array.from(new Set(vectorOpenings.map((opening) => opening.face))),
+        : Array.from(
+            new Set(
+              vectorOpenings.length > 0
+                ? vectorOpenings.map((opening) => opening.face)
+                : (richEvidence?.elevationFaceBands.map((band) => band.id) ?? []),
+            ),
+          ),
     garageDoorsPresent:
       base.garageDoorsPresent || vectorOpenings.some((opening) => opening.type === "garage_door"),
     elevationOpenings: merged,
+    ...(richEvidence == null
+      ? {}
+      : {
+          elevationFaceBands: richEvidence.elevationFaceBands,
+          elevationOpeningSlots: richEvidence.elevationOpeningSlots,
+        }),
   };
 }

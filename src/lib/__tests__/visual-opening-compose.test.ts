@@ -75,6 +75,43 @@ const visualAudit: VisualOpeningAudit = {
   ],
 };
 
+function faceBand(id: string, widthMm: number) {
+  return { id, x0: 0, x1: widthMm / 100, y0: 0, y1: 140, widthMm, heightMm: 2600 };
+}
+
+function openingSlot(args: {
+  id: string;
+  faceBandId: string;
+  x: number;
+  widthMm: number;
+  heightMm: number;
+}) {
+  const rect = {
+    widthMm: args.widthMm,
+    heightMm: args.heightMm,
+    x: args.x,
+    y: 80,
+    x0: args.x - 8,
+    x1: args.x + 8,
+    y0: 20,
+    y1: 120,
+    areaPt2: 1600,
+  };
+  return {
+    ...rect,
+    id: args.id,
+    groupId: `group-${args.id}`,
+    faceBandId: args.faceBandId,
+    groupWidthMm: 5000,
+    groupHeightMm: 1800,
+    groupMemberRects: 1,
+    groupLikelyMultiOpening: false,
+    slotMemberRects: 1,
+    nestedSlotMemberRects: 0,
+    members: [{ ...rect, faceBandId: args.faceBandId, containingRects: 0, childRects: 0 }],
+  };
+}
+
 describe("composeTakeoff visual opening promotion", () => {
   it("uses Visual QS for openings but preserves the canonical sectional when visual garage is rejected", () => {
     const enriched = composeTakeoff({
@@ -250,6 +287,198 @@ describe("composeTakeoff visual opening promotion", () => {
       flags: [],
     });
     expect(enriched.total_opening_sqm).toBe(13.23);
+  });
+
+  it("promotes ordered face-signature slots only when floor side length and ordered slots agree", () => {
+    const enriched = composeTakeoff({
+      visionTakeoff: {
+        ...baseVision,
+        windows_by_room: null,
+        window_count: null,
+        garage_door_size: null,
+      },
+      geometry: null,
+      schedule: null,
+      geometryPageIndex: undefined,
+      doorEngine: {
+        hinged: [],
+        doubles: [],
+        cavity: [],
+        flags: [],
+        counts: { singles: 0, doubles: 0, cavitySliders: 0, barn: 0 },
+        planText: {
+          rooms: [],
+          windowCodes: [],
+          frameOpenings: [],
+          standaloneOpeningWidths: [],
+          garageDoorWitnesses: [],
+          draftingIssues: [],
+          titleAreas: {},
+        },
+        floorSignatureRows: [
+          {
+            source: "printed_code",
+            room: "MASTERBED",
+            widthMm: 1800,
+            heightMm: 1300,
+            planSide: "plan_right",
+            x: 100,
+            y: 40,
+            note: "printed floor-plan opening code 1300x1800 near MASTERBED",
+          },
+          {
+            source: "printed_code",
+            room: "DINING",
+            widthMm: 1500,
+            heightMm: 1300,
+            planSide: "plan_right",
+            x: 300,
+            y: 40,
+            note: "printed floor-plan opening code 1300x1500 near DINING",
+          },
+        ],
+        floorSideLengthWitnesses: [{ planSide: "plan_right", lengthMm: 5000 }],
+        floorPlanGaps: [],
+      },
+      elevationData: {
+        claddingTypes: [],
+        claddingTypeCode: null,
+        roofType: null,
+        roofPitchDegrees: null,
+        wallHeightMm: null,
+        studHeightMm: null,
+        facesPresent: ["elevation-face-1", "elevation-face-2"],
+        windowCountPerFace: {},
+        externalDoorCount: 0,
+        gableEndCount: 0,
+        garageDoorsPresent: false,
+        elevationOpenings: [],
+        elevationFaceBands: [
+          faceBand("elevation-face-1", 5000),
+          faceBand("elevation-face-2", 7000),
+        ],
+        elevationOpeningSlots: [
+          openingSlot({
+            id: "slot-1",
+            faceBandId: "elevation-face-1",
+            x: 100,
+            widthMm: 1820,
+            heightMm: 1320,
+          }),
+          openingSlot({
+            id: "slot-2",
+            faceBandId: "elevation-face-1",
+            x: 300,
+            widthMm: 1505,
+            heightMm: 1310,
+          }),
+          openingSlot({
+            id: "slot-3",
+            faceBandId: "elevation-face-2",
+            x: 100,
+            widthMm: 1820,
+            heightMm: 1320,
+          }),
+        ],
+      },
+    }).enriched;
+
+    expect(
+      enriched.openings?.map((opening) => [opening.room, opening.width_m, opening.height_m]),
+    ).toEqual([
+      ["MASTERBED", 1.8, 1.32],
+      ["DINING", 1.5, 1.31],
+    ]);
+    expect(enriched.total_opening_sqm).toBe(4.35);
+    expect(enriched.openings?.[0]?.flags?.join(" ")).toContain("ordered face signature");
+  });
+
+  it("does not promote ordered face slots when the measured side length disagrees", () => {
+    const enriched = composeTakeoff({
+      visionTakeoff: {
+        ...baseVision,
+        windows_by_room: null,
+        window_count: null,
+        garage_door_size: null,
+      },
+      geometry: null,
+      schedule: null,
+      geometryPageIndex: undefined,
+      doorEngine: {
+        hinged: [],
+        doubles: [],
+        cavity: [],
+        flags: [],
+        counts: { singles: 0, doubles: 0, cavitySliders: 0, barn: 0 },
+        planText: {
+          rooms: [],
+          windowCodes: [],
+          frameOpenings: [],
+          standaloneOpeningWidths: [],
+          garageDoorWitnesses: [],
+          draftingIssues: [],
+          titleAreas: {},
+        },
+        floorSignatureRows: [
+          {
+            source: "printed_code",
+            room: "MASTERBED",
+            widthMm: 1800,
+            heightMm: 1300,
+            planSide: "plan_right",
+            x: 100,
+            y: 40,
+            note: "printed floor-plan opening code 1300x1800 near MASTERBED",
+          },
+          {
+            source: "printed_code",
+            room: "DINING",
+            widthMm: 1500,
+            heightMm: 1300,
+            planSide: "plan_right",
+            x: 300,
+            y: 40,
+            note: "printed floor-plan opening code 1300x1500 near DINING",
+          },
+        ],
+        floorSideLengthWitnesses: [{ planSide: "plan_right", lengthMm: 5000 }],
+        floorPlanGaps: [],
+      },
+      elevationData: {
+        claddingTypes: [],
+        claddingTypeCode: null,
+        roofType: null,
+        roofPitchDegrees: null,
+        wallHeightMm: null,
+        studHeightMm: null,
+        facesPresent: ["elevation-face-1"],
+        windowCountPerFace: {},
+        externalDoorCount: 0,
+        gableEndCount: 0,
+        garageDoorsPresent: false,
+        elevationOpenings: [],
+        elevationFaceBands: [faceBand("elevation-face-1", 7000)],
+        elevationOpeningSlots: [
+          openingSlot({
+            id: "slot-1",
+            faceBandId: "elevation-face-1",
+            x: 100,
+            widthMm: 1820,
+            heightMm: 1320,
+          }),
+          openingSlot({
+            id: "slot-2",
+            faceBandId: "elevation-face-1",
+            x: 300,
+            widthMm: 1505,
+            heightMm: 1310,
+          }),
+        ],
+      },
+    }).enriched;
+
+    expect(enriched.openings ?? []).toEqual([]);
+    expect(enriched.total_opening_sqm).toBeNull();
   });
 
   it("uses confirmed physical floor-plan width to choose between ambiguous elevation openings", () => {

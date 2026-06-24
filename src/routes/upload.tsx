@@ -846,20 +846,32 @@ function UploadPage() {
             .arrayBuffer()
             .then((data) =>
               import("@/lib/takeoff/run-elevation-vector-openings").then((m) =>
-                m.runElevationVectorOpenings(data, 1),
+                m.runElevationVectorEvidence(data, 1),
               ),
             )
-            .catch(() => [])
+            .catch(() => ({
+              elevationOpenings: [],
+              elevationFaceBands: [],
+              elevationOpeningSlots: [],
+            }))
         : planFile && elevationPage
           ? planFile
               .arrayBuffer()
               .then((data) =>
                 import("@/lib/takeoff/run-elevation-vector-openings").then((m) =>
-                  m.runElevationVectorOpenings(data, elevationPage.pageNumber),
+                  m.runElevationVectorEvidence(data, elevationPage.pageNumber),
                 ),
               )
-              .catch(() => [])
-          : Promise.resolve([]);
+              .catch(() => ({
+                elevationOpenings: [],
+                elevationFaceBands: [],
+                elevationOpeningSlots: [],
+              }))
+          : Promise.resolve({
+              elevationOpenings: [],
+              elevationFaceBands: [],
+              elevationOpeningSlots: [],
+            });
       const siteBlobP = siteFile
         ? renderPageForAnalysis(siteFile.file, 1).catch(() => null)
         : planFile && sitePage
