@@ -11,16 +11,10 @@ export type VisualOpeningPromotion = {
   flags: string[];
 };
 
-const ASSUMED_DOOR_HEIGHT_M = 2.1;
-const ASSUMED_DOOR_WIDTH_M = 1.0;
 const GARAGE_DOOR_MIN_HEIGHT_M = 2.0;
 const GARAGE_DOOR_MAX_HEIGHT_M = 2.4;
 const GARAGE_DOOR_MIN_WIDTH_M = 2.4;
 const GARAGE_DOOR_MAX_WIDTH_M = 5.4;
-
-function isDoorish(type: VisualOpeningAuditItem["type"]): boolean {
-  return type === "external_door" || type === "pa_door";
-}
 
 function openingType(item: VisualOpeningAuditItem): OpeningType | null {
   switch (item.type) {
@@ -45,7 +39,7 @@ function normaliseVisualDims(item: VisualOpeningAuditItem): {
   height_m: number;
   width_m: number;
   flags: string[];
-  promote: boolean;
+  usable: boolean;
 } {
   const flags: string[] = [];
   let h = item.height_m;
@@ -62,7 +56,7 @@ function normaliseVisualDims(item: VisualOpeningAuditItem): {
 
     if (h == null || w == null || h <= 0 || w <= 0) {
       flags.push(`${item.id}: visual garage door size unreadable; not promoted.`);
-      return { height_m: 0, width_m: 0, flags, promote: false };
+      return { height_m: 0, width_m: 0, flags, usable: false };
     }
 
     if (
@@ -74,25 +68,17 @@ function normaliseVisualDims(item: VisualOpeningAuditItem): {
       flags.push(
         `${item.id}: visual garage door size ${round2(w)}m x ${round2(h)}m is outside the garage-door plausibility band; ignored so it cannot overwrite the floor-plan callout.`,
       );
-      return { height_m: 0, width_m: 0, flags, promote: false };
+      return { height_m: 0, width_m: 0, flags, usable: false };
     }
 
-    return { height_m: round2(h) ?? h, width_m: round2(w) ?? w, flags, promote: true };
-  }
-
-  if ((h == null || w == null || h <= 0 || w <= 0) && isDoorish(item.type)) {
-    h = ASSUMED_DOOR_HEIGHT_M;
-    w = ASSUMED_DOOR_WIDTH_M;
-    flags.push(
-      `${item.id}: visual door size unreadable; assumed 2.1m high × 1.0m wide for opening area, confirm against plan.`,
-    );
+    return { height_m: round2(h) ?? h, width_m: round2(w) ?? w, flags, usable: true };
   }
 
   if (h == null || w == null || h <= 0 || w <= 0) {
     flags.push(
-      `${item.id}: visual opening size unreadable; carried with 0m² area until confirmed.`,
+      `${item.id}: visual opening size unreadable; retained as review evidence only.`,
     );
-    return { height_m: 0, width_m: 0, flags, promote: true };
+    return { height_m: 0, width_m: 0, flags, usable: false };
   }
 
   // Plausibility guard: sliders/windows are not 3m+ high. If one side is a normal
@@ -108,7 +94,7 @@ function normaliseVisualDims(item: VisualOpeningAuditItem): {
     );
   }
 
-  return { height_m: round2(h) ?? h, width_m: round2(w) ?? w, flags, promote: true };
+  return { height_m: round2(h) ?? h, width_m: round2(w) ?? w, flags, usable: true };
 }
 
 function confidence(item: VisualOpeningAuditItem): Opening["confidence"] {
@@ -133,30 +119,44 @@ export function promoteVisualOpenings(
 
     const dims = normaliseVisualDims(item);
     flags.push(...dims.flags);
-    if (!dims.promote) continue;
-    const area_m2 = round2(dims.height_m * dims.width_m) ?? 0;
-    const opening: Opening = {
-      type,
-      room: item.room,
-      height_m: dims.height_m,
-      width_m: dims.width_m,
-      glazed: isQsGlazedOpening(type),
-      cladding: null,
-      area_m2,
-      source: "vision",
-      confidence: confidence(item),
-      flags: [...item.flags, ...dims.flags],
-    };
-    openings.push(opening);
+    const geometryProven =
+      type !== "sectional_door" &&
+      dims.usable &&
+      item.recoveryProof?.kind === "physical_elevation";
+    if (geometryProven) {
+      const area_m2 = round2(dims.height_m * dims.width_m) ?? 0;
+      openings.push({
+        type,
+        room: item.room,
+        height_m: dims.height_m,
+        width_m: dims.width_m,
+        glazed: isQsGlazedOpening(type),
+        cladding: null,
+        area_m2,
+        source: "vector",
+        height_source: "vector",
+        confidence: confidence(item),
+        flags: [
+          ...item.flags,
+          ...dims.flags,
+          `${item.id}: visual locator promoted only after physical floor-plan width and elevation proof agreed.`,
+        ],
+      });
+      flags.push(`${item.id}: visual locator promoted only after physical floor-plan width and elevation proof agreed.`);
+    } else {
+      flags.push(`${item.id}: visual opening retained as evidence only; not promoted into QS openings.`);
+    }
 
-    if (type === "sectional_door" && dims.height_m > 0 && dims.width_m > 0) {
+    if (type === "sectional_door" && dims.usable && dims.height_m > 0 && dims.width_m > 0) {
       garageDoorSize = `${dims.width_m}×${dims.height_m}`;
     }
   }
 
-  if (openings.length === 0) return null;
+  if (flags.length === 0 && openings.length === 0 && !garageDoorSize) return null;
   flags.unshift(
-    `Visual QS promoted ${openings.length} external-wall openings into the canonical opening set; sectional/roller garage door remains the only non-glazed exception.`,
+    openings.length > 0
+      ? `Visual QS promoted ${openings.length} locator-backed openings only after deterministic physical/elevation proof; all other visual openings remain review evidence.`
+      : "Visual QS retained external-wall openings as review evidence only; deterministic geometry, schedule, or approved measured evidence must promote priceable openings.",
   );
   return { openings, garageDoorSize: normaliseGarageDoorSizeLabel(garageDoorSize), flags };
 }

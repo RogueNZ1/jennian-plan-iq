@@ -22,7 +22,7 @@ function opening(overrides: Partial<Opening> = {}): Opening {
 }
 
 describe("opening pricing adjudication", () => {
-  it("keeps locally valid priced openings while blocking aggregate pricing", () => {
+  it("moves locally valid openings to held-blocked when aggregate pricing is blocked", () => {
     const adjudication = adjudicateOpeningPricing([
       opening(),
       opening({
@@ -40,12 +40,14 @@ describe("opening pricing adjudication", () => {
     });
 
     expect(blocked.pricingBlocked).toBe(true);
-    expect(blocked.pricedOpenings).toHaveLength(1);
-    expect(blocked.pricedOpenings[0]).toMatchObject({
+    expect(blocked.pricedOpenings).toHaveLength(0);
+    expect(blocked.heldBlockedOpenings).toHaveLength(1);
+    expect(blocked.heldBlockedOpenings[0].opening).toMatchObject({
       room: "Lounge",
       width_m: 1.8,
       height_m: 1.3,
     });
+    expect(blocked.heldBlockedOpenings[0].reason).toBe("visual_reconciliation_error");
     expect(blocked.quarantinedOpenings).toHaveLength(1);
     expect(blocked.quarantinedOpenings[0].reasons).toContain("impossible_width");
     expect(blocked.flags.join(" ")).toContain("Opening pricing blocked");

@@ -209,7 +209,100 @@ describe("recoverVisualAuditFromElevationLedger", () => {
     });
     expect(recovered.openings[0].evidence).toContain("physical floor-plan width 3600mm");
     expect(recovered.openings[0].evidence).toContain("RS2");
+    expect(recovered.openings[0].recoveryProof).toEqual({
+      kind: "physical_elevation",
+      floorWidthMm: 3600,
+      elevationFace: "North",
+      elevationLabel: "RS2",
+      elevationWidthMm: 3600,
+      elevationHeightMm: 2100,
+    });
     expect(recovered.summary.uncertain).toBe(0);
+  });
+
+  it("uses a visual locator to attach deterministic physical/elevation proof to an ordinary opening", () => {
+    const recovered = recoverVisualAuditFromElevationLedger(
+      audit([
+        visualOpening({
+          label: "2125x3600",
+          height_m: 2.1,
+          width_m: 3.6,
+          confidence: "medium",
+          flags: [],
+        }),
+      ]),
+      {
+        ...elevations,
+        elevationOpenings: [
+          {
+            face: "North",
+            type: "slider",
+            label: "RS2",
+            widthMm: 3581,
+            heightMm: 2125,
+            quantity: 1,
+            cladding: null,
+            confidence: "high",
+            notes: [],
+          },
+        ],
+      },
+      { physicalOpeningWidthWitnesses: [physicalWidthWitness()], page },
+    )!;
+
+    expect(recovered.openings[0]).toMatchObject({
+      width_m: 3.6,
+      height_m: 2.13,
+      confidence: "high",
+    });
+    expect(recovered.openings[0].evidence).toContain("visual locator confirmed");
+    expect(recovered.openings[0].recoveryProof).toEqual({
+      kind: "physical_elevation",
+      floorWidthMm: 3600,
+      elevationFace: "North",
+      elevationLabel: "RS2",
+      elevationWidthMm: 3581,
+      elevationHeightMm: 2125,
+    });
+  });
+
+  it("does not recover duplicate visual locators that claim the same physical/elevation proof", () => {
+    const original = audit([
+      visualOpening({ id: "O1", label: "2100x3600", height_m: 2.1, width_m: 3.6, flags: [] }),
+      visualOpening({
+        id: "O2",
+        label: "2100x3600",
+        height_m: 2.1,
+        width_m: 3.6,
+        x: 0.51,
+        y: 0.51,
+        flags: [],
+      }),
+    ]);
+    const recovered = recoverVisualAuditFromElevationLedger(original, elevations, {
+      physicalOpeningWidthWitnesses: [physicalWidthWitness()],
+      page,
+    });
+
+    expect(recovered).toBe(original);
+  });
+
+  it("does not recover when visual dimensions disagree with deterministic proof", () => {
+    const original = audit([
+      visualOpening({
+        label: "2100x3000",
+        height_m: 2.1,
+        width_m: 3,
+        confidence: "medium",
+        flags: [],
+      }),
+    ]);
+    const recovered = recoverVisualAuditFromElevationLedger(original, elevations, {
+      physicalOpeningWidthWitnesses: [physicalWidthWitness()],
+      page,
+    });
+
+    expect(recovered).toBe(original);
   });
 
   it("does not use a standalone width witness unless an elevation opening agrees", () => {

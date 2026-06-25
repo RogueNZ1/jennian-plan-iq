@@ -2,7 +2,8 @@ import type { Opening, OpeningSource } from "./takeoff-types";
 import type { PlanText } from "./plan-text";
 import type { FloorPlanGapCandidate } from "./floor-plan-gaps";
 import type { FloorPlanGapElevationMatch } from "./elevation-gap-match";
-import type { QuarantinedOpening } from "./opening-pricing-adjudication";
+import type { HeldBlockedOpening, QuarantinedOpening } from "./opening-pricing-adjudication";
+import type { VisualOpeningAudit } from "./visual-opening-audit";
 
 export type OpeningEvidenceSource =
   | "floorplan_gap"
@@ -23,7 +24,12 @@ export type OpeningEvidenceRole =
   | "dimension"
   | "conflict";
 
-export type OpeningEvidenceStatus = "priced" | "incomplete" | "review" | "conflict";
+export type OpeningEvidenceStatus =
+  | "priced"
+  | "held_blocked"
+  | "incomplete"
+  | "review"
+  | "conflict";
 
 export type OpeningEvidenceItem = {
   source: OpeningEvidenceSource;
@@ -67,15 +73,44 @@ function evidenceRoleForOpening(source: OpeningSource): OpeningEvidenceRole {
   return source === "asserted" ? "height" : "dimension";
 }
 
+function visualReviewType(
+  type: VisualOpeningAudit["openings"][number]["type"],
+  room: string | null | undefined,
+): Opening["type"] | "unknown" {
+  if (type === "uncertain") return "unknown";
+  if (type === "garage_door") return "sectional_door";
+  if (type === "external_door") return /entry|entrance|foyer/i.test(room ?? "") ? "entrance" : "pa_door";
+  return type;
+}
+
+function sameOpeningEvidence(
+  opening: Opening,
+  visual: VisualOpeningAudit["openings"][number],
+): boolean {
+  if (visual.recoveryProof?.kind !== "physical_elevation") return false;
+  const sameWidth = Math.abs(opening.width_m * 1000 - visual.recoveryProof.floorWidthMm) <= 10;
+  const sameHeight = Math.abs(opening.height_m * 1000 - visual.recoveryProof.elevationHeightMm) <= 10;
+  const sameRoom =
+    (opening.room ?? "").trim().toLowerCase() === (visual.room ?? "").trim().toLowerCase();
+  return sameWidth && sameHeight && sameRoom;
+}
+
 export function buildOpeningEvidenceLedger(args: {
   openings: readonly Opening[] | null | undefined;
+  heldBlockedOpenings?: readonly HeldBlockedOpening[] | null;
   quarantinedOpenings?: readonly QuarantinedOpening[] | null;
+  visualOpeningAudit?: VisualOpeningAudit | null;
   planText?: Pick<PlanText, "draftingIssues"> | null;
   floorPlanGaps?: readonly FloorPlanGapCandidate[] | null;
   floorPlanGapElevationMatches?: ReadonlyMap<string, FloorPlanGapElevationMatch> | null;
   promotedFloorPlanGapOpenings?: ReadonlyMap<string, Opening> | null;
 }): OpeningEvidenceCandidate[] {
   const ledger: OpeningEvidenceCandidate[] = [];
+  const representedOpenings: Opening[] = [
+    ...(args.openings ?? []),
+    ...(args.heldBlockedOpenings ?? []).map((held) => held.opening),
+    ...(args.quarantinedOpenings ?? []).map((quarantined) => quarantined.opening),
+  ];
 
   for (const [index, opening] of (args.openings ?? []).entries()) {
     const primarySource = evidenceSourceForOpening(opening.source);
@@ -118,6 +153,35 @@ export function buildOpeningEvidenceLedger(args: {
     });
   }
 
+  for (const [index, held] of (args.heldBlockedOpenings ?? []).entries()) {
+    const opening = held.opening;
+    const primarySource = evidenceSourceForOpening(opening.source);
+    ledger.push({
+      id: `held-blocked-opening-${index + 1}`,
+      status: "held_blocked",
+      priced: false,
+      type: opening.type,
+      room: opening.room,
+      width_m: opening.width_m,
+      height_m: opening.height_m,
+      area_m2: opening.area_m2,
+      evidence: [
+        {
+          source: primarySource,
+          role: evidenceRoleForOpening(opening.source),
+          confidence: opening.confidence,
+          width_m: opening.width_m,
+          height_m: opening.height_m,
+          area_m2: opening.area_m2,
+          room: opening.room,
+          note: `${opening.type} opening has complete dimensions but is held out of pricing from ${primarySource}`,
+        },
+      ],
+      review_flags: [...(opening.flags ?? []), held.flag],
+      conflicts: [held.reason],
+    });
+  }
+
   for (const [index, quarantined] of (args.quarantinedOpenings ?? []).entries()) {
     const opening = quarantined.opening;
     const primarySource = evidenceSourceForOpening(opening.source);
@@ -144,6 +208,41 @@ export function buildOpeningEvidenceLedger(args: {
       ],
       review_flags: opening.flags ?? [],
       conflicts: quarantined.reasons,
+    });
+  }
+
+  for (const [index, item] of (args.visualOpeningAudit?.openings ?? []).entries()) {
+    if (representedOpenings.some((opening) => sameOpeningEvidence(opening, item))) continue;
+    const widthM = item.width_m != null ? Math.round(item.width_m * 100) / 100 : null;
+    const heightM = item.height_m != null ? Math.round(item.height_m * 100) / 100 : null;
+    const areaM2 = widthM != null && heightM != null ? Math.round(widthM * heightM * 100) / 100 : null;
+    ledger.push({
+      id: `visual-opening-${index + 1}`,
+      status: "review",
+      priced: false,
+      type: visualReviewType(item.type, item.room),
+      room: item.room,
+      width_m: widthM,
+      height_m: heightM,
+      area_m2: areaM2,
+      evidence: [
+        {
+          source: "vision",
+          role: item.width_m != null && item.height_m != null ? "dimension" : "candidate",
+          confidence: item.confidence,
+          width_m: widthM,
+          height_m: heightM,
+          area_m2: areaM2,
+          room: item.room,
+          text: item.label ?? undefined,
+          note: item.evidence || "visual opening candidate retained for review only",
+        },
+      ],
+      review_flags: [
+        ...item.flags,
+        "Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it.",
+      ],
+      conflicts: [],
     });
   }
 

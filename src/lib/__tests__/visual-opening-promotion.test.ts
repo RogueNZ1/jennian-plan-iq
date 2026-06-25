@@ -30,7 +30,7 @@ function audit(openings: VisualOpeningAuditItem[]): VisualOpeningAudit {
 }
 
 describe("visual-opening-promotion", () => {
-  it("promotes external wall openings with the garage door as the only non-glazed exception", () => {
+  it("keeps visual openings as evidence-only and does not promote them into QS openings", () => {
     const promoted = promoteVisualOpenings(
       audit([
         item({ id: "O1", type: "window", room: "Bed 2", height_m: 1.1, width_m: 1 }),
@@ -40,32 +40,74 @@ describe("visual-opening-promotion", () => {
       ]),
     );
 
-    expect(promoted?.openings.map((o) => [o.type, o.glazed])).toEqual([
-      ["window", true],
-      ["entrance", true],
-      ["pa_door", true],
-      ["sectional_door", false],
-    ]);
+    expect(promoted?.openings).toEqual([]);
     expect(promoted?.garageDoorSize).toBe("2.8x2.11");
-    expect(promoted?.openings[1]).toMatchObject({
-      height_m: 2.1,
-      width_m: 1,
-      source: "vision",
-    });
-    expect(promoted?.flags.join(" ")).toContain("promoted 4 external-wall openings");
-    expect(promoted?.flags.join(" ")).toContain("assumed 2.1m high");
+    expect(promoted?.flags.join(" ")).toContain("review evidence only");
+    expect(promoted?.flags.join(" ")).toContain("O1: visual opening retained as evidence only");
+    expect(promoted?.flags.join(" ")).not.toContain("assumed 2.1m high");
   });
 
-  it("swaps impossible visual slider dimensions and flags the correction", () => {
+  it("still records visual dimension corrections as review flags", () => {
     const promoted = promoteVisualOpenings(
       audit([item({ id: "O9", type: "slider", room: "Dining", height_m: 3.95, width_m: 2.5 })]),
     );
 
-    expect(promoted?.openings[0]).toMatchObject({ height_m: 2.5, width_m: 3.95 });
+    expect(promoted?.openings).toEqual([]);
     expect(promoted?.flags.join(" ")).toContain("dimensions swapped");
   });
 
-  it("uses the printed garage label before visual dimensions", () => {
+  it("does not promote from prose that merely looks like deterministic proof", () => {
+    const promoted = promoteVisualOpenings(
+      audit([
+        item({
+          id: "O10",
+          type: "slider",
+          room: "Family",
+          height_m: 2.1,
+          width_m: 3.6,
+          evidence:
+            "physical floor-plan width 3600mm with stub+leaf evidence selects North elevation RS2 at 3600x2100mm",
+        }),
+      ]),
+    );
+
+    expect(promoted?.openings).toEqual([]);
+    expect(promoted?.flags.join(" ")).toContain("review evidence only");
+  });
+
+  it("promotes only when structured physical-elevation proof is present", () => {
+    const promoted = promoteVisualOpenings(
+      audit([
+        item({
+          id: "O11",
+          type: "slider",
+          room: "Family",
+          height_m: 2.1,
+          width_m: 3.6,
+          recoveryProof: {
+            kind: "physical_elevation",
+            floorWidthMm: 3600,
+            elevationFace: "North",
+            elevationLabel: "RS2",
+            elevationWidthMm: 3600,
+            elevationHeightMm: 2100,
+          },
+        }),
+      ]),
+    );
+
+    expect(promoted?.openings).toHaveLength(1);
+    expect(promoted?.openings[0]).toMatchObject({
+      type: "slider",
+      room: "Family",
+      source: "vector",
+      height_source: "vector",
+      width_m: 3.6,
+      height_m: 2.1,
+    });
+  });
+
+  it("uses a plausible printed garage label as a garage-size witness only", () => {
     const promoted = promoteVisualOpenings(
       audit([
         item({
@@ -79,16 +121,11 @@ describe("visual-opening-promotion", () => {
       ]),
     );
 
-    expect(promoted?.openings[0]).toMatchObject({
-      type: "sectional_door",
-      width_m: 2.7,
-      height_m: 2.11,
-      glazed: false,
-    });
+    expect(promoted?.openings).toEqual([]);
     expect(promoted?.garageDoorSize).toBe("2.7x2.11");
   });
 
-  it("rejects elevation/level reads as garage doors", () => {
+  it("rejects elevation/level reads as garage-door size witnesses", () => {
     const promoted = promoteVisualOpenings(
       audit([
         item({
@@ -103,12 +140,12 @@ describe("visual-opening-promotion", () => {
       ]),
     );
 
-    expect(promoted?.openings.map((o) => o.type)).toEqual(["window"]);
+    expect(promoted?.openings).toEqual([]);
     expect(promoted?.garageDoorSize).toBeNull();
     expect(promoted?.flags.join(" ")).toContain("outside the garage-door plausibility band");
   });
 
-  it("rejects JM-0041's 2800x2520 visual misread as too tall for a garage door", () => {
+  it("retains rejected garage-door reads as review evidence", () => {
     const promoted = promoteVisualOpenings(
       audit([
         item({
@@ -122,6 +159,8 @@ describe("visual-opening-promotion", () => {
       ]),
     );
 
-    expect(promoted).toBeNull();
+    expect(promoted?.openings).toEqual([]);
+    expect(promoted?.garageDoorSize).toBeNull();
+    expect(promoted?.flags.join(" ")).toContain("outside the garage-door plausibility band");
   });
 });

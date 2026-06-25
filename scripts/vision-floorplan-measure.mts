@@ -17,7 +17,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { extractAnnotations, type RawAnnotation } from "../src/lib/takeoff/extract-annotations.ts";
 import { BUILDER_CONFIGS } from "../src/lib/takeoff/builder-config.ts";
@@ -105,12 +105,21 @@ interface VisionOpening {
   qty: number;
 }
 
-// Parse a dimension annotation like "1100x600", "2/1100x600", "W12 1300x1800".
-function parsePair(text: string): { a: number; b: number; qty: number } | null {
-  const m = text.match(/(\d{3,4})\s*[xX×]\s*(\d{3,4})/);
+// Parse a dimension annotation like "1100x600", "1 100x600", "2/1100x600", "W12 1300x1800".
+const DIM_NUMBER_SOURCE = String.raw`\d(?:[\s,]*\d){2,3}`;
+const DIM_SEPARATOR_SOURCE = String.raw`(?:[xX]|\u00d7)`;
+const DIM_PAIR_RE = new RegExp(`(${DIM_NUMBER_SOURCE})\\s*${DIM_SEPARATOR_SOURCE}\\s*(${DIM_NUMBER_SOURCE})`);
+const DIM_QTY_RE = new RegExp(`^\\s*(\\d{1,2})\\s*[\\/@]\\s*${DIM_NUMBER_SOURCE}\\s*${DIM_SEPARATOR_SOURCE}`);
+
+function parseDimNumber(raw: string): number {
+  return Number(raw.replace(/\D/g, ""));
+}
+
+export function parsePair(text: string): { a: number; b: number; qty: number } | null {
+  const m = text.match(DIM_PAIR_RE);
   if (!m) return null;
-  const qm = text.match(/^\s*(\d{1,2})\s*[\/@]\s*\d{3,4}\s*[xX×]/);
-  return { a: Number(m[1]), b: Number(m[2]), qty: qm ? Number(qm[1]) : 1 };
+  const qm = text.match(DIM_QTY_RE);
+  return { a: parseDimNumber(m[1]), b: parseDimNumber(m[2]), qty: qm ? Number(qm[1]) : 1 };
 }
 
 function expandVision(anns: RawAnnotation[]): VisionOpening[] {
@@ -337,7 +346,10 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+const isMain = process.argv[1] ? import.meta.url === pathToFileURL(resolve(process.argv[1])).href : false;
+if (isMain) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}

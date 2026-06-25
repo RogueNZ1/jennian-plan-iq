@@ -14,6 +14,13 @@ import { toJson } from "@/lib/type-helpers";
 import type { TakeoffJsonWriter } from "./persist-takeoff";
 import { extractFile, loadJobFiles, type ExtractedFile } from "./pdf-text";
 import { classifyPageWithType, pickWorkingPage, type ClassifiedPage } from "./classify";
+import {
+  pickElevationPage,
+  pickWindowSchedule,
+  scoreFor,
+  type PageType,
+  type SupportingPage,
+} from "@/lib/pdf-page-classify";
 import { detectScaleFromText, writeCalibration } from "./scale";
 import {
   extractQuantitiesFromFile,
@@ -34,6 +41,102 @@ import {
   type FileDiagnostic,
   type TakeoffDiagnostics,
 } from "./diagnostics";
+
+type SupportingEvidencePage = {
+  fileId: string;
+  fileName: string;
+  pageNumber: number;
+};
+
+type ClassifiedRunFile = {
+  fileId: string;
+  fileName: string;
+  fileType: "plan" | "specification";
+  pages: ClassifiedPage[];
+};
+
+function toSharedPageType(pageType: ClassifiedPage["pageType"]): PageType {
+  switch (pageType) {
+    case "Dimension Floorplan":
+      return "dimension_floor_plan";
+    case "Floorplan":
+      return "floor_plan";
+    case "Site Plan":
+      return "site_plan";
+    case "Elevations":
+      return "elevations";
+    case "Sections":
+      return "sections";
+    case "Roof Plan":
+      return "roofing";
+    case "Electrical Plan":
+      return "electrical";
+    case "Plumbing Plan":
+      return "plumbing";
+    case "Schedule":
+      return "window_schedule";
+    case "Legend":
+      return "legends";
+    case "Specification":
+      return "details";
+    case "Cover Page":
+    case "Unknown":
+    default:
+      return "unknown";
+  }
+}
+
+function toSupportingPages(pages: readonly ClassifiedPage[]): SupportingPage[] {
+  return pages.map((page) => {
+    const pageType = toSharedPageType(page.pageType);
+    return {
+      pageType,
+      confidence: page.confidence,
+      score: scoreFor(pageType, page.confidence),
+      excerpt: page.reason,
+    };
+  });
+}
+
+function pickSupportingEvidencePage(
+  classified: readonly ClassifiedRunFile[],
+  kind: "elevations" | "schedule",
+  preferredFileId: string | null,
+): SupportingEvidencePage | null {
+  const planFiles = classified
+    .filter((file) => file.fileType === "plan")
+    .sort((a, b) => {
+      const ap = preferredFileId != null && a.fileId === preferredFileId ? 0 : 1;
+      const bp = preferredFileId != null && b.fileId === preferredFileId ? 0 : 1;
+      return ap - bp || a.fileName.localeCompare(b.fileName);
+    });
+
+  for (const file of planFiles) {
+    const supportingPages = toSupportingPages(file.pages);
+    const pick =
+      kind === "elevations"
+        ? pickElevationPage(supportingPages)
+        : pickWindowSchedule(supportingPages);
+    const page = pick != null ? file.pages[pick.index] : undefined;
+    if (page) {
+      return {
+        fileId: file.fileId,
+        fileName: file.fileName,
+        pageNumber: page.pageNumber,
+      };
+    }
+  }
+  return null;
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
 
 export type TakeoffStep =
   | "reviewing_files"
@@ -726,21 +829,64 @@ export async function runAutomaticTakeoff(args: {
               // proves the production path produces the right numbers before any DB work.
               try {
                 const { renderPageForAnalysis } = await import("@/lib/pdf-pages");
-                const { extractConceptTakeoffs } = await import("./concept.functions");
+                const {
+                  extractConceptTakeoffs,
+                  extractVisualOpeningAuditFn,
+                  extractWindowScheduleFn,
+                } = await import("./concept.functions");
                 const { composeTakeoff } = await import("./compose-takeoff");
+                const { extractElevationsFn } = await import("./extract-elevations");
+                const { mergeElevationVectorOpenings } = await import(
+                  "./elevation-vector-openings"
+                );
+                const { runElevationVectorEvidence } = await import(
+                  "./run-elevation-vector-openings"
+                );
                 const planFile = new File([fileData], fileRow.file_name ?? "plan.pdf", {
                   type: "application/pdf",
                 });
+                const pdfFileCache = new Map<string, File>();
+                pdfFileCache.set(workingFileId, planFile);
+                const getEvidencePdf = async (
+                  source: SupportingEvidencePage | null,
+                ): Promise<File | null> => {
+                  if (!source) return null;
+                  const cached = pdfFileCache.get(source.fileId);
+                  if (cached) return cached;
+                  const meta = files.find((file) => file.id === source.fileId);
+                  if (!meta?.storage_url) return null;
+                  const { data } = await supabase.storage
+                    .from("job-files")
+                    .download(meta.storage_url);
+                  if (!data) return null;
+                  const file = new File([data], meta.file_name ?? source.fileName, {
+                    type: "application/pdf",
+                  });
+                  pdfFileCache.set(source.fileId, file);
+                  return file;
+                };
+                const renderEvidencePage = async (
+                  source: SupportingEvidencePage | null,
+                ): Promise<Blob | null> => {
+                  const file = await getEvidencePdf(source);
+                  if (!file || !source) return null;
+                  return renderPageForAnalysis(file, source.pageNumber).catch(() => null);
+                };
+                const scheduleSource = pickSupportingEvidencePage(
+                  classified,
+                  "schedule",
+                  workingFileId,
+                );
+                const elevationSource = pickSupportingEvidencePage(
+                  classified,
+                  "elevations",
+                  workingFileId,
+                );
                 const pageBlob = await renderPageForAnalysis(planFile, workingPageNumber ?? 1);
                 if (!pageBlob)
                   canonicalSkipReason = "working page could not be rendered for vision";
                 if (pageBlob) {
-                  const b64 = await new Promise<string>((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve((reader.result as string).split(",")[1]);
-                    reader.onerror = reject;
-                    reader.readAsDataURL(pageBlob);
-                  });
+                  const b64 = await blobToBase64(pageBlob);
                   // The vision pass also yields the planContext we already persist (same
                   // underlying recognisePlan), so this replaces the separate recon call.
                   const conceptResult = await extractConceptTakeoffs({
@@ -751,9 +897,62 @@ export async function runAutomaticTakeoff(args: {
                     .update({ plan_context: toJson(conceptResult.planContext) })
                     .eq("id", jobId);
 
+                  const builderName = conceptResult.planContext?.builder?.name ?? "Jennian Homes";
+                  const [scheduleBlob, elevationBlob] = await Promise.all([
+                    renderEvidencePage(scheduleSource),
+                    renderEvidencePage(elevationSource),
+                  ]);
+                  const scheduleRaw = scheduleBlob
+                    ? await blobToBase64(scheduleBlob)
+                        .then((sb64) =>
+                          extractWindowScheduleFn({
+                            data: { imageBase64: sb64, builderName },
+                          }),
+                        )
+                        .catch(() => null)
+                    : null;
+                  const elevationFile = await getEvidencePdf(elevationSource);
+                  const elevationImageBase64 = elevationBlob
+                    ? await blobToBase64(elevationBlob)
+                    : null;
+                  const visualOpeningAuditP = elevationImageBase64
+                    ? extractVisualOpeningAuditFn({
+                        data: {
+                          imageBase64: b64,
+                          pageNumber: workingPageNumber ?? null,
+                          elevationImageBase64,
+                        },
+                      }).catch(() => null)
+                    : Promise.resolve(null);
+                  const [elevRaw, elevVectorEvidence, visualOpeningAudit] = await Promise.all([
+                    elevationImageBase64
+                      ? extractElevationsFn({
+                          data: { imageBase64: elevationImageBase64, builderName },
+                        }).catch(() => null)
+                      : Promise.resolve(null),
+                    elevationFile
+                      ? elevationFile
+                          .arrayBuffer()
+                          .then((data) =>
+                            runElevationVectorEvidence(data, elevationSource?.pageNumber ?? 1),
+                          )
+                          .catch(() => ({
+                            elevationOpenings: [],
+                            elevationFaceBands: [],
+                            elevationOpeningSlots: [],
+                          }))
+                      : Promise.resolve({
+                          elevationOpenings: [],
+                          elevationFaceBands: [],
+                          elevationOpeningSlots: [],
+                        }),
+                    visualOpeningAuditP,
+                  ]);
+                  const elev = mergeElevationVectorOpenings(elevRaw, elevVectorEvidence);
+
                   // Convergence Slice 3 — the enriched takeoff, computed IN MEMORY only.
-                  // schedule is null here (run.ts does not yet pick a schedule page — a
-                  // documented follow-on; concept jobs have no separate schedule sheet).
+                  // schedule/elevation/visual evidence is threaded only when an uploaded
+                  // supporting page is actually found; missing support stays null.
                   // Deterministic door pass (no AI). Fail-safe: any failure → null →
                   // the export's door cells fall back through the precedence chain.
                   const { runDoorEngine } = await import("../doors/run-doors");
@@ -773,15 +972,26 @@ export async function runAutomaticTakeoff(args: {
                   const composed = composeTakeoff({
                     visionTakeoff: conceptResult.takeoffData,
                     geometry: geoResult,
-                    schedule: null,
+                    schedule: scheduleRaw,
                     geometryPageIndex,
                     doorEngine,
+                    visualOpeningAudit,
+                    elevationData: elev,
                   });
                   console.info("[concept-compose] enriched takeoff:", {
                     floor_area_m2: composed.enriched.floor_area_m2.value,
                     floor_source: composed.enriched.floor_area_m2.source,
                     window_count: composed.enriched.window_count.value,
                     garage_door_size: composed.enriched.garage_door_size.value,
+                    evidence_pages: {
+                      schedule: scheduleSource
+                        ? `${scheduleSource.fileName} p${scheduleSource.pageNumber}`
+                        : null,
+                      elevations: elevationSource
+                        ? `${elevationSource.fileName} p${elevationSource.pageNumber}`
+                        : null,
+                      visual_audit: elevationImageBase64 != null ? "floor+elevation" : null,
+                    },
                     reconciliation_flags: composed.reconciliation.flags.length,
                     page_agreed: composed.pageReconcile.agreed,
                   });

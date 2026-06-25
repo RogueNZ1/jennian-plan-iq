@@ -113,7 +113,7 @@ function openingSlot(args: {
 }
 
 describe("composeTakeoff visual opening promotion", () => {
-  it("uses Visual QS for openings but preserves the canonical sectional when visual garage is rejected", () => {
+  it("keeps raw Visual QS openings as review evidence and preserves canonical priced rows", () => {
     const enriched = composeTakeoff({
       visionTakeoff: baseVision,
       geometry: null,
@@ -122,14 +122,15 @@ describe("composeTakeoff visual opening promotion", () => {
       visualOpeningAudit: visualAudit,
     }).enriched;
 
-    expect(enriched.openings?.map((o) => o.type)).toEqual(["window", "pa_door", "sectional_door"]);
-    expect(enriched.openings?.map((o) => o.glazed)).toEqual([true, true, false]);
+    expect(enriched.openings?.map((o) => o.type)).toEqual(["window", "sectional_door"]);
+    expect(enriched.openings?.map((o) => o.glazed)).toEqual([true, false]);
     expect(enriched.garage_door_size.value).toBe("2.7x2.1");
-    expect(enriched.total_opening_sqm).toBe(8.87);
-    expect(enriched.windows_by_room.discrepancy_flags.join(" ")).toContain("Visual QS promoted");
+    expect(enriched.total_opening_sqm).toBe(6.77);
+    expect(enriched.windows_by_room.discrepancy_flags.join(" ")).toContain("review evidence only");
     expect(enriched.windows_by_room.discrepancy_flags.join(" ")).toContain(
       "outside the garage-door plausibility band",
     );
+    expect(enriched.opening_evidence?.some((candidate) => candidate.id === "visual-opening-2" && candidate.priced === false)).toBe(true);
   });
 
   it("keeps printed plan-text window dimensions ahead of disagreeing visual QS windows", () => {
@@ -217,13 +218,13 @@ describe("composeTakeoff visual opening promotion", () => {
       ["window", "BED 2", 1.3, 1.5],
       ["window", "FAMILY", 1.3, 2.4],
       ["sectional_door", "Garage", 2.1, 2.7],
-      ["pa_door", "Laundry", 2.1, 1],
     ]);
-    expect(enriched.total_opening_sqm).toBe(12.84);
-    expect(enriched.windows_by_room.discrepancy_flags.join(" ")).toContain("Visual QS promoted");
+    expect(enriched.total_opening_sqm).toBe(10.74);
+    expect(enriched.windows_by_room.discrepancy_flags.join(" ")).toContain("review evidence only");
+    expect(enriched.opening_evidence?.some((candidate) => candidate.id === "visual-opening-3" && candidate.type === "pa_door" && candidate.priced === false)).toBe(true);
   });
 
-  it("recovers a malformed visual opening from a single compatible elevation ledger row", () => {
+  it("does not price a malformed visual opening from elevation-only recovery", () => {
     const enriched = composeTakeoff({
       visionTakeoff: { ...baseVision, windows_by_room: null, window_count: null },
       geometry: null,
@@ -278,15 +279,9 @@ describe("composeTakeoff visual opening promotion", () => {
       },
     }).enriched;
 
-    expect(enriched.openings?.[0]).toMatchObject({
-      type: "slider",
-      room: "Family",
-      height_m: 2.1,
-      width_m: 3.6,
-      confidence: "high",
-      flags: [],
-    });
-    expect(enriched.total_opening_sqm).toBe(13.23);
+    expect(enriched.openings?.map((o) => o.type)).toEqual(["sectional_door"]);
+    expect(enriched.total_opening_sqm).toBe(5.67);
+    expect(enriched.opening_evidence?.some((candidate) => candidate.id === "visual-opening-1" && candidate.type === "slider" && candidate.priced === false)).toBe(true);
   });
 
   it("promotes ordered face-signature slots only when floor side length and ordered slots agree", () => {
@@ -592,13 +587,17 @@ describe("composeTakeoff visual opening promotion", () => {
       width_m: 3.6,
       height_m: 2.1,
       confidence: "high",
-      flags: [],
     });
+    expect(enriched.openings?.[0]?.flags?.join(" ")).toContain(
+      "visual locator promoted only after physical floor-plan width and elevation proof agreed",
+    );
     expect(enriched.openings?.[0]?.area_m2).toBe(7.56);
     expect(enriched.total_opening_sqm).toBeGreaterThan(7.56);
+    expect(enriched.opening_evidence?.some((candidate) => candidate.id === "opening-1" && candidate.priced)).toBe(true);
+    expect(enriched.opening_evidence?.some((candidate) => candidate.id === "visual-opening-1")).toBe(false);
   });
 
-  it("quarantines impossible visual witnesses before they become priced opening totals", () => {
+  it("keeps impossible visual witnesses as review evidence before they become priced opening totals", () => {
     const enriched = composeTakeoff({
       visionTakeoff: baseVision,
       geometry: null,
@@ -641,26 +640,23 @@ describe("composeTakeoff visual opening promotion", () => {
     }).enriched;
 
     expect(enriched.openings?.map((o) => [o.room, o.height_m, o.width_m])).toEqual([
-      ["Bed 2", 1.1, 1],
+      ["bed2", 1.1, 1],
       ["Garage", 2.1, 2.7],
     ]);
     expect(enriched.total_opening_sqm).toBe(6.77);
     expect(enriched.glazed_sqm).toBe(1.1);
     expect(enriched.external_wall_area_m2.value).toBe(89.23);
     expect(enriched.windows_by_room.discrepancy_flags.join(" ")).toContain(
-      "Entrance: window 90m x 1.6m quarantined from pricing",
+      "review evidence only",
     );
-    const quarantined = enriched.opening_evidence?.find((e) => e.id === "quarantined-opening-1");
-    expect(quarantined).toMatchObject({
+    const visual = enriched.opening_evidence?.find((e) => e.id === "visual-opening-1");
+    expect(visual).toMatchObject({
       priced: false,
       status: "review",
       room: "Entrance",
       width_m: 90,
       height_m: 1.6,
     });
-    expect(quarantined?.conflicts).toEqual(
-      expect.arrayContaining(["impossible_width", "impossible_area", "impossible_ratio"]),
-    );
   });
 
   it("blocks opening-derived pricing when Visual QS reconciliation has unresolved errors", () => {
@@ -692,16 +688,7 @@ describe("composeTakeoff visual opening promotion", () => {
       },
     }).enriched;
 
-    expect(enriched.openings).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: "window",
-          room: "Bed 2",
-          width_m: 1,
-          height_m: 1.1,
-        }),
-      ]),
-    );
+    expect(enriched.openings).toEqual([]);
     expect(enriched.total_opening_sqm).toBeNull();
     expect(enriched.glazed_sqm).toBeNull();
     expect(enriched.external_wall_area_m2.value).toBeNull();
@@ -715,10 +702,11 @@ describe("composeTakeoff visual opening promotion", () => {
     expect(enriched.external_wall_area_m2.discrepancy_flags.join(" ")).toContain(
       "Opening pricing blocked: unresolved Visual QS reconciliation error",
     );
-    expect(enriched.opening_evidence?.some((candidate) => candidate.priced === true)).toBe(true);
+    expect(enriched.opening_evidence?.some((candidate) => candidate.status === "held_blocked")).toBe(true);
+    expect(enriched.opening_evidence?.some((candidate) => candidate.priced === true)).toBe(false);
     expect(
-      enriched.opening_evidence?.every(
-        (candidate) => !candidate.conflicts.includes("visual_reconciliation_error"),
+      enriched.opening_evidence?.some((candidate) =>
+        candidate.conflicts.includes("visual_reconciliation_error"),
       ),
     ).toBe(true);
   });

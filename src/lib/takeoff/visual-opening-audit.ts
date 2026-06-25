@@ -9,6 +9,15 @@ export type VisualOpeningType =
 
 export type VisualOpeningConfidence = "high" | "medium" | "low";
 
+export type VisualOpeningRecoveryProof = {
+  kind: "physical_elevation";
+  floorWidthMm: number;
+  elevationFace: string;
+  elevationLabel: string | null;
+  elevationWidthMm: number;
+  elevationHeightMm: number;
+};
+
 export type VisualOpeningAuditItem = {
   id: string;
   type: VisualOpeningType;
@@ -22,6 +31,7 @@ export type VisualOpeningAuditItem = {
   confidence: VisualOpeningConfidence;
   evidence: string;
   flags: string[];
+  recoveryProof?: VisualOpeningRecoveryProof;
 };
 
 export type VisualOpeningAuditSummary = {

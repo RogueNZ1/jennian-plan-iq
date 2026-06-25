@@ -100,12 +100,19 @@ O'Neil vector `openings=0`.
 = production parity). Scored not as "did vision produce openings?" but to Codex's five questions.
 Diagnostic-only.
 
+**2026-06-25 parser correction:** the original floorplan addendum under-scored O'Neil because the
+diagnostic parser read spaced thousands such as `1 000x600` as `0x600` and `1 850x700` as `850x700`.
+With the same cached raw annotations and the corrected parser, O'Neil rescored to **9** vision W/H
+pairs, **8/15 (53%)** dimension recall, **6/8 (75%)** room attribution on matched rows, **8/9 (89%)**
+precision, **7/17 (41%)** floor-vector confirmation, and **1** truth hit beyond deterministic witnesses.
+That makes floor vision a useful corroborator, but still not the primary dimension/identity source.
+
 ## Four-job table
 
 | job | truth | vision W×H pairs | (2) dim recall | (3) right room | (4) precision | room/run FPs | (1) confirms floor vectors | beyond witnesses |
 |---|---|---|---|---|---|---|---|---|
 | Fenner | 18 | 14 | 44% | 38% | 57% | 0 | 45% | 4 |
-| O'Neil | 15 | 4 | **0%** | n/a | **0%** | 0 | 12% | 0 |
+| O'Neil | 15 | 9 | **53%** | 75% | **89%** | 0 | 41% | 1 |
 | 15a | 15 | 10 | 33% | 20% | 50% | 0 | 21% | 3 |
 | Beddis | 15 | 8 | 27% | 75% | 50% | 0 | 30% | 1 |
 | deterministic floor witnesses (for comparison) | — | — | — | — | — | — | Fenner 20 · **O'Neil 17** · 15a 14 · Beddis 10 | — |
@@ -115,38 +122,39 @@ Diagnostic-only.
 1. **Agree with the floor vectors?** *Weak.* Vision re-confirms only **12–45%** of the deterministic
    floor witnesses. The deterministic floor path is the **stronger** witness on every job.
 2. **Read printed H×W correctly?** *Yes when it reads — exactly* (median read error **0 mm**). But it
-   only emits a W×H pair for a fraction of openings, so recall is **0–44%**.
+   only emits a W×H pair for a fraction of openings, so recall is **27–53%**.
 3. **Right room?** *Weak.* **20–75%** (mostly wrong). Vision mis-attributes the room roughly half the
    time. (The first cut showed 13% — that was a harness artifact from greedy same-dim pairing; the
    set-based figure above is the honest one, and it is still weak.)
 4. **Avoid room/run dimensions?** *Yes for the gross trap* — **0** room/run-scale false positives on
    all four jobs. But precision is still only **38–57%**: the false positives are opening-scale
    misreads / duplicates / phantoms, not room dims.
-5. **Improve O'Neil/15a/Beddis without breaking Fenner?** **No.** O'Neil = **0%** — total failure on
-   the exact job we need. Cause: O'Neil's openings are encoded as **widths/codes + a joinery schedule**,
-   not `H×W` floor callouts, so there is no `H×W` text for vision to read (it returned malformed pairs
-   like `0x600`). 15a/Beddis are modest (33%/27%). Fenner is best but still under half.
+5. **Improve O'Neil/15a/Beddis without breaking Fenner?** **Partially.** O'Neil is no longer a floor-vision
+   total failure after fixing the spaced-thousands parser (`1 000x600` now scores as `1000x600`, not
+   `0x600`): cached raw annotations rescore to **8/15 (53%)**. But this still does not replace the
+   deterministic floor witnesses or schedule reader: it confirms only **7/17** O'Neil floor witnesses,
+   adds only **1** truth hit beyond those witnesses, and 15a/Beddis remain modest (33%/27%).
 
 ## What this means (it corrects the earlier optimism)
 
 The instinct "use the floor plan to vector in" is **right about the floor, wrong about the tool.** The
 dimensions + identity *do* live on the floor — but you get them from the **deterministic floor
 witnesses** (printed window codes + physical opening widths) and the **joinery schedule sheet**
-(`extract-window-schedule.ts`, the "authoritative window list"), **not** from vision-on-floorplan.
+(`extract-window-schedule.ts`, the "authoritative window list"), **not** primarily from vision-on-floorplan.
 Vision-on-floor at single-pass production resolution is a *thin corroborator* (a few finds beyond the
-witnesses) — not the vectoring-in mechanism, and useless on O'Neil.
+witnesses) — not the vectoring-in mechanism.
 
 **Corrected division of labour (data-backed):**
-- **Dimensions + identity → deterministic floor witnesses + joinery schedule.** (Strong; O'Neil 17 vs vision 0.)
+- **Dimensions + identity → deterministic floor witnesses + joinery schedule.** (Strong; O'Neil 17 witnesses vs 9 vision pairs / 8 truth hits.)
 - **Face + type → vision-on-elevation** (strong, esp. where the elevation is raster like O'Neil) **+ elevation vector where it exists** (Fenner).
 - **Vision-on-floorplan → optional thin witness only; off the critical path.**
 - The candidate-guided snapper should anchor on **floor witnesses + vision-elevation face**, NOT on vision-floor.
 
 **One caveat / untested lever:** this is **single-pass, full-page at 1400px**. The production pipeline
 already has crop-on-anomaly re-reads (`crop-localizer.ts`) precisely because full-page passes miss small
-callouts — a zoomed/cropped re-read would likely lift recall. But even with perfect reading, O'Neil's
-dims aren't on the floor as `H×W`, so the **schedule reader** is the right next probe there, not more
-floor-vision.
+callouts — a zoomed/cropped re-read would likely lift recall. But even with better reading, O'Neil's
+single-pass floor vision still trails deterministic witnesses, so the **schedule reader** remains the
+right next probe there, not more floor-vision as the primary source.
 
 ## Reproduce
 ```

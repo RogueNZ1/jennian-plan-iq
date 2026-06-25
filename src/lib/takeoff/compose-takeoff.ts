@@ -874,7 +874,9 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     : localOpeningTotals;
   const openingEvidence = buildOpeningEvidenceLedger({
     openings: pricedComposedOpenings,
+    heldBlockedOpenings: openingPricingAdjudication.heldBlockedOpenings,
     quarantinedOpenings: openingPricingAdjudication.quarantinedOpenings,
+    visualOpeningAudit: recoveredVisualOpeningAudit,
     planText,
     floorPlanGaps: doorEngine?.floorPlanGaps,
     floorPlanGapElevationMatches,

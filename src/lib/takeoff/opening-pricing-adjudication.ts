@@ -6,6 +6,12 @@ export type QuarantinedOpening = {
   reasons: string[];
 };
 
+export type HeldBlockedOpening = {
+  opening: Opening;
+  reason: string;
+  flag: string;
+};
+
 export type OpeningPricingBlock = {
   reason: string;
   flag: string;
@@ -13,6 +19,7 @@ export type OpeningPricingBlock = {
 
 export type OpeningPricingAdjudication = {
   pricedOpenings: Opening[];
+  heldBlockedOpenings: HeldBlockedOpening[];
   quarantinedOpenings: QuarantinedOpening[];
   flags: string[];
   pricingBlocked: boolean;
@@ -91,7 +98,7 @@ export function adjudicateOpeningPricing(openings: readonly Opening[]): OpeningP
     flags.push(flag);
   }
 
-  return { pricedOpenings, quarantinedOpenings, flags, pricingBlocked: false };
+  return { pricedOpenings, heldBlockedOpenings: [], quarantinedOpenings, flags, pricingBlocked: false };
 }
 
 export function pricingBlockFromVisualReconciliation(
@@ -114,7 +121,18 @@ export function applyOpeningPricingBlock(
   if (!block) return adjudication;
 
   return {
-    pricedOpenings: adjudication.pricedOpenings,
+    pricedOpenings: [],
+    heldBlockedOpenings: [
+      ...adjudication.heldBlockedOpenings,
+      ...adjudication.pricedOpenings.map((opening) => ({
+        opening: {
+          ...opening,
+          flags: [...(opening.flags ?? []), block.flag],
+        },
+        reason: block.reason,
+        flag: block.flag,
+      })),
+    ],
     quarantinedOpenings: adjudication.quarantinedOpenings,
     flags: [...adjudication.flags, block.flag],
     pricingBlocked: true,
