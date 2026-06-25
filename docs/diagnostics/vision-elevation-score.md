@@ -90,3 +90,65 @@ npx tsx --env-file=.env.local scripts/vision-elevation-measure.mts
 
 Baseline anchors unchanged by this work: Fenner ledger still **2/17 / 17.73 m²**; four-job audit still
 O'Neil vector `openings=0`.
+
+---
+
+# Addendum — vision-on-FLOORPLAN, scored to the council's tightened bar
+
+**Date:** 2026-06-25 · Harness: `scripts/vision-floorplan-measure.mts` (imports the **shipped**
+`extractAnnotations` verbatim + the **shipped** deterministic floor-witness detectors; 1400px render
+= production parity). Scored not as "did vision produce openings?" but to Codex's five questions.
+Diagnostic-only.
+
+## Four-job table
+
+| job | truth | vision W×H pairs | (2) dim recall | (3) right room | (4) precision | room/run FPs | (1) confirms floor vectors | beyond witnesses |
+|---|---|---|---|---|---|---|---|---|
+| Fenner | 18 | 14 | 44% | 38% | 57% | 0 | 45% | 4 |
+| O'Neil | 15 | 4 | **0%** | n/a | **0%** | 0 | 12% | 0 |
+| 15a | 15 | 10 | 33% | 20% | 50% | 0 | 21% | 3 |
+| Beddis | 15 | 8 | 27% | 75% | 50% | 0 | 30% | 1 |
+| deterministic floor witnesses (for comparison) | — | — | — | — | — | — | Fenner 20 · **O'Neil 17** · 15a 14 · Beddis 10 | — |
+
+## Verdict against the five questions (honest, not hyped)
+
+1. **Agree with the floor vectors?** *Weak.* Vision re-confirms only **12–45%** of the deterministic
+   floor witnesses. The deterministic floor path is the **stronger** witness on every job.
+2. **Read printed H×W correctly?** *Yes when it reads — exactly* (median read error **0 mm**). But it
+   only emits a W×H pair for a fraction of openings, so recall is **0–44%**.
+3. **Right room?** *Weak.* **20–75%** (mostly wrong). Vision mis-attributes the room roughly half the
+   time. (The first cut showed 13% — that was a harness artifact from greedy same-dim pairing; the
+   set-based figure above is the honest one, and it is still weak.)
+4. **Avoid room/run dimensions?** *Yes for the gross trap* — **0** room/run-scale false positives on
+   all four jobs. But precision is still only **38–57%**: the false positives are opening-scale
+   misreads / duplicates / phantoms, not room dims.
+5. **Improve O'Neil/15a/Beddis without breaking Fenner?** **No.** O'Neil = **0%** — total failure on
+   the exact job we need. Cause: O'Neil's openings are encoded as **widths/codes + a joinery schedule**,
+   not `H×W` floor callouts, so there is no `H×W` text for vision to read (it returned malformed pairs
+   like `0x600`). 15a/Beddis are modest (33%/27%). Fenner is best but still under half.
+
+## What this means (it corrects the earlier optimism)
+
+The instinct "use the floor plan to vector in" is **right about the floor, wrong about the tool.** The
+dimensions + identity *do* live on the floor — but you get them from the **deterministic floor
+witnesses** (printed window codes + physical opening widths) and the **joinery schedule sheet**
+(`extract-window-schedule.ts`, the "authoritative window list"), **not** from vision-on-floorplan.
+Vision-on-floor at single-pass production resolution is a *thin corroborator* (a few finds beyond the
+witnesses) — not the vectoring-in mechanism, and useless on O'Neil.
+
+**Corrected division of labour (data-backed):**
+- **Dimensions + identity → deterministic floor witnesses + joinery schedule.** (Strong; O'Neil 17 vs vision 0.)
+- **Face + type → vision-on-elevation** (strong, esp. where the elevation is raster like O'Neil) **+ elevation vector where it exists** (Fenner).
+- **Vision-on-floorplan → optional thin witness only; off the critical path.**
+- The candidate-guided snapper should anchor on **floor witnesses + vision-elevation face**, NOT on vision-floor.
+
+**One caveat / untested lever:** this is **single-pass, full-page at 1400px**. The production pipeline
+already has crop-on-anomaly re-reads (`crop-localizer.ts`) precisely because full-page passes miss small
+callouts — a zoomed/cropped re-read would likely lift recall. But even with perfect reading, O'Neil's
+dims aren't on the floor as `H×W`, so the **schedule reader** is the right next probe there, not more
+floor-vision.
+
+## Reproduce
+```
+npx tsx --env-file=.env.local scripts/vision-floorplan-measure.mts
+```
