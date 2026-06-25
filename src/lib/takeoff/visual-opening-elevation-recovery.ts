@@ -57,6 +57,24 @@ function visualDimensionToleranceMm(widthMm: number): number {
   return Math.max(180, Math.round(widthMm * 0.12));
 }
 
+function normaliseRoom(value: string | null | undefined): string {
+  return (value ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function roomCompatible(
+  opening: VisualOpeningAuditItem,
+  witness: PlanPhysicalOpeningWidthWitness,
+): boolean {
+  const visualRoom = normaliseRoom(opening.room);
+  const witnessRoom = normaliseRoom(witness.room);
+  if (!visualRoom || !witnessRoom) return true;
+  return (
+    visualRoom === witnessRoom ||
+    visualRoom.includes(witnessRoom) ||
+    witnessRoom.includes(visualRoom)
+  );
+}
+
 function visualPoint(
   opening: VisualOpeningAuditItem,
   page: { width: number; height: number },
@@ -77,7 +95,10 @@ function nearbyPhysicalOpeningWidths(
       witness,
       distance: Math.hypot(witness.x - point.x, witness.y - point.y),
     }))
-    .filter((candidate) => candidate.distance <= maxDistancePt)
+    .filter(
+      (candidate) =>
+        candidate.distance <= maxDistancePt && roomCompatible(opening, candidate.witness),
+    )
     .sort((a, b) => a.distance - b.distance)
     .map((candidate) => candidate.witness);
 }

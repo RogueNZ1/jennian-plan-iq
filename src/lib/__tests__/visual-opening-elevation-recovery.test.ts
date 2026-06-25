@@ -266,6 +266,38 @@ describe("recoverVisualAuditFromElevationLedger", () => {
     });
   });
 
+  it("ignores nearby physical width witnesses from the wrong room", () => {
+    const recovered = recoverVisualAuditFromElevationLedger(
+      audit([
+        visualOpening({
+          room: "Lounge",
+          label: null,
+          height_m: null,
+          width_m: null,
+          confidence: "medium",
+          flags: ["dimension not readable"],
+        }),
+      ]),
+      elevations,
+      {
+        physicalOpeningWidthWitnesses: [
+          physicalWidthWitness({ widthMm: 2400, room: "Bed 1", x: 500, y: 400 }),
+          physicalWidthWitness({ room: "Lounge", x: 505, y: 410 }),
+        ],
+        page,
+      },
+    )!;
+
+    expect(recovered.openings[0]).toMatchObject({
+      room: "Lounge",
+      width_m: 3.6,
+      height_m: 2.1,
+    });
+    expect(recovered.openings[0].recoveryProof).toMatchObject({
+      floorWidthMm: 3600,
+    });
+  });
+
   it("does not recover duplicate visual locators that claim the same physical/elevation proof", () => {
     const original = audit([
       visualOpening({ id: "O1", label: "2100x3600", height_m: 2.1, width_m: 3.6, flags: [] }),
