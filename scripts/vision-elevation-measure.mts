@@ -114,16 +114,20 @@ Return exactly this JSON structure:
   }>
 }`;
 
-// Pass B only: appended to the system prompt to also request a normalized bbox.
+// Pass B only: the "boxing contract" the council (Codex) named — one row per
+// INDIVIDUAL opening (no quantity grouping) + a mandatory normalized bbox. Used only
+// to draw overlays and test whether vision boxes the visible openings cleanly.
 const BBOX_SUFFIX = `
 
-ADDITIONAL DIAGNOSTIC FIELD (does not change any rule above):
-For EVERY item in elevationOpenings, also include a "bbox" field:
-  "bbox": [x, y, w, h]
-where x,y,w,h are fractions between 0 and 1 of the FULL image width/height.
-x,y = top-left corner of the opening's tight bounding box on THIS image; w,h = its
-width/height as fractions. Give your best visual estimate even if unsure. All other
-fields stay exactly as specified.`;
+ADDITIONAL DIAGNOSTIC CONTRACT (overrides the quantity rule above for THIS response only):
+- Output ONE item in elevationOpenings per INDIVIDUAL physical opening. Do NOT group
+  repeats: if a face has 7 identical windows, return 7 separate items, each with
+  quantity:1. NEVER use quantity > 1.
+- For EVERY item add a "bbox" field: "bbox": [x, y, w, h] as fractions between 0 and 1 of
+  the FULL image width/height. x,y = top-left corner of the opening's tight bounding box on
+  THIS image; w,h = its width/height as fractions. Give your best visual estimate even if unsure.
+- Keep every other field and rule exactly as specified above (garage_door ONLY for the solid
+  sectional/roller door; everything else glazed or door as before).`;
 
 function extractJson(text: string): string {
   let cleaned = text.replace(/```(?:json|JSON)?/g, "").trim();
@@ -499,6 +503,20 @@ const JOBS: JobCfg[] = [
     truth: () => loadJoineryBenchTruth("oneil"),
     builder: "Jennian Homes",
   },
+  {
+    job: "15a",
+    pdf: resolve(ROOT, "tests/fixtures/15a/elevations.pdf"),
+    page: 1,
+    truth: () => loadJoineryBenchTruth("15a"),
+    builder: "Jennian Homes",
+  },
+  {
+    job: "beddis",
+    pdf: resolve(ROOT, "tests/fixtures/beddis/prelim.pdf"),
+    page: 5, // prelim-5 = "Elevation A/B/D" sheet (prelim-3 is only a legend).
+    truth: () => loadJoineryBenchTruth("beddis"),
+    builder: "Jennian Homes",
+  },
 ];
 
 function fmtPct(n: number, d: number): string {
@@ -535,6 +553,14 @@ async function main() {
     const overlayPng = resolve(OUT_DIR, `${cfg.job}-overlay.png`);
     const drawn = await drawOverlay(jpgPath, passB.elevationOpenings, overlayPng);
 
+    // Pass B = the boxing contract (one row per opening + bbox). Answers the council's
+    // two questions: did it box the visible openings cleanly, and did it find the garage door.
+    const passBCount = passB.elevationOpenings.length;
+    const passBGarage = passB.elevationOpenings.filter((o) => o.type === "garage_door").length;
+    const passBWithBbox = passB.elevationOpenings.filter((o) => o.bbox).length;
+    const passBGrouped = passB.elevationOpenings.filter((o) => o.quantity > 1).length;
+    const truthGarage = truthBuckets.garage ?? 0;
+
     // ---- report ----
     console.log(`\n  TRUTH: ${truth.length} openings  buckets=${JSON.stringify(truthBuckets)}`);
     console.log(`  VISION (Pass A): ${visA.length} openings  buckets=${JSON.stringify(visBuckets)}`);
@@ -550,7 +576,11 @@ async function main() {
     console.log(`     dim precision: ${fmtPct(matches.length, withDims.length)} dimmed detections matched`);
     console.log(`     median dim err (matched): ${medErr === null ? "n/a" : medErr + "mm"}  swapped=${matches.filter((m) => m.swapped).length}`);
     console.log(`     junk (dimmed, matched nothing): ${withDims.length - matches.length}`);
-    console.log(`  overlay: ${overlayPng} (${drawn}/${passB.elevationOpenings.length} bboxes drawn)`);
+    console.log(`  -- PASS B (boxing contract: one row per opening + bbox) --`);
+    console.log(`     openings boxed: ${passBCount} vs truth ${truth.length}  (grouped rows that broke the contract: ${passBGrouped})`);
+    console.log(`     bbox coverage:  ${fmtPct(passBWithBbox, passBCount)}`);
+    console.log(`     GARAGE VERDICT: truth=${truthGarage}  passB.garage_door=${passBGarage}  => ${truthGarage > 0 ? (passBGarage > 0 ? "FOUND" : "MISSED") : "n/a"}`);
+    console.log(`  overlay: ${overlayPng} (${drawn}/${passBCount} bboxes drawn)`);
 
     const jobOut = {
       job: cfg.job,
@@ -573,6 +603,13 @@ async function main() {
         swapped: matches.filter((m) => m.swapped).length,
         junk: withDims.length - matches.length,
         matches: matches.map((m) => ({ truth: `${m.truth.room} ${m.truth.widthMm}x${m.truth.heightMm}`, vision: `${m.vision.type} ${m.vision.widthMm}x${m.vision.heightMm}`, errMm: m.err, swapped: m.swapped })),
+      },
+      passBBoxing: {
+        openingsBoxed: passBCount,
+        truthTotal: truth.length,
+        groupedRowsBrokeContract: passBGrouped,
+        bboxCoverage: { withBbox: passBWithBbox, total: passBCount },
+        garageVerdict: { truth: truthGarage, passBGarage, found: truthGarage > 0 && passBGarage > 0 },
       },
       passA: passA.elevationOpenings,
       passB: passB.elevationOpenings,

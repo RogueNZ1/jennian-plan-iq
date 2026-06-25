@@ -1,67 +1,86 @@
 # Vision elevation detector — measured against signed truth (Task 4)
 
-**Date:** 2026-06-25 · **Branch:** convergence · **Scope:** Fenner + O'Neil (the two decisive jobs)
+**Date:** 2026-06-25 · **Branch:** convergence · **Scope:** Fenner, O'Neil, 15a, Beddis (all four)
 
 Diagnostic-only. Produced by `scripts/vision-elevation-measure.mts` (raw artifacts +
 overlays in the gitignored `output/diagnostics/vision-elevation/`). The script lifts the
 **shipped** `extract-elevations.ts` system prompt + Anthropic fetch verbatim (model
 `claude-opus-4-5`, 1400px render = production parity) and scores its `elevationOpenings`
-against the signed truth. No production code, tolerance, or pricing path was touched.
+against signed truth. No production code, tolerance, or pricing path was touched.
+
+Two passes:
+- **Pass A (faithful):** the shipped prompt, unchanged — scored for recall.
+- **Pass B (boxing contract):** shipped prompt + the council's "Next Move" contract — **one row
+  per individual opening + a mandatory normalized bbox, no quantity grouping**. Overlay/eyeball only;
+  never scored as production output.
 
 ## The question this answers
 
-Is the opening gap a **wiring** problem (pricing runs on the blind vector detector while a
-capable vision detector sits unused) or a **vision-reliability** problem (vision output is junk)?
+Is the opening gap a **wiring** problem (pricing runs on the blind vector detector while a capable
+vision detector sits unused) or a **vision-reliability** problem (vision output is junk)?
 
-## Scoreboard
+## Scoreboard (Pass A — faithful recall)
 
-| | Fenner | O'Neil |
-|---|---|---|
-| Signed openings (truth) | 18 (glazed 16 / garage 1 / door 1) | 15 (glazed 12 / garage 1 / door 2) |
-| **Vector** detector (current pricing path) | 44 junk candidates, prices 2/17 | **sees nothing — `openings=0`** |
-| **Vision** detector — count found | **21** (glazed 19 / door 2) | **16** (glazed 13 / garage 1 / door 2) |
-| Vision — type mix vs truth | close; garage **mis-typed as door** | **near-exact** (garage, slider, 2 doors all correct) |
-| Vision — confidence | mostly *medium* | **all *high*** (one door *medium*) |
-| Vision — garage-door anchor | ❌ missed (typed `external_door`, flag=false) | ✅ found & typed correctly |
-| Vision — **dimension availability** | **0/21 carry W×H** | **0/16 carry W×H** |
-| Vision — dimension recall (±150mm) | 0/18 | 0/15 |
+| | Fenner | O'Neil | 15a | Beddis |
+|---|---|---|---|---|
+| Signed openings (truth) | 18 | 15 | 15 | 15 |
+| **Vector** path (current pricing) | 44 junk, prices 2/17 | **sees nothing (`openings=0`)** | prices 4/15 | partial |
+| **Vision** — count found | 18 | 17 | 15 | 16 |
+| Vision — type mix vs truth | close | near-exact | all typed glazed | near-exact |
+| Vision — garage anchor | ❌ **missed** | ✅ found | ❌ missed (Pass A) | ✅ found |
+| Vision — **dim availability** | **0/18** | **0/17** | **0/15** | **0/16** |
+
+## Boxing smoke test (Pass B — the council's "Next Move")
+
+| | Fenner | O'Neil | 15a | Beddis |
+|---|---|---|---|---|
+| Openings boxed vs truth | 21 / 18 | 17 / 15 | 18 / 15 | 18 / 15 |
+| Grouped rows that broke the one-row contract | 0 | 0 | 0 | 0 |
+| bbox coverage | 100% | 100% | 100% | 100% |
+| **Garage-door verdict** | ❌ **MISSED** (2 runs) | ✅ FOUND | ✅ FOUND | ✅ FOUND |
+| Within-face bbox precision (eyeballed) | poor | fair | poor | poor |
+
+**What the overlays show (eyeballed `*-overlay.png`):** the bbox coords are genuine (they cluster
+into the correct sub-elevation region per face — not a render bug), so vision maps each opening to
+the **right face**. But *within* a face the boxes are small and biased high (wall-top / eave / roofline),
+not tight on the glazing. Vision also **over-counts by +2/+3** consistently (over-segmentation / the
+odd non-opening). So Pass B confirms vision can emit a clean one-row-per-opening contract with 100%
+bbox coverage, but the boxes are **not** measurement-grade.
 
 ## The answer (decision-tree read — stated, not acted on)
 
-**It is a wiring problem, not a reliability wall — with one sharp refinement on the division of labour.**
+**Wiring problem, not a reliability wall — and the council's tightening is correct: vision *points*,
+the deterministic machinery *proves*.**
 
-1. **Vision reliably *finds* the openings the vector path misses.** On O'Neil — where the
-   deterministic vector detector sees literally nothing — vision returns 16 detections vs 15
-   signed, **all high-confidence**, with the garage door, slider, and both external doors typed
-   correctly. That is the identity problem ("this is a real opening") the brief said vectors
-   can't solve. Vision solves it. Fenner is noisier (21 vs 18, medium confidence, garage
-   mis-typed) but still detects roughly the right count and mix.
+1. **Vision reliably *finds* openings the vector path misses.** O'Neil is the proof: the vector
+   detector sees `openings=0`, vision returns 17 vs 15 signed, all high-confidence, garage + slider +
+   both doors typed correctly. The identity problem ("this is a real opening, on this face") that
+   vectors can't solve, vision solves at the **face/count/type** level.
+2. **Vision does *not measure*, and does *not box* precisely.** 0% dim-availability on all four jobs;
+   bbox localisation is face-correct but pixel-loose. Measurement and boxing must stay with the
+   deterministic geometry/scale path.
+3. **The two paths are complementary, which is exactly why "vision proposes → geometry proves →
+   ledger adjudicates" is the right shape.** Fenner's garage door — which vision **missed twice** — is
+   precisely where the *deterministic* path is strong (the Fenner ledger already prices it via a unique
+   garage-object anchor). O'Neil — where the vector path is blind — is where vision sees everything.
+   Neither alone is sufficient; together they cover each other's blind spots.
 
-2. **Vision does *not measure* them. At all. 0% dimension availability on both jobs.** The
-   elevation image carries no printed W×H (those live on the floor plan / joinery schedule), and
-   the shipped prompt correctly returns `null` rather than inventing numbers. So vision cannot
-   hand you a priceable dimension, and asking it to is the wrong question.
+So the validated architecture (per the council, agreed): **vision = candidate/evidence proposer only
+(face, type, rough region, confidence); deterministic boxing + measurement + face proof = geometry;
+ledger decides priceable / estimate_only / review_only; export reads only adjudicated proof.** A
+vision candidate must **never** become a priced `Opening[]` without independent box + dims + face + row
+proof. The contract change (one-row + bbox) is viable as the *evidence* feed; it is not a pricing path.
 
-So the validated architecture is **vision = find/identify (the proposer), geometry/scale =
-measure, ledger = price only on agreement.** The rewire pairs vision's detections with the
-existing geometry measurement (`elevation-vector-openings`, the scale/dim path) and the
-`opening-face-map` ledger; it must **not** expect dims from vision. This is days of wiring, not
-months of new capability — *provided measurement stays owned by geometry.*
+## Caveats / cautions (do not over-read)
 
-## Caveats (do not over-read the count numbers)
-
-- **Count recall is coarse, not a proven 1:1.** Truth has no position and vision returned no
-  dims, so there is no hard key to prove each of the N signed openings is individually covered.
-  "21 vs 18 / 16 vs 15" means vision found *about the right number and mix* — it does not prove
-  zero misses + zero double-counts. A human must eyeball detections land on real openings.
-- **Pass-B bbox localisation is rough.** The augmented bbox pass (overlay only, never scored)
-  places boxes loosely — often on roof/wall, not tight on the opening (see
-  `*-overlay.png`). Vision should not be trusted for precise localisation either; geometry must
-  own localise + measure.
-- **Run-to-run variance ≈ ±2.** Fenner gave 19 then 21 openings on two consecutive runs.
-- **Fenner garage-door typing is a real defect** worth a prompt note: the opening was detected
-  but classified `external_door`, and `garageDoorsPresent` came back false.
-- Single render (1400px), single page, two jobs. 15a + Beddis not yet run.
+- **Count recall is coarse, not a proven 1:1.** Truth has no position and vision returned no dims, so
+  the counts mean vision found *about* the right number/mix per face — not zero-miss + zero-double-count.
+  The +2/+3 Pass-B over-count is unadjudicated (could be panels/mullions read as openings).
+- **Fenner garage-door miss is a real reliability gap** (typing + localisation), reproduced across two
+  runs — the specific failure the council flagged. It does not sink the architecture (3/4 jobs found the
+  garage; the deterministic path covers Fenner) but it proves vision cannot be a sole authority.
+- **Garage typing is unstable** (15a: Pass A missed, Pass B found).
+- **Run-to-run variance ≈ ±2** on counts. Single render, single page per job, 1400px.
 
 ## Reproduce
 
@@ -69,5 +88,5 @@ months of new capability — *provided measurement stays owned by geometry.*
 npx tsx --env-file=.env.local scripts/vision-elevation-measure.mts
 ```
 
-Baseline anchors unchanged by this work: Fenner ledger still **2/17 / 17.73 m²**; four-job audit
-still O'Neil vector `openings=0`.
+Baseline anchors unchanged by this work: Fenner ledger still **2/17 / 17.73 m²**; four-job audit still
+O'Neil vector `openings=0`.
