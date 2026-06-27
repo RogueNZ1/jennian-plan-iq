@@ -139,12 +139,16 @@ function compactAnonymousOpeningLabels(
   });
 }
 
-function hasAnonymousOpeningCluster(label: TextLabel, clusterLabels: readonly TextLabel[]): boolean {
+function hasAnonymousOpeningCluster(
+  label: TextLabel,
+  clusterLabels: readonly TextLabel[],
+): boolean {
   const siblings = clusterLabels.filter((candidate) => candidate !== label);
   const sameColumn = siblings.filter((candidate) => Math.abs(candidate.x - label.x) <= 16).length;
   const sameRow = siblings.filter((candidate) => Math.abs(candidate.y - label.y) <= 10).length;
-  const nearby = siblings.filter((candidate) => Math.hypot(candidate.x - label.x, candidate.y - label.y) <= 260)
-    .length;
+  const nearby = siblings.filter(
+    (candidate) => Math.hypot(candidate.x - label.x, candidate.y - label.y) <= 260,
+  ).length;
   return sameColumn >= 1 || sameRow >= 1 || nearby >= 2;
 }
 

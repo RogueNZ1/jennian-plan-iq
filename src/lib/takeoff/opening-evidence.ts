@@ -79,7 +79,8 @@ function visualReviewType(
 ): Opening["type"] | "unknown" {
   if (type === "uncertain") return "unknown";
   if (type === "garage_door") return "sectional_door";
-  if (type === "external_door") return /entry|entrance|foyer/i.test(room ?? "") ? "entrance" : "pa_door";
+  if (type === "external_door")
+    return /entry|entrance|foyer/i.test(room ?? "") ? "entrance" : "pa_door";
   return type;
 }
 
@@ -89,7 +90,8 @@ function sameOpeningEvidence(
 ): boolean {
   if (visual.recoveryProof?.kind !== "physical_elevation") return false;
   const sameWidth = Math.abs(opening.width_m * 1000 - visual.recoveryProof.floorWidthMm) <= 10;
-  const sameHeight = Math.abs(opening.height_m * 1000 - visual.recoveryProof.elevationHeightMm) <= 10;
+  const sameHeight =
+    Math.abs(opening.height_m * 1000 - visual.recoveryProof.elevationHeightMm) <= 10;
   const sameRoom =
     (opening.room ?? "").trim().toLowerCase() === (visual.room ?? "").trim().toLowerCase();
   return sameWidth && sameHeight && sameRoom;
@@ -215,7 +217,8 @@ export function buildOpeningEvidenceLedger(args: {
     if (representedOpenings.some((opening) => sameOpeningEvidence(opening, item))) continue;
     const widthM = item.width_m != null ? Math.round(item.width_m * 100) / 100 : null;
     const heightM = item.height_m != null ? Math.round(item.height_m * 100) / 100 : null;
-    const areaM2 = widthM != null && heightM != null ? Math.round(widthM * heightM * 100) / 100 : null;
+    const areaM2 =
+      widthM != null && heightM != null ? Math.round(widthM * heightM * 100) / 100 : null;
     ledger.push({
       id: `visual-opening-${index + 1}`,
       status: "review",

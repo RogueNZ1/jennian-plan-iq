@@ -90,7 +90,13 @@ function syntheticSectionalDoorSegments(args: {
   const doorX1 = doorX0 + doorWidth;
   const doorY0 = args.pageY + 6;
   const doorY1 = doorY0 + doorHeight;
-  const railYs = [doorY0, doorY0 + doorHeight * 0.25, doorY0 + doorHeight * 0.5, doorY0 + doorHeight * 0.75, doorY1];
+  const railYs = [
+    doorY0,
+    doorY0 + doorHeight * 0.25,
+    doorY0 + doorHeight * 0.5,
+    doorY0 + doorHeight * 0.75,
+    doorY1,
+  ];
 
   return [
     segment(faceX0, faceY0, faceX1, faceY0),

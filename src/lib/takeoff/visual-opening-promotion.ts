@@ -75,9 +75,7 @@ function normaliseVisualDims(item: VisualOpeningAuditItem): {
   }
 
   if (h == null || w == null || h <= 0 || w <= 0) {
-    flags.push(
-      `${item.id}: visual opening size unreadable; retained as review evidence only.`,
-    );
+    flags.push(`${item.id}: visual opening size unreadable; retained as review evidence only.`);
     return { height_m: 0, width_m: 0, flags, usable: false };
   }
 
@@ -120,9 +118,7 @@ export function promoteVisualOpenings(
     const dims = normaliseVisualDims(item);
     flags.push(...dims.flags);
     const geometryProven =
-      type !== "sectional_door" &&
-      dims.usable &&
-      item.recoveryProof?.kind === "physical_elevation";
+      type !== "sectional_door" && dims.usable && item.recoveryProof?.kind === "physical_elevation";
     if (geometryProven) {
       const area_m2 = round2(dims.height_m * dims.width_m) ?? 0;
       openings.push({
@@ -142,9 +138,13 @@ export function promoteVisualOpenings(
           `${item.id}: visual locator promoted only after physical floor-plan width and elevation proof agreed.`,
         ],
       });
-      flags.push(`${item.id}: visual locator promoted only after physical floor-plan width and elevation proof agreed.`);
+      flags.push(
+        `${item.id}: visual locator promoted only after physical floor-plan width and elevation proof agreed.`,
+      );
     } else {
-      flags.push(`${item.id}: visual opening retained as evidence only; not promoted into QS openings.`);
+      flags.push(
+        `${item.id}: visual opening retained as evidence only; not promoted into QS openings.`,
+      );
     }
 
     if (type === "sectional_door" && dims.usable && dims.height_m > 0 && dims.width_m > 0) {

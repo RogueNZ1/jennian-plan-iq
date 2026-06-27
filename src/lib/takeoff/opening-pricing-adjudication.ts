@@ -98,7 +98,13 @@ export function adjudicateOpeningPricing(openings: readonly Opening[]): OpeningP
     flags.push(flag);
   }
 
-  return { pricedOpenings, heldBlockedOpenings: [], quarantinedOpenings, flags, pricingBlocked: false };
+  return {
+    pricedOpenings,
+    heldBlockedOpenings: [],
+    quarantinedOpenings,
+    flags,
+    pricingBlocked: false,
+  };
 }
 
 export function pricingBlockFromVisualReconciliation(
