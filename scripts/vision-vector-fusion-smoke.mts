@@ -17,7 +17,14 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { extractPageGeometry } from "../src/lib/doors/pdf-adapter.ts";
+import {
+  detectPhysicalOpeningWidthWitnesses,
+  detectPrintedWindowCodeWitnesses,
+} from "../src/lib/takeoff/floor-opening-witnesses.ts";
 import { runElevationVectorEvidence } from "../src/lib/takeoff/run-elevation-vector-openings.ts";
+import { buildOpeningSignatureFloorRows } from "../src/lib/takeoff/opening-floor-signatures.ts";
+import { parsePlanText } from "../src/lib/takeoff/plan-text.ts";
 import {
   callVisionModel,
   getAnthropicApiKey,
@@ -29,10 +36,12 @@ import type {
   FrameAssemblyMember,
   FrameOpeningSlot,
 } from "../src/lib/takeoff/elevation-opening-slots.ts";
+import type { OpeningSignatureFloorRow, PlanSide } from "../src/lib/takeoff/opening-face-map.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(here, "..");
 const OUT_DIR = resolve(ROOT, "output/diagnostics/vision-vector-fusion");
+const FENNER_FLOORPLAN = resolve(ROOT, "tests/doors/plans/fenner-floorplan.pdf");
 const FENNER_ELEVATIONS = resolve(ROOT, "tests/doors/plans/fenner-elevations.pdf");
 const FENNER_TRUTH = resolve(ROOT, "tests/fixtures/fenner/ground-truth.json");
 const PAGE_NUMBER = 1;
@@ -57,6 +66,7 @@ type Candidate = {
 
 type AiOpening = {
   candidateIds: string[];
+  floorRowIds?: string[];
   type: "window" | "slider" | "external_door" | "garage_door" | "unknown";
   confidence: "high" | "medium" | "low";
   action: "opening" | "merge" | "review";
@@ -69,6 +79,7 @@ type AiIgnored = {
 };
 
 type AiMissedVisibleOpening = {
+  floorRowIds?: string[];
   description: string;
   likelyType: "window" | "slider" | "external_door" | "garage_door" | "unknown";
   reasonNoCandidate: string;
@@ -88,10 +99,25 @@ type TruthOpening = {
   areaM2: number;
 };
 
+type FloorGuideRow = OpeningSignatureFloorRow & {
+  id: string;
+  order: number;
+};
+
 type ScoredOpening = {
   ai: AiOpening;
   foundCandidateIds: string[];
   missingCandidateIds: string[];
+  floorGuideMatches: Array<{
+    id: string;
+    source: string;
+    room: string;
+    widthMm: number;
+    heightMm: number;
+    widthDeltaMm: number | null;
+    heightDeltaMm: number | null;
+    dimensionCompatible: boolean;
+  }>;
   recovered: {
     widthMm: number | null;
     heightMm: number | null;
@@ -223,6 +249,23 @@ async function pageSize(pdfPath: string): Promise<{ width: number; height: numbe
   }
 }
 
+async function pageGeometry(pdfPath: string, pageNumber: number) {
+  const pdfjs = await import("pdfjs-dist-door/legacy/build/pdf.mjs");
+  if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+    pdfjs.GlobalWorkerOptions.workerSrc = "pdfjs-dist-door/legacy/build/pdf.worker.mjs";
+  }
+  const doc = await pdfjs.getDocument({
+    data: new Uint8Array(readFileSync(pdfPath)),
+    disableFontFace: true,
+  } as never).promise;
+  try {
+    const page = await doc.getPage(pageNumber);
+    return await extractPageGeometry(page as never);
+  } finally {
+    await doc.destroy().catch(() => {});
+  }
+}
+
 function candidateTable(candidates: readonly Candidate[]): string {
   return candidates
     .map(
@@ -233,15 +276,33 @@ function candidateTable(candidates: readonly Candidate[]): string {
     .join("\n");
 }
 
+function floorSideOrderValue(row: OpeningSignatureFloorRow): number {
+  if (row.planSide === "plan_top" || row.planSide === "plan_bottom") return row.x;
+  return row.y;
+}
+
+function floorGuideTable(rows: readonly FloorGuideRow[]): string {
+  if (rows.length === 0) return "No floor-plan guide rows for this face.";
+  return rows
+    .map(
+      (row) =>
+        `${row.id}: ${row.source}, room=${row.room}, ${row.widthMm}x${row.heightMm}mm, ` +
+        `${row.planSide}, order=${Math.round(row.order)}, note=${row.note}`,
+    )
+    .join("\n");
+}
+
 function fusionSystemPrompt(): string {
   return `Return ONLY valid JSON. No markdown, no prose.
 You are reviewing a residential elevation crop with numbered deterministic vector candidate boxes.
 
 Your job is NOT to measure and NOT to draw boxes.
-Your job is to select, group, and classify the candidate IDs that correspond to real external openings.
+Your job is to map floor-plan guide rows to elevation candidate IDs, then classify the physical openings.
 
 Rules:
 - Use only candidate IDs printed on the image and listed in the candidate table.
+- Use the floor-plan guide rows as the primary expectation: width, likely height, side, and order.
+- A floor guide row is not automatically true. If the image/candidate geometry disagrees, mark it missing or review instead of forcing a match.
 - A real opening is a window, slider/ranch slider, external door, or sectional/roller garage door.
 - Ignore cladding boards, brick hatch, roof lines, dimension text, shadows, mullions, and panels inside one opening.
 - If multiple candidate IDs are parts of the same physical opening, put them together in one candidateIds array and set action="merge".
@@ -255,6 +316,7 @@ Return exactly:
   "openings": [
     {
       "candidateIds": ["C1"],
+      "floorRowIds": ["F1"],
       "type": "window" | "slider" | "external_door" | "garage_door" | "unknown",
       "confidence": "high" | "medium" | "low",
       "action": "opening" | "merge" | "review",
@@ -266,6 +328,7 @@ Return exactly:
   ],
   "missedVisibleOpenings": [
     {
+      "floorRowIds": ["F2"],
       "description": "short location/type description",
       "likelyType": "window" | "slider" | "external_door" | "garage_door" | "unknown",
       "reasonNoCandidate": "why no candidate ID fits"
@@ -278,16 +341,20 @@ Return exactly:
 async function callCandidateSelector(
   overlayPng: string,
   candidates: readonly Candidate[],
+  floorGuideRows: readonly FloorGuideRow[],
 ): Promise<{
   raw: string;
   parsed: AiResponse | null;
 }> {
-  const userText = `Select/group/classify only these deterministic candidates.
+  const userText = `Map the floor-plan guide rows to these deterministic elevation candidates.
 
 Candidate table:
 ${candidateTable(candidates)}
 
-Remember: the boxes are deterministic measurement candidates. You are only deciding which IDs are real openings and how to group/classify them.`;
+Floor-plan guide rows for this elevation face:
+${floorGuideTable(floorGuideRows)}
+
+Remember: floor rows guide expected openings; vector boxes provide measurement candidates; vision decides mapping/grouping/classification. Do not invent boxes.`;
 
   const raw = await callVisionModel(
     getAnthropicApiKey(),
@@ -297,6 +364,32 @@ Remember: the boxes are deterministic measurement candidates. You are only decid
     "image/png",
   );
   return { raw, parsed: safeParseJson<AiResponse>(raw) };
+}
+
+async function floorGuideRowsForPlanSide(planSide: PlanSide): Promise<FloorGuideRow[]> {
+  const geom = await pageGeometry(FENNER_FLOORPLAN, PAGE_NUMBER);
+  const planText = parsePlanText(geom.labels);
+  const physicalWitnesses = detectPhysicalOpeningWidthWitnesses({
+    planText,
+    segments: geom.segments,
+    labels: geom.labels,
+    scale: 100,
+  });
+  const printedCodeWitnesses = detectPrintedWindowCodeWitnesses(planText);
+  const rows = buildOpeningSignatureFloorRows({
+    planText,
+    physicalWitnesses,
+    printedCodeWitnesses,
+  })
+    .filter(
+      (row): row is OpeningSignatureFloorRow & { planSide: PlanSide } => row.planSide === planSide,
+    )
+    .sort((a, b) => floorSideOrderValue(a) - floorSideOrderValue(b));
+  return rows.map((row, index) => ({
+    ...row,
+    id: `F${index + 1}`,
+    order: floorSideOrderValue(row),
+  }));
 }
 
 function normaliseAiResponse(value: AiResponse | null): AiResponse {
@@ -385,12 +478,23 @@ function truthDimensionCompatible(widthMm: number, heightMm: number, truth: Trut
   );
 }
 
+function floorDimensionCompatible(widthMm: number, heightMm: number, row: FloorGuideRow): boolean {
+  const widthTolerance = Math.max(180, Math.round(row.widthMm * 0.08));
+  const heightTolerance = Math.max(180, Math.round(row.heightMm * 0.1));
+  return (
+    Math.abs(widthMm - row.widthMm) <= widthTolerance &&
+    Math.abs(heightMm - row.heightMm) <= heightTolerance
+  );
+}
+
 function scoreAiOpenings(args: {
   ai: AiResponse;
   candidates: readonly Candidate[];
+  floorGuideRows: readonly FloorGuideRow[];
   truth: readonly TruthOpening[];
 }): ScoredOpening[] {
   const byId = new Map(args.candidates.map((candidate) => [candidate.id, candidate]));
+  const floorById = new Map(args.floorGuideRows.map((row) => [row.id, row]));
   return args.ai.openings.map((opening) => {
     const selected = opening.candidateIds
       .map((id) => byId.get(id))
@@ -404,6 +508,33 @@ function scoreAiOpenings(args: {
       widthMm != null && heightMm != null
         ? Math.round((widthMm / 1000) * (heightMm / 1000) * 100) / 100
         : null;
+    const floorGuideMatches = (opening.floorRowIds ?? []).map((id) => {
+      const row = floorById.get(id);
+      return row == null
+        ? {
+            id,
+            source: "missing_floor_row",
+            room: "",
+            widthMm: 0,
+            heightMm: 0,
+            widthDeltaMm: null,
+            heightDeltaMm: null,
+            dimensionCompatible: false,
+          }
+        : {
+            id: row.id,
+            source: row.source,
+            room: row.room,
+            widthMm: row.widthMm,
+            heightMm: row.heightMm,
+            widthDeltaMm: widthMm == null ? null : widthMm - row.widthMm,
+            heightDeltaMm: heightMm == null ? null : heightMm - row.heightMm,
+            dimensionCompatible:
+              widthMm != null &&
+              heightMm != null &&
+              floorDimensionCompatible(widthMm, heightMm, row),
+          };
+    });
     const deterministicSanity = openingSanity(opening.type, widthMm, heightMm);
     const nearestTruth =
       widthMm != null && heightMm != null
@@ -419,6 +550,7 @@ function scoreAiOpenings(args: {
       ai: opening,
       foundCandidateIds,
       missingCandidateIds,
+      floorGuideMatches,
       recovered: {
         widthMm,
         heightMm,
@@ -650,6 +782,8 @@ async function main() {
       opening.type === "garage_door" && opening.widthMm != null && opening.heightMm != null,
   );
   if (!garage) throw new Error("Fenner garage-door vector candidate was not found.");
+  const garagePlanSide: PlanSide = "plan_right";
+  const floorGuideRows = await floorGuideRowsForPlanSide(garagePlanSide);
 
   const garageRect = rectForOpening(garage);
   const band = evidence.elevationFaceBands.find((candidate) => candidate.id === garage.faceBandId);
@@ -683,9 +817,14 @@ async function main() {
   const candidateOverlay = resolve(OUT_DIR, "fenner-garage-candidate-ids.png");
   await drawCandidateOverlay({ fullImagePath, page, crop, candidates, outPng: candidateOverlay });
 
-  const aiResult = await callCandidateSelector(candidateOverlay, candidates);
+  const aiResult = await callCandidateSelector(candidateOverlay, candidates, floorGuideRows);
   const ai = normaliseAiResponse(aiResult.parsed);
-  const scoredOpenings = scoreAiOpenings({ ai, candidates, truth: loadTruth() });
+  const scoredOpenings = scoreAiOpenings({
+    ai,
+    candidates,
+    floorGuideRows,
+    truth: loadTruth(),
+  });
   const selectedOverlay = resolve(OUT_DIR, "fenner-garage-ai-selection.png");
   await drawCandidateOverlay({
     fullImagePath,
@@ -702,6 +841,10 @@ async function main() {
     page,
     crop,
     garageVectorCandidate: garage,
+    floorGuide: {
+      planSide: garagePlanSide,
+      rows: floorGuideRows,
+    },
     candidateMenu: "clean_special_vector_plus_frame_assembly",
     rawCandidates,
     candidates,
@@ -718,6 +861,9 @@ async function main() {
         .length,
       truthCompatible: scoredOpenings.filter((opening) => opening.nearestTruth?.dimensionCompatible)
         .length,
+      floorGuideCompatible: scoredOpenings.filter((opening) =>
+        opening.floorGuideMatches.some((match) => match.dimensionCompatible),
+      ).length,
     },
     rawAiText: aiResult.raw,
     artifacts: {
@@ -744,7 +890,8 @@ async function main() {
     `score: sanity pass=${scoredOpenings.filter((opening) => opening.deterministicSanity.status === "pass").length}, ` +
       `review=${scoredOpenings.filter((opening) => opening.deterministicSanity.status === "review").length}, ` +
       `fail=${scoredOpenings.filter((opening) => opening.deterministicSanity.status === "fail").length}, ` +
-      `truth-compatible=${scoredOpenings.filter((opening) => opening.nearestTruth?.dimensionCompatible).length}`,
+      `truth-compatible=${scoredOpenings.filter((opening) => opening.nearestTruth?.dimensionCompatible).length}, ` +
+      `floor-compatible=${scoredOpenings.filter((opening) => opening.floorGuideMatches.some((match) => match.dimensionCompatible)).length}`,
   );
   for (const opening of scoredOpenings) {
     const recovered =
@@ -755,9 +902,16 @@ async function main() {
       ? `${opening.nearestTruth.room} ${opening.nearestTruth.widthMm}x${opening.nearestTruth.heightMm} ` +
         `d=${opening.nearestTruth.widthDeltaMm}/${opening.nearestTruth.heightDeltaMm}`
       : "no truth";
+    const floor = opening.floorGuideMatches.length
+      ? opening.floorGuideMatches
+          .map(
+            (match) => `${match.id}:${match.room} d=${match.widthDeltaMm}/${match.heightDeltaMm}`,
+          )
+          .join("|")
+      : "no floor row";
     console.log(
       `  ${opening.ai.type.padEnd(13)} ${opening.ai.candidateIds.join("+").padEnd(10)} ` +
-        `${recovered.padEnd(10)} ${opening.deterministicSanity.status.padEnd(6)} ${truth}`,
+        `${recovered.padEnd(10)} ${opening.deterministicSanity.status.padEnd(6)} ${floor} :: ${truth}`,
     );
   }
   if (ai.missedVisibleOpenings.length > 0) {
