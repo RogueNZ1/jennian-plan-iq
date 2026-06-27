@@ -490,6 +490,8 @@ export function applyEnrichedTakeoff(
     // the relational fallback above leaves it undefined.
     openings: enrichedOpenings,
     openingPricingBlocked,
+    // Blocked enriched openings must not fall back into stale relational schedule rows.
+    windows: openingPricingBlocked ? [] : base.windows,
     // Interior doors — precedence: HISTORICAL confirmed manual counts (legacy jobs) >
     // deterministic door engine > module-item labels > opening-schedule fallback (the
     // latter two are already in base). The engine's counts NEVER include flagged hits.
@@ -508,8 +510,9 @@ export function applyEnrichedTakeoff(
     // (the live fallback, intact until the Beddis gate passes). The window COUNT is NOT
     // touched here — it stays vector-sourced (enriched.window_count) until the Harrison
     // re-typing lands.
-    windowsByRoom:
-      enrichedOpenings != null && !openingPricingBlocked
+    windowsByRoom: openingPricingBlocked
+      ? {}
+      : enrichedOpenings != null
         ? openingsToWindowsByRoom(enrichedOpenings)
         : base.windowsByRoom,
   };

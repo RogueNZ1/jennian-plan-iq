@@ -351,9 +351,11 @@ describe("buildVerificationModel", () => {
     expect(m.windows.pricingBlockFlags.join(" ")).toContain("OPENING PRICING BLOCKED");
     expect(m.windows.pricingBlockFlags.join(" ")).toContain("do not price windows");
     expect(m.windows.byRoom).toEqual([]);
+    expect(m.windows.qsRows).toEqual([]);
     expect(m.windows.totals.qsGlazedOpeningCount).toBeNull();
     expect(m.windows.totals.garageDoorCount).toBeNull();
     expect(m.windows.totals.totalOpeningSqm).toBeNull();
+    expect(m.integrityAlerts).toEqual([]);
     expect(m.windows.reviewOnlyTotals).toMatchObject({
       visualOpeningCount: 18,
       qsGlazedOpeningCount: 17,

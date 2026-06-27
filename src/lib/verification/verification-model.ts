@@ -488,9 +488,11 @@ export function buildVerificationModel(
     width_m: s.width_m,
   }));
 
-  const qsRows: CountRow[] = (data.windows ?? [])
-    .filter((w) => w.qty > 0 || (w.type && w.type.trim() !== ""))
-    .map((w) => ({ label: fmtStr(w.type), qty: w.qty }));
+  const qsRows: CountRow[] = openingPricingBlocked
+    ? []
+    : (data.windows ?? [])
+        .filter((w) => w.qty > 0 || (w.type && w.type.trim() !== ""))
+        .map((w) => ({ label: fmtStr(w.type), qty: w.qty }));
 
   const windowFieldFlags = [
     ...(e?.window_count?.discrepancy_flags ?? []),
@@ -655,7 +657,7 @@ export function buildVerificationModel(
         `Floor area diverges: export ${data.floorAreaM2} m² vs takeoff ${e.floor_area_m2.value} m²`,
       );
     }
-    const exportWindowQty = (data.windows ?? []).reduce((s, w) => s + (w.qty || 0), 0);
+    const exportWindowQty = qsRows.reduce((s, w) => s + (w.qty || 0), 0);
     if (
       e.window_count.value != null &&
       !data.openings?.length &&

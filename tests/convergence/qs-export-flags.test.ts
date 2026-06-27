@@ -327,33 +327,42 @@ describe("Slice 6 — export sheets: additive fallback + visible flags", () => {
   });
 
   it("BLOCKED: partial priced openings do not repopulate export window slots", () => {
-    const blocked = applyEnrichedTakeoff(baseData(), {
-      ...enriched,
-      openings: [
-        {
-          type: "window",
-          room: "Lounge",
-          height_m: 1.3,
-          width_m: 1.8,
-          glazed: true,
-          cladding: null,
-          area_m2: 2.34,
-          source: "vector",
-          confidence: "medium",
+    const blocked = applyEnrichedTakeoff(
+      baseData({
+        windows: [{ type: "Legacy schedule row", qty: 10 }],
+        windowsByRoom: {
+          lounge: { cladding: "Linea", qty: 2, height: 2100, width: 2400 },
         },
-      ],
-      external_wall_area_m2: {
-        ...enriched.external_wall_area_m2,
-        value: null,
-        discrepancy_flags: [
-          "Opening pricing blocked: unresolved Visual QS reconciliation error. Visual QS found more openings than the composed set.",
+      }),
+      {
+        ...enriched,
+        openings: [
+          {
+            type: "window",
+            room: "Lounge",
+            height_m: 1.3,
+            width_m: 1.8,
+            glazed: true,
+            cladding: null,
+            area_m2: 2.34,
+            source: "vector",
+            confidence: "medium",
+          },
         ],
+        external_wall_area_m2: {
+          ...enriched.external_wall_area_m2,
+          value: null,
+          discrepancy_flags: [
+            "Opening pricing blocked: unresolved Visual QS reconciliation error. Visual QS found more openings than the composed set.",
+          ],
+        },
       },
-    });
+    );
 
     expect(blocked.openingPricingBlocked).toBe(true);
     expect(blocked.openings).toHaveLength(1);
     expect(blocked.windowsByRoom.lounge).toBeUndefined();
+    expect(blocked.windows).toEqual([]);
   });
 
   it("ENRICHED values reach the QS paste sheet (floor area = the geometry value, not the base)", () => {
