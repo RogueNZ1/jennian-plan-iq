@@ -10,7 +10,15 @@
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Printer, ArrowLeft, AlertTriangle } from "lucide-react";
+import {
+  Printer,
+  ArrowLeft,
+  AlertTriangle,
+  Ban,
+  CheckCircle2,
+  ChevronsLeftRight,
+  ScanSearch,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildQSExportData, type QSExportData } from "@/lib/iq-qs-export";
 import type { EnrichedTakeoff } from "@/lib/takeoff/enriched-takeoff";
@@ -25,6 +33,13 @@ import {
   VerificationPlanOverlay,
   type OverlayRenderStatus,
 } from "@/components/jennian/VerificationPlanOverlay";
+import type { VisualOpeningMarker } from "@/lib/verification/plan-overlay";
+import {
+  loadVisualOpeningCorrections,
+  saveVisualOpeningCorrection,
+  type VisualOpeningCorrection,
+  type VisualOpeningCorrectionType,
+} from "@/lib/verification/visual-opening-corrections";
 
 export const Route = createFileRoute("/jobs/$jobId_/verification")({
   component: VerificationPrintout,
@@ -163,6 +178,78 @@ function doorMarkerStatus(d: { confidence: "confirmed" | "flag"; note?: string }
   return doorMarkerNeedsReview(d.note) ? "counted — verify" : "confirmed";
 }
 
+const VISUAL_CORRECTION_ACTIONS: Array<{
+  type: VisualOpeningCorrectionType;
+  label: string;
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
+  {
+    type: "confirm_opening",
+    label: "Confirm",
+    title: "Confirm this visual marker is a real opening candidate.",
+    icon: CheckCircle2,
+  },
+  {
+    type: "component_of_opening",
+    label: "Part",
+    title: "Mark this as part of the neighbouring opening, not a separate row.",
+    icon: ChevronsLeftRight,
+  },
+  {
+    type: "not_opening",
+    label: "Not opening",
+    title: "Mark this as cladding, hatch, annotation, or another non-opening.",
+    icon: Ban,
+  },
+  {
+    type: "box_too_small",
+    label: "Small",
+    title: "The visual box covers only part of the opening.",
+    icon: ScanSearch,
+  },
+  {
+    type: "box_too_large",
+    label: "Large",
+    title: "The visual box includes surrounding cladding or neighbouring geometry.",
+    icon: ScanSearch,
+  },
+];
+
+function correctionLabel(type: VisualOpeningCorrectionType): string {
+  switch (type) {
+    case "confirm_opening":
+      return "confirmed candidate";
+    case "component_of_opening":
+      return "component of another opening";
+    case "not_opening":
+      return "not an opening";
+    case "box_too_small":
+      return "box too small";
+    case "box_too_large":
+      return "box too large";
+    case "wrong_type":
+      return "wrong type";
+  }
+}
+
+function correctionReason(type: VisualOpeningCorrectionType): string {
+  switch (type) {
+    case "confirm_opening":
+      return "Human review confirms the marker is a visible physical opening candidate.";
+    case "component_of_opening":
+      return "Human review says this is part of a neighbouring opening assembly, not a separate row.";
+    case "not_opening":
+      return "Human review says this is not a physical opening.";
+    case "box_too_small":
+      return "Human review says the marker covers only part of the opening.";
+    case "box_too_large":
+      return "Human review says the marker includes material outside the opening.";
+    case "wrong_type":
+      return "Human review says the opening type is wrong.";
+  }
+}
+
 function Section({
   title,
   children,
@@ -193,6 +280,11 @@ function VerificationPrintout() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [overlayStatus, setOverlayStatus] = useState<OverlayRenderStatus>("loading");
+  const [visualCorrections, setVisualCorrections] = useState<
+    Record<string, VisualOpeningCorrection>
+  >({});
+  const [correctionSaving, setCorrectionSaving] = useState<string | null>(null);
+  const [correctionError, setCorrectionError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -216,7 +308,53 @@ function VerificationPrintout() {
     };
   }, [jobId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setCorrectionError(null);
+    loadVisualOpeningCorrections(jobId)
+      .then((rows) => {
+        if (!cancelled) setVisualCorrections(rows);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setVisualCorrections({});
+          setCorrectionError(
+            err instanceof Error ? err.message : "Could not load visual opening corrections.",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId]);
+
   const overlayReady = model != null && overlayStatus !== "loading";
+
+  async function handleVisualCorrection(
+    marker: VisualOpeningMarker,
+    correctionType: VisualOpeningCorrectionType,
+  ) {
+    if (!model) return;
+    const savingKey = `${marker.markerLabel}:${correctionType}`;
+    setCorrectionSaving(savingKey);
+    setCorrectionError(null);
+    try {
+      const saved = await saveVisualOpeningCorrection({
+        jobId,
+        takeoffRunId: model.header.runId,
+        marker,
+        correctionType,
+        reason: correctionReason(correctionType),
+      });
+      setVisualCorrections((prev) => ({ ...prev, [saved.marker_label]: saved }));
+    } catch (err) {
+      setCorrectionError(
+        err instanceof Error ? err.message : "Could not save visual opening correction.",
+      );
+    } finally {
+      setCorrectionSaving(null);
+    }
+  }
 
   useEffect(() => {
     document.documentElement.dataset.verificationReady = overlayReady ? "true" : "false";
@@ -610,6 +748,7 @@ function VerificationPrintout() {
                     <th>Room</th>
                     <th>Size</th>
                     <th>Conf.</th>
+                    <th className="no-print">Review truth</th>
                     <th>Evidence / flags</th>
                   </tr>
                 </thead>
@@ -625,11 +764,43 @@ function VerificationPrintout() {
                           : (o.label ?? "—")}
                       </td>
                       <td>{o.confidence}</td>
+                      <td className="no-print vcorrection-cell">
+                        {visualCorrections[o.markerLabel] ? (
+                          <div className="vcorrection-state">
+                            {correctionLabel(visualCorrections[o.markerLabel].correction_type)}
+                          </div>
+                        ) : null}
+                        <div className="vcorrection-actions">
+                          {VISUAL_CORRECTION_ACTIONS.map((action) => {
+                            const Icon = action.icon;
+                            const savingKey = `${o.markerLabel}:${action.type}`;
+                            const isSaving = correctionSaving === savingKey;
+                            return (
+                              <button
+                                key={action.type}
+                                type="button"
+                                className="vcorrection-btn"
+                                title={action.title}
+                                disabled={correctionSaving != null}
+                                onClick={() => void handleVisualCorrection(o, action.type)}
+                              >
+                                <Icon className="h-3 w-3" />
+                                <span>{isSaving ? "Saving" : action.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </td>
                       <td>{[o.evidence, ...o.flags].filter(Boolean).join(" · ")}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              <div className="no-print vcorrection-note">
+                These review buttons train the evidence layer only. They do not change QS pricing,
+                opening totals, or the export until geometry and the ledger prove the row.
+                {correctionError ? <strong> Save issue: {correctionError}</strong> : null}
+              </div>
             </>
           )}
           {m.planOverlay.markers.length > 0 && (
@@ -839,6 +1010,14 @@ const PRINT_CSS = `
 .vvalue { font-variant-numeric:tabular-nums; font-weight:600; white-space:nowrap; }
 .vsrc { text-align:right; width:64px; }
 .vtotal td { border-top:1.5px solid #111827; border-bottom:none; font-weight:700; }
+.vcorrection-cell { min-width:158px; }
+.vcorrection-state { display:inline-flex; margin-bottom:3px; border:1px solid #86efac; background:#dcfce7; color:#166534; border-radius:4px; padding:1px 5px; font-size:9px; font-weight:700; }
+.vcorrection-actions { display:flex; flex-wrap:wrap; gap:3px; }
+.vcorrection-btn { display:inline-flex; align-items:center; gap:3px; border:1px solid #d1d5db; background:#fff; color:#374151; border-radius:4px; padding:2px 5px; font-size:9px; font-weight:600; cursor:pointer; }
+.vcorrection-btn:hover { background:#f3f4f6; }
+.vcorrection-btn:disabled { opacity:.55; cursor:wait; }
+.vcorrection-note { margin-top:5px; font-size:9.5px; color:#374151; }
+.vcorrection-note strong { color:#b91c1c; }
 .vempty { color:#9ca3af; font-style:italic; margin:2px 0 6px; }
 .vunset { color:#b91c1c; font-weight:700; }
 

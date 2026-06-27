@@ -111,6 +111,7 @@ export type VerificationModel = {
     clientName: string;
     address: string;
     planVersion: string;
+    runId: string | null;
     runIdShort: string | null;
     runStartedNzt: string | null;
     generatedNzt: string;
@@ -359,6 +360,7 @@ export function buildVerificationModel(
     clientName: fmtStr(data.clientName),
     address: fmtStr(data.address),
     planVersion: fmtStr(data.planVersion),
+    runId: run?.id ?? null,
     runIdShort: run ? run.id.slice(0, 8) : null,
     runStartedNzt: run ? nzDateTime(new Date(run.started_at)) : null,
     generatedNzt: nzDateTime(now),

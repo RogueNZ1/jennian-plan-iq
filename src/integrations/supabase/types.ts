@@ -1409,6 +1409,66 @@ export type Database = {
           },
         ];
       };
+      visual_opening_corrections: {
+        Row: {
+          context: Json;
+          corrected_type: string | null;
+          correction_type: string;
+          created_at: string;
+          created_by: string;
+          id: string;
+          job_id: string;
+          marker_label: string;
+          marker_snapshot: Json;
+          opening_id: string;
+          reason: string | null;
+          takeoff_run_id: string | null;
+        };
+        Insert: {
+          context?: Json;
+          corrected_type?: string | null;
+          correction_type: string;
+          created_at?: string;
+          created_by: string;
+          id?: string;
+          job_id: string;
+          marker_label: string;
+          marker_snapshot?: Json;
+          opening_id: string;
+          reason?: string | null;
+          takeoff_run_id?: string | null;
+        };
+        Update: {
+          context?: Json;
+          corrected_type?: string | null;
+          correction_type?: string;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          job_id?: string;
+          marker_label?: string;
+          marker_snapshot?: Json;
+          opening_id?: string;
+          reason?: string | null;
+          takeoff_run_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "visual_opening_corrections_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "jobs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "visual_opening_corrections_takeoff_run_id_fkey";
+            columns: ["takeoff_run_id"];
+            isOneToOne: false;
+            referencedRelation: "takeoff_runs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
