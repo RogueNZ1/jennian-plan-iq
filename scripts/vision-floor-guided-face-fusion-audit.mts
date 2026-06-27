@@ -20,6 +20,7 @@ import { extractPageGeometry } from "../src/lib/doors/pdf-adapter.ts";
 import {
   detectPhysicalOpeningWidthWitnesses,
   detectPrintedWindowCodeWitnesses,
+  type PlanPhysicalOpeningWidthWitness,
 } from "../src/lib/takeoff/floor-opening-witnesses.ts";
 import { detectPlanSideLengthWitnesses } from "../src/lib/takeoff/floor-side-lengths.ts";
 import {
@@ -411,6 +412,28 @@ function floorGuideRowsForPlanSides(
   );
 }
 
+function entryReviewGuideRows(
+  physicalWitnesses: readonly PlanPhysicalOpeningWidthWitness[],
+): FloorGuideRow[] {
+  return physicalWitnesses
+    .filter((witness) => witness.openingKind === "entry_door")
+    .sort((a, b) => a.y - b.y || a.x - b.x)
+    .map((witness, index) => ({
+      source: "physical_width",
+      room: witness.room,
+      widthMm: witness.widthMm,
+      heightMm: 2100,
+      planSide: null,
+      x: witness.x,
+      y: witness.y,
+      id: `ENTRY-F${index + 1}`,
+      order: witness.y,
+      note:
+        `${witness.note}; review-only entry guide from floor plan, ` +
+        `original inferred side ${witness.planSide ?? "unknown"} is not face proof`,
+    }));
+}
+
 function candidateTable(candidates: readonly Candidate[]): string {
   return candidates
     .map(
@@ -462,6 +485,7 @@ Rules:
   - candidateFit="unclear" when the image cannot decide.
 - Prefer one physical opening over nested parts. A lower pane, mullion bay, inner rail rectangle, or duplicate nested box inside a larger already-selected opening is not another opening.
 - Only classify a candidate as external_door if an actual door leaf/opening is visible. A skinny vertical cladding board, brick pier, mullion, or frame side is not a door.
+- A different cladding/material panel, even if door-height and marked by an annotation arrow, is not an opening unless a real door leaf/opening frame/sill is visible.
 - If a floor row is expected but no candidate fits, list it in missedVisibleOpenings with the floorRowIds.
 - If a visible opening has no usable candidate ID, list it in missedVisibleOpenings instead of inventing a box.
 - The candidate table deliberately does not tell you the detector's suggested type. Use the picture.
@@ -676,6 +700,20 @@ function compatibleFloorRowIds(
   return floorRows
     .filter((row) => floorDimensionCompatible(candidate.widthMm, candidate.heightMm, row))
     .map((row) => row.id);
+}
+
+function candidateNeedsBaseAnchorForFloorRows(
+  candidate: Pick<Candidate, "heightMm">,
+  compatibleIds: readonly string[],
+  floorRows: readonly FloorGuideRow[],
+): boolean {
+  if (candidate.heightMm < 1750) return false;
+  const rowsById = new Map(floorRows.map((row) => [row.id, row]));
+  return compatibleIds.some((id) => {
+    const row = rowsById.get(id);
+    if (!row) return false;
+    return row.heightMm >= 1750 && /ENTRY|ENTRANCE|FOYER|PORCH/i.test(row.room);
+  });
 }
 
 function floorDeltaScore(
@@ -1058,7 +1096,17 @@ function buildCleanCandidateList(args: {
         !(rect.heightMm >= 1750 && rect.widthMm < 700) ||
         (args.reviewOnlyUnmapped && bottomAnchoredInFace(rect, args.faceScope)),
     )
-    .filter((rect) => compatibleFloorRowIds(rect, args.floorRows).length > 0)
+    .filter((rect) => {
+      const compatible = compatibleFloorRowIds(rect, args.floorRows);
+      if (compatible.length === 0) return false;
+      if (
+        candidateNeedsBaseAnchorForFloorRows(rect, compatible, args.floorRows) &&
+        !bottomAnchoredInFace(rect, args.faceScope)
+      ) {
+        return false;
+      }
+      return true;
+    })
     .sort(
       (a, b) =>
         floorDeltaScore(a, args.floorRows) - floorDeltaScore(b, args.floorRows) ||
@@ -1518,7 +1566,10 @@ async function main() {
     ["plan_top", "plan_bottom", "plan_left", "plan_right"] as const
   ).filter((side) => !mappedPlanSides.has(side));
   const mappedFaceBandIds = new Set(anchors.map((anchor) => anchor.elevationFaceBandId));
-  const unmappedFloorRows = floorGuideRowsForPlanSides(floorSignatureRows, unmappedPlanSides);
+  const unmappedFloorRows = [
+    ...floorGuideRowsForPlanSides(floorSignatureRows, unmappedPlanSides),
+    ...entryReviewGuideRows(physicalWitnesses),
+  ];
   const unmappedFaceProbes: UnmappedFaceProbe[] = [];
   for (const band of selectUnmappedProbeBands({
     faceBands: elevation.elevationFaceBands,
