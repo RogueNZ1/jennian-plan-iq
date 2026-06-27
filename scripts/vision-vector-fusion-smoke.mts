@@ -136,6 +136,17 @@ function rectIntersects(a: PdfRect, b: PdfRect): boolean {
   return Math.min(a.x1, b.x1) > Math.max(a.x0, b.x0) && Math.min(a.y1, b.y1) > Math.max(a.y0, b.y0);
 }
 
+function rectArea(rect: PdfRect): number {
+  return Math.max(1, (rect.x1 - rect.x0) * (rect.y1 - rect.y0));
+}
+
+function rectOverlapRatio(a: PdfRect, b: PdfRect): number {
+  const width = Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0));
+  const height = Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
+  if (width <= 0 || height <= 0) return 0;
+  return (width * height) / Math.min(rectArea(a), rectArea(b));
+}
+
 function loadTruth(): TruthOpening[] {
   const raw = JSON.parse(readFileSync(FENNER_TRUTH, "utf8")) as {
     manual_openings?: Array<Record<string, unknown>>;
@@ -557,7 +568,12 @@ function buildCleanCandidateList(args: {
 
   for (const opening of args.vectorOpenings) {
     if (opening.widthMm == null || opening.heightMm == null) continue;
-    if (opening.source !== "sectional_garage_door" && opening.source !== "multi_panel_slider") {
+    const skinnyFullHeight = opening.heightMm >= 1750 && opening.widthMm < 700;
+    if (
+      opening.source !== "sectional_garage_door" &&
+      opening.source !== "multi_panel_slider" &&
+      skinnyFullHeight
+    ) {
       continue;
     }
     const rect = rectForOpening(opening);
@@ -593,6 +609,7 @@ function buildCleanCandidateList(args: {
     if (!rect || !rectIntersects(rect, args.crop)) continue;
     const widthMm = ptToMm(rect.x1 - rect.x0);
     const heightMm = ptToMm(rect.y1 - rect.y0);
+    if (heightMm >= 1750 && widthMm < 700) continue;
     candidates.push({
       kind: "frame_assembly",
       source: groupId,
@@ -607,7 +624,18 @@ function buildCleanCandidateList(args: {
     });
   }
 
-  return candidates
+  const refined = candidates.filter((candidate) => {
+    if (candidate.kind !== "frame_assembly") return true;
+    return !candidates.some(
+      (other) =>
+        other !== candidate &&
+        other.kind === "vector_opening" &&
+        rectArea(other.rect) < rectArea(candidate.rect) &&
+        rectOverlapRatio(candidate.rect, other.rect) >= 0.62,
+    );
+  });
+
+  return refined
     .sort((a, b) => a.rect.y0 - b.rect.y0 || a.rect.x0 - b.rect.x0)
     .map((candidate, index) => ({ ...candidate, id: `C${index + 1}` }));
 }
