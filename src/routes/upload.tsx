@@ -147,8 +147,6 @@ function UploadPage() {
   >(null);
   const [highResBlob, setHighResBlob] = useState<Blob | null>(null);
   const [scaleResult, setScaleResult] = useState<ScaleResult | null>(null);
-  // Manual scale fallback
-  const [manualKnownMm, setManualKnownMm] = useState("");
   const [planIssues, setPlanIssues] = useState<PlanIssue[] | null>(null);
   const [errorsAcknowledged, setErrorsAcknowledged] = useState(false);
   const [takeoffData, setTakeoffData] = useState<TakeoffData | null>(null);
@@ -707,13 +705,14 @@ function UploadPage() {
   // After page selection — fork on plan type
   async function continueFromPageSelection() {
     if (selectedIndex === null) return;
-    const thumbBlob = pageAnalyses[selectedIndex]?.thumbnailBlob ?? null;
 
     // Render high-res page then move to scale step
     if (!planFile) return;
     setConceptBusy("rendering");
+    let renderedBlob: Blob | null = null;
     try {
       const blob = await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex].pageNumber);
+      renderedBlob = blob;
       setHighResBlob(blob);
     } catch (e) {
       console.error(e);
@@ -721,15 +720,34 @@ function UploadPage() {
       setConceptBusy(null);
       return;
     }
+    if (!renderedBlob) {
+      toast.error("Could not render plan page. Please try again.");
+      setConceptBusy(null);
+      return;
+    }
 
     // Kick off scale extraction — show the scale step with a spinner while we work.
     // If a scale is found automatically, we skip the user-confirmation screen.
+    await runScaleExtractionFromSelectedPage(true, renderedBlob);
+  }
+
+  function scaleFailureLooksTransient(result: ScaleResult | null): boolean {
+    return /\b(overloaded|rate[- ]?limited|temporar|transient|529|429)\b/i.test(
+      result?.rationale ?? "",
+    );
+  }
+
+  async function runScaleExtractionFromSelectedPage(autoAdvance: boolean, pageBlob?: Blob) {
+    if (selectedIndex === null || !planFile) return;
     setConceptBusy("scale");
     setStep("scale");
     setScaleResult(null);
-    let foundResult: typeof scaleResult = null;
+    let foundResult: ScaleResult | null = null;
     try {
-      const blob = await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex].pageNumber);
+      const blob =
+        pageBlob ??
+        highResBlob ??
+        (await renderPageForAnalysis(planFile, pageAnalyses[selectedIndex].pageNumber));
       setHighResBlob(blob);
       if (!blob) throw new Error("No page image.");
       const [b64, dims] = await Promise.all([blobToBase64(blob), getBlobDimensions(blob)]);
@@ -743,16 +761,18 @@ function UploadPage() {
       const detail = e instanceof Error ? e.message : String(e);
       if (detail.includes("LOVABLE_API_KEY")) {
         toast.error("AI is not configured on this server. Contact support.");
+      } else if (/\b(overloaded|rate[- ]?limited|529|429)\b/i.test(detail)) {
+        toast.error("AI scale reader is temporarily overloaded. Retry in a moment.");
       } else {
         toast.error(`Scale extraction failed: ${detail}`);
       }
-      const fallback = {
+      const fallback: ScaleResult = {
         scaleFactor: null,
         scaleRatio: null,
         scaleText: null,
         paperSize: null,
-        confidence: "low" as const,
-        rationale: `Scale extraction failed: ${detail}. Enter a known dimension below to calibrate manually.`,
+        confidence: "low",
+        rationale: `Scale extraction failed: ${detail}. Retry the AI read or continue with visible annotations; manual point calibration is available later when reviewing measurements.`,
       };
       setScaleResult(fallback);
       foundResult = fallback;
@@ -760,7 +780,7 @@ function UploadPage() {
       setConceptBusy(null);
     }
 
-    // Auto-advance: if we found a scale, skip the confirmation screen entirely.
+    if (!autoAdvance) return;
     if (foundResult?.scaleFactor !== null && foundResult?.scaleFactor !== undefined) {
       await proceedToCheck(foundResult.scaleFactor);
     } else if (foundResult?.scaleRatio !== null && foundResult?.scaleRatio !== undefined) {
@@ -1477,42 +1497,35 @@ function UploadPage() {
                 <div
                   className={`text-[10.5px] uppercase tracking-[0.16em] font-medium ${scaleUsable ? "text-emerald-500" : "text-amber-500"}`}
                 >
-                  {scaleUsable ? "Scale detected" : "Scale not detected"}
+                  {scaleUsable
+                    ? "Scale detected"
+                    : scaleFailureLooksTransient(scaleResult)
+                      ? "AI reader unavailable"
+                      : "Scale not detected"}
                 </div>
                 <div className="mt-1 text-sm font-medium text-foreground">
                   {scaleOk
                     ? `${scaleResult.scaleFactor!.toFixed(4)} px/mm (${scaleResult.confidence} confidence)`
                     : scaleRatioOk
                       ? `${scaleResult.scaleText ?? `1:${scaleResult.scaleRatio}`} (${scaleResult.confidence} confidence)`
-                      : "Could not determine scale automatically"}
+                      : scaleFailureLooksTransient(scaleResult)
+                        ? "AI scale reader temporarily overloaded"
+                        : "Could not determine scale automatically"}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">{scaleResult.rationale}</div>
               </div>
 
               {!scaleUsable && (
                 <div className="rounded-lg border border-border bg-card p-5 space-y-3">
-                  <div className="text-sm font-medium">Enter a known dimension</div>
+                  <div className="text-sm font-medium">Scale fallback</div>
                   <p className="text-xs text-muted-foreground">
-                    If you know the real-world length of a specific wall or dimension on the plan,
-                    enter it below. We'll use it to calibrate the scale.
+                    Retry the AI scale read if the service was overloaded. If it still cannot read
+                    the title block, you can continue; the takeoff will use visible dimension
+                    annotations, and manual point calibration is available later on the plan canvas.
                   </p>
-                  <div className="flex gap-2 items-end">
-                    <div className="flex-1">
-                      <label className="text-xs font-medium text-muted-foreground">
-                        Known dimension (mm)
-                      </label>
-                      <input
-                        type="number"
-                        placeholder="e.g. 12000 for 12m wall"
-                        value={manualKnownMm}
-                        onChange={(e) => setManualKnownMm(e.target.value)}
-                        className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                      />
-                    </div>
-                  </div>
                   <p className="text-[11px] text-muted-foreground">
-                    If you don't have a reference dimension, you can still proceed — the AI will use
-                    visible annotations.
+                    A typed length alone cannot calibrate scale without two matching points on the
+                    drawing, so this screen no longer asks for a number it cannot honestly use.
                   </p>
                 </div>
               )}
@@ -1525,14 +1538,22 @@ function UploadPage() {
                 >
                   <ArrowLeft className="h-4 w-4" /> Back
                 </button>
+                {!scaleUsable && (
+                  <button
+                    type="button"
+                    onClick={() => void runScaleExtractionFromSelectedPage(true)}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-accent"
+                  >
+                    <Wand2 className="h-4 w-4" />
+                    {scaleFailureLooksTransient(scaleResult)
+                      ? "Retry AI scale read"
+                      : "Try AI scale read again"}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
-                    const resolved = scaleOk
-                      ? scaleResult.scaleFactor
-                      : manualKnownMm
-                        ? null // pixel distance unknown without clicking — pass null, AI uses annotations
-                        : null;
+                    const resolved = scaleOk ? scaleResult.scaleFactor : null;
                     proceedToCheck(resolved ?? scaleResult?.scaleFactor ?? null);
                   }}
                   className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 shadow-sm"
