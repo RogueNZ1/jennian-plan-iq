@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { extractPageGeometry } from "../../src/lib/doors/pdf-adapter";
@@ -12,6 +12,7 @@ import { parsePlanText } from "../../src/lib/takeoff/plan-text";
 
 const FENNER_FLOORPLAN = resolve(process.cwd(), "tests/doors/plans/fenner-floorplan.pdf");
 const FIFTEEN_A_FLOORPLAN = resolve(process.cwd(), "tests/fixtures/15a/floorplan.pdf");
+const itWithFifteenAFloorplan = existsSync(FIFTEEN_A_FLOORPLAN) ? it : it.skip;
 
 async function floorGeometry(path: string) {
   const pdfjs = await import("pdfjs-dist-door/legacy/build/pdf.mjs");
@@ -109,23 +110,27 @@ describe("floor opening width witnesses", () => {
     );
   }, 60_000);
 
-  it("does not promote exterior dimension-chain labels as physical opening widths", async () => {
-    const geom = await floorGeometry(FIFTEEN_A_FLOORPLAN);
-    const planText = parsePlanText(geom.labels);
-    const witnesses = detectPhysicalOpeningWidthWitnesses({
-      planText,
-      segments: geom.segments,
-      labels: geom.labels,
-      scale: 100,
-    });
+  itWithFifteenAFloorplan(
+    "does not promote exterior dimension-chain labels as physical opening widths",
+    async () => {
+      const geom = await floorGeometry(FIFTEEN_A_FLOORPLAN);
+      const planText = parsePlanText(geom.labels);
+      const witnesses = detectPhysicalOpeningWidthWitnesses({
+        planText,
+        segments: geom.segments,
+        labels: geom.labels,
+        scale: 100,
+      });
 
-    expect(witnesses).not.toContainEqual(expect.objectContaining({ widthMm: 2205 }));
-    expect(witnesses).not.toContainEqual(expect.objectContaining({ widthMm: 3030 }));
-    expect(witnesses).not.toContainEqual(expect.objectContaining({ widthMm: 4132 }));
-    expect(witnesses).toContainEqual(
-      expect.objectContaining({
-        widthMm: 2700,
-      }),
-    );
-  }, 60_000);
+      expect(witnesses).not.toContainEqual(expect.objectContaining({ widthMm: 2205 }));
+      expect(witnesses).not.toContainEqual(expect.objectContaining({ widthMm: 3030 }));
+      expect(witnesses).not.toContainEqual(expect.objectContaining({ widthMm: 4132 }));
+      expect(witnesses).toContainEqual(
+        expect.objectContaining({
+          widthMm: 2700,
+        }),
+      );
+    },
+    60_000,
+  );
 });

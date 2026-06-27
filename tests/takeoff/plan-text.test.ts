@@ -5,7 +5,7 @@
  * to make impossible to misread again).
  */
 import { describe, it, expect, beforeAll } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { TextLabel } from "../../src/lib/doors/door-engine";
 import {
@@ -14,6 +14,9 @@ import {
   parseWindowCodes,
   type PlanText,
 } from "../../src/lib/takeoff/plan-text";
+
+const HARRISON_CONCEPT = resolve(__dirname, "../fixtures/harrison/concept.pdf");
+const FIFTEEN_A_FLOORPLAN = resolve(__dirname, "../fixtures/15a/floorplan.pdf");
 
 async function extract(planPath: string, pageNumber = 1): Promise<PlanText> {
   const { extractPageGeometry } = await import("../../src/lib/doors/pdf-adapter");
@@ -110,17 +113,23 @@ describe("plan-text — Alexandra (no false rooms from a different plan style)",
 });
 
 describe("plan-text - Harrison candidate identity", () => {
-  it("keeps W-code-backed jammed labels and rejects nearby room footprints", async () => {
-    const pt = await extract(resolve(__dirname, "../fixtures/harrison/concept.pdf"), 2);
+  const itWithHarrisonConcept = existsSync(HARRISON_CONCEPT) ? it : it.skip;
 
-    const w07 = pt.windowCodes.filter(
-      (c) => c.id === "W07" && c.heightMm === 700 && c.widthMm === 1500,
-    );
-    expect(w07).toHaveLength(1);
-    expect(pt.windowCodes.some((c) => !c.id && c.heightMm === 900 && c.widthMm === 1200)).toBe(
-      false,
-    );
-  }, 60_000);
+  itWithHarrisonConcept(
+    "keeps W-code-backed jammed labels and rejects nearby room footprints",
+    async () => {
+      const pt = await extract(HARRISON_CONCEPT, 2);
+
+      const w07 = pt.windowCodes.filter(
+        (c) => c.id === "W07" && c.heightMm === 700 && c.widthMm === 1500,
+      );
+      expect(w07).toHaveLength(1);
+      expect(pt.windowCodes.some((c) => !c.id && c.heightMm === 900 && c.widthMm === 1200)).toBe(
+        false,
+      );
+    },
+    60_000,
+  );
 });
 
 describe("window auto-routing — West Street against Haydon's hand-verified workbook", () => {
@@ -151,17 +160,23 @@ describe("window auto-routing — West Street against Haydon's hand-verified wor
     expect(area).toBeCloseTo(13.56, 2);
   }, 60_000);
 
-  it("parses spaced lowercase 15a opening labels without promoting uppercase room dimensions", async () => {
-    const pt = await extract(resolve(__dirname, "../fixtures/15a/floorplan.pdf"));
-    const codes = pt.windowCodes.map((code) => `${code.heightMm}x${code.widthMm}`);
+  const itWithFifteenAFloorplan = existsSync(FIFTEEN_A_FLOORPLAN) ? it : it.skip;
 
-    expect(codes).toContain("1300x1500");
-    expect(codes).toContain("1100x1200");
-    expect(codes).toContain("1100x600");
-    expect(codes).toContain("800x1800");
-    expect(codes).not.toContain("5030x4314");
-    expect(codes).not.toContain("2900x3600");
-  }, 60_000);
+  itWithFifteenAFloorplan(
+    "parses spaced lowercase 15a opening labels without promoting uppercase room dimensions",
+    async () => {
+      const pt = await extract(FIFTEEN_A_FLOORPLAN);
+      const codes = pt.windowCodes.map((code) => `${code.heightMm}x${code.widthMm}`);
+
+      expect(codes).toContain("1300x1500");
+      expect(codes).toContain("1100x1200");
+      expect(codes).toContain("1100x600");
+      expect(codes).toContain("800x1800");
+      expect(codes).not.toContain("5030x4314");
+      expect(codes).not.toContain("2900x3600");
+    },
+    60_000,
+  );
 });
 
 describe("plan-text - standalone opening width witnesses", () => {

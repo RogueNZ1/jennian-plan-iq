@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Segment } from "../../src/lib/doors/door-engine";
@@ -14,6 +14,7 @@ import { runElevationVectorOpenings } from "../../src/lib/takeoff/run-elevation-
 const FENNER_ELEVATIONS = resolve(process.cwd(), "tests/doors/plans/fenner-elevations.pdf");
 const BEDDIS_PRELIM = resolve(process.cwd(), "tests/fixtures/beddis/prelim.pdf");
 const BEDDIS_TRUTH = resolve(process.cwd(), "tests/fixtures/beddis/ground-truth.json");
+const itWithBeddisPrelim = existsSync(BEDDIS_PRELIM) ? it : it.skip;
 
 async function pageSegments(pdfPath: string, pageNumber = 1) {
   const pdfjs = await import("pdfjs-dist-door/legacy/build/pdf.mjs");
@@ -204,17 +205,21 @@ describe("elevation vector opening detector", () => {
     expect(openings.some((opening) => opening.source === "vector_face_band")).toBe(true);
   }, 60_000);
 
-  it("keeps Beddis vector evidence bounded while preserving signed-dimension coverage", async () => {
-    const segments = await pageSegments(BEDDIS_PRELIM, 5);
-    const bands = detectElevationFaceBands(segments);
-    const openings = detectElevationVectorOpenings(segments);
+  itWithBeddisPrelim(
+    "keeps Beddis vector evidence bounded while preserving signed-dimension coverage",
+    async () => {
+      const segments = await pageSegments(BEDDIS_PRELIM, 5);
+      const bands = detectElevationFaceBands(segments);
+      const openings = detectElevationVectorOpenings(segments);
 
-    expect(bands.length).toBeGreaterThan(4);
-    expect(bands.length).toBeLessThanOrEqual(24);
-    expect(openings.length).toBeGreaterThanOrEqual(11);
-    expect(openings.length).toBeLessThanOrEqual(20);
-    expect(dimensionMatchCount(beddisTruthOpenings(), openings)).toBeGreaterThanOrEqual(6);
-  }, 60_000);
+      expect(bands.length).toBeGreaterThan(4);
+      expect(bands.length).toBeLessThanOrEqual(24);
+      expect(openings.length).toBeGreaterThanOrEqual(11);
+      expect(openings.length).toBeLessThanOrEqual(20);
+      expect(dimensionMatchCount(beddisTruthOpenings(), openings)).toBeGreaterThanOrEqual(6);
+    },
+    60_000,
+  );
 
   it("merges vector candidates into elevation data without duplicating matching AI openings", async () => {
     const [candidate] = detectElevationVectorOpenings(await fennerSegments()).filter(
