@@ -437,6 +437,10 @@ import { extractAnnotations } from "./extract-annotations";
 import { classifyAnnotations } from "./classify-annotations";
 import { readWindowSchedule, type WindowScheduleData } from "./extract-window-schedule";
 import { normaliseVisualOpeningAudit, type VisualOpeningAudit } from "./visual-opening-audit";
+import {
+  formatVisualOpeningCorrectionHints,
+  type VisualOpeningHumanCorrectionHint,
+} from "./visual-opening-correction-hints";
 
 export type ConceptTakeoffResult = {
   takeoffData: TakeoffData;
@@ -489,10 +493,12 @@ export const extractVisualOpeningAuditFn = createServerFn({ method: "POST" })
         imageBase64: string;
         pageNumber?: number | null;
         elevationImageBase64?: string | null;
+        humanCorrectionHints?: VisualOpeningHumanCorrectionHint[] | null;
       },
   )
   .handler(async ({ data }): Promise<VisualOpeningAudit> => {
     const apiKey = getApiKey();
+    const humanCorrectionMemory = formatVisualOpeningCorrectionHints(data.humanCorrectionHints);
     const system = `Return ONLY valid JSON. No markdown, no prose.
 You are acting as a senior New Zealand residential Quantity Surveyor reading a FLOOR PLAN image by eye.
 
@@ -598,7 +604,8 @@ RETURN EXACT JSON SHAPE:
 
 Return openings in walk-around order around the outside perimeter, clockwise if possible.
 If no floor plan is visible, return openings=[] with a warning.
-Return ONLY the JSON object.`;
+Return ONLY the JSON object.
+${humanCorrectionMemory}`;
 
     try {
       const images = data.elevationImageBase64

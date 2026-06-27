@@ -30,6 +30,7 @@ import {
 import { extractOpeningsFromFile, persistOpening, type ExtractedOpening } from "./extract-openings";
 import { extractSpecRowsFromFile, type SpecRow } from "./extract-spec";
 import { populateModulesFromTakeoff } from "./populate-modules";
+import { loadVisualOpeningCorrectionHints } from "./visual-opening-correction-hints";
 import { seedAllModulesForJob } from "@/lib/iq-modules";
 import type { PageClassification } from "./summary";
 import {
@@ -836,12 +837,10 @@ export async function runAutomaticTakeoff(args: {
                 } = await import("./concept.functions");
                 const { composeTakeoff } = await import("./compose-takeoff");
                 const { extractElevationsFn } = await import("./extract-elevations");
-                const { mergeElevationVectorOpenings } = await import(
-                  "./elevation-vector-openings"
-                );
-                const { runElevationVectorEvidence } = await import(
-                  "./run-elevation-vector-openings"
-                );
+                const { mergeElevationVectorOpenings } =
+                  await import("./elevation-vector-openings");
+                const { runElevationVectorEvidence } =
+                  await import("./run-elevation-vector-openings");
                 const planFile = new File([fileData], fileRow.file_name ?? "plan.pdf", {
                   type: "application/pdf",
                 });
@@ -915,14 +914,28 @@ export async function runAutomaticTakeoff(args: {
                   const elevationImageBase64 = elevationBlob
                     ? await blobToBase64(elevationBlob)
                     : null;
+                  const visualCorrectionHintsP = loadVisualOpeningCorrectionHints(jobId).catch(
+                    (err) => {
+                      console.warn(
+                        "[visual-opening-corrections] hints unavailable:",
+                        err instanceof Error ? err.message : String(err),
+                      );
+                      return [];
+                    },
+                  );
                   const visualOpeningAuditP = elevationImageBase64
-                    ? extractVisualOpeningAuditFn({
-                        data: {
-                          imageBase64: b64,
-                          pageNumber: workingPageNumber ?? null,
-                          elevationImageBase64,
-                        },
-                      }).catch(() => null)
+                    ? visualCorrectionHintsP
+                        .then((humanCorrectionHints) =>
+                          extractVisualOpeningAuditFn({
+                            data: {
+                              imageBase64: b64,
+                              pageNumber: workingPageNumber ?? null,
+                              elevationImageBase64,
+                              humanCorrectionHints,
+                            },
+                          }),
+                        )
+                        .catch(() => null)
                     : Promise.resolve(null);
                   const [elevRaw, elevVectorEvidence, visualOpeningAudit] = await Promise.all([
                     elevationImageBase64
