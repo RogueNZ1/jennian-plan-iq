@@ -62,7 +62,11 @@ const ELEVATION_SCALE = 100;
 const MAX_SINGLE_OPENING_CANDIDATE_WIDTH_MM = 5200;
 
 type PdfRect = { x0: number; x1: number; y0: number; y1: number };
-type CandidateKind = "vector_opening" | "frame_assembly" | "raw_frame_rescue";
+type CandidateKind =
+  | "vector_opening"
+  | "frame_assembly"
+  | "raw_frame_rescue"
+  | "outer_frame_assembly";
 
 type Candidate = {
   id: string;
@@ -185,6 +189,16 @@ type FaceAudit = {
   rawAiText: string;
 };
 
+type UnmappedFaceProbe = {
+  elevationFace: string;
+  crop: PdfRect;
+  floorRows: FloorGuideRow[];
+  candidates: Candidate[];
+  artifacts: {
+    candidateOverlay: string;
+  };
+};
+
 function mmToPt(mm: number): number {
   return (mm / ELEVATION_SCALE) * PT_PER_MM;
 }
@@ -208,6 +222,12 @@ function rectIntersects(a: PdfRect, b: PdfRect): boolean {
   return Math.min(a.x1, b.x1) > Math.max(a.x0, b.x0) && Math.min(a.y1, b.y1) > Math.max(a.y0, b.y0);
 }
 
+function rectCenterInside(rect: PdfRect, bounds: PdfRect, pad = 0): boolean {
+  const x = (rect.x0 + rect.x1) / 2;
+  const y = (rect.y0 + rect.y1) / 2;
+  return x >= bounds.x0 - pad && x <= bounds.x1 + pad && y >= bounds.y0 - pad && y <= bounds.y1 + pad;
+}
+
 function rectArea(rect: PdfRect): number {
   return Math.max(1, (rect.x1 - rect.x0) * (rect.y1 - rect.y0));
 }
@@ -227,6 +247,50 @@ function rectUnion(rects: readonly PdfRect[]): PdfRect | null {
     y0: Math.min(...rects.map((rect) => rect.y0)),
     y1: Math.max(...rects.map((rect) => rect.y1)),
   };
+}
+
+function expandRect(rect: PdfRect, pad: number): PdfRect {
+  return {
+    x0: rect.x0 - pad,
+    x1: rect.x1 + pad,
+    y0: rect.y0 - pad,
+    y1: rect.y1 + pad,
+  };
+}
+
+function faceScopeForBand(band: ElevationFaceBand): PdfRect {
+  return {
+    x0: band.x0 - 8,
+    x1: band.x1 + 8,
+    y0: band.y0 - 8,
+    y1: band.y1 + 8,
+  };
+}
+
+function faceEvidenceScope(args: {
+  band: ElevationFaceBand;
+  vectorOpenings: readonly ElevationVectorOpening[];
+  faceBandId: string;
+  crop: PdfRect;
+}): PdfRect {
+  const openingRects = args.vectorOpenings
+    .filter((opening) => opening.faceBandId === args.faceBandId && opening.widthMm != null && opening.heightMm != null)
+    .map((opening) => rectForOpening(opening));
+  const verticalEvidence = expandRect(
+    rectUnion([faceScopeForBand(args.band), ...openingRects]) ?? faceScopeForBand(args.band),
+    6,
+  );
+  return {
+    x0: args.crop.x0,
+    x1: args.crop.x1,
+    y0: verticalEvidence.y0,
+    y1: verticalEvidence.y1,
+  };
+}
+
+function rectBelongsToScope(rect: PdfRect, scope: PdfRect): boolean {
+  if (rectCenterInside(rect, scope, 2)) return true;
+  return rectOverlapRatio(rect, scope) >= 0.72;
 }
 
 function memberKey(member: FrameAssemblyMember): string {
@@ -333,6 +397,18 @@ function floorGuideRowsForPlanSide(
       id: `F${index + 1}`,
       order: floorSideOrderValue(row),
     }));
+}
+
+function floorGuideRowsForPlanSides(
+  floorSignatureRows: readonly OpeningSignatureFloorRow[],
+  planSides: readonly PlanSide[],
+): FloorGuideRow[] {
+  return planSides.flatMap((planSide) =>
+    floorGuideRowsForPlanSide(floorSignatureRows, planSide).map((row) => ({
+      ...row,
+      id: `${planSide}-${row.id}`,
+    })),
+  );
 }
 
 function candidateTable(candidates: readonly Candidate[]): string {
@@ -554,6 +630,27 @@ function sameAssemblyEdgeTouch(a: PdfRect, b: PdfRect): boolean {
   return (gap.y <= 2 && horizontalOverlap >= 0.55) || (gap.x <= 2 && verticalOverlap >= 0.55);
 }
 
+function sameOuterFramePiece(a: PdfRect, b: PdfRect): boolean {
+  const gap = rectGap(a, b);
+  const horizontalOverlap = overlapLengthRatio(a.x0, a.x1, b.x0, b.x1);
+  const verticalOverlap = overlapLengthRatio(a.y0, a.y1, b.y0, b.y1);
+  const aHeight = Math.max(1, a.y1 - a.y0);
+  const bHeight = Math.max(1, b.y1 - b.y0);
+  const aWidth = Math.max(1, a.x1 - a.x0);
+  const bWidth = Math.max(1, b.x1 - b.x0);
+  const heightRatio = Math.min(aHeight, bHeight) / Math.max(aHeight, bHeight);
+  const widthRatio = Math.min(aWidth, bWidth) / Math.max(aWidth, bWidth);
+  return (
+    (gap.x <= 4 && verticalOverlap >= 0.68 && heightRatio >= 0.72) ||
+    (gap.y <= 4 && horizontalOverlap >= 0.68 && widthRatio >= 0.45)
+  );
+}
+
+function bottomAnchoredInFace(rect: PdfRect, scope: PdfRect): boolean {
+  const height = Math.max(1, scope.y1 - scope.y0);
+  return rect.y1 >= scope.y1 - 18 || rect.y1 >= scope.y0 + height * 0.82;
+}
+
 function truthDimensionCompatible(widthMm: number, heightMm: number, truth: TruthOpening): boolean {
   const widthTolerance = Math.max(150, Math.round(truth.widthMm * 0.06));
   const heightTolerance = Math.max(150, Math.round(truth.heightMm * 0.08));
@@ -591,6 +688,75 @@ function floorDeltaScore(
         Math.abs(candidate.widthMm - row.widthMm) + Math.abs(candidate.heightMm - row.heightMm),
     ),
   );
+}
+
+function outerFrameAssemblyCandidates(
+  candidates: readonly Omit<Candidate, "id">[],
+  floorRows: readonly FloorGuideRow[],
+): Array<Omit<Candidate, "id">> {
+  if (floorRows.length === 0) return [];
+
+  const mergeable = candidates.filter(
+    (candidate) =>
+      candidate.source !== "sectional_garage_door" &&
+      candidate.widthMm <= MAX_SINGLE_OPENING_CANDIDATE_WIDTH_MM,
+  );
+  const groups: Array<Array<Omit<Candidate, "id">>> = [];
+  const used = new Set<number>();
+
+  for (let i = 0; i < mergeable.length; i += 1) {
+    if (used.has(i)) continue;
+    const group = [mergeable[i]];
+    used.add(i);
+
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (let j = 0; j < mergeable.length; j += 1) {
+        if (used.has(j)) continue;
+        if (group.some((candidate) => sameOuterFramePiece(candidate.rect, mergeable[j].rect))) {
+          group.push(mergeable[j]);
+          used.add(j);
+          changed = true;
+        }
+      }
+    }
+    if (group.length > 1) groups.push(group);
+  }
+
+  const assemblies: Array<Omit<Candidate, "id">> = [];
+  for (const group of groups) {
+    const rect = rectUnion(group.map((candidate) => candidate.rect));
+    if (!rect) continue;
+    const widthMm = ptToMm(rect.x1 - rect.x0);
+    const heightMm = ptToMm(rect.y1 - rect.y0);
+    if (widthMm > MAX_SINGLE_OPENING_CANDIDATE_WIDTH_MM) continue;
+    const compatible = compatibleFloorRowIds({ widthMm, heightMm }, floorRows);
+    if (compatible.length === 0) continue;
+    if (
+      candidates.some(
+        (candidate) =>
+          rectContains(candidate.rect, rect, 2) &&
+          compatibleFloorRowIds(candidate, floorRows).some((id) => compatible.includes(id)),
+      )
+    ) {
+      continue;
+    }
+    assemblies.push({
+      kind: "outer_frame_assembly",
+      source: "outer_frame_assembly",
+      faceBandId: group[0]?.faceBandId ?? "unknown-face",
+      suggestedType: null,
+      widthMm,
+      heightMm,
+      rect,
+      notes: [
+        `${group.length} adjacent/nested component boxes merged as one outer-frame opening; components are not separate priced openings`,
+      ],
+      compatibleFloorRowIds: [],
+    });
+  }
+  return assemblies;
 }
 
 function scoreAiOpenings(args: {
@@ -789,7 +955,9 @@ function buildCleanCandidateList(args: {
   elevationSegments: readonly Segment[];
   floorRows: readonly FloorGuideRow[];
   faceBandId: string;
+  faceScope: PdfRect;
   crop: PdfRect;
+  reviewOnlyUnmapped?: boolean;
 }): Candidate[] {
   const candidates: Omit<Candidate, "id">[] = [];
 
@@ -802,16 +970,17 @@ function buildCleanCandidateList(args: {
     ) {
       continue;
     }
+    const rect = rectForOpening(opening);
     const skinnyFullHeight = opening.heightMm >= 1750 && opening.widthMm < 700;
     if (
       opening.source !== "sectional_garage_door" &&
       opening.source !== "multi_panel_slider" &&
+      (!args.reviewOnlyUnmapped || !bottomAnchoredInFace(rect, args.faceScope)) &&
       skinnyFullHeight
     ) {
       continue;
     }
-    const rect = rectForOpening(opening);
-    if (!rectIntersects(rect, args.crop)) continue;
+    if (!rectBelongsToScope(rect, args.faceScope)) continue;
     candidates.push({
       kind: "vector_opening",
       source: opening.source,
@@ -829,7 +998,7 @@ function buildCleanCandidateList(args: {
   for (const slot of args.slots) {
     if (slot.faceBandId !== args.faceBandId) continue;
     const rect = { x0: slot.x0, x1: slot.x1, y0: slot.y0, y1: slot.y1 };
-    if (!rectIntersects(rect, args.crop)) continue;
+    if (!rectBelongsToScope(rect, args.faceScope)) continue;
     const existing = slotsByGroup.get(slot.groupId);
     if (existing) existing.push(slot);
     else slotsByGroup.set(slot.groupId, [slot]);
@@ -842,11 +1011,17 @@ function buildCleanCandidateList(args: {
     }
     const members = [...memberMap.values()];
     const rect = rectUnion(members.map((member) => member));
-    if (!rect || !rectIntersects(rect, args.crop)) continue;
+    if (!rect || !rectBelongsToScope(rect, args.faceScope)) continue;
     const widthMm = ptToMm(rect.x1 - rect.x0);
     const heightMm = ptToMm(rect.y1 - rect.y0);
     if (widthMm > MAX_SINGLE_OPENING_CANDIDATE_WIDTH_MM) continue;
-    if (heightMm >= 1750 && widthMm < 700) continue;
+    if (
+      heightMm >= 1750 &&
+      widthMm < 700 &&
+      (!args.reviewOnlyUnmapped || !bottomAnchoredInFace(rect, args.faceScope))
+    ) {
+      continue;
+    }
     candidates.push({
       kind: "frame_assembly",
       source: groupId,
@@ -875,10 +1050,14 @@ function buildCleanCandidateList(args: {
 
   const rawRescues: Omit<Candidate, "id">[] = [];
   const frameRects = frameRectangleCandidates(args.elevationSegments)
-    .filter((rect) => rectIntersects(rect, args.crop))
+    .filter((rect) => rectBelongsToScope(rect, args.faceScope))
     .filter((rect) => rect.widthMm >= 400 && rect.widthMm <= 2200)
     .filter((rect) => rect.heightMm >= 450 && rect.heightMm <= 2450)
-    .filter((rect) => !(rect.heightMm >= 1750 && rect.widthMm < 700))
+    .filter(
+      (rect) =>
+        !(rect.heightMm >= 1750 && rect.widthMm < 700) ||
+        (args.reviewOnlyUnmapped && bottomAnchoredInFace(rect, args.faceScope)),
+    )
     .filter((rect) => compatibleFloorRowIds(rect, args.floorRows).length > 0)
     .sort(
       (a, b) =>
@@ -914,12 +1093,30 @@ function buildCleanCandidateList(args: {
     });
   }
 
-  const withCompatibility = [...refined, ...rawRescues].map((candidate) => ({
+  const withOuterAssemblies = [
+    ...refined,
+    ...rawRescues,
+    ...outerFrameAssemblyCandidates([...refined, ...rawRescues], args.floorRows),
+  ];
+
+  const withCompatibility = withOuterAssemblies.map((candidate) => ({
     ...candidate,
     compatibleFloorRowIds: compatibleFloorRowIds(candidate, args.floorRows),
   }));
 
   const deFragmented = withCompatibility.filter((candidate) => {
+    if (candidate.kind !== "outer_frame_assembly") {
+      const coveringOuterFrame = withCompatibility.find(
+        (other) =>
+          other.kind === "outer_frame_assembly" &&
+          other !== candidate &&
+          other.compatibleFloorRowIds.length > 0 &&
+          (rectContains(other.rect, candidate.rect, 2) ||
+            rectOverlapRatio(other.rect, candidate.rect) >= 0.55 ||
+            sameAssemblyEdgeTouch(other.rect, candidate.rect)),
+      );
+      if (coveringOuterFrame) return false;
+    }
     if (candidate.compatibleFloorRowIds.length > 0) return true;
     return !withCompatibility.some(
       (other) =>
@@ -932,8 +1129,17 @@ function buildCleanCandidateList(args: {
   });
 
   const floorGuided = deFragmented.filter(
-    (candidate) =>
-      candidate.compatibleFloorRowIds.length > 0 || candidate.source === "sectional_garage_door",
+    (candidate) => {
+      if (candidate.compatibleFloorRowIds.length > 0 || candidate.source === "sectional_garage_door") {
+        return true;
+      }
+      if (!args.reviewOnlyUnmapped) return false;
+      return (
+        candidate.widthMm >= 2200 ||
+        candidate.heightMm >= 1750 ||
+        candidate.kind === "outer_frame_assembly"
+      );
+    },
   );
 
   return floorGuided
@@ -1074,6 +1280,12 @@ async function auditFace(args: {
   truth: readonly TruthOpening[];
 }): Promise<FaceAudit> {
   const crop = cropForBand(args.band, args.page);
+  const faceScope = faceEvidenceScope({
+    band: args.band,
+    vectorOpenings: args.vectorOpenings,
+    faceBandId: args.anchor.elevationFaceBandId,
+    crop,
+  });
   const floorRows = floorGuideRowsForPlanSide(args.floorSignatureRows, args.anchor.planSide);
   const candidates = buildCleanCandidateList({
     vectorOpenings: args.vectorOpenings,
@@ -1081,6 +1293,7 @@ async function auditFace(args: {
     elevationSegments: args.elevationSegments,
     floorRows,
     faceBandId: args.anchor.elevationFaceBandId,
+    faceScope,
     crop,
   });
   const slug = `${args.anchor.planSide}-${args.anchor.elevationFace}`;
@@ -1163,6 +1376,87 @@ async function auditFace(args: {
   };
 }
 
+function selectUnmappedProbeBands(args: {
+  faceBands: readonly ElevationFaceBand[];
+  vectorOpenings: readonly ElevationVectorOpening[];
+  mappedFaceBandIds: ReadonlySet<string>;
+}): ElevationFaceBand[] {
+  const scored = args.faceBands
+    .filter((band) => !args.mappedFaceBandIds.has(band.id))
+    .map((band) => {
+      const tallOrWide = args.vectorOpenings.filter(
+        (opening) =>
+          opening.faceBandId === band.id &&
+          ((opening.widthMm ?? 0) >= 2200 || (opening.heightMm ?? 0) >= 1750),
+      );
+      return { band, tallOrWide };
+    })
+    .filter(({ band, tallOrWide }) => band.widthMm >= 8000 && tallOrWide.length > 0)
+    .sort(
+      (a, b) =>
+        b.tallOrWide.length - a.tallOrWide.length ||
+        b.band.widthMm - a.band.widthMm ||
+        a.band.y0 - b.band.y0,
+    );
+
+  const selected: ElevationFaceBand[] = [];
+  for (const item of scored) {
+    const rect = { x0: item.band.x0, x1: item.band.x1, y0: item.band.y0, y1: item.band.y1 };
+    const overlapsExisting = selected.some((band) =>
+      rectOverlapRatio(rect, { x0: band.x0, x1: band.x1, y0: band.y0, y1: band.y1 }) >= 0.65,
+    );
+    if (overlapsExisting) continue;
+    selected.push(item.band);
+    if (selected.length >= 4) break;
+  }
+  return selected.sort((a, b) => a.y0 - b.y0 || a.x0 - b.x0);
+}
+
+async function probeUnmappedFace(args: {
+  fullImagePath: string;
+  page: { width: number; height: number };
+  band: ElevationFaceBand;
+  vectorOpenings: readonly ElevationVectorOpening[];
+  slots: readonly FrameOpeningSlot[];
+  elevationSegments: readonly Segment[];
+  floorRows: readonly FloorGuideRow[];
+}): Promise<UnmappedFaceProbe> {
+  const crop = cropForBand(args.band, args.page);
+  const faceScope = faceEvidenceScope({
+    band: args.band,
+    vectorOpenings: args.vectorOpenings,
+    faceBandId: args.band.id,
+    crop,
+  });
+  const candidates = buildCleanCandidateList({
+    vectorOpenings: args.vectorOpenings,
+    slots: args.slots,
+    elevationSegments: args.elevationSegments,
+    floorRows: args.floorRows,
+    faceBandId: args.band.id,
+    faceScope,
+    crop,
+    reviewOnlyUnmapped: true,
+  });
+  const candidateOverlay = resolve(OUT_DIR, `unmapped-${args.band.id}-candidate-ids.png`);
+  await drawCandidateOverlay({
+    fullImagePath: args.fullImagePath,
+    page: args.page,
+    crop,
+    candidates,
+    floorRows: args.floorRows,
+    outPng: candidateOverlay,
+    title: `review-only unmapped ${args.band.id}`,
+  });
+  return {
+    elevationFace: args.band.id,
+    crop,
+    floorRows: args.floorRows,
+    candidates,
+    artifacts: { candidateOverlay },
+  };
+}
+
 async function main() {
   mkdirSync(OUT_DIR, { recursive: true });
 
@@ -1223,6 +1517,27 @@ async function main() {
   const unmappedPlanSides = (
     ["plan_top", "plan_bottom", "plan_left", "plan_right"] as const
   ).filter((side) => !mappedPlanSides.has(side));
+  const mappedFaceBandIds = new Set(anchors.map((anchor) => anchor.elevationFaceBandId));
+  const unmappedFloorRows = floorGuideRowsForPlanSides(floorSignatureRows, unmappedPlanSides);
+  const unmappedFaceProbes: UnmappedFaceProbe[] = [];
+  for (const band of selectUnmappedProbeBands({
+    faceBands: elevation.elevationFaceBands,
+    vectorOpenings: elevation.elevationOpenings,
+    mappedFaceBandIds,
+  })) {
+    console.log(`probing unmapped ${band.id} (review only)`);
+    unmappedFaceProbes.push(
+      await probeUnmappedFace({
+        fullImagePath,
+        page: elevationPage.page,
+        band,
+        vectorOpenings: elevation.elevationOpenings,
+        slots: elevation.elevationOpeningSlots,
+        elevationSegments: elevationPage.geom.segments,
+        floorRows: unmappedFloorRows,
+      }),
+    );
+  }
   const report = {
     job: "fenner",
     mode: "diagnostic_only_floor_guided_face_fusion",
@@ -1236,6 +1551,7 @@ async function main() {
     })),
     floorSideLengthWitnesses,
     faces,
+    unmappedFaceProbes,
     artifacts: {
       fullImagePath,
     },
@@ -1279,6 +1595,11 @@ async function main() {
           .join(", ")}`,
       );
     }
+  }
+  for (const probe of unmappedFaceProbes) {
+    console.log(
+      `review-only ${probe.elevationFace}: floor=${probe.floorRows.length}, candidates=${probe.candidates.length}`,
+    );
   }
   console.log(`wrote ${resolve(OUT_DIR, "fenner-face-fusion-audit.json")}`);
 }
