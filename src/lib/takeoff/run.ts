@@ -30,7 +30,7 @@ import {
 import { extractOpeningsFromFile, persistOpening, type ExtractedOpening } from "./extract-openings";
 import { extractSpecRowsFromFile, type SpecRow } from "./extract-spec";
 import { populateModulesFromTakeoff } from "./populate-modules";
-import { loadVisualOpeningCorrectionHints } from "./visual-opening-correction-hints";
+import { loadVisualOpeningCorrectionPromptMemory } from "./visual-opening-correction-hints";
 import { seedAllModulesForJob } from "@/lib/iq-modules";
 import type { PageClassification } from "./summary";
 import {
@@ -914,24 +914,24 @@ export async function runAutomaticTakeoff(args: {
                   const elevationImageBase64 = elevationBlob
                     ? await blobToBase64(elevationBlob)
                     : null;
-                  const visualCorrectionHintsP = loadVisualOpeningCorrectionHints(jobId).catch(
-                    (err) => {
-                      console.warn(
-                        "[visual-opening-corrections] hints unavailable:",
-                        err instanceof Error ? err.message : String(err),
-                      );
-                      return [];
-                    },
-                  );
+                  const visualCorrectionMemoryP = loadVisualOpeningCorrectionPromptMemory(
+                    jobId,
+                  ).catch((err) => {
+                    console.warn(
+                      "[visual-opening-corrections] memory unavailable:",
+                      err instanceof Error ? err.message : String(err),
+                    );
+                    return null;
+                  });
                   const visualOpeningAuditP = elevationImageBase64
-                    ? visualCorrectionHintsP
-                        .then((humanCorrectionHints) =>
+                    ? visualCorrectionMemoryP
+                        .then((humanCorrectionMemory) =>
                           extractVisualOpeningAuditFn({
                             data: {
                               imageBase64: b64,
                               pageNumber: workingPageNumber ?? null,
                               elevationImageBase64,
-                              humanCorrectionHints,
+                              humanCorrectionMemory,
                             },
                           }),
                         )

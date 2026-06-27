@@ -439,6 +439,8 @@ import { readWindowSchedule, type WindowScheduleData } from "./extract-window-sc
 import { normaliseVisualOpeningAudit, type VisualOpeningAudit } from "./visual-opening-audit";
 import {
   formatVisualOpeningCorrectionHints,
+  formatVisualOpeningCorrectionMemory,
+  type VisualOpeningCorrectionPromptMemory,
   type VisualOpeningHumanCorrectionHint,
 } from "./visual-opening-correction-hints";
 
@@ -494,11 +496,14 @@ export const extractVisualOpeningAuditFn = createServerFn({ method: "POST" })
         pageNumber?: number | null;
         elevationImageBase64?: string | null;
         humanCorrectionHints?: VisualOpeningHumanCorrectionHint[] | null;
+        humanCorrectionMemory?: VisualOpeningCorrectionPromptMemory | null;
       },
   )
   .handler(async ({ data }): Promise<VisualOpeningAudit> => {
     const apiKey = getApiKey();
-    const humanCorrectionMemory = formatVisualOpeningCorrectionHints(data.humanCorrectionHints);
+    const humanCorrectionMemory = data.humanCorrectionMemory
+      ? formatVisualOpeningCorrectionMemory(data.humanCorrectionMemory)
+      : formatVisualOpeningCorrectionHints(data.humanCorrectionHints);
     const system = `Return ONLY valid JSON. No markdown, no prose.
 You are acting as a senior New Zealand residential Quantity Surveyor reading a FLOOR PLAN image by eye.
 

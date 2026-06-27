@@ -67,6 +67,7 @@ import { extractElevationsFn, type ElevationData } from "@/lib/takeoff/extract-e
 import { mergeElevationVectorOpenings } from "@/lib/takeoff/elevation-vector-openings";
 import { extractSitePlanFn, type SitePlanData } from "@/lib/takeoff/extract-site-plan";
 import { crossReference, type CrossReferenceResult } from "@/lib/takeoff/cross-reference";
+import { loadVisualOpeningCorrectionPromptMemory } from "@/lib/takeoff/visual-opening-correction-hints";
 
 export const Route = createFileRoute("/upload")({ component: UploadPage });
 
@@ -897,13 +898,22 @@ function UploadPage() {
       // ROLE, never a page literal; undefined when there is no pick → geometry self-selects.
       const geometryPageIndex = resolveGeometryPageIndex(selectedIndex, pageAnalyses);
 
-      const visualOpeningAuditP = elevBlobP
-        .then(async (elevationBlob) =>
+      const visualCorrectionMemoryP = loadVisualOpeningCorrectionPromptMemory(null).catch((err) => {
+        console.warn(
+          "[visual-opening-corrections] global memory unavailable:",
+          err instanceof Error ? err.message : String(err),
+        );
+        return null;
+      });
+
+      const visualOpeningAuditP = Promise.all([elevBlobP, visualCorrectionMemoryP])
+        .then(async ([elevationBlob, humanCorrectionMemory]) =>
           extractVisualOpeningAuditFn({
             data: {
               imageBase64: b64,
               pageNumber: pageAnalyses[selectedIndex!]?.pageNumber ?? null,
               elevationImageBase64: elevationBlob ? await blobToBase64(elevationBlob) : null,
+              humanCorrectionMemory,
             },
           }),
         )
