@@ -71,6 +71,7 @@ type Candidate = {
   heightMm: number;
   rect: PdfRect;
   notes: string[];
+  compatibleFloorRowIds: string[];
 };
 
 type FloorGuideRow = OpeningSignatureFloorRow & {
@@ -334,7 +335,8 @@ function candidateTable(candidates: readonly Candidate[]): string {
     .map(
       (candidate) =>
         `${candidate.id}: ${candidate.kind}, ${candidate.widthMm}x${candidate.heightMm}mm, ` +
-        `${candidate.faceBandId}, source=${candidate.source}`,
+        `${candidate.faceBandId}, source=${candidate.source}, ` +
+        `compatibleFloorRows=${candidate.compatibleFloorRowIds.join(",") || "none"}`,
     )
     .join("\n");
 }
@@ -367,6 +369,8 @@ Rules:
 - Sidelights, highlights, gable/triangular glass, door leaves, panes, mullions, and fixed glass inside the same outer frame are components of the same opening. Merge them into one opening.
 - Do not output "slider plus window" when the window/glass is inside the same 3.6m slider/door assembly. Return one opening with all relevant candidate IDs.
 - If multiple candidate IDs are parts of the same physical opening, put them together in one candidateIds array and set action="merge".
+- If one candidate already covers the full outer frame, do not also include nested/adjacent component candidate IDs inside it.
+- Only link a floorRowId to a candidate when the candidate table says that candidate is compatible with that floor row, or when a merged outer assembly is clearly compatible as a whole.
 - Prefer one physical opening over nested parts. A lower pane, mullion bay, inner rail rectangle, or duplicate nested box inside a larger already-selected opening is not another opening.
 - Only classify a candidate as external_door if an actual door leaf/opening is visible. A skinny vertical cladding board, brick pier, mullion, or frame side is not a door.
 - If a floor row is expected but no candidate fits, list it in missedVisibleOpenings with the floorRowIds.
@@ -513,6 +517,26 @@ function rectContains(outer: PdfRect, inner: PdfRect, pad = 1): boolean {
     inner.y0 >= outer.y0 - pad &&
     inner.y1 <= outer.y1 + pad
   );
+}
+
+function rectGap(a: PdfRect, b: PdfRect): { x: number; y: number } {
+  return {
+    x: Math.max(0, Math.max(a.x0, b.x0) - Math.min(a.x1, b.x1)),
+    y: Math.max(0, Math.max(a.y0, b.y0) - Math.min(a.y1, b.y1)),
+  };
+}
+
+function overlapLengthRatio(a0: number, a1: number, b0: number, b1: number): number {
+  const overlap = Math.max(0, Math.min(a1, b1) - Math.max(a0, b0));
+  const minLength = Math.max(1, Math.min(a1 - a0, b1 - b0));
+  return overlap / minLength;
+}
+
+function sameAssemblyEdgeTouch(a: PdfRect, b: PdfRect): boolean {
+  const gap = rectGap(a, b);
+  const horizontalOverlap = overlapLengthRatio(a.x0, a.x1, b.x0, b.x1);
+  const verticalOverlap = overlapLengthRatio(a.y0, a.y1, b.y0, b.y1);
+  return (gap.y <= 2 && horizontalOverlap >= 0.55) || (gap.x <= 2 && verticalOverlap >= 0.55);
 }
 
 function truthDimensionCompatible(widthMm: number, heightMm: number, truth: TruthOpening): boolean {
@@ -703,6 +727,7 @@ function cropForBand(band: ElevationFaceBand, page: { width: number; height: num
 function buildCleanCandidateList(args: {
   vectorOpenings: readonly ElevationVectorOpening[];
   slots: readonly FrameOpeningSlot[];
+  floorRows: readonly FloorGuideRow[];
   faceBandId: string;
   crop: PdfRect;
 }): Candidate[] {
@@ -736,6 +761,7 @@ function buildCleanCandidateList(args: {
       heightMm: opening.heightMm,
       rect,
       notes: opening.notes,
+      compatibleFloorRowIds: [],
     });
   }
 
@@ -772,6 +798,7 @@ function buildCleanCandidateList(args: {
       notes: [
         `${groupSlots.length} slots; ${members.length} unique member rects; assembly-level menu candidate`,
       ],
+      compatibleFloorRowIds: [],
     });
   }
 
@@ -786,7 +813,31 @@ function buildCleanCandidateList(args: {
     );
   });
 
-  return refined
+  const withCompatibility = refined.map((candidate) => ({
+    ...candidate,
+    compatibleFloorRowIds: args.floorRows
+      .filter((row) => floorDimensionCompatible(candidate.widthMm, candidate.heightMm, row))
+      .map((row) => row.id),
+  }));
+
+  const deFragmented = withCompatibility.filter((candidate) => {
+    if (candidate.compatibleFloorRowIds.length > 0) return true;
+    return !withCompatibility.some(
+      (other) =>
+        other !== candidate &&
+        other.compatibleFloorRowIds.length > 0 &&
+        (rectContains(other.rect, candidate.rect, 2) ||
+          rectOverlapRatio(other.rect, candidate.rect) >= 0.55 ||
+          sameAssemblyEdgeTouch(other.rect, candidate.rect)),
+    );
+  });
+
+  const floorGuided = deFragmented.filter(
+    (candidate) =>
+      candidate.compatibleFloorRowIds.length > 0 || candidate.source === "sectional_garage_door",
+  );
+
+  return floorGuided
     .sort((a, b) => a.rect.y0 - b.rect.y0 || a.rect.x0 - b.rect.x0)
     .map((candidate, index) => ({ ...candidate, id: `C${index + 1}` }));
 }
@@ -799,6 +850,7 @@ async function drawCandidateOverlay(args: {
   floorRows: readonly FloorGuideRow[];
   outPng: string;
   ai?: AiResponse;
+  scoredOpenings?: readonly ScoredOpening[];
   title: string;
 }) {
   const { createCanvas, loadImage } = await import("@napi-rs/canvas");
@@ -816,6 +868,12 @@ async function drawCandidateOverlay(args: {
   ctx.drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh);
 
   const selectedIds = new Set(args.ai?.openings.flatMap((opening) => opening.candidateIds) ?? []);
+  const statusByCandidateId = new Map<string, ScoredOpening["deterministicSanity"]["status"]>();
+  for (const opening of args.scoredOpenings ?? []) {
+    for (const candidateId of opening.ai.candidateIds) {
+      statusByCandidateId.set(candidateId, opening.deterministicSanity.status);
+    }
+  }
   const ignoredIds = new Set(args.ai?.ignored.map((ignored) => ignored.candidateId) ?? []);
 
   const drawText = (text: string, x: number, y: number, color: string) => {
@@ -834,8 +892,20 @@ async function drawCandidateOverlay(args: {
     const h = (candidate.rect.y1 - candidate.rect.y0) * scale;
     const selected = selectedIds.has(candidate.id);
     const ignored = ignoredIds.has(candidate.id);
+    const status = statusByCandidateId.get(candidate.id);
     ctx.lineWidth = selected ? 5 : 3;
-    ctx.strokeStyle = selected ? "#16a34a" : ignored ? "#6b7280" : "#2563eb";
+    ctx.strokeStyle =
+      status === "pass"
+        ? "#16a34a"
+        : status === "review"
+          ? "#f59e0b"
+          : status === "fail"
+            ? "#dc2626"
+            : selected
+              ? "#16a34a"
+              : ignored
+                ? "#6b7280"
+                : "#2563eb";
     ctx.setLineDash(selected || ignored ? [] : [7, 5]);
     ctx.strokeRect(x, y, w, h);
     ctx.setLineDash([]);
@@ -850,10 +920,22 @@ async function drawCandidateOverlay(args: {
   ctx.fillText(`Candidates: ${args.candidates.length}`, panelX, 54);
   ctx.fillText(`Floor rows: ${args.floorRows.length}`, panelX, 74);
   ctx.fillText(`Selected: ${args.ai?.openings.length ?? 0}`, panelX, 94);
+  if (args.scoredOpenings) {
+    const pass = args.scoredOpenings.filter(
+      (opening) => opening.deterministicSanity.status === "pass",
+    ).length;
+    const review = args.scoredOpenings.filter(
+      (opening) => opening.deterministicSanity.status === "review",
+    ).length;
+    const fail = args.scoredOpenings.filter(
+      (opening) => opening.deterministicSanity.status === "fail",
+    ).length;
+    ctx.fillText(`Score: ${pass} pass / ${review} review / ${fail} fail`, panelX, 114);
+  }
   ctx.font = "bold 14px sans-serif";
-  ctx.fillText("Floor guide", panelX, 126);
+  ctx.fillText("Floor guide", panelX, args.scoredOpenings ? 146 : 126);
   ctx.font = "12px sans-serif";
-  let y = 148;
+  let y = args.scoredOpenings ? 168 : 148;
   for (const row of args.floorRows.slice(0, 10)) {
     ctx.fillText(`${row.id} ${row.room.slice(0, 18)} ${row.widthMm}x${row.heightMm}`, panelX, y);
     y += 17;
@@ -896,6 +978,7 @@ async function auditFace(args: {
   const candidates = buildCleanCandidateList({
     vectorOpenings: args.vectorOpenings,
     slots: args.slots,
+    floorRows,
     faceBandId: args.anchor.elevationFaceBandId,
     crop,
   });
@@ -919,6 +1002,12 @@ async function auditFace(args: {
     elevationFace: args.anchor.elevationFace,
   });
   const ai = normaliseAiResponse(aiResult.parsed);
+  const scoredOpenings = scoreAiOpenings({
+    ai,
+    candidates,
+    floorGuideRows: floorRows,
+    truth: args.truth,
+  });
   const selectedOverlay = resolve(OUT_DIR, `${slug}-ai-selection.png`);
   await drawCandidateOverlay({
     fullImagePath: args.fullImagePath,
@@ -927,15 +1016,9 @@ async function auditFace(args: {
     candidates,
     floorRows,
     ai,
+    scoredOpenings,
     outPng: selectedOverlay,
     title: `${args.anchor.planSide} -> ${args.anchor.elevationFace}`,
-  });
-
-  const scoredOpenings = scoreAiOpenings({
-    ai,
-    candidates,
-    floorGuideRows: floorRows,
-    truth: args.truth,
   });
   const unmatched = unmatchedFloorRows({ floorGuideRows: floorRows, ai });
 
