@@ -44,7 +44,7 @@
   },
   "door_breakdown": null,
   "garage_door_size": "6044",
-  "notes": "entrance door: height assumed standard 2.1m — confirm against the plan; width assumed 1.0m — confirm against plan; counted in the opening area. reconciliation: garage_door_width disagreed across paths — vision read 6044mm, the deterministic vector layer read 2080mm (66% apart). The vector value was preferred; confirm garage door width against the plan.",
+  "notes": "entrance door: height assumed standard 2.1m — confirm against the plan; width unresolved — confirm against plan; counted only after width is confirmed. reconciliation: garage_door_width disagreed across paths — vision read 6044mm, the deterministic vector layer read 2080mm (66% apart). The vector value was preferred; confirm garage door width against the plan.",
   "external_wall_area_m2": 118.11,
   "total_area_m2": 136.3,
   "openings": [

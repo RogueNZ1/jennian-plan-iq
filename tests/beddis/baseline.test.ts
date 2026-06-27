@@ -436,12 +436,12 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     // Unknown width → the door is NOT folded into the opening set (no fabricated area).
     expect(out.prelim.entrance).toBeNull();
     expect(out.prelim.takeoff.windows_by_room?.entrance).toBeUndefined();
-    // Honesty rails: height flagged assumed-standard, width flagged as the last-resort
-    // assumed 1.0m (never a fabricated measured 1.4), and the entry door is counted now.
+    // Honesty rails: height flagged assumed-standard, width flagged unresolved
+    // (never a fabricated measured 1.4), and the entry door is not counted until width is confirmed.
     expect(out.prelim.takeoff.notes).toContain("height assumed standard 2.1m");
-    expect(out.prelim.takeoff.notes).toContain("width assumed 1.0m — confirm against plan");
+    expect(out.prelim.takeoff.notes).toContain("width unresolved — confirm against plan");
     expect(out.prelim.takeoff.notes).not.toContain("assumed standard 1.4");
-    expect(out.prelim.takeoff.notes).toContain("counted in the opening area");
+    expect(out.prelim.takeoff.notes).toContain("counted only after width is confirmed");
     // The vector width is unresolved (null) → the entrance width cross-check is uncheckable,
     // never a false flag.
     const recEntrance = out.prelim.reconciliation.fields.find(
@@ -476,7 +476,7 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     // Entrance unknown-width flag rides on windows_by_room (asserted height, width not found).
     const wbrFlags = cmp.windows_by_room.discrepancy_flags.join(" ");
     expect(wbrFlags).toContain("height assumed standard 2.1m");
-    expect(wbrFlags).toContain("width assumed 1.0m — confirm against plan");
+    expect(wbrFlags).toContain("width unresolved — confirm against plan");
     // Derived QS-priced outputs must match the signed-off workbook truth, not only the
     // window count. This is the red/green gate for opening-dimension recovery.
     expect(cmp.external_wall_area_m2.source).toBe("derived");
@@ -501,6 +501,6 @@ describe.skipIf(!RUN)("Beddis baseline (job 26001)", () => {
     expect(cmp.total_area_m2.value).not.toBeNull();
     // The global notes view still carries every migrated flag (backward-compat / M2 survival).
     expect(cmp.notes).toBe(out.prelim.composed_bare.notes);
-    expect(cmp.notes).toContain("width assumed 1.0m — confirm against plan");
+    expect(cmp.notes).toContain("width unresolved — confirm against plan");
   }, 600000);
 });

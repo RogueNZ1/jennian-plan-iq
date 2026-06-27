@@ -3,15 +3,15 @@
  * Schedule-path entry-door fold — the mirror of the route-2 entry fold.
  *
  * The Door & Window Schedule lists windows only, so on the schedule path the entry door was
- * missing from openings[] → absent from glazed_sqm / total_opening_sqm / the ext-wall deduction.
- * foldScheduleEntrance appends it ONCE from the same vector entrance + shared builder the route-2
- * path uses. These tests pin the numeric DELTA the fix introduces (fixture-independent, so they
- * survive a live baseline regeneration) and the single-count + sectional-exclusion guarantees.
+ * missing from openings[] → absent from review. foldScheduleEntrance appends it ONCE from the
+ * same vector entrance + shared builder the route-2 path uses. These tests pin that unresolved
+ * width stays out of glazed_sqm / total_opening_sqm until a real width is confirmed, plus the
+ * single-count + sectional-exclusion guarantees.
  *
  * Beddis live fixture (tests/fixtures/beddis/_render/baseline-results.json, prelim.composed):
  *   glazed_sqm 8.82 · total_opening_sqm 18.9 · external_wall_area_m2 134.22 (= 63.8 × 2.4 − 18.9).
  * The scheduleOpenings set below reproduces those totals so the before/after numbers are the
- * actual Beddis numbers; the assertions are on the +2.10 / −2.10 delta the spec requires.
+ * actual Beddis numbers; unresolved entry width must not move those totals.
  */
 import { describe, it, expect } from "vitest";
 import {
@@ -19,6 +19,7 @@ import {
   deriveOpeningTotals,
   computeExternalWallAreaM2,
 } from "../../src/lib/takeoff/derive-fields";
+import { adjudicateOpeningPricing } from "../../src/lib/takeoff/opening-pricing-adjudication";
 import { round2 } from "../../src/lib/takeoff/utils";
 import type { Opening } from "../../src/lib/takeoff/takeoff-types";
 import type { VectorEntrance } from "../../src/lib/takeoff/geometry-api";
@@ -45,8 +46,8 @@ const sectional = (): Opening => ({
   source: "vision",
   confidence: "high",
 });
-// Beddis entry door: width is UNRESOLVED on the plan → the fix uses ASSUMED_OPENING_WIDTH_M (1.0),
-// flagged. Height is the asserted building standard 2.1m. Single source for both paths.
+// Beddis entry door: width is UNRESOLVED on the plan, so it is carried as review evidence
+// with width 0 and quarantined from pricing. Height is the asserted building standard 2.1m.
 const unresolvedEntrance: VectorEntrance = {
   type: "entry",
   width_mm: null,
@@ -69,37 +70,44 @@ describe("schedule-path entry-door fold", () => {
     expect(scheduleOpenings.some((o) => o.type === "entrance")).toBe(false);
   });
 
-  it("fold appends the entrance ONCE — glazed:true, asserted height × assumed 1.0m width, flagged", () => {
+  it("fold appends the entrance ONCE — glazed:true, asserted height, unresolved width, flagged", () => {
     const after = foldScheduleEntrance(scheduleOpenings, unresolvedEntrance);
     const entrances = after.filter((o) => o.type === "entrance");
     expect(entrances).toHaveLength(1);
     const e = entrances[0];
     expect(e.glazed).toBe(true);
     expect(e.height_m).toBe(2.1);
-    expect(e.width_m).toBe(1.0);
-    expect(e.area_m2).toBe(2.1);
-    expect((e.flags ?? []).join(" ")).toContain("width assumed 1.0m");
+    expect(e.width_m).toBe(0);
+    expect(e.area_m2).toBe(0);
+    expect((e.flags ?? []).join(" ")).toContain("width unresolved");
+
+    const adjudicated = adjudicateOpeningPricing(after);
+    expect(adjudicated.quarantinedOpenings).toContainEqual(
+      expect.objectContaining({
+        reasons: expect.arrayContaining(["missing_width"]),
+      }),
+    );
   });
 
-  it("delta is EXACTLY +2.10 glazed_sqm / +2.10 total_opening_sqm and −2.10 on D21", () => {
+  it("unresolved entrance does not change opening totals or D21 until width is confirmed", () => {
     const before = deriveOpeningTotals(scheduleOpenings);
     const after = deriveOpeningTotals(foldScheduleEntrance(scheduleOpenings, unresolvedEntrance));
 
-    expect(round2(after.glazed_sqm! - before.glazed_sqm!)).toBe(2.1);
-    expect(round2(after.total_opening_sqm! - before.total_opening_sqm!)).toBe(2.1);
+    expect(round2(after.glazed_sqm! - before.glazed_sqm!)).toBe(0);
+    expect(round2(after.total_opening_sqm! - before.total_opening_sqm!)).toBe(0);
 
     // D21 ext-wall = perimeter × stud − total_opening_sqm (Beddis 63.8 × 2.4).
     const d21Before = computeExternalWallAreaM2(63.8, 2.4, before.total_opening_sqm);
     const d21After = computeExternalWallAreaM2(63.8, 2.4, after.total_opening_sqm);
     expect(d21Before).toBe(134.22); // matches the live fixture exactly
-    expect(d21After).toBe(132.12);
-    expect(round2(d21Before! - d21After!)).toBe(2.1);
+    expect(d21After).toBe(134.22);
+    expect(round2(d21Before! - d21After!)).toBe(0);
   });
 
-  it("after the fold: glazed 8.82→10.92, total 18.9→21.0; sectional stays EXCLUDED from glass", () => {
+  it("after the fold: unresolved entry stays out of area totals; sectional stays EXCLUDED from glass", () => {
     const t = deriveOpeningTotals(foldScheduleEntrance(scheduleOpenings, unresolvedEntrance));
-    expect(t.glazed_sqm).toBe(10.92); // 8.82 windows + 2.10 entrance; sectional 10.08 excluded
-    expect(t.total_opening_sqm).toBe(21.0); // includes the sectional
+    expect(t.glazed_sqm).toBe(8.82); // unresolved entry is not priced; sectional excluded from glass
+    expect(t.total_opening_sqm).toBe(18.9); // includes only known-width openings
   });
 
   it("NO double-count: a set already carrying an entrance is returned untouched", () => {

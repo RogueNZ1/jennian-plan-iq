@@ -33,7 +33,7 @@ import { classifyGarageDoorAnnotation, parseDimsMm } from "./classify";
 import {
   computeOpeningAreaM2,
   computeExternalWallAreaM2,
-  ASSUMED_WIDTH_FLAG,
+  UNRESOLVED_WIDTH_FLAG,
 } from "./derive-fields";
 
 /**
@@ -369,12 +369,9 @@ export function preferVectorEntrance(
 /**
  * Human-readable note flagging the entrance door, for appending to takeoff.notes. The HEIGHT
  * is always an assumed building standard. The WIDTH is either data-driven (the printed
- * frame-to-frame dimension) or, when the plan printed none, the last-resort assumed width
- * (ASSUMED_WIDTH_FLAG) — never a measured value. Either way the entry door IS counted in the
- * opening area now (folded once on every path: the route-2 symbol fold or the schedule entry
- * fold), so the note no longer claims it is left out or that the external wall area is not
- * recomputed. Returns an empty string when there is no usable vector entrance so callers can
- * `.filter(Boolean)`.
+ * frame-to-frame dimension) or unresolved. Unresolved-width entries are carried for review
+ * but quarantined from opening totals. Returns an empty string when there is no usable vector
+ * entrance so callers can `.filter(Boolean)`.
  */
 export function entranceAssumptionNote(vector: VectorAnnotations | undefined | null): string {
   const res = resolveEntrance(vector);
@@ -384,10 +381,10 @@ export function entranceAssumptionNote(vector: VectorAnnotations | undefined | n
   const widthClause =
     res.widthSource === "vector_text" && w != null
       ? `width ${w}m read from the printed frame-to-frame dimension`
-      : ASSUMED_WIDTH_FLAG;
+      : UNRESOLVED_WIDTH_FLAG;
   return (
     `entrance door: height assumed standard ${h}m — confirm against the plan; ` +
-    `${widthClause}; counted in the opening area.`
+    `${widthClause}; counted only after width is confirmed.`
   );
 }
 

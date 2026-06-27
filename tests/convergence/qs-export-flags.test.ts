@@ -139,7 +139,7 @@ describe("Slice 6 — applyEnrichedTakeoff overlay + fallback", () => {
     expect(out.reviewFlags && out.reviewFlags.length).toBeGreaterThan(0);
     const flat = (out.reviewFlags ?? []).flatMap((f) => f.flags).join(" ");
     expect(flat).toContain("garage_door_width"); // F-022 disagreement
-    expect(flat).toContain("width assumed 1.0m — confirm against plan"); // entrance unresolved-width fallback
+    expect(flat).toContain("width unresolved — confirm against plan"); // entrance unresolved-width review flag
   });
 });
 
@@ -221,7 +221,7 @@ describe("Slice 6 — export sheets: additive fallback + visible flags", () => {
     expect(text).toContain("CONFIDENCE / REVIEW NOTES");
     expect(text).toContain("Garage door");
     expect(text).toContain("garage_door_width"); // F-022 disagreement
-    expect(text).toContain("width assumed 1.0m — confirm against plan"); // entrance unresolved-width fallback
+    expect(text).toContain("width unresolved — confirm against plan"); // entrance unresolved-width review flag
   });
 
   it("VISIBLE: review notes include opening evidence without changing the IQ paste cells", () => {

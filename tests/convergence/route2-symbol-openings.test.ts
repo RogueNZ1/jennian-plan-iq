@@ -127,11 +127,11 @@ describe("Route 2 — foldSymbolOpenings", () => {
 
     const e = byType(r.openings, "entrance")!;
     expect(e).toBeDefined(); // never dropped
-    expect(e.width_m).toBe(1.0); // last-resort assumed width — no longer a 0-area phantom
-    expect(e.area_m2).toBe(2.1); // 2.1 (asserted height) × 1.0 (assumed width) — contributes glass area
+    expect(e.width_m).toBe(0); // unresolved width stays review-only, not assumed
+    expect(e.area_m2).toBe(0); // unknown width must not contribute glass area
     expect(e.source).toBe("unresolved"); // provenance still flags the real width as unknown
     expect(e.confidence).toBe("low");
-    expect(e.flags?.join(" ")).toContain("width assumed 1.0m — confirm against plan");
+    expect(e.flags?.join(" ")).toContain("width unresolved — confirm against plan");
     // count: 1 window + slider; sectional/PA/entry excluded.
     expect(deriveOpeningTotals(r.openings).window_count).toBe(2);
   });

@@ -154,9 +154,9 @@ describe("entranceAssumptionNote", () => {
   it("flags the height assumption and the UNRESOLVED width (Beddis)", () => {
     const note = entranceAssumptionNote(beddisVector);
     expect(note).toContain("height assumed standard 2.1m");
-    expect(note).toContain("width assumed 1.0m — confirm against plan"); // last-resort fallback, flagged
+    expect(note).toContain("width unresolved — confirm against plan");
     expect(note).not.toContain("assumed standard 1.4"); // never fabricates a measured width
-    expect(note).toContain("counted in the opening area"); // the entry door IS counted now
+    expect(note).toContain("counted only after width is confirmed");
   });
 
   it("flags the height assumption but credits the printed width (Harrison)", () => {

@@ -237,9 +237,9 @@ const FIXTURES = [
               o.glazed,
           ),
         ).toBe(true),
-      // entrance: present with the last-resort assumed width (1.0m) — counted, not a 0-area phantom
+      // entrance: present for review, but unresolved width stays 0 and unpriced
       (os: Opening[]) =>
-        expect(os.some((o) => o.type === "entrance" && o.width_m === 1.0 && o.area_m2 > 0)).toBe(
+        expect(os.some((o) => o.type === "entrance" && o.width_m === 0 && o.area_m2 === 0)).toBe(
           true,
         ),
       // WC: present (no longer dropped by missing slot)

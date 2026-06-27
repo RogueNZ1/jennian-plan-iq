@@ -103,7 +103,7 @@ describe("Convergence — composeTakeoff baseline (cached vision, frozen, offlin
     // The entrance assumption / unresolved-width flag rides on windows_by_room.
     expect(e.windows_by_room.discrepancy_flags.join(" ")).toContain("entrance door");
     expect(e.windows_by_room.discrepancy_flags.join(" ")).toContain(
-      "width assumed 1.0m — confirm against plan",
+      "width unresolved — confirm against plan",
     );
     // Every migrated flag is still present in the global notes view (nothing lost).
     for (const f of [
