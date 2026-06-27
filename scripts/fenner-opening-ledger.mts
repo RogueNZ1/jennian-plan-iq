@@ -553,7 +553,11 @@ function floorText(evidence: FloorEvidence): string {
 function floorFaceText(evidence: FloorEvidence): string {
   if (evidence.status === "missing") return "-";
   if (evidence.status === "garage_door_witness_confirmed") return evidence.witness.planSide ?? "?";
-  if (evidence.status === "physical_opening_width_confirmed") return evidence.witness.planSide;
+  if (evidence.status === "physical_opening_width_confirmed") {
+    return evidence.witness.openingKind === "entry_door"
+      ? `${evidence.witness.planSide}?`
+      : evidence.witness.planSide;
+  }
   if (evidence.status === "printed_window_code_confirmed") return evidence.planSide ?? "mixed";
   if (evidence.status === "same_room_physical_width_mismatch") return evidence.witness.planSide;
   if (evidence.status === "same_room_printed_code_mismatch") return evidence.witness.planSide;
@@ -602,7 +606,9 @@ function strictElevationMappedSides(
 
 function floorPlanSideFor(floor: FloorEvidence): string | null {
   if (floor.status === "garage_door_witness_confirmed") return floor.witness.planSide;
-  if (floor.status === "physical_opening_width_confirmed") return floor.witness.planSide;
+  if (floor.status === "physical_opening_width_confirmed") {
+    return floor.witness.openingKind === "entry_door" ? null : floor.witness.planSide;
+  }
   if (floor.status === "printed_window_code_confirmed") return floor.planSide;
   return null;
 }

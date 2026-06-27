@@ -7,6 +7,7 @@ import {
   detectPhysicalOpeningWidthWitnesses,
   detectPrintedWindowCodeWitnesses,
 } from "../../src/lib/takeoff/floor-opening-witnesses";
+import { buildOpeningSignatureFloorRows } from "../../src/lib/takeoff/opening-floor-signatures";
 import { parsePlanText } from "../../src/lib/takeoff/plan-text";
 
 const FENNER_FLOORPLAN = resolve(process.cwd(), "tests/doors/plans/fenner-floorplan.pdf");
@@ -61,6 +62,24 @@ describe("floor opening width witnesses", () => {
         widthMm: 2400,
         room: "MASTERBED",
         planSide: "plan_top",
+      }),
+    );
+    expect(witnesses).toContainEqual(
+      expect.objectContaining({
+        openingKind: "entry_door",
+        widthMm: 1400,
+        room: "ENTRY",
+      }),
+    );
+    const signatureRows = buildOpeningSignatureFloorRows({
+      planText,
+      printedCodeWitnesses: detectPrintedWindowCodeWitnesses(planText),
+      physicalWitnesses: witnesses,
+    });
+    expect(signatureRows).not.toContainEqual(
+      expect.objectContaining({
+        room: "ENTRY",
+        widthMm: 1400,
       }),
     );
     expect(

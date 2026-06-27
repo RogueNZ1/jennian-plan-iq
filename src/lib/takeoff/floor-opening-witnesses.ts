@@ -5,6 +5,7 @@ export type PlanSide = "plan_left" | "plan_right" | "plan_top" | "plan_bottom";
 
 export type PlanPhysicalOpeningWidthWitness = {
   kind: "physical_opening_width";
+  openingKind?: "wide_opening" | "entry_door";
   widthMm: number;
   x: number;
   y: number;
@@ -33,11 +34,13 @@ export type PlanPrintedWindowCodeWitness = {
 const PT_PER_MM = 72 / 25.4;
 const DEFAULT_SCALE = 100;
 const MIN_OPENING_WIDTH_MM = 1800;
+const MIN_ENTRY_OPENING_WIDTH_MM = 1200;
 const MAX_GLAZED_OPENING_WIDTH_MM = 4200;
 const MAX_ROOM_DISTANCE_PT = 110;
 const MAX_WINDOW_CODE_ROOM_DISTANCE_PT = 180;
 const DIMENSION_CHAIN_LINE_TOLERANCE_PT = 18;
 const NON_WINDOW_ROOMS = /^(HWC|LINEN|STORE|WIR|ROBE|PANTRY|ENTRY)\b/i;
+const ENTRY_ROOM_RE = /^(ENTRY|ENTRANCE|FOYER|PORCH)\b/i;
 
 function mmToPt(mm: number, scale: number): number {
   return (mm / scale) * PT_PER_MM;
@@ -113,13 +116,15 @@ export function detectPhysicalOpeningWidthWitnesses(args: {
         .filter((label): label is PlanStandaloneOpeningWidth => label != null)
     : standaloneOpeningWidths;
   for (const witness of standaloneOpeningWidths) {
-    if (witness.widthMm < MIN_OPENING_WIDTH_MM || witness.widthMm > MAX_GLAZED_OPENING_WIDTH_MM) {
+    const roomMatch = nearestRoom(witness, args.planText.rooms);
+    if (!roomMatch) continue;
+
+    const entryDoor = ENTRY_ROOM_RE.test(roomMatch.room.name);
+    const minOpeningWidthMm = entryDoor ? MIN_ENTRY_OPENING_WIDTH_MM : MIN_OPENING_WIDTH_MM;
+    if (witness.widthMm < minOpeningWidthMm || witness.widthMm > MAX_GLAZED_OPENING_WIDTH_MM) {
       continue;
     }
     if (likelyDimensionChainLabel(witness, lineLabels)) continue;
-
-    const roomMatch = nearestRoom(witness, args.planText.rooms);
-    if (!roomMatch) continue;
 
     const evidence = openingEvidence(
       [...args.segments],
@@ -132,6 +137,7 @@ export function detectPhysicalOpeningWidthWitnesses(args: {
 
     out.push({
       kind: "physical_opening_width",
+      openingKind: entryDoor ? "entry_door" : "wide_opening",
       widthMm: witness.widthMm,
       x: witness.x,
       y: witness.y,
@@ -140,7 +146,9 @@ export function detectPhysicalOpeningWidthWitnesses(args: {
       room: roomMatch.room.name,
       planSide: inferPlanSide(witness, roomMatch.room),
       evidence,
-      note: `standalone floor-plan width ${witness.widthMm}mm with physical opening stub+leaf near ${roomMatch.room.name}`,
+      note: entryDoor
+        ? `entry-door floor-plan width ${witness.widthMm}mm with physical opening stub+leaf near ${roomMatch.room.name}; side still needs exterior face proof before pricing`
+        : `standalone floor-plan width ${witness.widthMm}mm with physical opening stub+leaf near ${roomMatch.room.name}`,
     });
   }
 
