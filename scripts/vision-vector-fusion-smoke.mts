@@ -25,7 +25,10 @@ import {
 } from "../src/lib/takeoff/anthropic-client.ts";
 import type { ElevationOpeningCandidate } from "../src/lib/takeoff/extract-elevations.ts";
 import type { ElevationVectorOpening } from "../src/lib/takeoff/elevation-vector-openings.ts";
-import type { FrameOpeningSlot } from "../src/lib/takeoff/elevation-opening-slots.ts";
+import type {
+  FrameAssemblyMember,
+  FrameOpeningSlot,
+} from "../src/lib/takeoff/elevation-opening-slots.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(here, "..");
@@ -38,7 +41,7 @@ const PT_PER_MM = 72 / 25.4;
 const ELEVATION_SCALE = 100;
 
 type PdfRect = { x0: number; x1: number; y0: number; y1: number };
-type CandidateKind = "vector_opening" | "frame_slot";
+type CandidateKind = "vector_opening" | "frame_slot" | "frame_assembly";
 
 type Candidate = {
   id: string;
@@ -314,6 +317,12 @@ function rectUnion(rects: readonly PdfRect[]): PdfRect | null {
   };
 }
 
+function memberKey(member: FrameAssemblyMember): string {
+  return [member.x0, member.x1, member.y0, member.y1, member.widthMm, member.heightMm]
+    .map((value) => Math.round(value * 100) / 100)
+    .join("|");
+}
+
 function openingSanity(
   type: AiOpening["type"],
   widthMm: number | null,
@@ -496,7 +505,7 @@ async function drawCandidateOverlay(args: {
   writeFileSync(args.outPng, await canvas.encode("png"));
 }
 
-function buildCandidateList(args: {
+function buildRawCandidateList(args: {
   vectorOpenings: readonly ElevationVectorOpening[];
   slots: readonly FrameOpeningSlot[];
   crop: PdfRect;
@@ -539,6 +548,70 @@ function buildCandidateList(args: {
   return candidates.sort((a, b) => a.rect.y0 - b.rect.y0 || a.rect.x0 - b.rect.x0);
 }
 
+function buildCleanCandidateList(args: {
+  vectorOpenings: readonly ElevationVectorOpening[];
+  slots: readonly FrameOpeningSlot[];
+  crop: PdfRect;
+}): Candidate[] {
+  const candidates: Omit<Candidate, "id">[] = [];
+
+  for (const opening of args.vectorOpenings) {
+    if (opening.widthMm == null || opening.heightMm == null) continue;
+    if (opening.source !== "sectional_garage_door" && opening.source !== "multi_panel_slider") {
+      continue;
+    }
+    const rect = rectForOpening(opening);
+    if (!rectIntersects(rect, args.crop)) continue;
+    candidates.push({
+      kind: "vector_opening",
+      source: opening.source,
+      faceBandId: opening.faceBandId,
+      suggestedType: opening.type,
+      widthMm: opening.widthMm,
+      heightMm: opening.heightMm,
+      rect,
+      notes: opening.notes,
+    });
+  }
+
+  const slotsByGroup = new Map<string, FrameOpeningSlot[]>();
+  for (const slot of args.slots) {
+    const rect = { x0: slot.x0, x1: slot.x1, y0: slot.y0, y1: slot.y1 };
+    if (!rectIntersects(rect, args.crop)) continue;
+    const existing = slotsByGroup.get(slot.groupId);
+    if (existing) existing.push(slot);
+    else slotsByGroup.set(slot.groupId, [slot]);
+  }
+
+  for (const [groupId, groupSlots] of slotsByGroup.entries()) {
+    const memberMap = new Map<string, FrameAssemblyMember>();
+    for (const slot of groupSlots) {
+      for (const member of slot.members) memberMap.set(memberKey(member), member);
+    }
+    const members = [...memberMap.values()];
+    const rect = rectUnion(members.map((member) => member));
+    if (!rect || !rectIntersects(rect, args.crop)) continue;
+    const widthMm = ptToMm(rect.x1 - rect.x0);
+    const heightMm = ptToMm(rect.y1 - rect.y0);
+    candidates.push({
+      kind: "frame_assembly",
+      source: groupId,
+      faceBandId: groupSlots[0]?.faceBandId ?? "unknown-face",
+      suggestedType: null,
+      widthMm,
+      heightMm,
+      rect,
+      notes: [
+        `${groupSlots.length} slots; ${members.length} unique member rects; assembly-level menu candidate`,
+      ],
+    });
+  }
+
+  return candidates
+    .sort((a, b) => a.rect.y0 - b.rect.y0 || a.rect.x0 - b.rect.x0)
+    .map((candidate, index) => ({ ...candidate, id: `C${index + 1}` }));
+}
+
 async function main() {
   mkdirSync(OUT_DIR, { recursive: true });
 
@@ -568,7 +641,12 @@ async function main() {
   };
 
   const fullImagePath = renderPdfPage(FENNER_ELEVATIONS, resolve(OUT_DIR, "fenner-elevation-2800"));
-  const candidates = buildCandidateList({
+  const rawCandidates = buildRawCandidateList({
+    vectorOpenings: evidence.elevationOpenings,
+    slots: evidence.elevationOpeningSlots,
+    crop,
+  });
+  const candidates = buildCleanCandidateList({
     vectorOpenings: evidence.elevationOpenings,
     slots: evidence.elevationOpeningSlots,
     crop,
@@ -596,6 +674,8 @@ async function main() {
     page,
     crop,
     garageVectorCandidate: garage,
+    candidateMenu: "clean_special_vector_plus_frame_assembly",
+    rawCandidates,
     candidates,
     ai,
     scoredOpenings,
