@@ -42,9 +42,12 @@ import type {
   ElevationVectorOpening,
 } from "../src/lib/takeoff/elevation-vector-openings.ts";
 import type {
+  FrameRectangleCandidate,
   FrameAssemblyMember,
   FrameOpeningSlot,
 } from "../src/lib/takeoff/elevation-opening-slots.ts";
+import { frameRectangleCandidates } from "../src/lib/takeoff/elevation-opening-slots.ts";
+import type { Segment } from "../src/lib/doors/door-engine.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(here, "..");
@@ -59,7 +62,7 @@ const ELEVATION_SCALE = 100;
 const MAX_SINGLE_OPENING_CANDIDATE_WIDTH_MM = 5200;
 
 type PdfRect = { x0: number; x1: number; y0: number; y1: number };
-type CandidateKind = "vector_opening" | "frame_assembly";
+type CandidateKind = "vector_opening" | "frame_assembly" | "raw_frame_rescue";
 
 type Candidate = {
   id: string;
@@ -85,6 +88,8 @@ type AiOpening = {
   type: "window" | "slider" | "external_door" | "garage_door" | "unknown";
   confidence: "high" | "medium" | "low";
   action: "opening" | "merge" | "review";
+  candidateFit?: "fits" | "partial" | "oversized" | "fragment" | "wrong" | "unclear";
+  candidateFitReason?: string;
   reason: string;
 };
 
@@ -371,6 +376,14 @@ Rules:
 - If multiple candidate IDs are parts of the same physical opening, put them together in one candidateIds array and set action="merge".
 - If one candidate already covers the full outer frame, do not also include nested/adjacent component candidate IDs inside it.
 - Only link a floorRowId to a candidate when the candidate table says that candidate is compatible with that floor row, or when a merged outer assembly is clearly compatible as a whole.
+- Repeated same-size windows are normal. Do not flag or reject candidates just because two openings have the same dimensions.
+- Judge candidate fit visually against the floor guide and picture:
+  - candidateFit="fits" when the box covers the whole physical outer opening well enough for measurement.
+  - candidateFit="partial" when the box covers only half/part of the opening.
+  - candidateFit="oversized" when the box includes cladding, wall area, or multiple openings.
+  - candidateFit="fragment" when the box is a pane/mullion/sash inside a larger opening.
+  - candidateFit="wrong" when it is not the expected opening.
+  - candidateFit="unclear" when the image cannot decide.
 - Prefer one physical opening over nested parts. A lower pane, mullion bay, inner rail rectangle, or duplicate nested box inside a larger already-selected opening is not another opening.
 - Only classify a candidate as external_door if an actual door leaf/opening is visible. A skinny vertical cladding board, brick pier, mullion, or frame side is not a door.
 - If a floor row is expected but no candidate fits, list it in missedVisibleOpenings with the floorRowIds.
@@ -386,6 +399,8 @@ Return exactly:
       "type": "window" | "slider" | "external_door" | "garage_door" | "unknown",
       "confidence": "high" | "medium" | "low",
       "action": "opening" | "merge" | "review",
+      "candidateFit": "fits" | "partial" | "oversized" | "fragment" | "wrong" | "unclear",
+      "candidateFitReason": "short reason",
       "reason": "short reason"
     }
   ],
@@ -557,6 +572,27 @@ function floorDimensionCompatible(widthMm: number, heightMm: number, row: FloorG
   );
 }
 
+function compatibleFloorRowIds(
+  candidate: Pick<Candidate, "widthMm" | "heightMm">,
+  floorRows: readonly FloorGuideRow[],
+): string[] {
+  return floorRows
+    .filter((row) => floorDimensionCompatible(candidate.widthMm, candidate.heightMm, row))
+    .map((row) => row.id);
+}
+
+function floorDeltaScore(
+  candidate: Pick<Candidate, "widthMm" | "heightMm">,
+  floorRows: readonly FloorGuideRow[],
+): number {
+  return Math.min(
+    ...floorRows.map(
+      (row) =>
+        Math.abs(candidate.widthMm - row.widthMm) + Math.abs(candidate.heightMm - row.heightMm),
+    ),
+  );
+}
+
 function scoreAiOpenings(args: {
   ai: AiResponse;
   candidates: readonly Candidate[];
@@ -617,6 +653,12 @@ function scoreAiOpenings(args: {
       floorGuideMatches,
     };
   });
+  const selectedFloorRowUseCount = new Map<string, number>();
+  for (const context of contexts) {
+    for (const floorRowId of context.opening.floorRowIds ?? []) {
+      selectedFloorRowUseCount.set(floorRowId, (selectedFloorRowUseCount.get(floorRowId) ?? 0) + 1);
+    }
+  }
 
   return contexts.map((context, index) => {
     const { opening, foundCandidateIds, missingCandidateIds, union, widthMm, heightMm, areaM2 } =
@@ -634,6 +676,23 @@ function scoreAiOpenings(args: {
       additions.push({
         status: "fail",
         reason: "selected candidate dimensions do not agree with linked floor-plan row",
+      });
+    }
+    for (const floorRowId of opening.floorRowIds ?? []) {
+      if ((selectedFloorRowUseCount.get(floorRowId) ?? 0) > 1) {
+        additions.push({
+          status: "fail",
+          reason: `floor-plan guide row ${floorRowId} reused by multiple selected openings; identity/count unresolved`,
+        });
+      }
+    }
+    if (opening.candidateFit && opening.candidateFit !== "fits") {
+      additions.push({
+        status:
+          opening.candidateFit === "wrong" || opening.candidateFit === "fragment"
+            ? "fail"
+            : "review",
+        reason: `vision candidate-fit ${opening.candidateFit}: ${opening.candidateFitReason ?? "no reason supplied"}`,
       });
     }
     if (union) {
@@ -727,6 +786,7 @@ function cropForBand(band: ElevationFaceBand, page: { width: number; height: num
 function buildCleanCandidateList(args: {
   vectorOpenings: readonly ElevationVectorOpening[];
   slots: readonly FrameOpeningSlot[];
+  elevationSegments: readonly Segment[];
   floorRows: readonly FloorGuideRow[];
   faceBandId: string;
   crop: PdfRect;
@@ -813,11 +873,50 @@ function buildCleanCandidateList(args: {
     );
   });
 
-  const withCompatibility = refined.map((candidate) => ({
+  const rawRescues: Omit<Candidate, "id">[] = [];
+  const frameRects = frameRectangleCandidates(args.elevationSegments)
+    .filter((rect) => rectIntersects(rect, args.crop))
+    .filter((rect) => rect.widthMm >= 400 && rect.widthMm <= 2200)
+    .filter((rect) => rect.heightMm >= 450 && rect.heightMm <= 2450)
+    .filter((rect) => !(rect.heightMm >= 1750 && rect.widthMm < 700))
+    .filter((rect) => compatibleFloorRowIds(rect, args.floorRows).length > 0)
+    .sort(
+      (a, b) =>
+        floorDeltaScore(a, args.floorRows) - floorDeltaScore(b, args.floorRows) ||
+        rectArea(b) - rectArea(a),
+    );
+  for (const rect of frameRects) {
+    const duplicateOfExisting = refined.some(
+      (candidate) =>
+        rectOverlapRatio(candidate.rect, rect) >= 0.55 || rectContains(candidate.rect, rect, 2),
+    );
+    if (duplicateOfExisting) continue;
+    const duplicateOfRescue = rawRescues.some(
+      (candidate) =>
+        rectOverlapRatio(candidate.rect, rect) >= 0.55 ||
+        rectContains(candidate.rect, rect, 2) ||
+        rectContains(rect, candidate.rect, 2) ||
+        sameAssemblyEdgeTouch(candidate.rect, rect),
+    );
+    if (duplicateOfRescue) continue;
+    rawRescues.push({
+      kind: "raw_frame_rescue",
+      source: "raw_frame_rescue",
+      faceBandId: args.faceBandId,
+      suggestedType: "window",
+      widthMm: rect.widthMm,
+      heightMm: rect.heightMm,
+      rect,
+      notes: [
+        "raw elevation frame rectangle inside face crop; rescue candidate because face-band slot detector did not surface this opening",
+      ],
+      compatibleFloorRowIds: [],
+    });
+  }
+
+  const withCompatibility = [...refined, ...rawRescues].map((candidate) => ({
     ...candidate,
-    compatibleFloorRowIds: args.floorRows
-      .filter((row) => floorDimensionCompatible(candidate.widthMm, candidate.heightMm, row))
-      .map((row) => row.id),
+    compatibleFloorRowIds: compatibleFloorRowIds(candidate, args.floorRows),
   }));
 
   const deFragmented = withCompatibility.filter((candidate) => {
@@ -970,6 +1069,7 @@ async function auditFace(args: {
   band: ElevationFaceBand;
   vectorOpenings: readonly ElevationVectorOpening[];
   slots: readonly FrameOpeningSlot[];
+  elevationSegments: readonly Segment[];
   floorSignatureRows: readonly OpeningSignatureFloorRow[];
   truth: readonly TruthOpening[];
 }): Promise<FaceAudit> {
@@ -978,6 +1078,7 @@ async function auditFace(args: {
   const candidates = buildCleanCandidateList({
     vectorOpenings: args.vectorOpenings,
     slots: args.slots,
+    elevationSegments: args.elevationSegments,
     floorRows,
     faceBandId: args.anchor.elevationFaceBandId,
     crop,
@@ -1082,6 +1183,7 @@ async function main() {
   const floorSideLengthWitnesses = detectPlanSideLengthWitnesses(floor.geom.labels);
 
   const elevation = await runElevationVectorEvidence(readFileSync(FENNER_ELEVATIONS), PAGE_NUMBER);
+  const elevationPage = await pageGeometry(FENNER_ELEVATIONS, PAGE_NUMBER);
   const faceMap = buildOpeningFaceMap({
     planText,
     elevationOpenings: elevation.elevationOpenings,
@@ -1105,11 +1207,12 @@ async function main() {
     faces.push(
       await auditFace({
         fullImagePath,
-        page: floor.page,
+        page: elevationPage.page,
         anchor,
         band,
         vectorOpenings: elevation.elevationOpenings,
         slots: elevation.elevationOpeningSlots,
+        elevationSegments: elevationPage.geom.segments,
         floorSignatureRows,
         truth,
       }),
