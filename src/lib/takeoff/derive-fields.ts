@@ -43,25 +43,19 @@ export function normaliseOpeningsForQs(openings: Opening[]): Opening[] {
   return changed ? normalised : openings;
 }
 
-/**
- * Legacy fallback width (metres) for older non-pricing compatibility paths. Production
- * opening pricing must not use this to invent an unresolved external-door width.
- */
-export const ASSUMED_OPENING_WIDTH_M = 1.0;
-export const ASSUMED_WIDTH_FLAG = "width assumed 1.0m — confirm against plan";
 export const UNRESOLVED_WIDTH_FLAG = "width unresolved — confirm against plan";
 
 /**
  * Resolve an opening width in metres. Returns the real width untouched whenever one exists;
- * applies ASSUMED_OPENING_WIDTH_M ONLY for a genuinely missing width (null/≤0). `assumed`
- * tells the caller to attach ASSUMED_WIDTH_FLAG. Never overwrites a real width.
+ * otherwise keeps the width unresolved at 0 so pricing adjudication quarantines the row.
+ * Never overwrites a real width.
  */
 function resolveOpeningWidthM(widthM: number | null | undefined): {
   width_m: number;
-  assumed: boolean;
+  unresolved: boolean;
 } {
-  if (widthM != null && widthM > 0) return { width_m: widthM, assumed: false };
-  return { width_m: ASSUMED_OPENING_WIDTH_M, assumed: true };
+  if (widthM != null && widthM > 0) return { width_m: widthM, unresolved: false };
+  return { width_m: 0, unresolved: true };
 }
 
 /**
@@ -159,12 +153,11 @@ export function deriveOpenings(args: {
   const sched = args.windowsSchedule;
   if (sched && sched.length > 0) {
     // Schedule path: one opening per W-entry, individual dims preserved. A schedule entry
-    // whose WIDTH could not be read gets the last-resort assumed width (flagged), so the
-    // glass total stays complete — never a 0-area phantom. (A null HEIGHT is a separate,
-    // out-of-scope gap and still yields area 0 here.)
+    // whose WIDTH could not be read stays unresolved at 0 and is quarantined before pricing.
+    // A null HEIGHT is a separate unresolved-dimension gap and also quarantines.
     for (const w of sched) {
       const h = w.height_m ?? 0;
-      const { width_m: wd, assumed } = resolveOpeningWidthM(w.width_m);
+      const { width_m: wd, unresolved } = resolveOpeningWidthM(w.width_m);
       openings.push({
         type: "window",
         room: w.id ?? null,
@@ -175,18 +168,18 @@ export function deriveOpenings(args: {
         area_m2: round2(h * wd) ?? 0,
         source: "schedule",
         ...(w.height_source ? { height_source: w.height_source } : {}),
-        ...(assumed || w.flags?.length
-          ? { flags: [...(w.flags ?? []), ...(assumed ? [ASSUMED_WIDTH_FLAG] : [])] }
+        ...(unresolved || w.flags?.length
+          ? { flags: [...(w.flags ?? []), ...(unresolved ? [UNRESOLVED_WIDTH_FLAG] : [])] }
           : {}),
-        confidence: w.flags?.length || assumed ? "medium" : "high",
+        confidence: w.flags?.length || unresolved ? "medium" : "high",
       });
     }
   } else if (args.windowsByRoom) {
     // Callout path: un-merge each room's qty into individual entries (same dims). A room
-    // whose width could not be read gets the last-resort assumed width (flagged), never 0-area.
+    // whose width could not be read stays unresolved at 0 and is quarantined before pricing.
     for (const [room, w] of Object.entries(args.windowsByRoom)) {
       if (!w) continue;
-      const { width_m: wd, assumed } = resolveOpeningWidthM(w.width_m);
+      const { width_m: wd, unresolved } = resolveOpeningWidthM(w.width_m);
       for (let i = 0; i < w.qty; i++) {
         openings.push({
           type: "window",
@@ -197,7 +190,7 @@ export function deriveOpenings(args: {
           cladding: null,
           area_m2: round2(w.height_m * wd) ?? 0,
           source: "vision",
-          ...(assumed ? { flags: [ASSUMED_WIDTH_FLAG] } : {}),
+          ...(unresolved ? { flags: [UNRESOLVED_WIDTH_FLAG] } : {}),
           confidence: "medium",
         });
       }

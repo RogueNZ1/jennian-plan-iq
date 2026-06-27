@@ -104,9 +104,8 @@ export type VectorOpenings = {
  *    with `width_source: "unresolved"` — the width is NEVER asserted to a standard, because
  *    entry-door widths genuinely vary (1200/1400/1600/sliders) so a measured value is never
  *    invented HERE, at the geometry layer — the width stays null/unresolved. Downstream,
- *    derive-fields applies a flagged last-resort assumed width (ASSUMED_OPENING_WIDTH_M) only
- *    when the plan width could not be read, so the glass/joinery total stays complete; that
- *    assumption is surfaced as a review flag for confirmation, never presented as a measurement.
+ *    derive-fields carries the unresolved width as review evidence and lets pricing
+ *    adjudication quarantine it; it must not invent a pricing width.
  *  - `label`: the entry-type room token that anchored it (e.g. "ENTRY", "PORCH").
  */
 export type VectorEntrance = {
