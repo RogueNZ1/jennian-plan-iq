@@ -31,6 +31,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(here, "..");
 const OUT_DIR = resolve(ROOT, "output/diagnostics/vision-vector-fusion");
 const FENNER_ELEVATIONS = resolve(ROOT, "tests/doors/plans/fenner-elevations.pdf");
+const FENNER_TRUTH = resolve(ROOT, "tests/fixtures/fenner/ground-truth.json");
 const PAGE_NUMBER = 1;
 const RENDER_WIDTH = 2800;
 const PT_PER_MM = 72 / 25.4;
@@ -77,8 +78,44 @@ type AiResponse = {
   summary: string;
 };
 
+type TruthOpening = {
+  room: string;
+  widthMm: number;
+  heightMm: number;
+  areaM2: number;
+};
+
+type ScoredOpening = {
+  ai: AiOpening;
+  foundCandidateIds: string[];
+  missingCandidateIds: string[];
+  recovered: {
+    widthMm: number | null;
+    heightMm: number | null;
+    areaM2: number | null;
+  };
+  deterministicSanity: {
+    status: "pass" | "review" | "fail";
+    reasons: string[];
+  };
+  nearestTruth: {
+    room: string;
+    widthMm: number;
+    heightMm: number;
+    areaM2: number;
+    widthDeltaMm: number;
+    heightDeltaMm: number;
+    areaDeltaM2: number | null;
+    dimensionCompatible: boolean;
+  } | null;
+};
+
 function mmToPt(mm: number): number {
   return (mm / ELEVATION_SCALE) * PT_PER_MM;
+}
+
+function ptToMm(pt: number): number {
+  return Math.round((pt / PT_PER_MM) * ELEVATION_SCALE);
 }
 
 function rectForOpening(opening: ElevationOpeningCandidate & { x: number; y: number }): PdfRect {
@@ -94,6 +131,28 @@ function rectForOpening(opening: ElevationOpeningCandidate & { x: number; y: num
 
 function rectIntersects(a: PdfRect, b: PdfRect): boolean {
   return Math.min(a.x1, b.x1) > Math.max(a.x0, b.x0) && Math.min(a.y1, b.y1) > Math.max(a.y0, b.y0);
+}
+
+function loadTruth(): TruthOpening[] {
+  const raw = JSON.parse(readFileSync(FENNER_TRUTH, "utf8")) as {
+    manual_openings?: Array<Record<string, unknown>>;
+  };
+  const out: TruthOpening[] = [];
+  for (const row of raw.manual_openings ?? []) {
+    const qty = typeof row.qty === "number" && row.qty > 0 ? Math.round(row.qty) : 1;
+    const widthM = typeof row.width_m === "number" ? row.width_m : null;
+    const heightM = typeof row.height_m === "number" ? row.height_m : null;
+    if (widthM == null || heightM == null) continue;
+    for (let i = 0; i < qty; i += 1) {
+      out.push({
+        room: typeof row.room === "string" ? row.room : "",
+        widthMm: Math.round(widthM * 1000),
+        heightMm: Math.round(heightM * 1000),
+        areaM2: Math.round(widthM * heightM * 100) / 100,
+      });
+    }
+  }
+  return out;
 }
 
 function findPdftoppm(): string {
@@ -243,6 +302,127 @@ function normaliseAiResponse(value: AiResponse | null): AiResponse {
       : [],
     summary: typeof value.summary === "string" ? value.summary : "",
   };
+}
+
+function rectUnion(rects: readonly PdfRect[]): PdfRect | null {
+  if (rects.length === 0) return null;
+  return {
+    x0: Math.min(...rects.map((rect) => rect.x0)),
+    x1: Math.max(...rects.map((rect) => rect.x1)),
+    y0: Math.min(...rects.map((rect) => rect.y0)),
+    y1: Math.max(...rects.map((rect) => rect.y1)),
+  };
+}
+
+function openingSanity(
+  type: AiOpening["type"],
+  widthMm: number | null,
+  heightMm: number | null,
+): ScoredOpening["deterministicSanity"] {
+  const reasons: string[] = [];
+  if (widthMm == null || heightMm == null) {
+    return { status: "fail", reasons: ["no recovered vector dimensions"] };
+  }
+  if (widthMm < 350 || heightMm < 400) reasons.push("too small to be a physical opening");
+  if (widthMm > 6200 || heightMm > 2800) reasons.push("too large for one physical opening");
+
+  if (type === "garage_door") {
+    if (widthMm < 2200 || widthMm > 6000) reasons.push("garage door width outside expected range");
+    if (heightMm < 1800 || heightMm > 2450)
+      reasons.push("garage door height outside expected range");
+  } else if (type === "external_door") {
+    if (widthMm < 700)
+      reasons.push("external door width below 700mm; likely frame/window artefact");
+    if (widthMm > 1600)
+      reasons.push("external door width above 1600mm; likely slider/garage/opening group");
+    if (heightMm < 1800 || heightMm > 2450)
+      reasons.push("external door height outside expected range");
+  } else if (type === "slider") {
+    if (widthMm < 1200) reasons.push("slider width below 1200mm");
+    if (heightMm < 1750 || heightMm > 2450) reasons.push("slider height outside expected range");
+  } else if (type === "window") {
+    if (widthMm < 400 || widthMm > 5200) reasons.push("window width outside expected range");
+    if (heightMm < 450 || heightMm > 2450) reasons.push("window height outside expected range");
+  }
+
+  if (reasons.length > 0) return { status: "fail", reasons };
+  const reviewReasons: string[] = [];
+  if (type === "unknown") reviewReasons.push("AI classified opening as unknown");
+  if (type === "window" && heightMm >= 1800) {
+    reviewReasons.push("door-height glazed opening needs floor/elevation row proof before pricing");
+  }
+  return reviewReasons.length > 0
+    ? { status: "review", reasons: reviewReasons }
+    : { status: "pass", reasons: ["dimension/type sanity passed"] };
+}
+
+function truthDimensionCompatible(widthMm: number, heightMm: number, truth: TruthOpening): boolean {
+  const widthTolerance = Math.max(150, Math.round(truth.widthMm * 0.06));
+  const heightTolerance = Math.max(150, Math.round(truth.heightMm * 0.08));
+  return (
+    Math.abs(widthMm - truth.widthMm) <= widthTolerance &&
+    Math.abs(heightMm - truth.heightMm) <= heightTolerance
+  );
+}
+
+function scoreAiOpenings(args: {
+  ai: AiResponse;
+  candidates: readonly Candidate[];
+  truth: readonly TruthOpening[];
+}): ScoredOpening[] {
+  const byId = new Map(args.candidates.map((candidate) => [candidate.id, candidate]));
+  return args.ai.openings.map((opening) => {
+    const selected = opening.candidateIds
+      .map((id) => byId.get(id))
+      .filter((candidate) => candidate != null);
+    const foundCandidateIds = selected.map((candidate) => candidate.id);
+    const missingCandidateIds = opening.candidateIds.filter((id) => !byId.has(id));
+    const union = rectUnion(selected.map((candidate) => candidate.rect));
+    const widthMm = union ? ptToMm(union.x1 - union.x0) : null;
+    const heightMm = union ? ptToMm(union.y1 - union.y0) : null;
+    const areaM2 =
+      widthMm != null && heightMm != null
+        ? Math.round((widthMm / 1000) * (heightMm / 1000) * 100) / 100
+        : null;
+    const deterministicSanity = openingSanity(opening.type, widthMm, heightMm);
+    const nearestTruth =
+      widthMm != null && heightMm != null
+        ? ([...args.truth]
+            .map((truth) => ({
+              truth,
+              distance:
+                Math.abs(widthMm - truth.widthMm) + Math.abs(heightMm - truth.heightMm) * 1.4,
+            }))
+            .sort((a, b) => a.distance - b.distance)[0]?.truth ?? null)
+        : null;
+    return {
+      ai: opening,
+      foundCandidateIds,
+      missingCandidateIds,
+      recovered: {
+        widthMm,
+        heightMm,
+        areaM2,
+      },
+      deterministicSanity,
+      nearestTruth: nearestTruth
+        ? {
+            room: nearestTruth.room,
+            widthMm: nearestTruth.widthMm,
+            heightMm: nearestTruth.heightMm,
+            areaM2: nearestTruth.areaM2,
+            widthDeltaMm: widthMm == null ? 0 : widthMm - nearestTruth.widthMm,
+            heightDeltaMm: heightMm == null ? 0 : heightMm - nearestTruth.heightMm,
+            areaDeltaM2:
+              areaM2 == null ? null : Math.round((areaM2 - nearestTruth.areaM2) * 100) / 100,
+            dimensionCompatible:
+              widthMm != null &&
+              heightMm != null &&
+              truthDimensionCompatible(widthMm, heightMm, nearestTruth),
+          }
+        : null,
+    };
+  });
 }
 
 async function drawCandidateOverlay(args: {
@@ -399,6 +579,7 @@ async function main() {
 
   const aiResult = await callCandidateSelector(candidateOverlay, candidates);
   const ai = normaliseAiResponse(aiResult.parsed);
+  const scoredOpenings = scoreAiOpenings({ ai, candidates, truth: loadTruth() });
   const selectedOverlay = resolve(OUT_DIR, "fenner-garage-ai-selection.png");
   await drawCandidateOverlay({
     fullImagePath,
@@ -417,6 +598,19 @@ async function main() {
     garageVectorCandidate: garage,
     candidates,
     ai,
+    scoredOpenings,
+    scoreSummary: {
+      selectedOpenings: scoredOpenings.length,
+      sanityPass: scoredOpenings.filter((opening) => opening.deterministicSanity.status === "pass")
+        .length,
+      sanityReview: scoredOpenings.filter(
+        (opening) => opening.deterministicSanity.status === "review",
+      ).length,
+      sanityFail: scoredOpenings.filter((opening) => opening.deterministicSanity.status === "fail")
+        .length,
+      truthCompatible: scoredOpenings.filter((opening) => opening.nearestTruth?.dimensionCompatible)
+        .length,
+    },
     rawAiText: aiResult.raw,
     artifacts: {
       candidateOverlay,
@@ -438,6 +632,26 @@ async function main() {
       .map((opening) => `${opening.type}:${opening.candidateIds.join("+")}:${opening.confidence}`)
       .join(", ")}`,
   );
+  console.log(
+    `score: sanity pass=${scoredOpenings.filter((opening) => opening.deterministicSanity.status === "pass").length}, ` +
+      `review=${scoredOpenings.filter((opening) => opening.deterministicSanity.status === "review").length}, ` +
+      `fail=${scoredOpenings.filter((opening) => opening.deterministicSanity.status === "fail").length}, ` +
+      `truth-compatible=${scoredOpenings.filter((opening) => opening.nearestTruth?.dimensionCompatible).length}`,
+  );
+  for (const opening of scoredOpenings) {
+    const recovered =
+      opening.recovered.widthMm == null || opening.recovered.heightMm == null
+        ? "?x?"
+        : `${opening.recovered.widthMm}x${opening.recovered.heightMm}`;
+    const truth = opening.nearestTruth
+      ? `${opening.nearestTruth.room} ${opening.nearestTruth.widthMm}x${opening.nearestTruth.heightMm} ` +
+        `d=${opening.nearestTruth.widthDeltaMm}/${opening.nearestTruth.heightDeltaMm}`
+      : "no truth";
+    console.log(
+      `  ${opening.ai.type.padEnd(13)} ${opening.ai.candidateIds.join("+").padEnd(10)} ` +
+        `${recovered.padEnd(10)} ${opening.deterministicSanity.status.padEnd(6)} ${truth}`,
+    );
+  }
   if (ai.missedVisibleOpenings.length > 0) {
     console.log(`Missed visible openings: ${ai.missedVisibleOpenings.length}`);
   }
