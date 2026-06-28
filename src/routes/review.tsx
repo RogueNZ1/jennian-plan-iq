@@ -57,6 +57,12 @@ import { loadMeasurements, loadOpenings, type PlanMeasurement } from "@/lib/iq-m
 import { buildQSExportData, writeIQDataSheetFull } from "@/lib/iq-qs-export";
 import { AutomaticTakeoffDialog } from "@/components/jennian/AutomaticTakeoffDialog";
 import { VisionTakeoffDialog } from "@/components/jennian/VisionTakeoffDialog";
+import { loadExtractedQuantityAuthorityForJob } from "@/lib/takeoff/extracted-quantity-authority";
+import {
+  buildExtractedQuantityReviewModel,
+  type ExtractedQuantityReviewModel,
+} from "@/lib/review/extracted-quantity-review-model";
+import type { ExtractedQuantityExportRow } from "@/lib/takeoff/extracted-quantity-read-model";
 
 const MODULE_ICONS: Record<IQModuleId, React.ComponentType<{ className?: string }>> = {
   "iq-core": Ruler,
@@ -97,13 +103,18 @@ function ReviewPage() {
   const [openingsCount, setOpeningsCount] = useState<number>(0);
   const [tab, setTab] = useState<string>(
     initialTab &&
-      ["base", "working", "openings", "walls", "validation", "assumptions"].includes(initialTab)
+      ["extracted", "base", "working", "openings", "walls", "validation", "assumptions"].includes(
+        initialTab,
+      )
       ? initialTab
-      : "base",
+      : "extracted",
   );
   const [takeoffOpen, setTakeoffOpen] = useState(false);
   const [visionOpen, setVisionOpen] = useState(false);
   const [moduleItems, setModuleItems] = useState<ModuleItemRow[]>([]);
+  const [extractedQuantityReview, setExtractedQuantityReview] =
+    useState<ExtractedQuantityReviewModel | null>(null);
+  const [extractedQuantityLoading, setExtractedQuantityLoading] = useState(false);
 
   useEffect(() => {
     if (!jobId) {
@@ -121,6 +132,16 @@ function ReviewPage() {
     calculateJobModuleRollup(jobId)
       .then((r) => setRollup(r))
       .catch(() => {});
+    setExtractedQuantityLoading(true);
+    loadExtractedQuantityAuthorityForJob(jobId)
+      .then((authority) => setExtractedQuantityReview(buildExtractedQuantityReviewModel(authority)))
+      .catch((e) =>
+        setExtractedQuantityReview({
+          ...buildExtractedQuantityReviewModel(null),
+          warnings: [e instanceof Error ? e.message : String(e)],
+        }),
+      )
+      .finally(() => setExtractedQuantityLoading(false));
     (async () => {
       const [m, o] = await Promise.all([
         supabase
@@ -391,6 +412,7 @@ function ReviewPage() {
 
         <Tabs value={tab} onValueChange={setTab} className="w-full">
           <TabsList className="mb-5">
+            <TabsTrigger value="extracted">Extracted Quantities</TabsTrigger>
             <TabsTrigger value="base">Base Geometry</TabsTrigger>
             <TabsTrigger value="working">Working Plan</TabsTrigger>
             <TabsTrigger value="openings">Windows & Doors</TabsTrigger>
@@ -405,6 +427,13 @@ function ReviewPage() {
               )}
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="extracted">
+            <ExtractedQuantityLedgerReview
+              model={extractedQuantityReview}
+              loading={extractedQuantityLoading}
+            />
+          </TabsContent>
 
           <TabsContent value="base">
             <div className="grid lg:grid-cols-[1fr_320px] gap-6">
@@ -612,6 +641,197 @@ type ModuleItemRow = {
   description: string | null;
   sort_order: number | null;
 };
+
+function nullCell(value: number | string | null | undefined): string {
+  return value === null || value === undefined || value === "" ? "null" : String(value);
+}
+
+function bboxCell(bbox: [number, number, number, number] | undefined): string {
+  return bbox ? bbox.map((n) => Math.round(n * 100) / 100).join(", ") : "null";
+}
+
+function evidenceText(row: ExtractedQuantityExportRow): string {
+  return row.evidence
+    .map((e) => e.text)
+    .filter((text): text is string => !!text)
+    .join(" | ");
+}
+
+function firstEvidencePage(row: ExtractedQuantityExportRow): string {
+  const page = row.evidence.find((e) => e.page != null)?.page;
+  return page == null ? "null" : String(page);
+}
+
+function firstEvidenceBbox(row: ExtractedQuantityExportRow): string {
+  const bbox = row.evidence.find((e) => e.bbox)?.bbox;
+  return bboxCell(bbox);
+}
+
+function ExtractedQuantityLedgerReview({
+  model,
+  loading,
+}: {
+  model: ExtractedQuantityReviewModel | null;
+  loading: boolean;
+}) {
+  if (loading && !model) {
+    return (
+      <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+        Loading extracted quantity ledger...
+      </div>
+    );
+  }
+
+  if (!model?.readModel) {
+    return (
+      <div className="rounded-lg border border-confidence-low/30 bg-confidence-low/8 p-5 text-sm">
+        <div className="font-semibold text-confidence-low">
+          Extracted quantity ledger unavailable
+        </div>
+        <div className="mt-1 text-xs text-muted-foreground">
+          Review is waiting for an active persisted ledger or takeoff_json fallback.
+        </div>
+        {model?.warnings.length ? (
+          <ul className="mt-3 list-disc pl-5 text-xs text-muted-foreground">
+            {model.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-lg border border-border bg-card px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-[13px] font-semibold tracking-tight">
+              Active Extracted Quantity Ledger
+            </div>
+            <div className="mt-1 text-[11px] text-muted-foreground">
+              Authority {model.source} · run {model.runId ?? "null"} · active run{" "}
+              {model.activeRunId ?? "null"}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+            <span className="rounded-md bg-muted/40 px-2 py-1">
+              Clean count{" "}
+              <span className="font-medium text-foreground tabular-nums">
+                {model.cleanTotals.count}
+              </span>
+            </span>
+            <span className="rounded-md bg-muted/40 px-2 py-1">
+              Clean length{" "}
+              <span className="font-medium text-foreground tabular-nums">
+                {model.cleanTotals.lengthMm} mm
+              </span>
+            </span>
+            <span className="rounded-md bg-muted/40 px-2 py-1">
+              Clean area{" "}
+              <span className="font-medium text-foreground tabular-nums">
+                {model.cleanTotals.areaM2} m²
+              </span>
+            </span>
+          </div>
+        </div>
+        <div className="mt-3 text-[11px] text-muted-foreground">
+          Clean totals include only rows with status extracted. Needs review, missing evidence,
+          conflict, and ignored rows stay visible here and are excluded from clean totals.
+        </div>
+        {model.warnings.length > 0 && (
+          <div className="mt-3 rounded-md border border-confidence-mid/30 bg-confidence-mid/8 px-3 py-2 text-xs text-confidence-mid">
+            {model.warnings.map((warning) => (
+              <div key={warning}>{warning}</div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {model.sections.map((section) => (
+        <div
+          key={section.status}
+          className="rounded-lg border border-border bg-card overflow-hidden"
+        >
+          <div className="border-b border-border px-5 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[13px] font-semibold tracking-tight">{section.label}</div>
+              <div className="text-[11px] text-muted-foreground tabular-nums">
+                {section.rows.length} rows
+              </div>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1300px] text-sm">
+              <thead className="bg-muted/30">
+                <tr className="text-left text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">
+                  <th className="px-4 py-2.5 font-medium">Row ID</th>
+                  <th className="px-4 py-2.5 font-medium">Category</th>
+                  <th className="px-4 py-2.5 font-medium">Label</th>
+                  <th className="px-4 py-2.5 font-medium">Count</th>
+                  <th className="px-4 py-2.5 font-medium">Width mm</th>
+                  <th className="px-4 py-2.5 font-medium">Height mm</th>
+                  <th className="px-4 py-2.5 font-medium">Length mm</th>
+                  <th className="px-4 py-2.5 font-medium">Area m²</th>
+                  <th className="px-4 py-2.5 font-medium">Status</th>
+                  <th className="px-4 py-2.5 font-medium">Confidence</th>
+                  <th className="px-4 py-2.5 font-medium">Warnings</th>
+                  <th className="px-4 py-2.5 font-medium">Source</th>
+                  <th className="px-4 py-2.5 font-medium">Run ID</th>
+                  <th className="px-4 py-2.5 font-medium">Evidence page</th>
+                  <th className="px-4 py-2.5 font-medium">Evidence bbox</th>
+                  <th className="px-4 py-2.5 font-medium">Evidence text</th>
+                </tr>
+              </thead>
+              <tbody>
+                {section.rows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={16}
+                      className="px-4 py-6 text-center text-xs text-muted-foreground"
+                    >
+                      No rows.
+                    </td>
+                  </tr>
+                ) : (
+                  section.rows.map((row) => (
+                    <tr key={row.id} className="border-t border-border align-top">
+                      <td className="px-4 py-2.5 font-mono text-[11px]">{row.id}</td>
+                      <td className="px-4 py-2.5">{row.category}</td>
+                      <td className="px-4 py-2.5 font-medium">{row.label ?? "null"}</td>
+                      <td className="px-4 py-2.5 tabular-nums">{nullCell(row.count)}</td>
+                      <td className="px-4 py-2.5 tabular-nums">{nullCell(row.widthMm)}</td>
+                      <td className="px-4 py-2.5 tabular-nums">{nullCell(row.heightMm)}</td>
+                      <td className="px-4 py-2.5 tabular-nums">{nullCell(row.lengthMm)}</td>
+                      <td className="px-4 py-2.5 tabular-nums">{nullCell(row.areaM2)}</td>
+                      <td className="px-4 py-2.5">{row.status}</td>
+                      <td className="px-4 py-2.5 tabular-nums">{row.confidence}</td>
+                      <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                        {row.warnings.length ? row.warnings.join(", ") : "null"}
+                      </td>
+                      <td className="px-4 py-2.5">{row.source}</td>
+                      <td className="px-4 py-2.5 font-mono text-[11px]">{row.runId ?? "null"}</td>
+                      <td className="px-4 py-2.5 tabular-nums">{firstEvidencePage(row)}</td>
+                      <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                        {firstEvidenceBbox(row)}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                        <div className="max-w-[340px] whitespace-normal">
+                          {evidenceText(row) || "null"}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function ValueSourceBadge({ source }: { source: string | null }) {
   if (source === "assumed") {
