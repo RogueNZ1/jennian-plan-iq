@@ -41,10 +41,12 @@ import {
 } from "@/lib/specs/spec-schema";
 import {
   buildDoorMarkers,
+  buildLedgerPlanOverlayModel,
   buildVisualOpeningMarkers,
   summariseMarkers,
   type DoorMarker,
   type DoorPagePersisted,
+  type LedgerPlanOverlayModel,
   type OverlaySummary,
   type VisualOpeningMarker,
 } from "./plan-overlay";
@@ -194,6 +196,7 @@ export type VerificationModel = {
   exceptions: ExceptionGroup[];
   /** Plan-overlay slice (13 Jun): door-engine hits + page identity for the rendered overlay. */
   planOverlay: {
+    ledgerOverlay: LedgerPlanOverlayModel;
     markers: DoorMarker[];
     visualOpenings: VisualOpeningMarker[];
     visualSummary: VisualOpeningAuditSummary | null;
@@ -784,6 +787,14 @@ export function buildVerificationModel(
   /* plan overlay ----------------------------------------------------- */
   const overlayMarkers = buildDoorMarkers(e?.door_hits ?? null);
   const planOverlay: VerificationModel["planOverlay"] = {
+    ledgerOverlay: buildLedgerPlanOverlayModel(extractedQuantityReadModel, {
+      authoritySource: extractedQuantities.source,
+      jobId: quantityAuthority?.quantities[0]?.jobId ?? extractedQuantityReadModel?.rows[0]?.jobId,
+      runId: extractedQuantities.runId,
+      legacyDoorHitCount: overlayMarkers.length,
+      legacyVisualOpeningCount: visualOpenings.length,
+      warnings: extractedQuantities.warnings,
+    }),
     markers: overlayMarkers,
     visualOpenings,
     visualSummary: e?.visual_opening_audit?.summary ?? null,

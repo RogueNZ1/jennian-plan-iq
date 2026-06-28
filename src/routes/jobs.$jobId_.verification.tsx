@@ -41,6 +41,7 @@ import {
   type VisualOpeningCorrection,
   type VisualOpeningCorrectionType,
 } from "@/lib/verification/visual-opening-corrections";
+import type { LedgerPlanOverlayModel } from "@/lib/verification/plan-overlay";
 
 export const Route = createFileRoute("/jobs/$jobId_/verification")({
   component: VerificationPrintout,
@@ -225,6 +226,100 @@ function LedgerQuantitySection({ model }: { model: VerificationModel }) {
           <LedgerQuantityTable category={category} />
         </div>
       ))}
+    </>
+  );
+}
+
+function LedgerOverlayRowsTable({
+  rows,
+  emptyText,
+}: {
+  rows: LedgerPlanOverlayModel["unmarkedRows"];
+  emptyText: string;
+}) {
+  if (rows.length === 0) return <p className="vempty">{emptyText}</p>;
+  return (
+    <table className="vtable">
+      <thead>
+        <tr>
+          <th>Ledger row</th>
+          <th>Category</th>
+          <th>Status</th>
+          <th>Count</th>
+          <th>W</th>
+          <th>H</th>
+          <th>Len</th>
+          <th>Area</th>
+          <th>Warnings / evidence</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.extractedQuantityId}>
+            <td className="vlabel">
+              {row.label ?? row.extractedQuantityId}
+              <div className="vledger-sub">
+                {row.source} · {row.runId ?? "no run"} · {row.extractedQuantityId}
+              </div>
+            </td>
+            <td>{row.category}</td>
+            <td>{row.status}</td>
+            <td className="vvalue">{fmtLedgerCell(row.count)}</td>
+            <td className="vvalue">{fmtLedgerCell(row.widthMm)}</td>
+            <td className="vvalue">{fmtLedgerCell(row.heightMm)}</td>
+            <td className="vvalue">{fmtLedgerCell(row.lengthMm)}</td>
+            <td className="vvalue">{fmtLedgerCell(row.areaM2)}</td>
+            <td>
+              {[
+                row.warnings.join(", "),
+                row.evidencePage ? `p${row.evidencePage}` : null,
+                row.evidenceText,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function LedgerOverlaySection({ overlay }: { overlay: LedgerPlanOverlayModel }) {
+  return (
+    <>
+      <div className="vsrcline">
+        Active extracted quantity overlay: <strong>{overlay.authoritySource}</strong> · run{" "}
+        <strong>{overlay.runId ?? "—"}</strong>
+      </div>
+      <div className="vledger-summary">
+        <span>Total ledger rows {overlay.totalLedgerRows}</span>
+        <span>Rows with markers {overlay.markedRows.length}</span>
+        <span>Rows without markers {overlay.unmarkedRows.length}</span>
+      </div>
+      {overlay.warnings.length > 0 && (
+        <div className="vbanner vbanner-compact">
+          {overlay.warnings.map((warning) => (
+            <div key={warning}>
+              <strong>{warning}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+      <h3>Drawable ledger markers</h3>
+      <LedgerOverlayRowsTable
+        rows={overlay.markedRows}
+        emptyText="No active ledger rows have drawable bbox markers."
+      />
+      <h3>Rows without markers</h3>
+      <LedgerOverlayRowsTable rows={overlay.unmarkedRows} emptyText="No unmarked ledger rows." />
+      <div className="vbanner vbanner-compact">
+        <div>
+          <strong>Legacy visual evidence only.</strong> Legacy door hits:{" "}
+          {overlay.legacyEvidence.doorHitCount}; legacy visual openings:{" "}
+          {overlay.legacyEvidence.visualOpeningCount}. {overlay.legacyEvidence.warning}
+        </div>
+      </div>
     </>
   );
 }
@@ -786,19 +881,18 @@ function VerificationPrintout() {
           </div>
         </Section>
 
-        {/* 4 Â· plan overlay */}
-        <Section title="4 Â· Plan overlay â€” Visual QS & door hits" className="vsec-plan">
+        {/* 4 · plan overlay */}
+        <Section title="4 · Plan overlay - active extracted quantity ledger" className="vsec-plan">
+          <LedgerOverlaySection overlay={m.planOverlay.ledgerOverlay} />
           <VerificationPlanOverlay
             jobId={jobId}
-            markers={m.planOverlay.markers}
-            visualOpenings={m.planOverlay.visualOpenings}
+            ledgerOverlay={m.planOverlay.ledgerOverlay}
             page={m.planOverlay.page}
             onStatusChange={setOverlayStatus}
           />
           <div className="vplan-note">
-            Red = internal door engine. Blue = external-wall opening / glazing marker. Black =
-            garage door exception. Small tags identify the marker; sizes and evidence are in the
-            tables after this page.
+            Active overlay markers are drawn only from active extracted quantity ledger rows with
+            bbox evidence. Rows without bbox stay visible above as no-marker ledger rows.
           </div>
           <div className="vplan-detail-break" />
           {m.planOverlay.visualWarnings.length > 0 && (
@@ -813,9 +907,7 @@ function VerificationPrintout() {
           {m.planOverlay.visualOpenings.length > 0 && (
             <>
               <div className="vsrcline" style={{ marginTop: 8 }}>
-                {m.windows.pricingBlocked
-                  ? "Visual QS raw candidates (review only, not priced): "
-                  : "Visual QS glazing/openings: "}
+                Legacy visual evidence only - not active extracted quantity authority:{" "}
                 <strong>{m.planOverlay.visualSummary?.totalOpenings ?? "â€”"}</strong> total Â·{" "}
                 <strong>{m.planOverlay.visualSummary?.qsGlazedOpenings ?? "â€”"}</strong> QS
                 glazed/opening items Â·{" "}
@@ -863,12 +955,11 @@ function VerificationPrintout() {
                                 key={action.type}
                                 type="button"
                                 className="vcorrection-btn"
-                                title={action.title}
-                                disabled={correctionSaving != null}
-                                onClick={() => void handleVisualCorrection(o, action.type)}
+                                title={`${action.title} Legacy visual correction controls are quarantined in ledger overlay mode.`}
+                                disabled
                               >
                                 <Icon className="h-3 w-3" />
-                                <span>{isSaving ? "Saving" : action.label}</span>
+                                <span>{isSaving ? "Saving" : `${action.label} (legacy)`}</span>
                               </button>
                             );
                           })}
@@ -880,8 +971,8 @@ function VerificationPrintout() {
                 </tbody>
               </table>
               <div className="no-print vcorrection-note">
-                These review buttons train the evidence layer only. They do not change QS pricing,
-                opening totals, or the export until geometry and the ledger prove the row.
+                Legacy visual correction controls are quarantined in ledger overlay mode. They do
+                not change active ledger rows, QS pricing, opening totals, or the export.
                 {correctionError ? <strong> Save issue: {correctionError}</strong> : null}
               </div>
             </>
@@ -889,14 +980,14 @@ function VerificationPrintout() {
           {m.planOverlay.markers.length > 0 && (
             <>
               <div className="vsrcline" style={{ marginTop: 8 }}>
-                {m.planOverlay.markers.length} counted Â·{" "}
+                Legacy door-engine evidence only - not active extracted quantity authority:{" "}
+                {m.planOverlay.markers.length} hits Â·{" "}
                 {m.planOverlay.markers.filter((d) => doorMarkerNeedsReview(d.note)).length} verify
                 Â· {m.planOverlay.summary.flagged} flagged &nbsp;(hinged{" "}
                 {m.planOverlay.summary.byType.hinged} Â· double{" "}
                 {m.planOverlay.summary.byType.double}
-                &nbsp;Â· cavity {m.planOverlay.summary.byType.cavity}) â€” red tags = counted by the
-                deterministic engine; no-arc single-leaf hits must be checked against the marked
-                plan. Dashed amber = review only.
+                &nbsp;Â· cavity {m.planOverlay.summary.byType.cavity}). These legacy hits are not
+                active ledger totals.
               </div>
               <table className="vtable">
                 <thead>
@@ -1114,6 +1205,9 @@ const PRINT_CSS = `
 .vtotals span { display:block; font-weight:500; font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; color:#6b7280; }
 .vsrcline { font-size:11px; margin-bottom:6px; }
 .vhint { color:#6b7280; font-weight:400; }
+.vledger-summary { display:flex; flex-wrap:wrap; gap:6px 12px; margin:6px 0 8px; font-size:10px; font-weight:700; color:#374151; }
+.vledger-summary span { border:1px solid #d1d5db; border-radius:4px; padding:2px 6px; background:#f9fafb; }
+.vledger-sub { color:#6b7280; font-size:9px; font-weight:500; margin-top:1px; }
 
 .vspec-grid { display:grid; grid-template-columns:1fr 1fr; gap:2px 24px; }
 .vspec-group { break-inside:avoid; }
@@ -1143,6 +1237,11 @@ const PRINT_CSS = `
 .vov-tag-bg-low { fill:#b45309; stroke:#92400e; }
 .vov-tag-bg-garage { fill:#111827; stroke:#111827; }
 .vov-opening-label { fill:#fff; font:800 10px ui-sans-serif, system-ui, sans-serif; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vov-ledger-extracted { stroke:#15803d; fill:#15803d; }
+.vov-ledger-review { stroke:#b45309; fill:#b45309; stroke-dasharray:4 3; }
+.vov-ledger-missing { stroke:#6b7280; fill:#6b7280; stroke-dasharray:3 3; }
+.vov-ledger-conflict { stroke:#b91c1c; fill:#b91c1c; stroke-dasharray:5 3; }
+.vov-ledger-ignored { stroke:#64748b; fill:#64748b; opacity:.7; }
 
 .vfoot { margin-top:20px; border-top:2px solid #111827; padding-top:8px; }
 .vlegend { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:9px; color:#6b7280; }

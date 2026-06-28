@@ -2,17 +2,45 @@ import { describe, it, expect } from "vitest";
 import {
   adapterToUser,
   buildDoorMarkers,
+  buildLedgerPlanOverlayModel,
   buildVisualOpeningMarkers,
   findOpeningTextAnchor,
   isWindowCode,
   summariseMarkers,
 } from "../verification/plan-overlay";
+import { buildExtractedQuantityReadModel } from "../takeoff/extracted-quantity-read-model";
+import type { ExtractedQuantity } from "../takeoff/extracted-quantity-ledger";
 
 /** The pdf-adapter's forward transform, reproduced verbatim for the inverse proof. */
 function toPage(ux: number, uy: number, view: number[]): [number, number] {
   const [x0, y0, , y1] = view;
   const height = y1 - y0;
   return [ux - x0, height - (uy - y0)];
+}
+
+const RUN_ID = "4ba50d23-5764-41e4-bda5-0fdace588a6c";
+
+function quantity(overrides: Partial<ExtractedQuantity> = {}): ExtractedQuantity {
+  return {
+    id: "ledger-row",
+    jobId: "job-1",
+    runId: RUN_ID,
+    category: "window",
+    label: "Window row",
+    count: 1,
+    widthMm: 1200,
+    heightMm: 1000,
+    lengthMm: null,
+    areaM2: 1.2,
+    source: "visual_detection",
+    evidence: [{ page: 1, bbox: [10, 20, 30, 40], text: "W01 1200x1000" }],
+    status: "extracted",
+    confidence: 95,
+    warnings: [],
+    createdAt: "2026-06-28T00:00:00.000Z",
+    updatedAt: "2026-06-28T00:00:00.000Z",
+    ...overrides,
+  };
 }
 
 describe("plan-overlay", () => {
@@ -77,6 +105,172 @@ describe("plan-overlay", () => {
       ]),
     );
     expect(s).toEqual({ confirmed: 3, flagged: 1, byType: { hinged: 2, double: 1, cavity: 1 } });
+  });
+
+  it("builds ledger overlay rows from active extracted quantity read model", () => {
+    const readModel = buildExtractedQuantityReadModel([quantity()], { activeRunId: RUN_ID });
+    const overlay = buildLedgerPlanOverlayModel(readModel, {
+      authoritySource: "persisted_current_run",
+      runId: RUN_ID,
+    });
+
+    expect(overlay.authoritySource).toBe("persisted_current_run");
+    expect(overlay.runId).toBe(RUN_ID);
+    expect(overlay.totalLedgerRows).toBe(1);
+    expect(overlay.markedRows).toHaveLength(1);
+    expect(overlay.markedRows[0]).toMatchObject({
+      extractedQuantityId: "ledger-row",
+      markerState: "drawable",
+    });
+  });
+
+  it("sets extractedQuantityId from the ledger row id", () => {
+    const readModel = buildExtractedQuantityReadModel(
+      [quantity({ id: "opening-visual-opening-7" })],
+      { activeRunId: RUN_ID },
+    );
+    const overlay = buildLedgerPlanOverlayModel(readModel);
+
+    expect(overlay.markedRows[0].extractedQuantityId).toBe("opening-visual-opening-7");
+  });
+
+  it("splits rows with bbox into markedRows and keeps rows without bbox visible", () => {
+    const readModel = buildExtractedQuantityReadModel(
+      [
+        quantity({ id: "with-bbox" }),
+        quantity({ id: "without-bbox", evidence: [{ text: "text evidence only" }] }),
+      ],
+      { activeRunId: RUN_ID },
+    );
+    const overlay = buildLedgerPlanOverlayModel(readModel);
+
+    expect(overlay.markedRows.map((row) => row.extractedQuantityId)).toEqual(["with-bbox"]);
+    expect(overlay.unmarkedRows.map((row) => row.extractedQuantityId)).toEqual(["without-bbox"]);
+    expect(overlay.totalLedgerRows).toBe(2);
+  });
+
+  it("preserves unknown dimensions as null", () => {
+    const readModel = buildExtractedQuantityReadModel(
+      [
+        quantity({
+          id: "unknown-dims",
+          widthMm: null,
+          heightMm: null,
+          areaM2: null,
+          evidence: [{ text: "no dimensions" }],
+        }),
+      ],
+      { activeRunId: RUN_ID },
+    );
+    const overlay = buildLedgerPlanOverlayModel(readModel);
+
+    expect(overlay.unmarkedRows[0]).toMatchObject({
+      widthMm: null,
+      heightMm: null,
+      areaM2: null,
+    });
+  });
+
+  it("preserves assumed-height rows as needs_review with null height and null area", () => {
+    const readModel = buildExtractedQuantityReadModel(
+      [
+        quantity({
+          id: "assumed-height",
+          status: "needs_review",
+          heightMm: null,
+          areaM2: null,
+          warnings: ["assumed_height_rejected"],
+          evidence: [{ text: "height 2100mm was assumed and rejected" }],
+        }),
+      ],
+      { activeRunId: RUN_ID },
+    );
+    const overlay = buildLedgerPlanOverlayModel(readModel);
+
+    expect(overlay.unmarkedRows[0]).toMatchObject({
+      status: "needs_review",
+      heightMm: null,
+      areaM2: null,
+      warnings: ["assumed_height_rejected"],
+    });
+  });
+
+  it("preserves evidence page, bbox, and text where available", () => {
+    const readModel = buildExtractedQuantityReadModel(
+      [quantity({ evidence: [{ page: 3, bbox: [1, 2, 3, 4], text: "W03" }] })],
+      { activeRunId: RUN_ID },
+    );
+    const overlay = buildLedgerPlanOverlayModel(readModel);
+
+    expect(overlay.markedRows[0]).toMatchObject({
+      evidencePage: 3,
+      bbox: [1, 2, 3, 4],
+      evidenceText: "W03",
+    });
+  });
+
+  it("reports marker coverage counts", () => {
+    const readModel = buildExtractedQuantityReadModel(
+      [quantity({ id: "marked" }), quantity({ id: "unmarked", evidence: [{ text: "no marker" }] })],
+      { activeRunId: RUN_ID },
+    );
+    const overlay = buildLedgerPlanOverlayModel(readModel);
+
+    expect(overlay.totalLedgerRows).toBe(2);
+    expect(overlay.markedRows).toHaveLength(1);
+    expect(overlay.unmarkedRows).toHaveLength(1);
+  });
+
+  it("labels legacy door_hits and visual_opening_audit as evidence-only", () => {
+    const overlay = buildLedgerPlanOverlayModel(null, {
+      legacyDoorHitCount: 20,
+      legacyVisualOpeningCount: 20,
+    });
+
+    expect(overlay.legacyEvidence).toMatchObject({
+      doorHitCount: 20,
+      visualOpeningCount: 20,
+    });
+    expect(overlay.legacyEvidence.warning).toContain("not active extracted quantity authority");
+  });
+
+  it("does not compute active overlay totals from legacy visual evidence", () => {
+    const overlay = buildLedgerPlanOverlayModel(null, {
+      legacyDoorHitCount: 20,
+      legacyVisualOpeningCount: 20,
+    });
+
+    expect(overlay.totalLedgerRows).toBe(0);
+    expect(overlay.markedRows).toHaveLength(0);
+    expect(overlay.unmarkedRows).toHaveLength(0);
+  });
+
+  it("does not use opening_schedule as active overlay authority", () => {
+    const overlay = buildLedgerPlanOverlayModel(null);
+
+    expect(overlay.authoritySource).toBe("unavailable");
+    expect(overlay.totalLedgerRows).toBe(0);
+  });
+
+  it("JM-0060-shaped model with 67 no-bbox rows reports 0 marked and 67 unmarked", () => {
+    const rows = Array.from({ length: 67 }, (_, index) =>
+      quantity({
+        id: `jm-0060-row-${index + 1}`,
+        evidence: [{ text: `JM-0060 text evidence ${index + 1}` }],
+      }),
+    );
+    const readModel = buildExtractedQuantityReadModel(rows, { activeRunId: RUN_ID });
+    const overlay = buildLedgerPlanOverlayModel(readModel, {
+      authoritySource: "persisted_current_run",
+      legacyDoorHitCount: 20,
+      legacyVisualOpeningCount: 20,
+    });
+
+    expect(overlay.totalLedgerRows).toBe(67);
+    expect(overlay.markedRows).toHaveLength(0);
+    expect(overlay.unmarkedRows).toHaveLength(67);
+    expect(overlay.legacyEvidence.doorHitCount).toBe(20);
+    expect(overlay.legacyEvidence.visualOpeningCount).toBe(20);
   });
 
   it("buildVisualOpeningMarkers preserves visual QS order and marker ids", () => {

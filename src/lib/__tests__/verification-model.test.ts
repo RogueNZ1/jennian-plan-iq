@@ -881,6 +881,62 @@ describe("buildVerificationModel", () => {
 });
 
 describe("planOverlay in the model", () => {
+  it("builds ledger overlay rows and quarantines legacy visual evidence", () => {
+    const readModel = buildExtractedQuantityReadModel(
+      [
+        quantity({
+          id: "ledger-marker",
+          evidence: [{ page: 1, bbox: [10, 20, 30, 40], text: "W01" }],
+        }),
+        quantity({ id: "ledger-no-marker", evidence: [{ text: "no bbox evidence" }] }),
+      ],
+      { activeRunId: RUN.id },
+    );
+    const m = buildVerificationModel(
+      makeData({ extractedQuantityReadModel: readModel }),
+      makeEnriched({
+        door_hits: [{ type: "hinged", widthMm: 810, x: 10, y: 20, confidence: "confirmed" }],
+        visual_opening_audit: {
+          pageNumber: 1,
+          method: "visual_qs",
+          openings: [
+            {
+              id: "legacy-visual",
+              type: "window",
+              room: "Bed 1",
+              label: "1200x1000",
+              height_m: 1,
+              width_m: 1.2,
+              x: 0.5,
+              y: 0.5,
+              confidence: "high",
+              evidence: "legacy visual marker",
+              flags: [],
+            },
+          ],
+          summary: { totalOpenings: 1, qsGlazedOpenings: 1, garageDoors: 0, uncertain: 0 },
+          warnings: [],
+        },
+      }),
+      RUN,
+    );
+
+    expect(m.planOverlay.ledgerOverlay.totalLedgerRows).toBe(2);
+    expect(m.planOverlay.ledgerOverlay.markedRows.map((row) => row.extractedQuantityId)).toEqual([
+      "ledger-marker",
+    ]);
+    expect(m.planOverlay.ledgerOverlay.unmarkedRows.map((row) => row.extractedQuantityId)).toEqual([
+      "ledger-no-marker",
+    ]);
+    expect(m.planOverlay.ledgerOverlay.legacyEvidence).toMatchObject({
+      doorHitCount: 1,
+      visualOpeningCount: 1,
+    });
+    expect(m.planOverlay.ledgerOverlay.legacyEvidence.warning).toContain(
+      "not active extracted quantity authority",
+    );
+  });
+
   it("builds numbered markers and summary from persisted door hits", () => {
     const m = buildVerificationModel(
       makeData(),

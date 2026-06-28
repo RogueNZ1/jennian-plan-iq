@@ -1,18 +1,7 @@
 /**
- * VerificationPlanOverlay — renders the floor-plan page with the door-engine hits drawn on
- * (plan-overlay slice, 13 Jun). Coordinate path validated on the Alexandra bench against
- * Haydon's hand-labelled ground truth: persisted adapter-space hit → adapterToUser →
- * viewport.convertToViewportPoint (handles scale + /Rotate).
- *
- * Layers:
- *   - door markers from the PERSISTED run (red = confirmed, amber dashed = flag)
- *   - W-code text matched LIVE from the page's own printed text for table cross-checks only.
- *     The print overlay deliberately does not draw those boxes; they made the marked plan noisy.
- *
- * Degradation is deliberate and quiet-proof:
- *   - no plan file → says so
- *   - render failure → says so, never breaks the printout
- *   - pre-overlay run (no door_hits/door_page) → renders page 1 + W-codes + a re-run note
+ * VerificationPlanOverlay renders the plan page as a visual evidence surface for
+ * the active extracted quantity ledger. Legacy visual/door markers are not drawn
+ * as active quantity markers.
  */
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,15 +9,13 @@ import {
   adapterToUser,
   isWindowCode,
   stitchTextItems,
-  type DoorMarker,
   type DoorPagePersisted,
+  type LedgerOverlayRow,
+  type LedgerPlanOverlayModel,
   type RawTextItem,
-  type VisualOpeningMarker,
 } from "@/lib/verification/plan-overlay";
-import { snapPointToPlanInk } from "@/lib/verification/overlay-snap";
 
-type PlacedMarker = DoorMarker & { vx: number; vy: number };
-type PlacedVisualOpening = VisualOpeningMarker & { vx: number; vy: number };
+type PlacedLedgerRow = LedgerOverlayRow & { vx: number; vy: number };
 type PlacedWCode = { text: string; vx: number; vy: number };
 type CropRect = { x: number; y: number; width: number; height: number };
 
@@ -41,8 +28,7 @@ type OverlayState =
       imgUrl: string;
       width: number;
       height: number;
-      markers: PlacedMarker[];
-      visualOpenings: PlacedVisualOpening[];
+      ledgerRows: PlacedLedgerRow[];
       wcodes: PlacedWCode[];
     };
 
@@ -51,42 +37,8 @@ export type OverlayRenderStatus = OverlayState["status"];
 const RENDER_MAX_WIDTH = 1500;
 const MIN_CROP_POINTS = 4;
 
-function openingTypeLabel(type: VisualOpeningMarker["type"]): string {
-  switch (type) {
-    case "window":
-    case "garage_window":
-      return "W";
-    case "slider":
-      return "SL";
-    case "pa_door":
-      return "PA";
-    case "external_door":
-      return "OPEN";
-    case "garage_door":
-      return "GD";
-    default:
-      return "?";
-  }
-}
-
-function doorTypeLabel(type: DoorMarker["type"]): string {
-  switch (type) {
-    case "hinged":
-      return "H";
-    case "double":
-      return "DBL";
-    case "cavity":
-      return "CAV";
-  }
-}
-
-function sizeMm(heightM: number | null, widthM: number | null): string {
-  if (heightM == null || widthM == null) return "";
-  return `${Math.round(heightM * 1000)}x${Math.round(widthM * 1000)}`;
-}
-
 function tagWidth(text: string): number {
-  return Math.max(28, text.length * 6 + 10);
+  return Math.max(48, text.length * 6 + 10);
 }
 
 function labelPlacement(
@@ -119,19 +71,17 @@ function cropAroundMarkers(
   markers: readonly { vx: number; vy: number }[],
 ): CropRect | null {
   if (markers.length < MIN_CROP_POINTS) return null;
-
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  for (const m of markers) {
-    minX = Math.min(minX, m.vx);
-    minY = Math.min(minY, m.vy);
-    maxX = Math.max(maxX, m.vx);
-    maxY = Math.max(maxY, m.vy);
+  for (const marker of markers) {
+    minX = Math.min(minX, marker.vx);
+    minY = Math.min(minY, marker.vy);
+    maxX = Math.max(maxX, marker.vx);
+    maxY = Math.max(maxY, marker.vy);
   }
   if (![minX, minY, maxX, maxY].every(Number.isFinite)) return null;
-
   const padX = Math.max(120, width * 0.08);
   const padY = Math.max(90, height * 0.08);
   const x = clamp(Math.floor(minX - padX), 0, width - 1);
@@ -139,9 +89,6 @@ function cropAroundMarkers(
   const right = clamp(Math.ceil(maxX + padX), x + 1, width);
   const bottom = clamp(Math.ceil(maxY + padY), y + 1, height);
   const crop = { x, y, width: right - x, height: bottom - y };
-
-  // If the crop is basically the whole sheet, keeping the original avoids needless
-  // resampling. Otherwise this removes title blocks, legends and note tables from print.
   return crop.width * crop.height < width * height * 0.86 ? crop : null;
 }
 
@@ -157,23 +104,30 @@ function cropCanvas(canvas: HTMLCanvasElement, crop: CropRect): HTMLCanvasElemen
 
 function applyCrop<T extends { vx: number; vy: number }>(items: T[], crop: CropRect | null): T[] {
   if (!crop) return items;
-  return items.map((item) => ({
-    ...item,
-    vx: item.vx - crop.x,
-    vy: item.vy - crop.y,
-  }));
+  return items.map((item) => ({ ...item, vx: item.vx - crop.x, vy: item.vy - crop.y }));
+}
+
+function bboxCenter(bbox: [number, number, number, number]): { x: number; y: number } {
+  const [x1, y1, x2, y2] = bbox;
+  return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+}
+
+function statusClass(status: string): string {
+  if (status === "extracted") return "vov-ledger-extracted";
+  if (status === "needs_review") return "vov-ledger-review";
+  if (status === "missing_evidence") return "vov-ledger-missing";
+  if (status === "conflict") return "vov-ledger-conflict";
+  return "vov-ledger-ignored";
 }
 
 export function VerificationPlanOverlay({
   jobId,
-  markers,
-  visualOpenings,
+  ledgerOverlay,
   page,
   onStatusChange,
 }: {
   jobId: string;
-  markers: DoorMarker[];
-  visualOpenings: VisualOpeningMarker[];
+  ledgerOverlay: LedgerPlanOverlayModel;
   page: DoorPagePersisted | null;
   onStatusChange?: (status: OverlayRenderStatus) => void;
 }) {
@@ -184,7 +138,6 @@ export function VerificationPlanOverlay({
     setState({ status: "loading" });
     (async () => {
       try {
-        // 1 · latest plan file → signed URL (same source as PlanViewer)
         const { data: files } = await supabase
           .from("uploaded_files")
           .select("storage_url, file_name")
@@ -197,13 +150,13 @@ export function VerificationPlanOverlay({
           if (active) setState({ status: "no-plan" });
           return;
         }
+
         const { data: signed } = await supabase.storage
           .from("job-files")
           .createSignedUrl(path, 60 * 10);
         if (!signed?.signedUrl) throw new Error("could not sign plan URL");
         const bytes = await (await fetch(signed.signedUrl)).arrayBuffer();
 
-        // 2 · render the engine's page with the app's pdf.js (worker via Vite ?url asset)
         const pdfjs = await import("pdfjs-dist");
         const workerUrl = (await import("pdfjs-dist/build/pdf.worker.mjs?url")).default;
         if (!pdfjs.GlobalWorkerOptions.workerSrc) {
@@ -223,55 +176,37 @@ export function VerificationPlanOverlay({
           if (!ctx) throw new Error("canvas 2d unavailable");
           await pdfPage.render({ canvasContext: ctx, viewport, canvas }).promise;
 
-          // 3 · door markers: persisted adapter space → user space → viewport
-          const placed: PlacedMarker[] = page
-            ? markers.map((m) => {
-                const { ux, uy } = adapterToUser(m.x, m.y, page.view);
-                const [vx, vy] = viewport.convertToViewportPoint(ux, uy);
-                return { ...m, vx, vy };
-              })
+          const placedLedgerRows: PlacedLedgerRow[] = page
+            ? ledgerOverlay.markedRows
+                .filter((row) => row.bbox)
+                .map((row) => {
+                  const center = bboxCenter(row.bbox!);
+                  const { ux, uy } = adapterToUser(center.x, center.y, page.view);
+                  const [vx, vy] = viewport.convertToViewportPoint(ux, uy);
+                  return { ...row, vx, vy };
+                })
             : [];
-          const planPixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-          // 4 · plan text: live from the page's own text (stitched — Qt plans split glyphs).
-          // Opening markers prefer matching W-codes/dimension labels as seeds, then snap to ink.
           const tc = await pdfPage.getTextContent();
           const stitched = stitchTextItems(
             (tc.items as Array<{ str?: string; transform?: number[]; width?: number }>)
-              .filter((i) => typeof i.str === "string" && i.transform)
-              .map((i): RawTextItem => ({ str: i.str!, transform: i.transform!, width: i.width })),
+              .filter((item) => typeof item.str === "string" && item.transform)
+              .map(
+                (item): RawTextItem => ({
+                  str: item.str!,
+                  transform: item.transform!,
+                  width: item.width,
+                }),
+              ),
           );
-          const placedVisualOpenings: PlacedVisualOpening[] = visualOpenings.map((o) => {
-            const rawX = o.x * canvas.width;
-            const rawY = o.y * canvas.height;
-            const snapped = snapPointToPlanInk(
-              planPixels.data,
-              canvas.width,
-              canvas.height,
-              rawX,
-              rawY,
-            );
-            return {
-              ...o,
-              vx: snapped.x,
-              vy: snapped.y,
-              flags: snapped.snapped ? o.flags : [...o.flags, "marker not snapped to plan line"],
-              confidence: snapped.snapped ? o.confidence : "low",
-            };
-          });
-
-          // 5 · W-codes: retained for schedule cross-checks, hidden from print by CSS.
           const wcodes: PlacedWCode[] = stitched
-            .filter((l) => isWindowCode(l.text))
-            .map((l) => {
-              const [vx, vy] = viewport.convertToViewportPoint(l.ux, l.uy);
-              return { text: l.text.trim().toUpperCase(), vx, vy };
+            .filter((label) => isWindowCode(label.text))
+            .map((label) => {
+              const [vx, vy] = viewport.convertToViewportPoint(label.ux, label.uy);
+              return { text: label.text.trim().toUpperCase(), vx, vy };
             });
 
-          const crop = cropAroundMarkers(canvas.width, canvas.height, [
-            ...placed,
-            ...placedVisualOpenings,
-          ]);
+          const crop = cropAroundMarkers(canvas.width, canvas.height, placedLedgerRows);
           const outputCanvas = crop ? cropCanvas(canvas, crop) : canvas;
           const imgUrl = outputCanvas.toDataURL("image/jpeg", 0.9);
           if (active) {
@@ -280,8 +215,7 @@ export function VerificationPlanOverlay({
               imgUrl,
               width: outputCanvas.width,
               height: outputCanvas.height,
-              markers: applyCrop(placed, crop),
-              visualOpenings: applyCrop(placedVisualOpenings, crop),
+              ledgerRows: applyCrop(placedLedgerRows, crop),
               wcodes: applyCrop(wcodes, crop),
             });
           }
@@ -300,17 +234,15 @@ export function VerificationPlanOverlay({
     return () => {
       active = false;
     };
-  }, [jobId, markers, visualOpenings, page]);
+  }, [jobId, ledgerOverlay, page]);
 
   useEffect(() => {
     onStatusChange?.(state.status);
   }, [onStatusChange, state.status]);
 
-  if (state.status === "loading") {
-    return <p className="vempty">Rendering plan overlay…</p>;
-  }
+  if (state.status === "loading") return <p className="vempty">Rendering plan overlay...</p>;
   if (state.status === "no-plan") {
-    return <p className="vempty">No plan file uploaded for this job — overlay unavailable.</p>;
+    return <p className="vempty">No plan file uploaded for this job - overlay unavailable.</p>;
   }
   if (state.status === "error") {
     return (
@@ -320,114 +252,52 @@ export function VerificationPlanOverlay({
     );
   }
 
-  const openingR = 8;
-  const doorR = 7;
   return (
     <div>
-      {!page && (
+      {ledgerOverlay.markedRows.length === 0 && (
         <div className="vbanner vbanner-compact">
           <div>
-            Door positions were not captured on this run (pre-overlay takeoff) — re-run the takeoff
-            to enable door markers. Window codes below are read live from the plan.
+            No active ledger rows have drawable bbox evidence for this run. The ledger list below is
+            the active authority; legacy visual markers are evidence-only.
           </div>
         </div>
       )}
       <div className="voverlay-wrap" style={{ aspectRatio: `${state.width} / ${state.height}` }}>
-        <img src={state.imgUrl} alt="Floor plan with takeoff overlay" />
+        <img src={state.imgUrl} alt="Floor plan with active extracted quantity overlay" />
         <svg viewBox={`0 0 ${state.width} ${state.height}`} preserveAspectRatio="xMinYMin meet">
-          {state.visualOpenings.map((o, index) => {
-            const size = sizeMm(o.height_m, o.width_m);
-            const fullTag = `${o.markerLabel} ${openingTypeLabel(o.type)}${size ? ` ${size}` : ""}`;
-            const tag =
-              o.type === "garage_door"
-                ? `${o.markerLabel} GD`
-                : `${o.markerLabel} ${openingTypeLabel(o.type)}`;
-            const w = tagWidth(tag);
-            const label = labelPlacement(o.vx, o.vy, state.width, state.height, w, index);
+          {state.ledgerRows.map((row, index) => {
+            const tag = row.extractedQuantityId;
+            const width = tagWidth(tag);
+            const label = labelPlacement(row.vx, row.vy, state.width, state.height, width, index);
+            const className = statusClass(row.status);
             return (
-              <g key={`vo-${o.markerLabel}`}>
+              <g key={row.extractedQuantityId}>
                 <title>
-                  {fullTag}
-                  {o.room ? ` · ${o.room}` : ""}
-                  {o.evidence ? ` · ${o.evidence}` : ""}
+                  {row.extractedQuantityId} - {row.category} - {row.status}
+                  {row.evidenceText ? ` - ${row.evidenceText}` : ""}
                 </title>
                 <line
-                  x1={o.vx}
-                  y1={o.vy}
+                  x1={row.vx}
+                  y1={row.vy}
                   x2={label.lineEndX}
                   y2={label.lineEndY}
-                  className={[
-                    "vov-leader",
-                    o.type === "garage_door" ? "vov-leader-garage" : "",
-                    o.confidence === "low" ? "vov-leader-low" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
+                  className={["vov-leader", className].join(" ")}
                 />
                 <circle
-                  cx={o.vx}
-                  cy={o.vy}
-                  r={openingR}
-                  className={[
-                    "vov-opening",
-                    o.confidence === "low" ? "vov-opening-low" : "",
-                    o.type === "garage_door" ? "vov-opening-garage" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
+                  cx={row.vx}
+                  cy={row.vy}
+                  r={8}
+                  className={["vov-opening", className].join(" ")}
                 />
                 <rect
                   x={label.lx}
                   y={label.ly}
-                  width={w}
+                  width={width}
                   height={16}
                   rx={2}
-                  className={[
-                    "vov-tag-bg",
-                    o.type === "garage_door" ? "vov-tag-bg-garage" : "",
-                    o.confidence === "low" ? "vov-tag-bg-low" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
+                  className={["vov-tag-bg", className].join(" ")}
                 />
                 <text x={label.tx} y={label.ty} className="vov-opening-label">
-                  {tag}
-                </text>
-              </g>
-            );
-          })}
-          {state.markers.map((m, index) => {
-            const tag = `${m.label} ${doorTypeLabel(m.type)}${m.widthMm}`;
-            const w = tagWidth(tag);
-            const label = labelPlacement(m.vx, m.vy, state.width, state.height, w, index + 1);
-            return (
-              <g key={m.label}>
-                <title>
-                  {tag}
-                  {m.note ? ` · ${m.note}` : ""}
-                </title>
-                <circle
-                  cx={m.vx}
-                  cy={m.vy}
-                  r={doorR}
-                  className={m.confidence === "flag" ? "vov-flag" : "vov-door"}
-                />
-                <line
-                  x1={m.vx}
-                  y1={m.vy}
-                  x2={label.lineEndX}
-                  y2={label.lineEndY}
-                  className={m.confidence === "flag" ? "vov-door-leader-flag" : "vov-door-leader"}
-                />
-                <rect
-                  x={label.lx}
-                  y={label.ly}
-                  width={w}
-                  height={16}
-                  rx={2}
-                  className={m.confidence === "flag" ? "vov-door-tag-bg-flag" : "vov-door-tag-bg"}
-                />
-                <text x={label.tx} y={label.ty} className="vov-label">
                   {tag}
                 </text>
               </g>

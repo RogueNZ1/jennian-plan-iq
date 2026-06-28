@@ -13,6 +13,11 @@
  */
 
 import type { EnrichedTakeoff } from "@/lib/takeoff/enriched-takeoff";
+import type { ExtractedQuantityAuthoritySource } from "@/lib/takeoff/extracted-quantity-authority";
+import type {
+  ExtractedQuantityExportRow,
+  ExtractedQuantityReadModel,
+} from "@/lib/takeoff/extracted-quantity-read-model";
 import type { VisualOpeningAuditItem } from "@/lib/takeoff/visual-opening-audit";
 
 export type DoorHitPersisted = NonNullable<EnrichedTakeoff["door_hits"]>[number];
@@ -78,6 +83,117 @@ export type OverlaySummary = {
   flagged: number;
   byType: { hinged: number; double: number; cavity: number };
 };
+
+export type LedgerOverlayRow = {
+  extractedQuantityId: string;
+  jobId: string;
+  runId: string | null;
+  category: string;
+  label?: string;
+  status: string;
+  confidence: number;
+  warnings: string[];
+  count: number | null;
+  widthMm: number | null;
+  heightMm: number | null;
+  lengthMm: number | null;
+  areaM2: number | null;
+  source: string;
+  evidencePage: number | null;
+  bbox: [number, number, number, number] | null;
+  evidenceText: string | null;
+  markerState: "drawable" | "no_marker";
+};
+
+export type LedgerPlanOverlayModel = {
+  authoritySource: ExtractedQuantityAuthoritySource;
+  jobId: string | null;
+  runId: string | null;
+  totalLedgerRows: number;
+  markedRows: LedgerOverlayRow[];
+  unmarkedRows: LedgerOverlayRow[];
+  legacyEvidence: {
+    doorHitCount: number;
+    visualOpeningCount: number;
+    warning: string;
+  };
+  warnings: string[];
+};
+
+export type LedgerPlanOverlayOptions = {
+  authoritySource?: ExtractedQuantityAuthoritySource | "none";
+  jobId?: string | null;
+  runId?: string | null;
+  legacyDoorHitCount?: number;
+  legacyVisualOpeningCount?: number;
+  warnings?: string[];
+};
+
+function usableBbox(value: unknown): value is [number, number, number, number] {
+  return (
+    Array.isArray(value) &&
+    value.length === 4 &&
+    value.every((item) => typeof item === "number" && Number.isFinite(item))
+  );
+}
+
+function firstEvidence(row: ExtractedQuantityExportRow) {
+  return row.evidence.find((item) => usableBbox(item.bbox) || item.page != null || item.text);
+}
+
+function toLedgerOverlayRow(row: ExtractedQuantityExportRow): LedgerOverlayRow {
+  const evidence = firstEvidence(row);
+  const bbox = usableBbox(evidence?.bbox) ? evidence.bbox : null;
+  return {
+    extractedQuantityId: row.id,
+    jobId: row.jobId,
+    runId: row.runId ?? null,
+    category: row.category,
+    ...(row.label ? { label: row.label } : {}),
+    status: row.status,
+    confidence: row.confidence,
+    warnings: row.warnings.map(String),
+    count: row.count,
+    widthMm: row.widthMm,
+    heightMm: row.heightMm,
+    lengthMm: row.lengthMm,
+    areaM2: row.areaM2,
+    source: row.source,
+    evidencePage: evidence?.page ?? null,
+    bbox,
+    evidenceText: evidence?.text ?? null,
+    markerState: bbox ? "drawable" : "no_marker",
+  };
+}
+
+export function buildLedgerPlanOverlayModel(
+  readModel: ExtractedQuantityReadModel | null | undefined,
+  options: LedgerPlanOverlayOptions = {},
+): LedgerPlanOverlayModel {
+  const rows = (readModel?.rows ?? []).map(toLedgerOverlayRow);
+  const markedRows = rows.filter((row) => row.markerState === "drawable");
+  const unmarkedRows = rows.filter((row) => row.markerState === "no_marker");
+  const source = options.authoritySource === "none" ? "unavailable" : options.authoritySource;
+  const legacyDoorHitCount = options.legacyDoorHitCount ?? 0;
+  const legacyVisualOpeningCount = options.legacyVisualOpeningCount ?? 0;
+  return {
+    authoritySource: source ?? (readModel ? "takeoff_json_fallback" : "unavailable"),
+    jobId: options.jobId ?? readModel?.rows[0]?.jobId ?? null,
+    runId: options.runId ?? readModel?.activeRunId ?? readModel?.runIds[0] ?? null,
+    totalLedgerRows: rows.length,
+    markedRows,
+    unmarkedRows,
+    legacyEvidence: {
+      doorHitCount: legacyDoorHitCount,
+      visualOpeningCount: legacyVisualOpeningCount,
+      warning:
+        legacyDoorHitCount > 0 || legacyVisualOpeningCount > 0
+          ? "Legacy visual evidence only - not active extracted quantity authority."
+          : "No legacy visual evidence present.",
+    },
+    warnings: options.warnings ?? [],
+  };
+}
 
 export function summariseMarkers(markers: DoorMarker[]): OverlaySummary {
   const s: OverlaySummary = {
