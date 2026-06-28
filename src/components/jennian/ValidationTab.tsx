@@ -53,7 +53,13 @@ function emptyRow(): RowState {
   };
 }
 
-export function ValidationTab({ jobId }: { jobId: string }) {
+export function ValidationTab({
+  jobId,
+  legacyContainment = false,
+}: {
+  jobId: string;
+  legacyContainment?: boolean;
+}) {
   const [measurements, setMeasurements] = useState<PlanMeasurement[]>([]);
   const [rows, setRows] = useState<Record<string, RowState>>(() =>
     Object.fromEntries(REFERENCES.map((r) => [r.key, emptyRow()])),
@@ -118,6 +124,7 @@ export function ValidationTab({ jobId }: { jobId: string }) {
   }
 
   async function persist(key: string) {
+    if (legacyContainment) return;
     const ref = REFERENCES.find((r) => r.key === key);
     if (!ref) return;
     const row = rows[key];
@@ -175,6 +182,12 @@ export function ValidationTab({ jobId }: { jobId: string }) {
           Compare printed plan / specification values against measured values. Each is kept as a
           separate quantity — Total Area, Coverage Area, and Area Over Frame are not merged.
         </div>
+        {legacyContainment && (
+          <div className="mt-2 rounded-md border border-confidence-mid/30 bg-confidence-mid/8 px-3 py-2 text-[11px] text-confidence-mid">
+            Printed reference edits are disabled here; this is compatibility evidence, not the
+            active extracted quantity authority.
+          </div>
+        )}
       </div>
       <table className="w-full text-sm">
         <thead className="bg-muted/30">
@@ -201,11 +214,17 @@ export function ValidationTab({ jobId }: { jobId: string }) {
                   <div className="inline-flex items-center gap-1.5">
                     <input
                       value={row.value}
+                      disabled={legacyContainment}
+                      title={
+                        legacyContainment
+                          ? "Printed reference edits are disabled in Review containment mode."
+                          : undefined
+                      }
                       onChange={(e) => update(ref.key, { value: e.target.value })}
                       onBlur={() => persist(ref.key)}
                       placeholder="—"
                       inputMode="decimal"
-                      className="w-24 rounded-md border border-input bg-background px-2 py-1 text-sm tabular-nums"
+                      className="w-24 rounded-md border border-input bg-background px-2 py-1 text-sm tabular-nums disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                     <span className="text-[11px] text-muted-foreground">{ref.unit}</span>
                     <span
@@ -218,11 +237,12 @@ export function ValidationTab({ jobId }: { jobId: string }) {
                 <td className="px-5 py-2.5">
                   <select
                     value={row.source}
+                    disabled={legacyContainment}
                     onChange={(e) =>
                       update(ref.key, { source: e.target.value as RowState["source"] })
                     }
                     onBlur={() => persist(ref.key)}
-                    className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+                    className="rounded-md border border-input bg-background px-2 py-1 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <option value="Uploaded Plan Text">Uploaded Plan Text</option>
                     <option value="Uploaded Specification Text">Uploaded Specification Text</option>
@@ -231,20 +251,22 @@ export function ValidationTab({ jobId }: { jobId: string }) {
                 <td className="px-5 py-2.5">
                   <input
                     value={row.evidence}
+                    disabled={legacyContainment}
                     onChange={(e) => update(ref.key, { evidence: e.target.value })}
                     onBlur={() => persist(ref.key)}
                     placeholder="e.g. Area box on floorplan page"
-                    className="w-56 rounded-md border border-input bg-background px-2 py-1 text-xs"
+                    className="w-56 rounded-md border border-input bg-background px-2 py-1 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </td>
                 <td className="px-5 py-2.5">
                   <select
                     value={row.confidence}
+                    disabled={legacyContainment}
                     onChange={(e) =>
                       update(ref.key, { confidence: e.target.value as RowState["confidence"] })
                     }
                     onBlur={() => persist(ref.key)}
-                    className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+                    className="rounded-md border border-input bg-background px-2 py-1 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <option value="high">High</option>
                     <option value="mid">Medium</option>

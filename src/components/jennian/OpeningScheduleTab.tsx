@@ -41,10 +41,16 @@ const OPENING_TARGETS: Record<string, IQModuleId[]> = {
   unknown_opening: ["iq-core"],
 };
 
-export function OpeningScheduleTab({ jobId }: { jobId: string }) {
+export function OpeningScheduleTab({
+  jobId,
+  legacyContainment = false,
+}: {
+  jobId: string;
+  legacyContainment?: boolean;
+}) {
   const { user } = useAuth();
   const roles = useRoles();
-  const canEdit = roles.canWrite;
+  const canEdit = roles.canWrite && !legacyContainment;
   const [rows, setRows] = useState<Opening[]>([]);
   const [loading, setLoading] = useState(true);
   const [draftWidth, setDraftWidth] = useState("");
@@ -76,6 +82,10 @@ export function OpeningScheduleTab({ jobId }: { jobId: string }) {
   }, [jobId]);
 
   async function addRow() {
+    if (legacyContainment) {
+      toast.error("Legacy opening_schedule edits are quarantined in Review.");
+      return;
+    }
     if (!user) return;
     const w = Number(draftWidth);
     if (!w || w <= 0) {
@@ -104,6 +114,10 @@ export function OpeningScheduleTab({ jobId }: { jobId: string }) {
   }
 
   async function patch(o: Opening, p: Partial<Opening>) {
+    if (legacyContainment) {
+      toast.error("Legacy opening_schedule edits are quarantined in Review.");
+      return;
+    }
     if (p.review_status === "confirmed" && isBlockedReviewOnlyOpening(o)) {
       toast.error(blockedOpeningActionMessage("confirm"));
       return;
@@ -117,6 +131,10 @@ export function OpeningScheduleTab({ jobId }: { jobId: string }) {
   }
 
   async function remove(o: Opening) {
+    if (legacyContainment) {
+      toast.error("Legacy opening_schedule deletes are quarantined in Review.");
+      return;
+    }
     try {
       await deleteOpening(o.id);
       setRows((rs) => rs.filter((r) => r.id !== o.id));
@@ -136,6 +154,10 @@ export function OpeningScheduleTab({ jobId }: { jobId: string }) {
       notes: string | null;
     },
   ) {
+    if (legacyContainment) {
+      toast.error("Legacy opening_schedule pushes are quarantined in Review.");
+      return;
+    }
     if (!user) return;
     if (isBlockedReviewOnlyOpening(o)) {
       toast.error(blockedOpeningActionMessage("push"));
@@ -178,12 +200,31 @@ export function OpeningScheduleTab({ jobId }: { jobId: string }) {
     <div className="rounded-lg border border-border bg-card overflow-hidden">
       <div className="px-5 py-3 border-b border-border flex items-center justify-between">
         <div>
-          <div className="text-[13px] font-semibold tracking-tight">Windows & Doors</div>
+          <div className="text-[13px] font-semibold tracking-tight">
+            Windows & Doors {legacyContainment ? "(legacy compatibility evidence)" : ""}
+          </div>
           <div className="text-[11px] text-muted-foreground mt-0.5">
-            Extracted opening sizes for this job. Confirm each row to lock the type and dimensions.
+            {legacyContainment
+              ? "opening_schedule rows are shown for compatibility review only. They are not the active extracted quantity authority."
+              : "Extracted opening sizes for this job. Confirm each row to lock the type and dimensions."}
           </div>
         </div>
       </div>
+
+      {legacyContainment && (
+        <div className="mx-5 mt-4 rounded-md border border-confidence-mid/30 bg-confidence-mid/8 px-3 py-2 text-xs text-confidence-mid">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <div className="font-semibold">Legacy compatibility only</div>
+              <div className="mt-0.5 text-muted-foreground">
+                Add, edit, confirm, delete, and push-to-module actions are disabled here so
+                opening_schedule cannot become a second active quantity authority beside the ledger.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {canEdit && (
         <div className="px-5 py-3 border-b border-border bg-muted/30 flex items-end gap-2 flex-wrap">

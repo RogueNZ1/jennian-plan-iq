@@ -60,6 +60,7 @@ import { VisionTakeoffDialog } from "@/components/jennian/VisionTakeoffDialog";
 import { loadExtractedQuantityAuthorityForJob } from "@/lib/takeoff/extracted-quantity-authority";
 import {
   buildExtractedQuantityReviewModel,
+  reviewHasLegacyDataBesideLedger,
   type ExtractedQuantityReviewModel,
 } from "@/lib/review/extracted-quantity-review-model";
 import type { ExtractedQuantityExportRow } from "@/lib/takeoff/extracted-quantity-read-model";
@@ -101,6 +102,7 @@ function ReviewPage() {
   } | null>(null);
   const [measurementCount, setMeasurementCount] = useState<number>(0);
   const [openingsCount, setOpeningsCount] = useState<number>(0);
+  const [printedReferenceCount, setPrintedReferenceCount] = useState<number>(0);
   const [tab, setTab] = useState<string>(
     initialTab &&
       ["extracted", "base", "working", "openings", "walls", "validation", "assumptions"].includes(
@@ -143,7 +145,7 @@ function ReviewPage() {
       )
       .finally(() => setExtractedQuantityLoading(false));
     (async () => {
-      const [m, o] = await Promise.all([
+      const [m, o, p] = await Promise.all([
         supabase
           .from("plan_measurements")
           .select("id", { count: "exact", head: true })
@@ -152,9 +154,15 @@ function ReviewPage() {
           .from("opening_schedule")
           .select("id", { count: "exact", head: true })
           .eq("job_id", jobId),
+        supabase
+          .from("extracted_quantities")
+          .select("id", { count: "exact", head: true })
+          .eq("job_id", jobId)
+          .in("data_source", ["Uploaded Plan Text", "Uploaded Specification Text"]),
       ]);
       setMeasurementCount(m.count ?? 0);
       setOpeningsCount(o.count ?? 0);
+      setPrintedReferenceCount(p.count ?? 0);
     })();
     supabase
       .from("module_items")
@@ -171,49 +179,16 @@ function ReviewPage() {
       );
   }, [jobId]);
 
-  async function override(row: Quantity, raw: string, reason: string) {
-    const newValue = Number(raw);
-    if (Number.isNaN(newValue)) return toast.error("Value must be a number.");
-    const original = row.approved_value ?? row.extracted_value;
-    if (newValue === original) return;
-    const { error: ovErr } = await supabase.from("quantity_overrides").insert({
-      quantity_id: row.id,
-      original_value: original,
-      new_value: newValue,
-      edited_by: user!.id,
-      reason: reason || null,
-    });
-    if (ovErr) return toast.error(ovErr.message);
-    const { error: upErr } = await supabase
-      .from("extracted_quantities")
-      .update({ approved_value: newValue, confidence: "high" })
-      .eq("id", row.id);
-    if (upErr) return toast.error(upErr.message);
-    setRows((rs) =>
-      rs.map((r) => (r.id === row.id ? { ...r, approved_value: newValue, confidence: "high" } : r)),
+  async function override(_row: Quantity, _raw: string, _reason: string) {
+    toast.error(
+      "Legacy quantity overrides are quarantined. Use the Extracted Quantities ledger as the active authority.",
     );
-    const fresh = await listOverrides(jobId!);
-    setAudit(fresh);
-    toast.success("Quantity updated.");
   }
 
-  async function confirmAssumedItem(itemId: string, newValue: string) {
-    const { error } = await supabase
-      .from("module_items")
-      .update({ approved_value: newValue, value_source: "confirmed", confidence: "high" })
-      .eq("id", itemId);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    setModuleItems((prev) =>
-      prev.map((i) =>
-        i.id === itemId
-          ? { ...i, approved_value: newValue, value_source: "confirmed", confidence: "high" }
-          : i,
-      ),
+  async function confirmAssumedItem(_itemId: string, _newValue: string) {
+    toast.error(
+      "Legacy module confirmations are quarantined in Review until ledger-backed corrections are designed.",
     );
-    toast.success("Item confirmed.");
   }
 
   async function approve() {
@@ -297,6 +272,14 @@ function ReviewPage() {
     );
   }
 
+  const hasLegacyDataWarning = reviewHasLegacyDataBesideLedger({
+    activeLedgerRows: extractedQuantityReview?.readModel?.rows.length ?? 0,
+    legacyOpeningRows: openingsCount,
+    legacyQuantityRows: rows.length,
+    legacyModuleItems: moduleItems.length,
+    printedReferenceRows: printedReferenceCount,
+  });
+
   return (
     <AppLayout>
       <div className="px-8 py-8 max-w-7xl">
@@ -370,6 +353,17 @@ function ReviewPage() {
 
         <ModulesOverview jobId={job.id} />
 
+        {hasLegacyDataWarning && (
+          <div className="mb-6 rounded-lg border border-confidence-mid/30 bg-confidence-mid/8 px-4 py-3 text-[12.5px] text-confidence-mid">
+            <div className="font-semibold">Extracted Quantities is the active authority.</div>
+            <div className="mt-1 text-muted-foreground">
+              Legacy Review data exists beside the active ledger. Base Geometry, Windows & Doors,
+              Internal Walls, Validation, and Assumptions are compatibility/reference views only;
+              their quantity write actions are quarantined in this slice.
+            </div>
+          </div>
+        )}
+
         {rows.length === 0 && measurementCount === 0 && openingsCount === 0 && (
           <div className="mb-6 rounded-lg border border-border bg-card p-6">
             <div className="text-[15px] font-semibold tracking-tight">No Quantity Data Yet</div>
@@ -413,13 +407,13 @@ function ReviewPage() {
         <Tabs value={tab} onValueChange={setTab} className="w-full">
           <TabsList className="mb-5">
             <TabsTrigger value="extracted">Extracted Quantities</TabsTrigger>
-            <TabsTrigger value="base">Base Geometry</TabsTrigger>
+            <TabsTrigger value="base">Base Geometry (legacy)</TabsTrigger>
             <TabsTrigger value="working">Working Plan</TabsTrigger>
-            <TabsTrigger value="openings">Windows & Doors</TabsTrigger>
-            <TabsTrigger value="walls">Internal Walls</TabsTrigger>
-            <TabsTrigger value="validation">Validation</TabsTrigger>
+            <TabsTrigger value="openings">Windows & Doors (legacy)</TabsTrigger>
+            <TabsTrigger value="walls">Internal Walls (reference)</TabsTrigger>
+            <TabsTrigger value="validation">Validation (reference)</TabsTrigger>
             <TabsTrigger value="assumptions">
-              Assumptions
+              Assumptions (legacy)
               {moduleItems.filter((i) => i.value_source === "assumed").length > 0 && (
                 <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
                   {moduleItems.filter((i) => i.value_source === "assumed").length}
@@ -436,6 +430,10 @@ function ReviewPage() {
           </TabsContent>
 
           <TabsContent value="base">
+            <LegacyAuthorityNotice
+              title="Base Geometry is legacy compatibility data"
+              body="These extracted_quantities rows are shown for audit history only. Inline overrides are disabled so they cannot become a second active quantity authority beside the extracted quantity ledger."
+            />
             <div className="grid lg:grid-cols-[1fr_320px] gap-6">
               <div className="space-y-5">
                 {rows.length === 0 && (
@@ -510,7 +508,7 @@ function ReviewPage() {
                                 {r.source_evidence || r.notes || "—"}
                               </td>
                               <td className="px-5 py-3 text-right">
-                                <OverrideInput row={r} onSave={override} />
+                                <OverrideInput row={r} onSave={override} disabled />
                               </td>
                             </tr>
                           ))}
@@ -587,19 +585,27 @@ function ReviewPage() {
           </TabsContent>
 
           <TabsContent value="openings">
-            <OpeningScheduleTab jobId={job.id} />
+            <OpeningScheduleTab jobId={job.id} legacyContainment />
           </TabsContent>
 
           <TabsContent value="walls">
+            <LegacyAuthorityNotice
+              title="Internal Walls is reference measurement data"
+              body="This tab shows plan_measurements for compatibility review. It is not the active extracted quantity authority for Review totals."
+            />
             <InternalWallsTab jobId={job.id} />
           </TabsContent>
 
           <TabsContent value="validation">
-            <ValidationTab jobId={job.id} />
+            <ValidationTab jobId={job.id} legacyContainment />
           </TabsContent>
 
           <TabsContent value="assumptions">
-            <ConceptAssumptionsTab items={moduleItems} onConfirm={confirmAssumedItem} />
+            <ConceptAssumptionsTab
+              items={moduleItems}
+              onConfirm={confirmAssumedItem}
+              legacyContainment
+            />
           </TabsContent>
         </Tabs>
       </div>
@@ -641,6 +647,15 @@ type ModuleItemRow = {
   description: string | null;
   sort_order: number | null;
 };
+
+function LegacyAuthorityNotice({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="mb-4 rounded-lg border border-confidence-mid/30 bg-confidence-mid/8 px-4 py-3 text-[12.5px] text-confidence-mid">
+      <div className="font-semibold">{title}</div>
+      <div className="mt-1 text-muted-foreground">{body}</div>
+    </div>
+  );
+}
 
 function nullCell(value: number | string | null | undefined): string {
   return value === null || value === undefined || value === "" ? "null" : String(value);
@@ -858,9 +873,11 @@ function ValueSourceBadge({ source }: { source: string | null }) {
 function AssumedItemRow({
   item,
   onConfirm,
+  disabled = false,
 }: {
   item: ModuleItemRow;
   onConfirm: (id: string, value: string) => void;
+  disabled?: boolean;
 }) {
   const [editVal, setEditVal] = useState(item.approved_value ?? item.extracted_value ?? "");
   const [editing, setEditing] = useState(false);
@@ -902,10 +919,13 @@ function AssumedItemRow({
               <button
                 type="button"
                 onClick={() => {
+                  if (disabled) return;
                   onConfirm(item.id, editVal);
                   setEditing(false);
                 }}
-                className="rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:opacity-90"
+                disabled={disabled}
+                title={disabled ? "Legacy module confirmations are quarantined in Review." : "Save"}
+                className="rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save
               </button>
@@ -923,10 +943,18 @@ function AssumedItemRow({
           ) : (
             <button
               type="button"
-              onClick={() => setEditing(true)}
-              className="rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:bg-accent"
+              onClick={() => {
+                if (!disabled) setEditing(true);
+              }}
+              disabled={disabled}
+              title={
+                disabled
+                  ? "Legacy module confirmations are quarantined in Review."
+                  : "Edit and confirm"
+              }
+              className="rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Edit & Confirm
+              {disabled ? "Quarantined" : "Edit & Confirm"}
             </button>
           ))}
       </td>
@@ -937,9 +965,11 @@ function AssumedItemRow({
 function ConceptAssumptionsTab({
   items,
   onConfirm,
+  legacyContainment = false,
 }: {
   items: ModuleItemRow[];
   onConfirm: (id: string, value: string) => void;
+  legacyContainment?: boolean;
 }) {
   const assumed = items.filter((i) => i.value_source === "assumed");
   const confirmed = items.filter((i) => i.value_source === "confirmed");
@@ -951,6 +981,11 @@ function ConceptAssumptionsTab({
         <strong>{assumed.length}</strong> items below use Jennian standard allowances. Edit and
         confirm each to improve accuracy. <strong>{confirmed.length}</strong> confirmed ·{" "}
         <strong>{extracted.length}</strong> extracted from plans.
+        {legacyContainment && (
+          <span className="ml-2 font-medium">
+            Confirmation is disabled here; these are legacy module values, not ledger corrections.
+          </span>
+        )}
       </div>
 
       {assumed.length === 0 ? (
@@ -979,7 +1014,12 @@ function ConceptAssumptionsTab({
             </thead>
             <tbody>
               {assumed.map((item) => (
-                <AssumedItemRow key={item.id} item={item} onConfirm={onConfirm} />
+                <AssumedItemRow
+                  key={item.id}
+                  item={item}
+                  onConfirm={onConfirm}
+                  disabled={legacyContainment}
+                />
               ))}
             </tbody>
           </table>
@@ -1076,9 +1116,11 @@ function InternalWallsTab({ jobId }: { jobId: string }) {
 function OverrideInput({
   row,
   onSave,
+  disabled = false,
 }: {
   row: Quantity;
   onSave: (r: Quantity, value: string, reason: string) => void;
+  disabled?: boolean;
 }) {
   const [val, setVal] = useState(String(row.approved_value ?? row.extracted_value));
   const [pending, setPending] = useState<{ value: string } | null>(null);
@@ -1087,12 +1129,19 @@ function OverrideInput({
     <>
       <input
         value={val}
+        disabled={disabled}
+        title={
+          disabled
+            ? "Legacy overrides are disabled; Extracted Quantities is the active authority."
+            : undefined
+        }
         onChange={(e) => setVal(e.target.value)}
         onBlur={() => {
+          if (disabled) return;
           if (val === original) return;
           setPending({ value: val });
         }}
-        className="w-24 rounded-md border border-input bg-background px-2 py-1 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+        className="w-24 rounded-md border border-input bg-background px-2 py-1 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60 disabled:cursor-not-allowed"
       />
       <OverrideReasonDialog
         open={!!pending}
