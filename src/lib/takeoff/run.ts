@@ -1002,6 +1002,8 @@ export async function runAutomaticTakeoff(args: {
                     visualOpeningAudit,
                     visualOpeningAuditRequired: true,
                     elevationData: elev,
+                    jobId,
+                    runId,
                   });
                   console.info("[concept-compose] enriched takeoff:", {
                     floor_area_m2: composed.enriched.floor_area_m2.value,

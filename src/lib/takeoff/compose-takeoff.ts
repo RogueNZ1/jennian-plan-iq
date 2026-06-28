@@ -78,6 +78,7 @@ import {
   pricingBlockFromMissingAiOpeningCheck,
   pricingBlockFromVisualReconciliation,
 } from "./opening-pricing-adjudication";
+import { buildExtractedQuantityLedger } from "./extracted-quantity-ledger";
 
 export type ComposeTakeoffInput = {
   /** The vision-extracted takeoff (already returned by extractConceptTakeoffs). */
@@ -112,6 +113,10 @@ export type ComposeTakeoffInput = {
   visualOpeningAuditRequired?: boolean;
   /** Structured elevation opening ledger; used only for strict visual-recovery cases. */
   elevationData?: ElevationData | null;
+  /** Optional persistence context for the additive Extracted Quantity Ledger. */
+  jobId?: string;
+  runId?: string;
+  ledgerTimestamp?: string;
 };
 
 function roundArea(n: number): number {
@@ -965,7 +970,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
         ? "vector"
         : "vision";
 
-  const enriched: EnrichedTakeoff = {
+  const enrichedBase: EnrichedTakeoff = {
     floor_area_m2: fv(
       t.floor_area_m2,
       floorAreaDecision.source,
@@ -1183,6 +1188,16 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
             ),
           ),
         }),
+  };
+
+  const enriched: EnrichedTakeoff = {
+    ...enrichedBase,
+    extracted_quantities: buildExtractedQuantityLedger({
+      enriched: enrichedBase,
+      jobId: input.jobId,
+      runId: input.runId,
+      now: input.ledgerTimestamp,
+    }),
   };
 
   return { enriched, reconciliation, pageReconcile, scheduleSafeguard };

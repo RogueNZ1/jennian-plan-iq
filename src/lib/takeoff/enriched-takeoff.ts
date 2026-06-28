@@ -23,6 +23,7 @@ import type {
 import type { VisualOpeningAudit } from "./visual-opening-audit";
 import type { VisualOpeningReconciliation } from "./visual-opening-reconciliation";
 import type { OpeningEvidenceCandidate } from "./opening-evidence";
+import type { ExtractedQuantity } from "./extracted-quantity-ledger";
 
 export type OpeningAiCheck = {
   method: "ai_opening_review";
@@ -110,6 +111,11 @@ export type EnrichedTakeoff = {
   visual_opening_audit?: VisualOpeningAudit | null;
   visual_opening_reconciliation?: VisualOpeningReconciliation | null;
   opening_ai_check?: OpeningAiCheck | null;
+  /**
+   * Extracted Quantity Ledger: the numbers-first read model. This is additive and separate
+   * from opening pricing; uncertain dimensions stay null and review rows stay visible.
+   */
+  extracted_quantities?: ExtractedQuantity[] | null;
   /**
    * Geometry room footprints (label + measured width/depth), persisted so they survive the
    * run: the crop-on-anomaly gate (missing-window detector) and the crop localizer's

@@ -26,6 +26,12 @@ import {
   parseSpecifications,
 } from "./specs/spec-schema";
 import type { Opening } from "@/lib/takeoff/takeoff-types";
+import type { ExtractedQuantity } from "@/lib/takeoff/extracted-quantity-ledger";
+import {
+  buildExtractedQuantityReadModel,
+  type ExtractedQuantityReadModel,
+} from "@/lib/takeoff/extracted-quantity-read-model";
+import { buildExtractedQuantitiesSheet } from "@/lib/takeoff/extracted-quantity-export";
 
 // All export date stamps are NZT regardless of runtime TZ (12 Jun): CI runs UTC, and the
 // previous ISO slice stamped *yesterday* on every export generated after 1pm NZ time.
@@ -211,6 +217,10 @@ export type QSExportData = {
    * fallback. Optional so existing QSExportData literals + the .xlsx output are unaffected.
    */
   openings?: Opening[] | null;
+  /** Numbers-first ledger rows from the enriched takeoff. Passive read model for this slice. */
+  extractedQuantities?: ExtractedQuantity[] | null;
+  /** Grouped numbers-only read model. Clean totals include only status === "extracted". */
+  extractedQuantityReadModel?: ExtractedQuantityReadModel | null;
   /** True when the enriched opening engine ran but deliberately blocked pricing/export totals. */
   openingPricingBlocked?: boolean;
 };
@@ -472,6 +482,7 @@ export function applyEnrichedTakeoff(
   const studM = enriched.ceiling_height_m.value;
   const enrichedOpenings = enriched.openings ?? null;
   const openingPricingBlocked = hasOpeningPricingBlock(enriched);
+  const extractedQuantities = enriched.extracted_quantities ?? null;
   return {
     ...base,
     floorAreaM2: enriched.floor_area_m2.value ?? base.floorAreaM2,
@@ -489,6 +500,10 @@ export function applyEnrichedTakeoff(
     // Stage 2a — thread the flat opening list through. Present only on the enriched path;
     // the relational fallback above leaves it undefined.
     openings: enrichedOpenings,
+    extractedQuantities,
+    extractedQuantityReadModel: extractedQuantities
+      ? buildExtractedQuantityReadModel(extractedQuantities)
+      : null,
     openingPricingBlocked,
     // Blocked enriched openings must not fall back into stale relational schedule rows.
     windows: openingPricingBlocked ? [] : base.windows,
@@ -2127,6 +2142,10 @@ export async function writeIQDataSheetFull(
   // is byte-identical to today.
   const wsFlags = buildReviewNotesSheet(data.reviewFlags);
   if (wsFlags) XLSX.utils.book_append_sheet(wb, wsFlags, "Review Notes");
+  const wsExtractedQuantities = buildExtractedQuantitiesSheet(data.extractedQuantityReadModel);
+  if (wsExtractedQuantities) {
+    XLSX.utils.book_append_sheet(wb, wsExtractedQuantities, "Extracted Quantities");
+  }
 
   // Data sheet with amber fill for assumed rows
   const dataHeader = ["Module", "Label", "Value", "Unit", "Source"];
