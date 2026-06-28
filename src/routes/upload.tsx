@@ -1016,6 +1016,7 @@ function UploadPage() {
         geometryPageIndex,
         doorEngine,
         visualOpeningAudit,
+        visualOpeningAuditRequired: true,
         elevationData: elev,
       });
       // composeTakeoff now returns the ENRICHED per-field shape (Slice 2). Unwrap to the bare

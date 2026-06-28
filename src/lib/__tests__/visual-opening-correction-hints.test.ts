@@ -84,7 +84,8 @@ describe("visual opening correction hints", () => {
     });
     expect(prompt).toContain("GLOBAL HUMAN-CORRECTION PATTERNS");
     expect(prompt).toContain("2 prior corrections: not_opening originally marked external_door");
-    expect(prompt).toContain("GLOBAL HUMAN-CORRECTION EXAMPLES");
+    expect(prompt).not.toContain("GLOBAL HUMAN-CORRECTION EXAMPLES");
+    expect(prompt).not.toContain("Different cladding panel, not a front door.");
   });
 
   it("does not emit prompt text when no corrections exist", () => {

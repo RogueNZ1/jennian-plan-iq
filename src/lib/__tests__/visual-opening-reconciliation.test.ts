@@ -100,7 +100,7 @@ describe("visual-opening-reconciliation", () => {
       "outside the garage-door plausibility band",
     );
     expect(visualReconciliationFlags(report, "windows_by_room").join(" ")).toContain(
-      "Visual QS found 3 QS-glazed",
+      "AI opening check found 3 QS-glazed",
     );
   });
 });

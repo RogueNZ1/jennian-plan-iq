@@ -30,6 +30,7 @@ const GARAGE_WINDOW_MAX_WIDTH_M = 3.6;
 const NON_GARAGE_MAX_HEIGHT_M = 3.2;
 const NON_GARAGE_MAX_AREA_M2 = 16;
 const MAX_ASPECT_RATIO = 8;
+const ASSERTED_HEIGHT_RE = /height assumed standard/i;
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -52,6 +53,14 @@ export function openingQuarantineReasons(opening: Opening): string[] {
   if (!isFinitePositive(width)) reasons.push("missing_width");
   if (!isFinitePositive(height)) reasons.push("missing_height");
   if (!Number.isFinite(area) || area < 0) reasons.push("invalid_area");
+  if (
+    opening.type !== "sectional_door" &&
+    (opening.height_source === "asserted" ||
+      opening.source === "asserted" ||
+      (opening.flags ?? []).some((flag) => ASSERTED_HEIGHT_RE.test(flag)))
+  ) {
+    reasons.push("asserted_height");
+  }
 
   if (opening.type === "sectional_door") return reasons;
 
@@ -117,6 +126,29 @@ export function pricingBlockFromVisualReconciliation(
   return {
     reason: "visual_reconciliation_error",
     flag: `Opening pricing blocked: unresolved Visual QS reconciliation error. ${joined}`,
+  };
+}
+
+export function pricingBlockFromMissingAiOpeningCheck(args: {
+  required: boolean;
+  visualAuditPresent: boolean;
+}): OpeningPricingBlock | null {
+  if (!args.required || args.visualAuditPresent) return null;
+  return {
+    reason: "ai_opening_check_missing",
+    flag: "Opening pricing blocked: AI opening check did not complete, so external openings cannot be priced from this run.",
+  };
+}
+
+export function combineOpeningPricingBlocks(
+  blocks: Array<OpeningPricingBlock | null | undefined>,
+): OpeningPricingBlock | null {
+  const present = blocks.filter((block): block is OpeningPricingBlock => block != null);
+  if (present.length === 0) return null;
+  if (present.length === 1) return present[0];
+  return {
+    reason: present.map((block) => block.reason).join("+"),
+    flag: present.map((block) => block.flag).join(" "),
   };
 }
 

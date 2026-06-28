@@ -24,6 +24,14 @@ import type { VisualOpeningAudit } from "./visual-opening-audit";
 import type { VisualOpeningReconciliation } from "./visual-opening-reconciliation";
 import type { OpeningEvidenceCandidate } from "./opening-evidence";
 
+export type OpeningAiCheck = {
+  method: "ai_opening_review";
+  required: boolean;
+  visualAuditPresent: boolean;
+  status: "pass" | "review" | "blocked";
+  flags: string[];
+};
+
 /** Where a field's value came from (the provenance we already track in the seam). */
 export type FieldSource =
   | "geometry" // measured by the geometry engine (floor area, perimeter, …)
@@ -101,6 +109,7 @@ export type EnrichedTakeoff = {
    */
   visual_opening_audit?: VisualOpeningAudit | null;
   visual_opening_reconciliation?: VisualOpeningReconciliation | null;
+  opening_ai_check?: OpeningAiCheck | null;
   /**
    * Geometry room footprints (label + measured width/depth), persisted so they survive the
    * run: the crop-on-anomaly gate (missing-window detector) and the crop localizer's

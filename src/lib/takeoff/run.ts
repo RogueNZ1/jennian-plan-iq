@@ -936,7 +936,18 @@ export async function runAutomaticTakeoff(args: {
                           }),
                         )
                         .catch(() => null)
-                    : Promise.resolve(null);
+                    : visualCorrectionMemoryP
+                        .then((humanCorrectionMemory) =>
+                          extractVisualOpeningAuditFn({
+                            data: {
+                              imageBase64: b64,
+                              pageNumber: workingPageNumber ?? null,
+                              elevationImageBase64: null,
+                              humanCorrectionMemory,
+                            },
+                          }),
+                        )
+                        .catch(() => null);
                   const [elevRaw, elevVectorEvidence, visualOpeningAudit] = await Promise.all([
                     elevationImageBase64
                       ? extractElevationsFn({
@@ -989,6 +1000,7 @@ export async function runAutomaticTakeoff(args: {
                     geometryPageIndex,
                     doorEngine,
                     visualOpeningAudit,
+                    visualOpeningAuditRequired: true,
                     elevationData: elev,
                   });
                   console.info("[concept-compose] enriched takeoff:", {
@@ -1003,7 +1015,7 @@ export async function runAutomaticTakeoff(args: {
                       elevations: elevationSource
                         ? `${elevationSource.fileName} p${elevationSource.pageNumber}`
                         : null,
-                      visual_audit: elevationImageBase64 != null ? "floor+elevation" : null,
+                      visual_audit: elevationImageBase64 != null ? "floor+elevation" : "floor",
                     },
                     reconciliation_flags: composed.reconciliation.flags.length,
                     page_agreed: composed.pageReconcile.agreed,
@@ -1023,6 +1035,31 @@ export async function runAutomaticTakeoff(args: {
                   canonicalPersisted = persistResult.written;
                   if (!persistResult.written) {
                     canonicalSkipReason = `takeoff_json write failed: ${persistResult.error ?? "unknown"}`;
+                  }
+                  if (persistResult.written) {
+                    const { projectEnrichedOpeningsToSchedule } =
+                      await import("./opening-schedule-projection");
+                    const projectionResult = await projectEnrichedOpeningsToSchedule(
+                      supabase as never,
+                      {
+                        jobId,
+                        createdBy: userId,
+                        openings: composed.enriched.openings,
+                        openingEvidence: composed.enriched.opening_evidence,
+                        pricingBlocked:
+                          composed.enriched.external_wall_area_m2.discrepancy_flags.some((flag) =>
+                            flag.startsWith("Opening pricing blocked:"),
+                          ) ||
+                          (composed.enriched.opening_evidence ?? []).some((candidate) =>
+                            candidate.conflicts.includes("visual_reconciliation_error"),
+                          ),
+                      },
+                    );
+                    if (!projectionResult.written) {
+                      canonicalSkipReason = `opening_schedule projection failed: ${
+                        projectionResult.error ?? "unknown"
+                      }`;
+                    }
                   }
                 }
               } catch (reconErr) {

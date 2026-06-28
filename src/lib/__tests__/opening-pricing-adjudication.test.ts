@@ -22,6 +22,25 @@ function opening(overrides: Partial<Opening> = {}): Opening {
 }
 
 describe("opening pricing adjudication", () => {
+  it("keeps asserted-height external openings out of priced openings", () => {
+    const adjudication = adjudicateOpeningPricing([
+      opening({
+        type: "pa_door",
+        room: "Laundry",
+        height_m: 2.1,
+        width_m: 1.03,
+        area_m2: 2.16,
+        source: "callout",
+        height_source: "asserted",
+        flags: ["height assumed standard 2.1m — confirm against the elevation/joinery schedule"],
+      }),
+    ]);
+
+    expect(adjudication.pricedOpenings).toHaveLength(0);
+    expect(adjudication.quarantinedOpenings).toHaveLength(1);
+    expect(adjudication.quarantinedOpenings[0].reasons).toContain("asserted_height");
+  });
+
   it("moves locally valid openings to held-blocked when aggregate pricing is blocked", () => {
     const adjudication = adjudicateOpeningPricing([
       opening(),

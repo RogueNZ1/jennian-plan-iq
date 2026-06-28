@@ -74,6 +74,8 @@ import { normaliseGarageDoorSizeLabel } from "./garage-door-size";
 import {
   adjudicateOpeningPricing,
   applyOpeningPricingBlock,
+  combineOpeningPricingBlocks,
+  pricingBlockFromMissingAiOpeningCheck,
   pricingBlockFromVisualReconciliation,
 } from "./opening-pricing-adjudication";
 
@@ -103,6 +105,11 @@ export type ComposeTakeoffInput = {
     | null;
   /** Visual QS external-opening audit; promoted only through strict plausibility/recovery gates. */
   visualOpeningAudit?: VisualOpeningAudit | null;
+  /**
+   * True when the caller attempted/required the AI opening review for this run. If the review
+   * is missing, opening-derived money fields fail closed instead of treating silence as approval.
+   */
+  visualOpeningAuditRequired?: boolean;
   /** Structured elevation opening ledger; used only for strict visual-recovery cases. */
   elevationData?: ElevationData | null;
 };
@@ -863,9 +870,40 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     openings: sanityPricedOpenings,
     garageDoorSize: composedGarageDoorSize,
   });
+  const aiOpeningCheckRequired = input.visualOpeningAuditRequired === true;
+  const aiOpeningCheckFlags = [
+    ...(recoveredVisualOpeningAudit
+      ? []
+      : aiOpeningCheckRequired
+        ? [
+            "AI opening check did not complete; external openings are review-only until rerun/reconciled.",
+          ]
+        : []),
+    ...(visualOpeningReconciliation?.issues ?? [])
+      .filter((issue) => issue.severity === "error")
+      .map((issue) => issue.message),
+  ];
+  const aiOpeningCheck = {
+    method: "ai_opening_review" as const,
+    required: aiOpeningCheckRequired,
+    visualAuditPresent: recoveredVisualOpeningAudit != null,
+    status:
+      aiOpeningCheckFlags.length > 0
+        ? ("blocked" as const)
+        : visualOpeningReconciliation?.status === "review"
+          ? ("review" as const)
+          : ("pass" as const),
+    flags: aiOpeningCheckFlags,
+  };
   const openingPricingAdjudication = applyOpeningPricingBlock(
     sanityOpeningPricing,
-    pricingBlockFromVisualReconciliation(visualOpeningReconciliation),
+    combineOpeningPricingBlocks([
+      pricingBlockFromVisualReconciliation(visualOpeningReconciliation),
+      pricingBlockFromMissingAiOpeningCheck({
+        required: aiOpeningCheckRequired,
+        visualAuditPresent: recoveredVisualOpeningAudit != null,
+      }),
+    ]),
   );
   const pricedComposedOpenings = normaliseOpeningsForQs(openingPricingAdjudication.pricedOpenings);
   const localOpeningTotals = deriveOpeningTotals(pricedComposedOpenings);
@@ -1066,6 +1104,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     ...(visualOpeningReconciliation
       ? { visual_opening_reconciliation: visualOpeningReconciliation }
       : {}),
+    opening_ai_check: aiOpeningCheck,
     // Persist the geometry room footprints (labels + dims) — the crop-on-anomaly gate and
     // the crop localizer need them after the run. Conditional spread: payloads from
     // geometry-less runs stay byte-identical to today.

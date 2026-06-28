@@ -222,6 +222,9 @@ function openingPricingBlockFlags(data: QSExportData, e: EnrichedTakeoff | null)
   for (const issue of e?.visual_opening_reconciliation?.issues ?? []) {
     if (issue.severity === "error") flags.push(`Visual QS reconciliation: ${issue.message}`);
   }
+  for (const flag of e?.opening_ai_check?.flags ?? []) {
+    flags.push(`AI opening check: ${flag}`);
+  }
   return [...new Set(flags)];
 }
 

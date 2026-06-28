@@ -15,6 +15,7 @@ output/diagnostics/
 .vinxi
 .tanstack/**
 .codex-scratch/
+jennian-007-scraper/
 jennian-007-scraper/.venv/
 .nitro
 *.local

@@ -81,18 +81,17 @@ export function reconcileVisualOpenings(args: Args): VisualOpeningReconciliation
 
   const issues: VisualOpeningReconciliationIssue[] = [];
 
-  if (visualQsGlazedOpenings > 0 && composedGlazedOpenings > 0) {
-    const diff = Math.abs(visualQsGlazedOpenings - composedGlazedOpenings);
-    if (diff > 0) {
-      issues.push({
-        severity: diff >= 2 ? "error" : "warning",
-        field: "windows_by_room",
-        message: `Visual QS found ${visualQsGlazedOpenings} QS-glazed external openings, but the composed opening set has ${composedGlazedOpenings}. Reconcile before pricing.`,
-        visual: fmtCount(visualQsGlazedOpenings),
-        composed: fmtCount(composedGlazedOpenings),
-        openingIds: visualOpenings.filter((o) => o.type !== "garage_door").map((o) => o.id),
-      });
-    }
+  const diff = Math.abs(visualQsGlazedOpenings - composedGlazedOpenings);
+  if (diff > 0) {
+    const oneSideMissing = visualQsGlazedOpenings === 0 || composedGlazedOpenings === 0;
+    issues.push({
+      severity: oneSideMissing || diff >= 2 ? "error" : "warning",
+      field: "windows_by_room",
+      message: `AI opening check found ${visualQsGlazedOpenings} QS-glazed external openings, but the composed opening set has ${composedGlazedOpenings}. Reconcile before pricing.`,
+      visual: fmtCount(visualQsGlazedOpenings),
+      composed: fmtCount(composedGlazedOpenings),
+      openingIds: visualOpenings.filter((o) => o.type !== "garage_door").map((o) => o.id),
+    });
   }
 
   const visualGarage = visualGarageItems[0] ?? null;

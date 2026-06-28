@@ -177,18 +177,11 @@ export function formatVisualOpeningCorrectionMemory(
   if (memory.globalPatterns.length > 0) {
     const lines = memory.globalPatterns.map((pattern, index) => {
       const original = pattern.originalType ? ` originally marked ${pattern.originalType}` : "";
-      const reason = pattern.exampleReason ? ` Example reason: ${pattern.exampleReason}` : "";
-      return `${index + 1}. ${pattern.count} prior corrections: ${pattern.correctionType}${original}.${reason}`;
+      return `${index + 1}. ${pattern.count} prior corrections: ${pattern.correctionType}${original}.`;
     });
     sections.push(`GLOBAL HUMAN-CORRECTION PATTERNS:
 These are repeated correction patterns from prior accessible jobs. Treat them as caution rules, not proof.
 ${lines.join("\n")}`);
-  }
-
-  if (memory.globalExamples.length > 0) {
-    sections.push(`GLOBAL HUMAN-CORRECTION EXAMPLES:
-These are recent examples from other accessible jobs. Use them to avoid repeated visual mistakes, but do not copy them blindly to this plan.
-${memory.globalExamples.slice(0, 6).map(formatHintLine).join("\n")}`);
   }
 
   if (memory.jobHints.length > 0) {
@@ -251,7 +244,9 @@ export async function loadVisualOpeningCorrectionPromptMemory(
   );
   return {
     jobHints,
-    globalExamples: globalHints.slice(0, 12),
+    // Cross-job examples carry specific dims/positions/labels and can become answer-priming.
+    // Keep only aggregated caution patterns in production prompts.
+    globalExamples: [],
     globalPatterns: correctionPatternsFromHints(globalHints),
   };
 }

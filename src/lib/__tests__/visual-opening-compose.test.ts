@@ -113,6 +113,35 @@ function openingSlot(args: {
 }
 
 describe("composeTakeoff visual opening promotion", () => {
+  it("fails opening pricing closed when the required AI opening check is missing", () => {
+    const enriched = composeTakeoff({
+      visionTakeoff: baseVision,
+      geometry: null,
+      schedule: null,
+      geometryPageIndex: undefined,
+      visualOpeningAudit: null,
+      visualOpeningAuditRequired: true,
+    }).enriched;
+
+    expect(enriched.openings).toEqual([]);
+    expect(enriched.total_opening_sqm).toBeNull();
+    expect(enriched.glazed_sqm).toBeNull();
+    expect(enriched.external_wall_area_m2.value).toBeNull();
+    expect(enriched.opening_ai_check).toMatchObject({
+      required: true,
+      visualAuditPresent: false,
+      status: "blocked",
+    });
+    expect(enriched.external_wall_area_m2.discrepancy_flags.join(" ")).toContain(
+      "AI opening check did not complete",
+    );
+    expect(
+      enriched.opening_evidence?.some((candidate) =>
+        candidate.conflicts.includes("ai_opening_check_missing"),
+      ),
+    ).toBe(true);
+  });
+
   it("keeps raw Visual QS openings as review evidence and preserves canonical priced rows", () => {
     const enriched = composeTakeoff({
       visionTakeoff: baseVision,
@@ -290,13 +319,22 @@ describe("composeTakeoff visual opening promotion", () => {
       },
     }).enriched;
 
-    expect(enriched.openings?.map((o) => o.type)).toEqual(["sectional_door"]);
-    expect(enriched.total_opening_sqm).toBe(5.67);
+    expect(enriched.openings).toEqual([]);
+    expect(enriched.total_opening_sqm).toBeNull();
+    expect(enriched.opening_ai_check?.status).toBe("blocked");
     expect(
       enriched.opening_evidence?.some(
         (candidate) =>
           candidate.id === "visual-opening-1" &&
           candidate.type === "slider" &&
+          candidate.priced === false,
+      ),
+    ).toBe(true);
+    expect(
+      enriched.opening_evidence?.some(
+        (candidate) =>
+          candidate.status === "held_blocked" &&
+          candidate.type === "sectional_door" &&
           candidate.priced === false,
       ),
     ).toBe(true);
