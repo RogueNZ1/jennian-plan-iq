@@ -65,6 +65,7 @@ import { recoverVisualAuditFromElevationLedger } from "./visual-opening-elevatio
 import { promoteVisualOpenings } from "./visual-opening-promotion";
 import { buildOpeningEvidenceLedger } from "./opening-evidence";
 import { matchElevationToFloorPlanGaps } from "./elevation-gap-match";
+import { matchPlanTextDimensionsToFloorPlanGaps } from "./floor-plan-text-height-witness";
 import { promoteFloorPlanGapOpenings } from "./floor-plan-gap-promotion";
 import { promoteOrderedFaceSignatureOpenings } from "./opening-face-promotion";
 import { buildOpeningFaceMap } from "./opening-face-map";
@@ -806,6 +807,11 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     gaps: doorEngine?.floorPlanGaps,
     elevations: elevationData,
   });
+  const floorPlanTextDimensionMatches = matchPlanTextDimensionsToFloorPlanGaps({
+    gaps: doorEngine?.floorPlanGaps,
+    planText,
+    page: doorEngine?.pageMeta?.pageNumber ?? null,
+  });
   const planTextPricedWindowBase =
     !schedule?.windows?.length && (planText?.windowCodes.length ?? 0) > 0
       ? (planTextRecoveredOpenings ?? rawComposedOpenings)
@@ -923,6 +929,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     planText,
     floorPlanGaps: doorEngine?.floorPlanGaps,
     floorPlanGapElevationMatches,
+    floorPlanTextDimensionMatches,
     promotedFloorPlanGapOpenings: floorPlanGapPromotion.promotedByGapId,
   });
   const visualWindowCount =

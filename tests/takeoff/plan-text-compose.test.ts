@@ -77,6 +77,56 @@ const doorEngine = {
   ],
 } as never;
 
+const textWitnessDoorEngine = {
+  ...(doorEngine as Record<string, unknown>),
+  pageMeta: {
+    pageNumber: 1,
+    view: [0, 0, 800, 600],
+    width: 800,
+    height: 600,
+    scaleText: "1:100",
+  },
+  floorPlanGaps: [
+    {
+      id: "floorplan-gap-1",
+      widthMm: 1500,
+      x: 310,
+      y: 90,
+      page: 1,
+      bbox: [300, 80, 320, 100],
+      orientation: "horizontal",
+      wallFaceId: "H-15",
+      wallThicknessMm: 190,
+      envelopeSide: "exterior",
+      confidence: "medium",
+      roomLabel: "BED 3",
+      roomSide: "north",
+      alternateRoomLabels: [],
+      routing: {
+        confidence: "medium",
+        ambiguous: false,
+        reason: "gap routed to BED 3 on the north side of the wall",
+      },
+      note: "measured floor-plan exterior wall gap near BED 3; height still needs text/elevation/schedule confirmation",
+    },
+  ],
+} as never;
+
+const noElevationData = {
+  claddingTypes: [],
+  claddingTypeCode: null,
+  roofType: null,
+  roofPitchDegrees: null,
+  wallHeightMm: null,
+  studHeightMm: null,
+  facesPresent: [],
+  windowCountPerFace: {},
+  externalDoorCount: 0,
+  gableEndCount: 0,
+  garageDoorsPresent: false,
+  elevationOpenings: [],
+};
+
 function compose(
   de: unknown,
   elevationOpening: Record<string, unknown> = {},
@@ -408,6 +458,102 @@ describe("plan-text cross-checks at compose", () => {
     expect(gap?.review_flags.join(" ")).toContain(
       "not priced until height/type/face are confirmed",
     );
+  });
+
+  it("floor-plan text dimension fills floor-gap height and area without changing QS opening totals", () => {
+    const withWitness = compose(textWitnessDoorEngine, {}, {
+      elevationData: noElevationData,
+      jobId: "job-1",
+      runId: "run-1",
+    }).enriched;
+    const withoutGap = compose(
+      {
+        ...(textWitnessDoorEngine as Record<string, unknown>),
+        floorPlanGaps: [],
+      },
+      {},
+      { elevationData: noElevationData, jobId: "job-1", runId: "run-1" },
+    ).enriched;
+    const row = withWitness.extracted_quantities?.find(
+      (quantity) => quantity.id === "opening-floorplan-gap-1",
+    );
+
+    expect(withWitness.total_opening_sqm).toBe(withoutGap.total_opening_sqm);
+    expect(row).toMatchObject({
+      category: "window",
+      status: "extracted",
+      widthMm: 1500,
+      heightMm: 1300,
+      areaM2: 1.95,
+      source: "vector_geometry",
+      warnings: [],
+    });
+    expect(row?.evidence[1]).toMatchObject({
+      source: "pdf_text",
+      page: 1,
+      text: expect.stringContaining("1300 x 1500"),
+    });
+    expect(row?.evidence[1].text).toContain("width_match_delta_mm 0");
+  });
+
+  it("keeps unknown height null when no safe text witness exists", () => {
+    const noWitness = compose(
+      {
+        ...(textWitnessDoorEngine as Record<string, unknown>),
+        planText: {
+          ...planText,
+          windowCodes: [{ heightMm: 1300, widthMm: 1700, x: 310, y: 90 }],
+        },
+      },
+      {},
+      { elevationData: noElevationData, jobId: "job-1", runId: "run-1" },
+    ).enriched;
+    const row = noWitness.extracted_quantities?.find(
+      (quantity) => quantity.id === "opening-floorplan-gap-1",
+    );
+
+    expect(row).toMatchObject({
+      status: "missing_evidence",
+      widthMm: 1500,
+      heightMm: null,
+      areaM2: null,
+      warnings: expect.arrayContaining(["height_not_extracted", "area_not_calculated"]),
+    });
+  });
+
+  it("does not promote conflict rows when text witness conflicts", () => {
+    const conflicted = compose(
+      {
+        ...(textWitnessDoorEngine as Record<string, unknown>),
+        floorPlanGaps: [
+          {
+            ...(
+              textWitnessDoorEngine as {
+                floorPlanGaps: Array<Record<string, unknown>>;
+              }
+            ).floorPlanGaps[0],
+            routing: {
+              confidence: "low",
+              ambiguous: true,
+              reason: "gap could belong to BED 3 or ROBE",
+            },
+            alternateRoomLabels: ["ROBE"],
+          },
+        ],
+      },
+      {},
+      { elevationData: noElevationData, jobId: "job-1", runId: "run-1" },
+    ).enriched;
+    const row = conflicted.extracted_quantities?.find(
+      (quantity) => quantity.id === "opening-floorplan-gap-1",
+    );
+
+    expect(row).toMatchObject({
+      status: "missing_evidence",
+      heightMm: null,
+      areaM2: null,
+      warnings: expect.arrayContaining(["height_not_extracted", "area_not_calculated"]),
+    });
   });
 
   it("printed ENSUITE + missing vision count => ERROR flag on the ensuite count", () => {

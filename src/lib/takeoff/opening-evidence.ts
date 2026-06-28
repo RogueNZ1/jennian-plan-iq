@@ -2,6 +2,7 @@ import type { Opening, OpeningSource } from "./takeoff-types";
 import type { PlanText } from "./plan-text";
 import type { FloorPlanGapCandidate } from "./floor-plan-gaps";
 import type { FloorPlanGapElevationMatch } from "./elevation-gap-match";
+import type { FloorPlanTextDimensionMatch } from "./floor-plan-text-height-witness";
 import type { HeldBlockedOpening, QuarantinedOpening } from "./opening-pricing-adjudication";
 import type { VisualOpeningAudit } from "./visual-opening-audit";
 
@@ -25,6 +26,7 @@ export type OpeningEvidenceRole =
   | "conflict";
 
 export type OpeningEvidenceStatus =
+  | "extracted"
   | "priced"
   | "held_blocked"
   | "incomplete"
@@ -107,6 +109,7 @@ export function buildOpeningEvidenceLedger(args: {
   planText?: Pick<PlanText, "draftingIssues"> | null;
   floorPlanGaps?: readonly FloorPlanGapCandidate[] | null;
   floorPlanGapElevationMatches?: ReadonlyMap<string, FloorPlanGapElevationMatch> | null;
+  floorPlanTextDimensionMatches?: ReadonlyMap<string, FloorPlanTextDimensionMatch> | null;
   promotedFloorPlanGapOpenings?: ReadonlyMap<string, Opening> | null;
 }): OpeningEvidenceCandidate[] {
   const ledger: OpeningEvidenceCandidate[] = [];
@@ -279,9 +282,18 @@ export function buildOpeningEvidenceLedger(args: {
   for (const [index, gap] of (args.floorPlanGaps ?? []).entries()) {
     const widthM = Math.round((gap.widthMm / 1000) * 100) / 100;
     const elevationMatch = args.floorPlanGapElevationMatches?.get(gap.id) ?? null;
+    const textDimensionMatch = args.floorPlanTextDimensionMatches?.get(gap.id) ?? null;
     const promotedOpening = args.promotedFloorPlanGapOpenings?.get(gap.id) ?? null;
     const heightM =
-      elevationMatch != null ? Math.round((elevationMatch.heightMm / 1000) * 100) / 100 : null;
+      elevationMatch != null
+        ? Math.round((elevationMatch.heightMm / 1000) * 100) / 100
+        : textDimensionMatch != null
+          ? Math.round((textDimensionMatch.heightMm / 1000) * 100) / 100
+          : null;
+    const textAreaM2 =
+      textDimensionMatch != null && heightM != null
+        ? Math.round(widthM * heightM * 100) / 100
+        : null;
     const evidence: OpeningEvidenceItem[] = [
       {
         source: "floorplan_gap",
@@ -315,6 +327,28 @@ export function buildOpeningEvidenceLedger(args: {
       });
     }
 
+    if (textDimensionMatch) {
+      evidence.push({
+        source: "floorplan_text",
+        role: "height",
+        confidence: "medium",
+        width_m: Math.round((textDimensionMatch.matchedWidthMm / 1000) * 100) / 100,
+        height_m: heightM,
+        area_m2: textAreaM2,
+        room: gap.roomLabel ?? null,
+        wall_face_id: gap.wallFaceId,
+        page: textDimensionMatch.page,
+        text: textDimensionMatch.text,
+        envelope_side: gap.envelopeSide,
+        room_side: gap.roomSide ?? null,
+        alternate_rooms: gap.alternateRoomLabels ?? [],
+        note:
+          `height_source pdf_text_dimension; height_witness_text "${textDimensionMatch.text}"; ` +
+          `width_match_delta_mm ${textDimensionMatch.widthMatchDeltaMm}; ` +
+          `${textDimensionMatch.note}`,
+      });
+    }
+
     const elevationSupportText = elevationMatch
       ? elevationMatch.faceCheck === "matched"
         ? elevationMatch.measurementCheck === "confirmed"
@@ -322,16 +356,24 @@ export function buildOpeningEvidenceLedger(args: {
           : `elevation ${elevationMatch.face} has similar width/height evidence, but its width delta is ${elevationMatch.widthDeltaMm}mm outside the 50mm confirmation tolerance; `
         : `elevation ${elevationMatch.face} has matching width/height evidence, but its face is not matched to the floor-plan wall; `
       : "";
+    const textDimensionSupportText = textDimensionMatch
+      ? `floor-plan text dimension ${textDimensionMatch.text} matches the measured gap width within ${textDimensionMatch.widthMatchDeltaMm}mm and supplies height ${textDimensionMatch.heightMm}mm; glass area ${textAreaM2 ?? "unknown"}m2 is from witnessed width+height only and is not a pricing write; `
+      : "";
+    const status: OpeningEvidenceStatus = promotedOpening
+      ? "priced"
+      : textDimensionMatch
+        ? "extracted"
+        : "review";
 
     ledger.push({
       id: `floorplan-gap-${index + 1}`,
-      status: promotedOpening ? "priced" : "review",
+      status,
       priced: promotedOpening != null,
-      type: promotedOpening?.type ?? "unknown",
+      type: promotedOpening?.type ?? (textDimensionMatch ? "window" : "unknown"),
       room: gap.roomLabel ?? null,
       width_m: widthM,
       height_m: heightM,
-      area_m2: promotedOpening?.area_m2 ?? null,
+      area_m2: promotedOpening?.area_m2 ?? textAreaM2,
       evidence,
       review_flags: promotedOpening
         ? [
@@ -344,7 +386,7 @@ export function buildOpeningEvidenceLedger(args: {
               gap.roomLabel ? ` near ${gap.roomLabel}` : ""
             } on ${gap.envelopeSide} wall face ${gap.wallFaceId}; ${
               gap.routing.ambiguous ? `${gap.routing.reason}; ` : ""
-            }${elevationSupportText}not priced until height/type/face are confirmed by text, elevation, schedule, or review.`,
+            }${elevationSupportText}${textDimensionSupportText}not priced until height/type/face are confirmed by text, elevation, schedule, or review.`,
           ],
       conflicts: gap.routing.ambiguous ? (gap.alternateRoomLabels ?? []) : [],
     });

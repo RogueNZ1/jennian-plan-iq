@@ -95,6 +95,7 @@ function evidenceText(item: OpeningEvidenceItem): string {
   const bits = [
     item.source,
     item.role,
+    item.text ?? null,
     item.width_m != null ? `width ${Math.round(item.width_m * 1000)}mm` : null,
     item.height_m != null ? `height ${Math.round(item.height_m * 1000)}mm` : null,
     item.area_m2 != null ? `area ${item.area_m2}m2` : null,
@@ -137,6 +138,7 @@ function openingStatus(candidate: OpeningEvidenceCandidate): ExtractedQuantitySt
   if (candidate.width_m == null || candidate.height_m == null) return "missing_evidence";
   if (hasAssumedHeight(candidate)) return "needs_review";
   if (candidate.conflicts.length > 0 || candidate.status === "conflict") return "conflict";
+  if (candidate.status === "extracted") return "extracted";
   if (!candidate.priced || candidate.status !== "priced") return "needs_review";
   return "extracted";
 }
