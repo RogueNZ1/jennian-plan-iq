@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   normaliseVisualOpeningAudit,
   summariseVisualOpeningAudit,
+  VISUAL_OPENING_NOT_COUNTED_FLAG,
 } from "../takeoff/visual-opening-audit";
 
 describe("visual-opening-audit", () => {
@@ -98,6 +99,44 @@ describe("visual-opening-audit", () => {
     });
   });
 
+  it("excludes floor-plan rejected visual markers from Visual QS counts", () => {
+    const summary = summariseVisualOpeningAudit([
+      {
+        id: "O1",
+        type: "window",
+        room: "Family",
+        label: "790x1400",
+        height_m: 0.79,
+        width_m: 1.4,
+        x: 0.1,
+        y: 0.2,
+        confidence: "low",
+        evidence: "marker landed on exterior dimension text",
+        flags: [VISUAL_OPENING_NOT_COUNTED_FLAG],
+      },
+      {
+        id: "O2",
+        type: "window",
+        room: "Laundry",
+        label: "700x3000",
+        height_m: 0.7,
+        width_m: 3,
+        x: 0.4,
+        y: 0.5,
+        confidence: "high",
+        evidence: "marker placed on physical opening",
+        flags: [],
+      },
+    ]);
+
+    expect(summary).toEqual({
+      totalOpenings: 1,
+      qsGlazedOpenings: 1,
+      garageDoors: 0,
+      uncertain: 0,
+    });
+  });
+
   it("downgrades marker coordinates that are not confirmed on the physical opening", () => {
     const audit = normaliseVisualOpeningAudit({
       openings: [
@@ -164,6 +203,31 @@ describe("visual-opening-audit", () => {
       flags: ["malformed dimension label - verify against elevations/schedule"],
     });
     expect(audit.summary.uncertain).toBe(1);
+  });
+
+  it("uses the printed HxW label when the model swaps height and width fields", () => {
+    const audit = normaliseVisualOpeningAudit({
+      openings: [
+        {
+          id: "O8",
+          type: "window",
+          room: "Laundry/Mudroom",
+          label: "700x3000",
+          height_m: 3,
+          width_m: 0.7,
+          x: 0.58,
+          y: 0.42,
+          confidence: "medium",
+          evidence: "printed 700x3000 near Laundry/Mudroom; marker placed on window line",
+          flags: [],
+        },
+      ],
+    });
+
+    expect(audit.openings[0]).toMatchObject({
+      height_m: 0.7,
+      width_m: 3,
+    });
   });
 
   it("treats elevation-confirmed dimensions as resolved, not a blocking malformed-label issue", () => {

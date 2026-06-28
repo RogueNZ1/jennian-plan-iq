@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ElevationData } from "../takeoff/extract-elevations";
 import type { PlanPhysicalOpeningWidthWitness } from "../takeoff/floor-opening-witnesses";
-import type { VisualOpeningAudit, VisualOpeningAuditItem } from "../takeoff/visual-opening-audit";
+import {
+  summariseVisualOpeningAudit,
+  VISUAL_OPENING_NOT_COUNTED_FLAG,
+  type VisualOpeningAudit,
+  type VisualOpeningAuditItem,
+} from "../takeoff/visual-opening-audit";
 import { recoverVisualAuditFromElevationLedger } from "../takeoff/visual-opening-elevation-recovery";
 
 function visualOpening(overrides: Partial<VisualOpeningAuditItem> = {}): VisualOpeningAuditItem {
@@ -27,14 +32,7 @@ function audit(openings: VisualOpeningAuditItem[]): VisualOpeningAudit {
     method: "visual_qs",
     openings,
     warnings: [],
-    summary: {
-      totalOpenings: openings.length,
-      qsGlazedOpenings: openings.filter((opening) => opening.type !== "garage_door").length,
-      garageDoors: openings.filter((opening) => opening.type === "garage_door").length,
-      uncertain: openings.filter(
-        (opening) => opening.type === "uncertain" || opening.confidence === "low",
-      ).length,
-    },
+    summary: summariseVisualOpeningAudit(openings),
   };
 }
 
@@ -86,6 +84,48 @@ function physicalWidthWitness(
 }
 
 describe("recoverVisualAuditFromElevationLedger", () => {
+  it("does not count a dimensionless duplicate beside a dimensioned visual opening", () => {
+    const recovered = recoverVisualAuditFromElevationLedger(
+      audit([
+        visualOpening({
+          id: "O8",
+          type: "window",
+          room: "Laundry/Mudroom",
+          label: "700x3000",
+          height_m: 0.7,
+          width_m: 3,
+          x: 0.58,
+          y: 0.42,
+          confidence: "medium",
+          evidence: "printed 700x3000; marker placed on Laundry/Mudroom window line",
+          flags: [],
+        }),
+        visualOpening({
+          id: "O20",
+          type: "pa_door",
+          room: "Laundry/Mudroom",
+          label: null,
+          height_m: null,
+          width_m: null,
+          x: 0.62,
+          y: 0.38,
+          confidence: "medium",
+          evidence: "duplicate marker on the same Laundry/Mudroom opening",
+          flags: ["dimension not labelled"],
+        }),
+      ]),
+      null,
+      {
+        page,
+      },
+    )!;
+
+    expect(recovered.openings.find((opening) => opening.id === "O20")?.flags).toEqual(
+      expect.arrayContaining([VISUAL_OPENING_NOT_COUNTED_FLAG]),
+    );
+    expect(recovered.summary.qsGlazedOpenings).toBe(1);
+  });
+
   it("recovers a single malformed visual opening from one compatible elevation candidate", () => {
     const recovered = recoverVisualAuditFromElevationLedger(audit([visualOpening()]), elevations)!;
 

@@ -1,5 +1,9 @@
 import type { Opening, OpeningType } from "./takeoff-types";
-import type { VisualOpeningAudit, VisualOpeningAuditItem } from "./visual-opening-audit";
+import {
+  visualOpeningIsNotCounted,
+  type VisualOpeningAudit,
+  type VisualOpeningAuditItem,
+} from "./visual-opening-audit";
 import { parseDimsMm } from "./classify";
 import { isQsGlazedOpening } from "./derive-fields";
 import { normaliseGarageDoorSizeLabel } from "./garage-door-size";
@@ -109,6 +113,11 @@ export function promoteVisualOpenings(
   let garageDoorSize: string | null = null;
 
   for (const item of audit.openings) {
+    if (visualOpeningIsNotCounted(item)) {
+      flags.push(`${item.id}: visual marker rejected by floor-plan validation; not promoted.`);
+      continue;
+    }
+
     const type = openingType(item);
     if (!type) {
       flags.push(`${item.id}: visual opening type uncertain; not promoted into QS openings.`);

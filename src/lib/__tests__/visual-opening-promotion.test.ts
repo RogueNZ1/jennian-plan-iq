@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { promoteVisualOpenings } from "../takeoff/visual-opening-promotion";
-import type { VisualOpeningAudit, VisualOpeningAuditItem } from "../takeoff/visual-opening-audit";
+import {
+  VISUAL_OPENING_NOT_COUNTED_FLAG,
+  type VisualOpeningAudit,
+  type VisualOpeningAuditItem,
+} from "../takeoff/visual-opening-audit";
 
 function item(over: Partial<VisualOpeningAuditItem>): VisualOpeningAuditItem {
   return {
@@ -105,6 +109,32 @@ describe("visual-opening-promotion", () => {
       width_m: 3.6,
       height_m: 2.1,
     });
+  });
+
+  it("does not promote a visual marker rejected by floor-plan validation", () => {
+    const promoted = promoteVisualOpenings(
+      audit([
+        item({
+          id: "O20",
+          type: "slider",
+          room: "Laundry/Mudroom",
+          height_m: 0.7,
+          width_m: 3,
+          flags: [VISUAL_OPENING_NOT_COUNTED_FLAG],
+          recoveryProof: {
+            kind: "physical_elevation",
+            floorWidthMm: 3000,
+            elevationFace: "East",
+            elevationLabel: "W20",
+            elevationWidthMm: 3000,
+            elevationHeightMm: 700,
+          },
+        }),
+      ]),
+    );
+
+    expect(promoted?.openings).toEqual([]);
+    expect(promoted?.flags.join(" ")).toContain("rejected by floor-plan validation");
   });
 
   it("uses a plausible printed garage label as a garage-size witness only", () => {

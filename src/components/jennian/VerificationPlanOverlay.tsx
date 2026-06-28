@@ -18,12 +18,10 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   adapterToUser,
-  findOpeningTextAnchor,
   isWindowCode,
   stitchTextItems,
   type DoorMarker,
   type DoorPagePersisted,
-  type OpeningTextAnchor,
   type RawTextItem,
   type VisualOpeningMarker,
 } from "@/lib/verification/plan-overlay";
@@ -243,47 +241,16 @@ export function VerificationPlanOverlay({
               .filter((i) => typeof i.str === "string" && i.transform)
               .map((i): RawTextItem => ({ str: i.str!, transform: i.transform!, width: i.width })),
           );
-          const textAnchors: OpeningTextAnchor[] = stitched.map((l) => {
-            const [vx, vy] = viewport.convertToViewportPoint(l.ux, l.uy);
-            return { text: l.text.trim(), vx, vy };
-          });
-          const doorRightHint =
-            placed.length > 0
-              ? Math.min(
-                  canvas.width * 0.82,
-                  Math.max(...placed.map((m) => m.vx)) + canvas.width * 0.08,
-                )
-              : canvas.width * 0.82;
-
           const placedVisualOpenings: PlacedVisualOpening[] = visualOpenings.map((o) => {
             const rawX = o.x * canvas.width;
             const rawY = o.y * canvas.height;
-            const textAnchorCandidate = findOpeningTextAnchor(o, textAnchors, rawX, rawY);
-            const textAnchor =
-              textAnchorCandidate &&
-              Math.hypot(textAnchorCandidate.vx - rawX, textAnchorCandidate.vy - rawY) <=
-                Math.max(150, canvas.width * 0.1)
-                ? textAnchorCandidate
-                : null;
-            let snapped = snapPointToPlanInk(
+            const snapped = snapPointToPlanInk(
               planPixels.data,
               canvas.width,
               canvas.height,
-              textAnchor?.vx ?? rawX,
-              textAnchor?.vy ?? rawY,
+              rawX,
+              rawY,
             );
-            if (!textAnchor && o.x > 0.78) {
-              const seedX = Math.min(rawX, doorRightHint);
-              const broadSnap = snapPointToPlanInk(
-                planPixels.data,
-                canvas.width,
-                canvas.height,
-                seedX,
-                rawY,
-                { radius: Math.max(120, canvas.width * 0.08), minRun: 40, maxRun: 120 },
-              );
-              if (broadSnap.snapped) snapped = { ...broadSnap, y: rawY };
-            }
             return {
               ...o,
               vx: snapped.x,

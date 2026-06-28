@@ -49,6 +49,9 @@ export type VisualOpeningAudit = {
   summary: VisualOpeningAuditSummary;
 };
 
+export const VISUAL_OPENING_NOT_COUNTED_FLAG =
+  "visual marker not on verified floor-plan opening - not counted";
+
 const TYPES = new Set<VisualOpeningType>([
   "window",
   "slider",
@@ -108,6 +111,22 @@ function parseMm(v: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function dimensionPairFromLabel(
+  label: string | null,
+): { height_m: number; width_m: number } | null {
+  if (!label || dimensionLabelLooksMalformed(label)) return null;
+  const compact = label.replace(/\s+/g, "");
+  const pair = compact.match(/(\d[\d,]{1,5})[xXÃ—*](\d[\d,]{1,5})/);
+  if (!pair) return null;
+  const first = parseMm(pair[1]);
+  const second = parseMm(pair[2]);
+  if (first == null || second == null) return null;
+  return {
+    height_m: Math.round((first / 1000) * 100) / 100,
+    width_m: Math.round((second / 1000) * 100) / 100,
+  };
+}
+
 function dimensionLabelLooksMalformed(label: string | null): boolean {
   if (!label) return false;
   const compact = label.replace(/\s+/g, "");
@@ -140,12 +159,17 @@ function hasAssumedDimensionSource(evidence: string, flags: readonly string[]): 
 export function summariseVisualOpeningAudit(
   openings: readonly VisualOpeningAuditItem[],
 ): VisualOpeningAuditSummary {
+  const counted = openings.filter((opening) => !visualOpeningIsNotCounted(opening));
   return {
-    totalOpenings: openings.length,
-    qsGlazedOpenings: openings.filter((o) => o.type !== "garage_door").length,
-    garageDoors: openings.filter((o) => o.type === "garage_door").length,
-    uncertain: openings.filter((o) => o.type === "uncertain" || o.confidence === "low").length,
+    totalOpenings: counted.length,
+    qsGlazedOpenings: counted.filter((o) => o.type !== "garage_door").length,
+    garageDoors: counted.filter((o) => o.type === "garage_door").length,
+    uncertain: counted.filter((o) => o.type === "uncertain" || o.confidence === "low").length,
   };
+}
+
+export function visualOpeningIsNotCounted(opening: Pick<VisualOpeningAuditItem, "flags">): boolean {
+  return opening.flags.some((flag) => flag === VISUAL_OPENING_NOT_COUNTED_FLAG);
 }
 
 export function normaliseVisualOpeningAudit(
@@ -172,8 +196,11 @@ export function normaliseVisualOpeningAudit(
     const unresolvedMalformedLabel = malformedLabel && !hasConfirmedSource;
     const hasUsableFallback = hasConfirmedSource || hasAssumedSource;
     const confidence = markerUnconfirmed || unresolvedMalformedLabel ? "low" : rawConfidence;
-    const height = malformedLabel && !hasUsableFallback ? null : num(r.height_m);
-    const width = malformedLabel && !hasUsableFallback ? null : num(r.width_m);
+    const labelDims = dimensionPairFromLabel(label);
+    const height =
+      malformedLabel && !hasUsableFallback ? null : (labelDims?.height_m ?? num(r.height_m));
+    const width =
+      malformedLabel && !hasUsableFallback ? null : (labelDims?.width_m ?? num(r.width_m));
     return {
       id: cleanString(r.id) ?? `O${index + 1}`,
       type,

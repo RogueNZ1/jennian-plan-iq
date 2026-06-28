@@ -1,8 +1,15 @@
 import type { ElevationData, ElevationOpeningCandidate } from "./extract-elevations";
 import type { PlanPhysicalOpeningWidthWitness } from "./floor-opening-witnesses";
-import type { VisualOpeningAudit, VisualOpeningAuditItem } from "./visual-opening-audit";
+import {
+  summariseVisualOpeningAudit,
+  VISUAL_OPENING_NOT_COUNTED_FLAG,
+  visualOpeningIsNotCounted,
+  type VisualOpeningAudit,
+  type VisualOpeningAuditItem,
+} from "./visual-opening-audit";
 
 const MALFORMED_LABEL_FLAG = "malformed dimension label";
+const DUPLICATE_MARKER_DISTANCE_PT = 72;
 
 type UsableElevationOpening = ElevationOpeningCandidate & {
   widthMm: number;
@@ -61,6 +68,15 @@ function normaliseRoom(value: string | null | undefined): string {
   return (value ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
+function roomNamesCompatible(
+  left: string | null | undefined,
+  right: string | null | undefined,
+): boolean {
+  const a = normaliseRoom(left);
+  const b = normaliseRoom(right);
+  return !!a && !!b && (a === b || a.includes(b) || b.includes(a));
+}
+
 function roomCompatible(
   opening: VisualOpeningAuditItem,
   witness: PlanPhysicalOpeningWidthWitness,
@@ -80,6 +96,99 @@ function visualPoint(
   page: { width: number; height: number },
 ): { x: number; y: number } {
   return { x: opening.x * page.width, y: opening.y * page.height };
+}
+
+function dimensionScore(opening: VisualOpeningAuditItem): number {
+  let score = 0;
+  if (opening.width_m != null) score += 1;
+  if (opening.height_m != null) score += 1;
+  if (opening.label) score += 1;
+  if (opening.recoveryProof) score += 2;
+  return score;
+}
+
+function duplicateDimensionlessMarkerIds(
+  openings: readonly VisualOpeningAuditItem[],
+  page: { width: number; height: number } | null | undefined,
+): Set<string> {
+  const rejected = new Set<string>();
+  if (!page) return rejected;
+
+  for (let i = 0; i < openings.length; i++) {
+    const left = openings[i];
+    if (left.type === "garage_door" || visualOpeningIsNotCounted(left)) continue;
+    for (let j = i + 1; j < openings.length; j++) {
+      const right = openings[j];
+      if (right.type === "garage_door" || visualOpeningIsNotCounted(right)) continue;
+      if (!roomNamesCompatible(left.room, right.room)) continue;
+      const a = visualPoint(left, page);
+      const b = visualPoint(right, page);
+      if (Math.hypot(a.x - b.x, a.y - b.y) > DUPLICATE_MARKER_DISTANCE_PT) continue;
+
+      const leftScore = dimensionScore(left);
+      const rightScore = dimensionScore(right);
+      if (leftScore === rightScore) continue;
+      rejected.add(leftScore > rightScore ? right.id : left.id);
+    }
+  }
+
+  return rejected;
+}
+
+function withNotCountedFlag(
+  opening: VisualOpeningAuditItem,
+  reason: string,
+): VisualOpeningAuditItem {
+  const flags = [
+    ...opening.flags.filter((flag) => flag !== VISUAL_OPENING_NOT_COUNTED_FLAG),
+    VISUAL_OPENING_NOT_COUNTED_FLAG,
+    reason,
+  ];
+  return {
+    ...opening,
+    confidence: "low",
+    flags: [...new Set(flags)],
+  };
+}
+
+function validateVisualMarkersAgainstFloorPlan(
+  audit: VisualOpeningAudit,
+  options:
+    | {
+        page?: { width: number; height: number } | null;
+      }
+    | undefined,
+): { audit: VisualOpeningAudit; changed: boolean } {
+  const page = options?.page ?? null;
+  const duplicateIds = duplicateDimensionlessMarkerIds(audit.openings, page);
+  let changed = false;
+
+  const openings = audit.openings.map((opening) => {
+    let next = opening;
+    if (duplicateIds.has(opening.id)) {
+      next = withNotCountedFlag(
+        next,
+        "nearby dimensioned visual opening already represents this physical opening",
+      );
+    }
+    if (next !== opening) changed = true;
+    return next;
+  });
+
+  if (!changed) return { audit, changed: false };
+
+  return {
+    changed: true,
+    audit: {
+      ...audit,
+      openings,
+      summary: summariseVisualOpeningAudit(openings),
+      warnings: [
+        ...audit.warnings,
+        "One or more visual markers failed floor-plan position validation and were excluded from the Visual QS count.",
+      ],
+    },
+  };
 }
 
 function nearbyPhysicalOpeningWidths(
@@ -247,6 +356,7 @@ function recoverLocatorBackedOpenings(
     if (opening.type === "uncertain" || opening.type === "garage_door" || opening.recoveryProof) {
       return [];
     }
+    if (visualOpeningIsNotCounted(opening)) return [];
     const compatible = candidates.filter((candidate) =>
       compatibleType(opening.type, candidate.type),
     );
@@ -297,11 +407,7 @@ function recoverLocatorBackedOpenings(
     audit: {
       ...audit,
       openings,
-      summary: {
-        ...audit.summary,
-        uncertain: openings.filter((item) => item.type === "uncertain" || item.confidence === "low")
-          .length,
-      },
+      summary: summariseVisualOpeningAudit(openings),
     },
   };
 }
@@ -314,22 +420,31 @@ export function recoverVisualAuditFromElevationLedger(
     page?: { width: number; height: number } | null;
   },
 ): VisualOpeningAudit | null | undefined {
-  if (!audit || !elevations?.elevationOpenings?.length) return audit;
+  if (!audit) return audit;
+
+  const floorValidated = validateVisualMarkersAgainstFloorPlan(audit, {
+    page: options?.page,
+  });
+  const validatedAudit = floorValidated.audit;
+
+  if (!elevations?.elevationOpenings?.length)
+    return floorValidated.changed ? validatedAudit : audit;
 
   const candidates = elevations.elevationOpenings.filter(candidateIsUsable);
-  if (candidates.length === 0) return audit;
+  if (candidates.length === 0) return floorValidated.changed ? validatedAudit : audit;
 
-  const locatorBacked = recoverLocatorBackedOpenings(audit, candidates, options);
+  const locatorBacked = recoverLocatorBackedOpenings(validatedAudit, candidates, options);
   if (locatorBacked.changed) return locatorBacked.audit;
 
-  const unresolved = audit.openings.filter(
+  const unresolved = validatedAudit.openings.filter(
     (opening) =>
       hasMalformedLabelFlag(opening) &&
       opening.height_m == null &&
       opening.width_m == null &&
-      opening.type !== "uncertain",
+      opening.type !== "uncertain" &&
+      !visualOpeningIsNotCounted(opening),
   );
-  if (unresolved.length !== 1) return audit;
+  if (unresolved.length !== 1) return floorValidated.changed ? validatedAudit : audit;
 
   const opening = unresolved[0];
   const compatible = candidates.filter((candidate) => compatibleType(opening.type, candidate.type));
@@ -346,16 +461,14 @@ export function recoverVisualAuditFromElevationLedger(
             `malformed floor-plan label resolved from ${compatible[0].face} elevation ledger`,
           )
         : null);
-  if (!recovered) return audit;
+  if (!recovered) return floorValidated.changed ? validatedAudit : audit;
 
-  const openings = audit.openings.map((item) => (item.id === opening.id ? recovered : item));
+  const openings = validatedAudit.openings.map((item) =>
+    item.id === opening.id ? recovered : item,
+  );
   return {
-    ...audit,
+    ...validatedAudit,
     openings,
-    summary: {
-      ...audit.summary,
-      uncertain: openings.filter((item) => item.type === "uncertain" || item.confidence === "low")
-        .length,
-    },
+    summary: summariseVisualOpeningAudit(openings),
   };
 }
