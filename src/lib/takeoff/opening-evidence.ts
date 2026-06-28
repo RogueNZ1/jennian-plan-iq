@@ -290,6 +290,8 @@ export function buildOpeningEvidenceLedger(args: {
         width_m: widthM,
         room: gap.roomLabel ?? null,
         wall_face_id: gap.wallFaceId,
+        ...(gap.page != null ? { page: gap.page } : {}),
+        ...(gap.bbox ? { bbox: gap.bbox } : {}),
         envelope_side: gap.envelopeSide,
         room_side: gap.roomSide ?? null,
         alternate_rooms: gap.alternateRoomLabels ?? [],

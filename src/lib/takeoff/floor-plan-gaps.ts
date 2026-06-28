@@ -8,6 +8,8 @@ export type FloorPlanGapCandidate = {
   widthMm: number;
   x: number;
   y: number;
+  page?: number;
+  bbox?: [number, number, number, number];
   orientation: "horizontal" | "vertical";
   wallFaceId: string;
   wallThicknessMm: number;
@@ -212,6 +214,12 @@ function wallFaceId(vertical: boolean, x: number, y: number): string {
   return `${axis}-${offset}`;
 }
 
+function gapBbox(a: RowGap, b: RowGap, lo: number, hi: number): [number, number, number, number] {
+  const crossLo = Math.min(a.offset, b.offset);
+  const crossHi = Math.max(a.offset, b.offset);
+  return a.vertical ? [crossLo, lo, crossHi, hi] : [lo, crossLo, hi, crossHi];
+}
+
 function sortConfidence(confidence: "medium" | "low"): number {
   return confidence === "medium" ? 1 : 0;
 }
@@ -320,6 +328,7 @@ export function detectFloorPlanGaps(args: {
         widthMm,
         x,
         y,
+        bbox: gapBbox(a, b, lo, hi),
         orientation: a.vertical ? "vertical" : "horizontal",
         wallFaceId: wallFaceId(a.vertical, x, y),
         wallThicknessMm: Math.round(ruler.pdfPointsToMm(faceGap)),

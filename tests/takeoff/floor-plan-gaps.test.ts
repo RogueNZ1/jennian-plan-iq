@@ -32,6 +32,7 @@ describe("floor-plan gap extraction", () => {
     expect(gaps).toHaveLength(1);
     expect(gaps[0]).toMatchObject({
       widthMm: 1200,
+      bbox: [start, 100, end, 100 + wallFaceGap],
       orientation: "horizontal",
       wallFaceId: "H-17",
       envelopeSide: "exterior",
@@ -43,6 +44,28 @@ describe("floor-plan gap extraction", () => {
         ambiguous: false,
       },
     });
+  });
+
+  it("emits a deterministic page-space bbox from the measured wall-gap source geometry", () => {
+    const scale = 100;
+    const widthPt = mmToPt(900, scale);
+    const wallFaceGap = mmToPt(190, scale);
+    const start = 80;
+    const end = start + widthPt;
+    const segments: Segment[] = [
+      horizontal(20, start, 100),
+      horizontal(end, 240, 100),
+      horizontal(20, start, 100 + wallFaceGap),
+      horizontal(end, 240, 100 + wallFaceGap),
+    ];
+
+    const gaps = detectFloorPlanGaps({
+      segments,
+      scale,
+      rooms: [{ name: "LOUNGE", x: 130, y: 135 }],
+    });
+
+    expect(gaps[0].bbox).toEqual([start, 100, end, 100 + wallFaceGap]);
   });
 
   it("keeps room routing low-confidence when rooms sit on both sides of the wall", () => {

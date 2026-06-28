@@ -108,7 +108,7 @@ export async function runDoorEngine(
         segments: geom.segments,
         scale,
         rooms: planText.rooms.map((r) => ({ name: r.name, x: r.x, y: r.y })),
-      });
+      }).map((gap) => ({ ...gap, page: pageNumber }));
       const physicalOpeningWidthWitnesses = detectPhysicalOpeningWidthWitnesses({
         planText,
         segments: geom.segments,

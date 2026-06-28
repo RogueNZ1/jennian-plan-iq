@@ -7,6 +7,8 @@
  */
 import { describe, it, expect } from "vitest";
 import { composeTakeoff } from "../../src/lib/takeoff/compose-takeoff";
+import { buildExtractedQuantityReadModel } from "../../src/lib/takeoff/extracted-quantity-read-model";
+import { buildLedgerPlanOverlayModel } from "../../src/lib/verification/plan-overlay";
 import type { TakeoffData } from "../../src/lib/takeoff/extract-concept";
 
 const baseVision = {
@@ -55,6 +57,8 @@ const doorEngine = {
       widthMm: 1800,
       x: 120,
       y: 220,
+      page: 1,
+      bbox: [100, 210, 140, 230],
       orientation: "horizontal",
       wallFaceId: "H-37",
       wallThicknessMm: 190,
@@ -73,7 +77,11 @@ const doorEngine = {
   ],
 } as never;
 
-function compose(de: unknown, elevationOpening: Record<string, unknown> = {}) {
+function compose(
+  de: unknown,
+  elevationOpening: Record<string, unknown> = {},
+  inputOverrides: Partial<Parameters<typeof composeTakeoff>[0]> = {},
+) {
   return composeTakeoff({
     visionTakeoff: baseVision,
     geometry: null,
@@ -107,6 +115,7 @@ function compose(de: unknown, elevationOpening: Record<string, unknown> = {}) {
         },
       ],
     },
+    ...inputOverrides,
   });
 }
 
@@ -229,6 +238,8 @@ describe("plan-text cross-checks at compose", () => {
       source: "floorplan_gap",
       role: "width",
       confidence: "medium",
+      page: 1,
+      bbox: [100, 210, 140, 230],
       wall_face_id: "H-37",
       room_side: "south",
     });
@@ -240,6 +251,79 @@ describe("plan-text cross-checks at compose", () => {
       height_m: 1.3,
     });
     expect(gap?.review_flags.join(" ")).toContain("promoted into QS openings as window");
+  });
+
+  it("floor-plan gap page+bbox reaches extracted quantity evidence and runtime anchors", () => {
+    const e = compose(
+      {
+        ...(doorEngine as Record<string, unknown>),
+        counts: { singles: 0, doubles: 0, cavitySliders: 0, barn: 0 },
+      },
+      {},
+      { jobId: "job-1", runId: "run-1" },
+    ).enriched;
+    const row = e.extracted_quantities?.find(
+      (quantity) => quantity.id === "opening-floorplan-gap-1",
+    );
+    const readModel = buildExtractedQuantityReadModel(e.extracted_quantities, {
+      activeRunId: "run-1",
+    });
+    const overlay = buildLedgerPlanOverlayModel(readModel);
+
+    expect(row).toMatchObject({
+      source: "vector_geometry",
+      status: "extracted",
+      widthMm: 1800,
+      heightMm: 1300,
+      areaM2: 2.34,
+    });
+    expect(row?.evidence[0]).toMatchObject({
+      source: "vector_geometry",
+      page: 1,
+      bbox: [100, 210, 140, 230],
+    });
+    expect(
+      overlay.markedRows.find((marked) => marked.extractedQuantityId === "opening-floorplan-gap-1"),
+    ).toMatchObject({
+      markerState: "drawable",
+      visualAnchor: expect.objectContaining({
+        page: 1,
+        bbox: [100, 210, 140, 230],
+      }),
+    });
+  });
+
+  it("does not create floor-plan gap bbox when the gap source lacks bbox", () => {
+    const sourceGap = {
+      ...(doorEngine as { floorPlanGaps: Array<Record<string, unknown>> }).floorPlanGaps[0],
+    };
+    delete sourceGap.page;
+    delete sourceGap.bbox;
+    const e = compose(
+      {
+        ...(doorEngine as Record<string, unknown>),
+        floorPlanGaps: [sourceGap],
+      },
+      {},
+      { jobId: "job-1", runId: "run-1" },
+    ).enriched;
+    const row = e.extracted_quantities?.find(
+      (quantity) => quantity.id === "opening-floorplan-gap-1",
+    );
+    const overlay = buildLedgerPlanOverlayModel(
+      buildExtractedQuantityReadModel(e.extracted_quantities, { activeRunId: "run-1" }),
+    );
+
+    expect(row?.evidence[0].page).toBeUndefined();
+    expect(row?.evidence[0].bbox).toBeUndefined();
+    expect(
+      overlay.unmarkedRows.find(
+        (unmarked) => unmarked.extractedQuantityId === "opening-floorplan-gap-1",
+      ),
+    ).toMatchObject({
+      markerState: "no_marker",
+      visualAnchor: null,
+    });
   });
 
   it("strict floor-plan gap promotion changes opening totals only when unique elevation support exists", () => {
