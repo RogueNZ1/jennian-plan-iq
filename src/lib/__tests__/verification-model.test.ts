@@ -925,6 +925,13 @@ describe("planOverlay in the model", () => {
     expect(m.planOverlay.ledgerOverlay.markedRows.map((row) => row.extractedQuantityId)).toEqual([
       "ledger-marker",
     ]);
+    expect(m.planOverlay.ledgerOverlay.markedRows[0].visualAnchor).toMatchObject({
+      extractedQuantityId: "ledger-marker",
+      runId: RUN.id,
+      page: 1,
+      bbox: [10, 20, 30, 40],
+    });
+    expect(m.planOverlay.ledgerOverlay.markedRows[0].visualAnchorId).toMatch(/^va_/);
     expect(m.planOverlay.ledgerOverlay.unmarkedRows.map((row) => row.extractedQuantityId)).toEqual([
       "ledger-no-marker",
     ]);

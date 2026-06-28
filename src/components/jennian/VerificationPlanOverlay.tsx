@@ -271,9 +271,14 @@ export function VerificationPlanOverlay({
             const label = labelPlacement(row.vx, row.vy, state.width, state.height, width, index);
             const className = statusClass(row.status);
             return (
-              <g key={row.extractedQuantityId}>
+              <g
+                key={`${row.extractedQuantityId}:${row.visualAnchorId ?? "no-anchor"}`}
+                data-extracted-quantity-id={row.extractedQuantityId}
+                data-visual-anchor-id={row.visualAnchorId ?? undefined}
+              >
                 <title>
                   {row.extractedQuantityId} - {row.category} - {row.status}
+                  {row.visualAnchorId ? ` - anchor ${row.visualAnchorId}` : ""}
                   {row.evidenceText ? ` - ${row.evidenceText}` : ""}
                 </title>
                 <line

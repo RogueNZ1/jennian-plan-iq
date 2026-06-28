@@ -120,8 +120,17 @@ describe("plan-overlay", () => {
     expect(overlay.markedRows).toHaveLength(1);
     expect(overlay.markedRows[0]).toMatchObject({
       extractedQuantityId: "ledger-row",
+      visualAnchor: {
+        extractedQuantityId: "ledger-row",
+        runId: RUN_ID,
+        source: "visual_detection",
+        page: 1,
+        bbox: [10, 20, 30, 40],
+        coordinateSpace: "adapter_page",
+      },
       markerState: "drawable",
     });
+    expect(overlay.markedRows[0].visualAnchorId).toMatch(/^va_/);
   });
 
   it("sets extractedQuantityId from the ledger row id", () => {
@@ -132,6 +141,50 @@ describe("plan-overlay", () => {
     const overlay = buildLedgerPlanOverlayModel(readModel);
 
     expect(overlay.markedRows[0].extractedQuantityId).toBe("opening-visual-opening-7");
+  });
+
+  it("derives a runtime visual anchor from ledger row evidence with page and bbox", () => {
+    const readModel = buildExtractedQuantityReadModel(
+      [quantity({ evidence: [{ page: 4, bbox: [11, 22, 33, 44], text: "W04" }] })],
+      { activeRunId: RUN_ID },
+    );
+    const overlay = buildLedgerPlanOverlayModel(readModel);
+
+    expect(overlay.markedRows[0].visualAnchor).toMatchObject({
+      extractedQuantityId: "ledger-row",
+      jobId: "job-1",
+      runId: RUN_ID,
+      source: "visual_detection",
+      page: 4,
+      bbox: [11, 22, 33, 44],
+      confidence: 95,
+      warnings: [],
+      evidenceText: "W04",
+    });
+  });
+
+  it("sets visualAnchorId deterministically from runId row id source page and bbox", () => {
+    const row = quantity({
+      id: "deterministic-row",
+      source: "pdf_text",
+      evidence: [{ page: 2, bbox: [1, 2, 3, 4], text: "W02" }],
+    });
+    const first = buildLedgerPlanOverlayModel(
+      buildExtractedQuantityReadModel([row], { activeRunId: RUN_ID }),
+    );
+    const second = buildLedgerPlanOverlayModel(
+      buildExtractedQuantityReadModel([row], { activeRunId: RUN_ID }),
+    );
+    const changed = buildLedgerPlanOverlayModel(
+      buildExtractedQuantityReadModel(
+        [quantity({ ...row, evidence: [{ page: 2, bbox: [1, 2, 3, 5], text: "W02" }] })],
+        { activeRunId: RUN_ID },
+      ),
+    );
+
+    expect(first.markedRows[0].visualAnchorId).toEqual(second.markedRows[0].visualAnchorId);
+    expect(first.markedRows[0].visualAnchorId).toMatch(/^va_/);
+    expect(changed.markedRows[0].visualAnchorId).not.toEqual(first.markedRows[0].visualAnchorId);
   });
 
   it("splits rows with bbox into markedRows and keeps rows without bbox visible", () => {
@@ -147,6 +200,67 @@ describe("plan-overlay", () => {
     expect(overlay.markedRows.map((row) => row.extractedQuantityId)).toEqual(["with-bbox"]);
     expect(overlay.unmarkedRows.map((row) => row.extractedQuantityId)).toEqual(["without-bbox"]);
     expect(overlay.totalLedgerRows).toBe(2);
+  });
+
+  it("does not derive anchors from rows without bbox", () => {
+    const readModel = buildExtractedQuantityReadModel(
+      [quantity({ id: "without-bbox", evidence: [{ page: 1, text: "page only" }] })],
+      { activeRunId: RUN_ID },
+    );
+    const overlay = buildLedgerPlanOverlayModel(readModel);
+
+    expect(overlay.markedRows).toHaveLength(0);
+    expect(overlay.unmarkedRows[0]).toMatchObject({
+      extractedQuantityId: "without-bbox",
+      visualAnchorId: null,
+      visualAnchor: null,
+      markerState: "no_marker",
+    });
+  });
+
+  it("does not derive anchors from bbox evidence without page", () => {
+    const readModel = buildExtractedQuantityReadModel(
+      [quantity({ id: "bbox-no-page", evidence: [{ bbox: [1, 2, 3, 4], text: "bbox only" }] })],
+      { activeRunId: RUN_ID },
+    );
+    const overlay = buildLedgerPlanOverlayModel(readModel);
+
+    expect(overlay.markedRows).toHaveLength(0);
+    expect(overlay.unmarkedRows[0]).toMatchObject({
+      extractedQuantityId: "bbox-no-page",
+      bbox: null,
+      visualAnchorId: null,
+    });
+  });
+
+  it("does not derive active anchors from visual_opening_audit", () => {
+    const overlay = buildLedgerPlanOverlayModel(null, {
+      legacyVisualOpeningCount: 20,
+    });
+
+    expect(overlay.markedRows).toHaveLength(0);
+    expect(overlay.legacyEvidence.visualOpeningCount).toBe(20);
+  });
+
+  it("does not derive active anchors from door_hits", () => {
+    const overlay = buildLedgerPlanOverlayModel(null, {
+      legacyDoorHitCount: 20,
+    });
+
+    expect(overlay.markedRows).toHaveLength(0);
+    expect(overlay.legacyEvidence.doorHitCount).toBe(20);
+  });
+
+  it("does not use legacy correction marker IDs as visualAnchorId", () => {
+    const readModel = buildExtractedQuantityReadModel(
+      [quantity({ id: "opening-O7", evidence: [{ page: 1, bbox: [1, 2, 3, 4], text: "O7" }] })],
+      { activeRunId: RUN_ID },
+    );
+    const overlay = buildLedgerPlanOverlayModel(readModel);
+
+    expect(overlay.markedRows[0].visualAnchorId).not.toBe("O7");
+    expect(overlay.markedRows[0].visualAnchorId).not.toBe("opening-O7");
+    expect(overlay.markedRows[0].visualAnchorId).toMatch(/^va_/);
   });
 
   it("preserves unknown dimensions as null", () => {
@@ -193,6 +307,57 @@ describe("plan-overlay", () => {
       areaM2: null,
       warnings: ["assumed_height_rejected"],
     });
+  });
+
+  it("does not promote needs_review rows when bbox exists", () => {
+    const readModel = buildExtractedQuantityReadModel(
+      [
+        quantity({
+          id: "review-with-bbox",
+          status: "needs_review",
+          evidence: [{ page: 1, bbox: [1, 2, 3, 4], text: "review bbox" }],
+        }),
+      ],
+      { activeRunId: RUN_ID },
+    );
+    const overlay = buildLedgerPlanOverlayModel(readModel);
+
+    expect(overlay.markedRows[0]).toMatchObject({
+      status: "needs_review",
+      visualAnchor: expect.objectContaining({ extractedQuantityId: "review-with-bbox" }),
+    });
+  });
+
+  it("does not promote missing_evidence rows when bbox exists", () => {
+    const readModel = buildExtractedQuantityReadModel(
+      [
+        quantity({
+          id: "missing-with-bbox",
+          status: "missing_evidence",
+          evidence: [{ page: 1, bbox: [1, 2, 3, 4], text: "missing bbox" }],
+        }),
+      ],
+      { activeRunId: RUN_ID },
+    );
+    const overlay = buildLedgerPlanOverlayModel(readModel);
+
+    expect(overlay.markedRows[0].status).toBe("missing_evidence");
+  });
+
+  it("does not promote conflict rows when bbox exists", () => {
+    const readModel = buildExtractedQuantityReadModel(
+      [
+        quantity({
+          id: "conflict-with-bbox",
+          status: "conflict",
+          evidence: [{ page: 1, bbox: [1, 2, 3, 4], text: "conflict bbox" }],
+        }),
+      ],
+      { activeRunId: RUN_ID },
+    );
+    const overlay = buildLedgerPlanOverlayModel(readModel);
+
+    expect(overlay.markedRows[0].status).toBe("conflict");
   });
 
   it("preserves evidence page, bbox, and text where available", () => {

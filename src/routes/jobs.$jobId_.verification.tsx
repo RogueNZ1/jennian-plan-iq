@@ -261,6 +261,9 @@ function LedgerOverlayRowsTable({
               <div className="vledger-sub">
                 {row.source} · {row.runId ?? "no run"} · {row.extractedQuantityId}
               </div>
+              {row.visualAnchorId ? (
+                <div className="vledger-sub">anchor · {row.visualAnchorId}</div>
+              ) : null}
             </td>
             <td>{row.category}</td>
             <td>{row.status}</td>

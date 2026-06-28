@@ -86,6 +86,7 @@ export type OverlaySummary = {
 
 export type LedgerOverlayRow = {
   extractedQuantityId: string;
+  visualAnchorId: string | null;
   jobId: string;
   runId: string | null;
   category: string;
@@ -102,7 +103,22 @@ export type LedgerOverlayRow = {
   evidencePage: number | null;
   bbox: [number, number, number, number] | null;
   evidenceText: string | null;
+  visualAnchor: ExtractedQuantityVisualAnchor | null;
   markerState: "drawable" | "no_marker";
+};
+
+export type ExtractedQuantityVisualAnchor = {
+  visualAnchorId: string;
+  extractedQuantityId: string;
+  jobId: string;
+  runId: string;
+  source: string;
+  page: number;
+  bbox: [number, number, number, number];
+  coordinateSpace: "adapter_page";
+  confidence: number;
+  warnings: string[];
+  evidenceText: string | null;
 };
 
 export type LedgerPlanOverlayModel = {
@@ -137,15 +153,54 @@ function usableBbox(value: unknown): value is [number, number, number, number] {
   );
 }
 
+function hashString(value: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 function firstEvidence(row: ExtractedQuantityExportRow) {
   return row.evidence.find((item) => usableBbox(item.bbox) || item.page != null || item.text);
 }
 
+function firstAnchorEvidence(row: ExtractedQuantityExportRow) {
+  return row.evidence.find((item) => item.page != null && usableBbox(item.bbox));
+}
+
+function buildRuntimeVisualAnchor(
+  row: ExtractedQuantityExportRow,
+): ExtractedQuantityVisualAnchor | null {
+  const evidence = firstAnchorEvidence(row);
+  if (!evidence || row.runId == null || evidence.page == null || !usableBbox(evidence.bbox)) {
+    return null;
+  }
+  const seed = [row.runId, row.id, row.source, String(evidence.page), evidence.bbox.join(",")].join(
+    ":",
+  );
+  return {
+    visualAnchorId: `va_${hashString(seed)}`,
+    extractedQuantityId: row.id,
+    jobId: row.jobId,
+    runId: row.runId,
+    source: row.source,
+    page: evidence.page,
+    bbox: evidence.bbox,
+    coordinateSpace: "adapter_page",
+    confidence: row.confidence,
+    warnings: row.warnings.map(String),
+    evidenceText: evidence.text ?? null,
+  };
+}
+
 function toLedgerOverlayRow(row: ExtractedQuantityExportRow): LedgerOverlayRow {
   const evidence = firstEvidence(row);
-  const bbox = usableBbox(evidence?.bbox) ? evidence.bbox : null;
+  const visualAnchor = buildRuntimeVisualAnchor(row);
   return {
     extractedQuantityId: row.id,
+    visualAnchorId: visualAnchor?.visualAnchorId ?? null,
     jobId: row.jobId,
     runId: row.runId ?? null,
     category: row.category,
@@ -159,10 +214,11 @@ function toLedgerOverlayRow(row: ExtractedQuantityExportRow): LedgerOverlayRow {
     lengthMm: row.lengthMm,
     areaM2: row.areaM2,
     source: row.source,
-    evidencePage: evidence?.page ?? null,
-    bbox,
-    evidenceText: evidence?.text ?? null,
-    markerState: bbox ? "drawable" : "no_marker",
+    evidencePage: visualAnchor?.page ?? evidence?.page ?? null,
+    bbox: visualAnchor?.bbox ?? null,
+    evidenceText: visualAnchor?.evidenceText ?? evidence?.text ?? null,
+    visualAnchor,
+    markerState: visualAnchor ? "drawable" : "no_marker",
   };
 }
 
