@@ -32,10 +32,12 @@ import {
   type ExtractedQuantityReadModel,
 } from "@/lib/takeoff/extracted-quantity-read-model";
 import { buildExtractedQuantitiesSheet } from "@/lib/takeoff/extracted-quantity-export";
-import {
-  loadActiveExtractedQuantityRows,
-  type ExtractedQuantityPersistenceClient,
-} from "@/lib/takeoff/extracted-quantity-persistence";
+import { loadExtractedQuantityAuthorityForJob } from "@/lib/takeoff/extracted-quantity-authority";
+export {
+  loadEnrichedTakeoffJson,
+  loadEnrichedTakeoffJsonWithRun,
+} from "@/lib/takeoff/extracted-quantity-authority";
+export type { EnrichedTakeoffJsonWithRun } from "@/lib/takeoff/extracted-quantity-authority";
 
 // All export date stamps are NZT regardless of runtime TZ (12 Jun): CI runs UTC, and the
 // previous ISO slice stamped *yesterday* on every export generated after 1pm NZ time.
@@ -264,48 +266,6 @@ export type ElectricalSchedule = {
  * openings — sliders, sectional doors — then never reach the sheets). Scanning a small
  * window returns the most recent run that actually carries the canonical takeoff.
  */
-const ENRICHED_RUN_SCAN_LIMIT = 5;
-
-export type EnrichedTakeoffJsonWithRun = {
-  enriched: EnrichedTakeoff | null;
-  run: { id: string; started_at: string } | null;
-};
-
-export async function loadEnrichedTakeoffJsonWithRun(
-  jobId: string,
-): Promise<EnrichedTakeoffJsonWithRun> {
-  try {
-    const res = await supabase
-      .from("takeoff_runs")
-      .select("*")
-      .eq("job_id", jobId)
-      .order("started_at", { ascending: false })
-      .limit(ENRICHED_RUN_SCAN_LIMIT);
-    for (const row of (res.data ?? []) as Array<Record<string, unknown>>) {
-      const tj = row["takeoff_json"];
-      // First (most recent) row carrying a real payload wins; null/absent rows are skipped
-      // client-side so a missing column (pre-migration) still degrades gracefully to null.
-      if (tj && typeof tj === "object") {
-        return {
-          enriched: tj as EnrichedTakeoff,
-          run: { id: row["id"] as string, started_at: row["started_at"] as string },
-        };
-      }
-    }
-    const first = (res.data ?? [])[0] as Record<string, unknown> | undefined;
-    return {
-      enriched: null,
-      run: first ? { id: first["id"] as string, started_at: first["started_at"] as string } : null,
-    };
-  } catch {
-    return { enriched: null, run: null };
-  }
-}
-
-export async function loadEnrichedTakeoffJson(jobId: string): Promise<EnrichedTakeoff | null> {
-  return (await loadEnrichedTakeoffJsonWithRun(jobId)).enriched;
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === "object" && !Array.isArray(value);
 }
@@ -558,19 +518,6 @@ export function applyEnrichedTakeoff(
   };
 }
 
-export async function loadActiveExtractedQuantityReadModel(
-  jobId: string,
-  activeRunId?: string | null,
-): Promise<ExtractedQuantityReadModel | null> {
-  if (!activeRunId) return null;
-  const result = await loadActiveExtractedQuantityRows(
-    supabase as unknown as ExtractedQuantityPersistenceClient,
-    { jobId, activeRunId },
-  );
-  if (result.error || result.rows.length === 0) return null;
-  return buildExtractedQuantityReadModel(result.rows, { activeRunId: activeRunId ?? undefined });
-}
-
 export async function buildQSExportData(
   jobId: string,
   files?: ExtractedFile[],
@@ -648,12 +595,9 @@ export async function buildQSExportData(
   // Convergence Slice 6 — the canonical enriched takeoff (takeoff_json) is the PRIMARY source
   // when present; null for every pre-convergence job → relational fallback (overlay applied at
   // the return below).
-  const enrichedRun = await loadEnrichedTakeoffJsonWithRun(jobId);
-  const enrichedJson = enrichedRun.enriched;
-  const activeExtractedQuantityReadModel = await loadActiveExtractedQuantityReadModel(
-    jobId,
-    enrichedRun.run?.id ?? null,
-  );
+  const extractedQuantityAuthority = await loadExtractedQuantityAuthorityForJob(jobId);
+  const enrichedJson = extractedQuantityAuthority.enriched;
+  const activeExtractedQuantityReadModel = extractedQuantityAuthority.readModel;
 
   function getVal(label: string): string | null {
     const needle = label.toLowerCase();

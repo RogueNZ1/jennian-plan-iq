@@ -16,6 +16,7 @@ import {
   type ExtractedQuantityPersistenceClient,
 } from "../../src/lib/takeoff/extracted-quantity-persistence";
 import { buildExtractedQuantityReadModel } from "../../src/lib/takeoff/extracted-quantity-read-model";
+import { resolveExtractedQuantityAuthorityForRun } from "../../src/lib/takeoff/extracted-quantity-authority";
 import type { EnrichedTakeoff } from "../../src/lib/takeoff/enriched-takeoff";
 import type { ExtractedQuantity } from "../../src/lib/takeoff/extracted-quantity-ledger";
 
@@ -525,6 +526,84 @@ describe("extracted quantity persistence", () => {
 
     expect(result.rows).toEqual([]);
     expect(data.extractedQuantityReadModel?.rows.map((row) => row.id)).toEqual(["fresh-json"]);
+  });
+
+  it("verification uses the same current-run authority rule as export", async () => {
+    const client = new InMemoryExtractedQuantityClient();
+    client.rows = [
+      toExtractedQuantityDbRow(q({ id: "persisted-current", runId: "run-current" })),
+      toExtractedQuantityDbRow(q({ id: "persisted-old", runId: "run-old" })),
+    ].map((row) => ({ ...row, superseded_at: null }));
+    const authority = await resolveExtractedQuantityAuthorityForRun(client, {
+      jobId: "job-1",
+      enrichedRun: {
+        run: { id: "run-current", started_at: timestamp },
+        enriched: enrichedWithQuantities([q({ id: "fresh-json", runId: "run-current" })]),
+      },
+    });
+    expect(authority.source).toBe("persisted_current_run");
+    expect(authority.readModel?.rows.map((row) => row.id)).toEqual(["persisted-current"]);
+  });
+
+  it("verification prefers current-run persisted rows when available", async () => {
+    const client = new InMemoryExtractedQuantityClient();
+    client.rows = [
+      toExtractedQuantityDbRow(q({ id: "current-persisted", runId: "run-current" })),
+    ].map((row) => ({ ...row, superseded_at: null }));
+    const authority = await resolveExtractedQuantityAuthorityForRun(client, {
+      jobId: "job-1",
+      enrichedRun: {
+        run: { id: "run-current", started_at: timestamp },
+        enriched: enrichedWithQuantities([q({ id: "fresh-json", runId: "run-current" })]),
+      },
+    });
+    expect(authority.source).toBe("persisted_current_run");
+    expect(authority.quantities.map((row) => row.id)).toEqual(["current-persisted"]);
+  });
+
+  it("verification falls back to fresh takeoff_json extracted quantities when current-run persisted rows are unavailable", async () => {
+    const client = new InMemoryExtractedQuantityClient();
+    const authority = await resolveExtractedQuantityAuthorityForRun(client, {
+      jobId: "job-1",
+      enrichedRun: {
+        run: { id: "run-current", started_at: timestamp },
+        enriched: enrichedWithQuantities([q({ id: "fresh-json", runId: "run-current" })]),
+      },
+    });
+    expect(authority.source).toBe("takeoff_json_fallback");
+    expect(authority.readModel?.rows.map((row) => row.id)).toEqual(["fresh-json"]);
+  });
+
+  it("verification does not prefer older-run persisted rows over fresh current-run takeoff_json", async () => {
+    const client = new InMemoryExtractedQuantityClient();
+    client.rows = [toExtractedQuantityDbRow(q({ id: "old-persisted", runId: "run-old" }))].map(
+      (row) => ({ ...row, superseded_at: null }),
+    );
+    const authority = await resolveExtractedQuantityAuthorityForRun(client, {
+      jobId: "job-1",
+      enrichedRun: {
+        run: { id: "run-current", started_at: timestamp },
+        enriched: enrichedWithQuantities([q({ id: "fresh-json", runId: "run-current" })]),
+      },
+    });
+    expect(authority.source).toBe("takeoff_json_fallback");
+    expect(authority.readModel?.rows.map((row) => row.id)).toEqual(["fresh-json"]);
+  });
+
+  it("verification does not silently mix runIds", async () => {
+    const client = new InMemoryExtractedQuantityClient();
+    const authority = await resolveExtractedQuantityAuthorityForRun(client, {
+      jobId: "job-1",
+      enrichedRun: {
+        run: { id: "run-current", started_at: timestamp },
+        enriched: enrichedWithQuantities([
+          q({ id: "fresh-current", runId: "run-current" }),
+          q({ id: "fresh-old", runId: "run-old" }),
+        ]),
+      },
+    });
+    expect(authority.source).toBe("takeoff_json_fallback");
+    expect(authority.readModel?.rows.map((row) => row.id)).toEqual(["fresh-current"]);
   });
 
   it("rerun cannot produce fresh takeoff_json with stale active extracted quantities", () => {

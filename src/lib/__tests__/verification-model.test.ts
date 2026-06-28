@@ -8,6 +8,8 @@ import {
 import type { QSExportData } from "../iq-qs-export";
 import type { EnrichedTakeoff } from "../takeoff/enriched-takeoff";
 import { fv } from "../takeoff/enriched-takeoff";
+import type { ExtractedQuantity } from "../takeoff/extracted-quantity-ledger";
+import { buildExtractedQuantityReadModel } from "../takeoff/extracted-quantity-read-model";
 
 /* ------------------------------------------------------------------ fixtures */
 
@@ -136,6 +138,29 @@ function makeEnriched(overrides: Partial<EnrichedTakeoff> = {}): EnrichedTakeoff
 }
 
 const RUN = { id: "abcd1234-ffff-0000-9999-aaaaaaaaaaaa", started_at: "2026-06-12T01:32:00Z" };
+
+function quantity(overrides: Partial<ExtractedQuantity>): ExtractedQuantity {
+  return {
+    id: "q",
+    jobId: "job-1",
+    runId: RUN.id,
+    category: "window",
+    label: "Window",
+    count: 1,
+    widthMm: 1200,
+    heightMm: 1000,
+    lengthMm: null,
+    areaM2: 1.2,
+    source: "vector_geometry",
+    evidence: [{ page: 2, bbox: [1, 2, 3, 4], text: "W01 1200x1000" }],
+    status: "extracted",
+    confidence: 95,
+    warnings: [],
+    createdAt: "2026-06-28T00:00:00.000Z",
+    updatedAt: "2026-06-28T00:00:00.000Z",
+    ...overrides,
+  };
+}
 
 /* ------------------------------------------------------------------ tests */
 
@@ -681,6 +706,177 @@ describe("buildVerificationModel", () => {
   it("source legend covers every tag the mapper can emit", () => {
     const tags = SOURCE_LEGEND.map((l) => l.tag);
     expect(tags).toEqual(["GEO", "VEC", "VIS", "SCH", "DRV", "AST", "FLG", "MAN"]);
+  });
+
+  it("verification reads active extracted quantity ledger rows", () => {
+    const readModel = buildExtractedQuantityReadModel([
+      quantity({
+        id: "perimeter",
+        category: "exterior_perimeter",
+        label: "Exterior perimeter",
+        count: 1,
+        lengthMm: 60000,
+        areaM2: null,
+      }),
+      quantity({
+        id: "doors",
+        category: "interior_door",
+        label: "Interior doors - standard",
+        count: 9,
+        areaM2: null,
+      }),
+    ]);
+    const m = buildVerificationModel(
+      makeData({ extractedQuantityReadModel: readModel }),
+      makeEnriched(),
+      RUN,
+    );
+    expect(m.extractedQuantities.readModel?.rows.map((row) => row.id)).toEqual([
+      "perimeter",
+      "doors",
+    ]);
+    expect(
+      m.extractedQuantities.categories.find((c) => c.category === "exterior_perimeter")?.cleanTotals
+        .lengthMm,
+    ).toBe(60000);
+    expect(m.doors.interiorTotal).toBe(9);
+  });
+
+  it("verification clean totals include only extracted rows and shows needs_review separately", () => {
+    const readModel = buildExtractedQuantityReadModel([
+      quantity({ id: "clean", category: "window", status: "extracted", areaM2: 1.2 }),
+      quantity({
+        id: "review",
+        category: "window",
+        status: "needs_review",
+        widthMm: null,
+        heightMm: null,
+        areaM2: null,
+        warnings: ["height_not_extracted"],
+      }),
+    ]);
+    const m = buildVerificationModel(
+      makeData({ extractedQuantityReadModel: readModel }),
+      makeEnriched(),
+      RUN,
+    );
+    const windows = m.extractedQuantities.categories.find((c) => c.category === "window")!;
+    expect(windows.cleanTotals.count).toBe(1);
+    expect(windows.cleanTotals.areaM2).toBe(1.2);
+    expect(windows.statusCounts.needs_review).toBe(1);
+    expect(windows.rows.needs_review[0]).toMatchObject({
+      widthMm: null,
+      heightMm: null,
+      areaM2: null,
+    });
+  });
+
+  it("verification preserves assumed-height rows as needs_review with null height and null area", () => {
+    const readModel = buildExtractedQuantityReadModel([
+      quantity({
+        id: "assumed-height",
+        status: "needs_review",
+        heightMm: null,
+        areaM2: null,
+        warnings: ["assumed_height_rejected"],
+      }),
+    ]);
+    const m = buildVerificationModel(
+      makeData({ extractedQuantityReadModel: readModel }),
+      makeEnriched(),
+      RUN,
+    );
+    const row = m.extractedQuantities.categories.find((c) => c.category === "window")!.rows
+      .needs_review[0];
+    expect(row.status).toBe("needs_review");
+    expect(row.heightMm).toBeNull();
+    expect(row.areaM2).toBeNull();
+    expect(row.warnings).toContain("assumed_height_rejected");
+  });
+
+  it("verification includes warnings and evidence page, bbox, and text where available", () => {
+    const readModel = buildExtractedQuantityReadModel([
+      quantity({ id: "evidence-row", warnings: ["possible_duplicate"] }),
+    ]);
+    const m = buildVerificationModel(
+      makeData({ extractedQuantityReadModel: readModel }),
+      makeEnriched(),
+      RUN,
+    );
+    const row = m.extractedQuantities.categories.find((c) => c.category === "window")!.rows
+      .extracted[0];
+    expect(row.warnings).toEqual(["possible_duplicate"]);
+    expect(row.evidence[0]).toMatchObject({
+      page: 2,
+      bbox: [1, 2, 3, 4],
+      text: "W01 1200x1000",
+    });
+  });
+
+  it("verification category counts match the extracted quantity read model", () => {
+    const readModel = buildExtractedQuantityReadModel([
+      quantity({ id: "window-1", category: "window", count: 2, areaM2: 2.4 }),
+      quantity({ id: "garage-1", category: "garage_door", count: 1, areaM2: 10.08 }),
+      quantity({ id: "exterior-door-1", category: "exterior_door", count: 1, areaM2: 2.1 }),
+    ]);
+    const m = buildVerificationModel(
+      makeData({ extractedQuantityReadModel: readModel }),
+      makeEnriched(),
+      RUN,
+    );
+    expect(m.windows.totals.qsGlazedOpeningCount).toBe(3);
+    expect(m.windows.totals.garageDoorCount).toBe(1);
+    expect(m.windows.totals.totalOpeningSqm).toBeCloseTo(14.58);
+  });
+
+  it("verification does not compute independent opening totals from raw composed openings", () => {
+    const readModel = buildExtractedQuantityReadModel([
+      quantity({ id: "ledger-window", category: "window", count: 1, areaM2: 1.2 }),
+    ]);
+    const m = buildVerificationModel(
+      makeData({
+        extractedQuantityReadModel: readModel,
+        openings: [
+          {
+            type: "window",
+            room: "Bed 1",
+            height_m: 1,
+            width_m: 1,
+            area_m2: 1,
+            glazed: true,
+            source: "vision",
+            cladding: "Brick",
+            confidence: "high",
+          },
+          {
+            type: "window",
+            room: "Bed 2",
+            height_m: 1,
+            width_m: 1,
+            area_m2: 1,
+            glazed: true,
+            source: "vision",
+            cladding: "Brick",
+            confidence: "high",
+          },
+          {
+            type: "sectional_door",
+            room: "Garage",
+            height_m: 2.1,
+            width_m: 4.8,
+            area_m2: 10.08,
+            glazed: false,
+            source: "vision",
+            cladding: "Brick",
+            confidence: "high",
+          },
+        ],
+      }),
+      makeEnriched(),
+      RUN,
+    );
+    expect(m.windows.totals.qsGlazedOpeningCount).toBe(1);
+    expect(m.windows.openings).toEqual([]);
   });
 });
 

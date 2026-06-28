@@ -14,6 +14,19 @@
 
 import type { QSExportData } from "@/lib/iq-qs-export";
 import type { EnrichedTakeoff, FieldValue } from "@/lib/takeoff/enriched-takeoff";
+import type {
+  ExtractedQuantityAuthority,
+  ExtractedQuantityAuthoritySource,
+} from "@/lib/takeoff/extracted-quantity-authority";
+import type {
+  ExtractedQuantityExportRow,
+  ExtractedQuantityReadModel,
+  ExtractedQuantityTotals,
+} from "@/lib/takeoff/extracted-quantity-read-model";
+import type {
+  ExtractedQuantityCategory,
+  ExtractedQuantityStatus,
+} from "@/lib/takeoff/extracted-quantity-ledger";
 import type { Opening } from "@/lib/takeoff/takeoff-types";
 import type { VisualOpeningAuditSummary } from "@/lib/takeoff/visual-opening-audit";
 import {
@@ -104,6 +117,16 @@ export type SpecGroupRows = { group: string; rows: SpecRow[] };
 
 export type ExceptionGroup = { field: string; flags: string[] };
 
+export type VerificationQuantityCategorySummary = {
+  category: ExtractedQuantityCategory;
+  label: string;
+  cleanTotals: ExtractedQuantityTotals;
+  statusCounts: Record<ExtractedQuantityStatus, number>;
+  rows: Record<ExtractedQuantityStatus, ExtractedQuantityExportRow[]>;
+  warnings: string[];
+  confidence: number | null;
+};
+
 export type VerificationModel = {
   header: {
     jobNumber: string;
@@ -118,6 +141,13 @@ export type VerificationModel = {
     takeoffSource: "enriched" | "relational" | null;
   };
   geometryOffline: boolean;
+  extractedQuantities: {
+    source: ExtractedQuantityAuthoritySource | "none";
+    runId: string | null;
+    warnings: string[];
+    readModel: ExtractedQuantityReadModel | null;
+    categories: VerificationQuantityCategorySummary[];
+  };
   measures: MeasureRow[];
   windows: {
     openings: OpeningVerificationRow[];
@@ -346,6 +376,98 @@ const OPENING_TYPE_LABELS: Record<Opening["type"], string> = {
   entrance: "Entrance door",
 };
 
+const LEDGER_STATUSES: ExtractedQuantityStatus[] = [
+  "extracted",
+  "needs_review",
+  "missing_evidence",
+  "conflict",
+  "ignored",
+];
+
+const VERIFICATION_QUANTITY_CATEGORIES: Array<{
+  category: ExtractedQuantityCategory;
+  label: string;
+}> = [
+  { category: "exterior_perimeter", label: "Exterior perimeter" },
+  { category: "interior_door", label: "Interior doors" },
+  { category: "window", label: "Windows/openings" },
+  { category: "opening", label: "Openings" },
+  { category: "exterior_door", label: "Exterior doors" },
+  { category: "garage_door", label: "Garage doors" },
+];
+
+function emptyLedgerTotals(): ExtractedQuantityTotals {
+  return { count: 0, lengthMm: 0, areaM2: 0 };
+}
+
+function emptyLedgerRows(): Record<ExtractedQuantityStatus, ExtractedQuantityExportRow[]> {
+  return {
+    extracted: [],
+    needs_review: [],
+    missing_evidence: [],
+    conflict: [],
+    ignored: [],
+  };
+}
+
+function buildLedgerCategorySummary(
+  readModel: ExtractedQuantityReadModel | null,
+  category: ExtractedQuantityCategory,
+  label: string,
+): VerificationQuantityCategorySummary {
+  const rowsByStatus = emptyLedgerRows();
+  for (const status of LEDGER_STATUSES) {
+    rowsByStatus[status] =
+      readModel?.groups[status].filter((row) => row.category === category) ?? [];
+  }
+  const allRows = LEDGER_STATUSES.flatMap((status) => rowsByStatus[status]);
+  const confidenceRows = allRows.filter((row) => Number.isFinite(row.confidence));
+  return {
+    category,
+    label,
+    cleanTotals: readModel?.cleanTotalsByCategory[category] ?? emptyLedgerTotals(),
+    statusCounts: {
+      extracted: rowsByStatus.extracted.length,
+      needs_review: rowsByStatus.needs_review.length,
+      missing_evidence: rowsByStatus.missing_evidence.length,
+      conflict: rowsByStatus.conflict.length,
+      ignored: rowsByStatus.ignored.length,
+    },
+    rows: rowsByStatus,
+    warnings: [
+      ...new Set(allRows.flatMap((row) => row.warnings.map((warning) => String(warning)))),
+    ],
+    confidence:
+      confidenceRows.length === 0
+        ? null
+        : Math.round(
+            confidenceRows.reduce((sum, row) => sum + row.confidence, 0) / confidenceRows.length,
+          ),
+  };
+}
+
+function readModelCount(
+  readModel: ExtractedQuantityReadModel | null,
+  categories: ExtractedQuantityCategory[],
+): number | null {
+  if (!readModel) return null;
+  return categories.reduce(
+    (sum, category) => sum + (readModel.cleanTotalsByCategory[category]?.count ?? 0),
+    0,
+  );
+}
+
+function readModelArea(
+  readModel: ExtractedQuantityReadModel | null,
+  categories: ExtractedQuantityCategory[],
+): number | null {
+  if (!readModel) return null;
+  return categories.reduce(
+    (sum, category) => sum + (readModel.cleanTotalsByCategory[category]?.areaM2 ?? 0),
+    0,
+  );
+}
+
 /* ------------------------------------------------------------------ builder */
 
 export function buildVerificationModel(
@@ -353,8 +475,22 @@ export function buildVerificationModel(
   enriched: EnrichedTakeoff | null,
   run: { id: string; started_at: string } | null,
   now: Date = new Date(),
+  quantityAuthority?: ExtractedQuantityAuthority | null,
 ): VerificationModel {
   const e = enriched;
+  const extractedQuantityReadModel =
+    quantityAuthority?.readModel ?? data.extractedQuantityReadModel ?? null;
+  const ledgerIsAuthority = extractedQuantityReadModel != null;
+  const extractedQuantities: VerificationModel["extractedQuantities"] = {
+    source:
+      quantityAuthority?.source ?? (extractedQuantityReadModel ? "takeoff_json_fallback" : "none"),
+    runId: quantityAuthority?.runId ?? extractedQuantityReadModel?.activeRunId ?? run?.id ?? null,
+    warnings: quantityAuthority?.warnings ?? [],
+    readModel: extractedQuantityReadModel,
+    categories: VERIFICATION_QUANTITY_CATEGORIES.map(({ category, label }) =>
+      buildLedgerCategorySummary(extractedQuantityReadModel, category, label),
+    ),
+  };
 
   /* header ------------------------------------------------------- */
   const header: VerificationModel["header"] = {
@@ -438,8 +574,10 @@ export function buildVerificationModel(
 
   /* windows -------------------------------------------------------- */
   const visualOpenings = buildVisualOpeningMarkers(e?.visual_opening_audit?.openings ?? null);
-  const canonicalOpenings = (data.openings ?? []).filter((o) => o.glazed);
-  const garageDoorOpenings = (data.openings ?? []).filter((o) => o.type === "sectional_door");
+  const canonicalOpenings = ledgerIsAuthority ? [] : (data.openings ?? []).filter((o) => o.glazed);
+  const garageDoorOpenings = ledgerIsAuthority
+    ? []
+    : (data.openings ?? []).filter((o) => o.type === "sectional_door");
   const pricingBlockFlags = openingPricingBlockFlags(data, e);
   const openingPricingBlocked = pricingBlockFlags.length > 0;
   const visualSummary = e?.visual_opening_audit?.summary ?? null;
@@ -475,15 +613,17 @@ export function buildVerificationModel(
     };
   });
 
-  const byRoom: RoomWindowRow[] = Object.entries(data.windowsByRoom ?? {})
-    .filter(([, v]) => v && v.qty > 0)
-    .map(([key, v]) => ({
-      room: ROOM_LABELS[key] ?? key,
-      cladding: fmtStr(v!.cladding),
-      qty: v!.qty,
-      height: v!.height,
-      width: v!.width,
-    }));
+  const byRoom: RoomWindowRow[] = ledgerIsAuthority
+    ? []
+    : Object.entries(data.windowsByRoom ?? {})
+        .filter(([, v]) => v && v.qty > 0)
+        .map(([key, v]) => ({
+          room: ROOM_LABELS[key] ?? key,
+          cladding: fmtStr(v!.cladding),
+          qty: v!.qty,
+          height: v!.height,
+          width: v!.width,
+        }));
 
   const schedule: ScheduleRow[] = (e?.windows_schedule?.value ?? []).map((s) => ({
     id: s.id,
@@ -491,11 +631,12 @@ export function buildVerificationModel(
     width_m: s.width_m,
   }));
 
-  const qsRows: CountRow[] = openingPricingBlocked
-    ? []
-    : (data.windows ?? [])
-        .filter((w) => w.qty > 0 || (w.type && w.type.trim() !== ""))
-        .map((w) => ({ label: fmtStr(w.type), qty: w.qty }));
+  const qsRows: CountRow[] =
+    ledgerIsAuthority || openingPricingBlocked
+      ? []
+      : (data.windows ?? [])
+          .filter((w) => w.qty > 0 || (w.type && w.type.trim() !== ""))
+          .map((w) => ({ label: fmtStr(w.type), qty: w.qty }));
 
   const windowFieldFlags = [
     ...(e?.window_count?.discrepancy_flags ?? []),
@@ -505,17 +646,21 @@ export function buildVerificationModel(
   const unplacedFlags = windowFieldFlags.filter((f) => f.toUpperCase().includes("UNPLACED"));
 
   /* doors ---------------------------------------------------------- */
-  const interior: CountRow[] = [
-    { label: "Standard", qty: data.intDoorStandard },
-    { label: "U-groove", qty: data.intDoorUGroove },
-    { label: "V-groove", qty: data.intDoorVGroove },
-    { label: "Double", qty: data.intDoorDouble },
-    { label: "Cavity slider", qty: data.intDoorCavitySlider },
-    { label: "Barn slider", qty: data.intDoorBarnSlider },
-  ];
+  const interior: CountRow[] = ledgerIsAuthority
+    ? extractedQuantityReadModel.groups.extracted
+        .filter((row) => row.category === "interior_door")
+        .map((row) => ({ label: row.label ?? row.category, qty: row.count ?? 0 }))
+    : [
+        { label: "Standard", qty: data.intDoorStandard },
+        { label: "U-groove", qty: data.intDoorUGroove },
+        { label: "V-groove", qty: data.intDoorVGroove },
+        { label: "Double", qty: data.intDoorDouble },
+        { label: "Cavity slider", qty: data.intDoorCavitySlider },
+        { label: "Barn slider", qty: data.intDoorBarnSlider },
+      ];
   const interiorTotal = interior.reduce((s, r) => s + (r.qty || 0), 0);
 
-  const garage: CountRow[] = [
+  const garageLegacy: CountRow[] = [
     { label: "4.8 × 2.1 standard", qty: data.garageDoor48x21Std },
     { label: "4.8 × 2.1 insulated", qty: data.garageDoor48x21Insulated },
     { label: "2.7 × 2.1 standard", qty: data.garageDoor27x21Std },
@@ -523,6 +668,11 @@ export function buildVerificationModel(
     { label: "2.4 × 2.1 standard", qty: data.garageDoor24x21Std },
     { label: "2.4 × 2.1 insulated", qty: data.garageDoor24x21Insulated },
   ].filter((r) => r.qty > 0);
+  const garage: CountRow[] = ledgerIsAuthority
+    ? extractedQuantityReadModel.groups.extracted
+        .filter((row) => row.category === "garage_door")
+        .map((row) => ({ label: row.label ?? row.category, qty: row.count ?? 0 }))
+    : garageLegacy;
   const exportedGarageDoorCount =
     garage.reduce((sum, row) => sum + row.qty, 0) + garageDoorOpenings.length;
 
@@ -537,9 +687,11 @@ export function buildVerificationModel(
     interior,
     interiorTotal,
     source: data.doorsSource ?? null,
-    sourceLabel: data.doorsSource
-      ? (DOORS_SOURCE_LABELS[data.doorsSource] ?? data.doorsSource)
-      : "⚑ NO SOURCE — counts are unbacked zeros, do not price",
+    sourceLabel: ledgerIsAuthority
+      ? "Extracted Quantity Ledger"
+      : data.doorsSource
+        ? (DOORS_SOURCE_LABELS[data.doorsSource] ?? data.doorsSource)
+        : "⚑ NO SOURCE — counts are unbacked zeros, do not price",
     visionHint: data.intDoorVisionHint ?? null,
     garage,
     garageDoorSize:
@@ -676,6 +828,7 @@ export function buildVerificationModel(
   return {
     header,
     geometryOffline,
+    extractedQuantities,
     measures,
     windows: {
       openings: openingRows,
@@ -685,19 +838,38 @@ export function buildVerificationModel(
       pricingBlocked: openingPricingBlocked,
       pricingBlockFlags,
       totals: {
-        windowCount: e?.window_count?.value ?? null,
+        windowCount: ledgerIsAuthority
+          ? readModelCount(extractedQuantityReadModel, ["window", "opening", "exterior_door"])
+          : (e?.window_count?.value ?? null),
         qsGlazedOpeningCount: openingPricingBlocked
           ? null
-          : canonicalOpenings.length > 0
-            ? canonicalOpenings.length
-            : (visualSummary?.qsGlazedOpenings ?? null),
+          : ledgerIsAuthority
+            ? readModelCount(extractedQuantityReadModel, ["window", "opening", "exterior_door"])
+            : canonicalOpenings.length > 0
+              ? canonicalOpenings.length
+              : (visualSummary?.qsGlazedOpenings ?? null),
         garageDoorCount: openingPricingBlocked
           ? null
-          : garageDoorOpenings.length > 0
-            ? garageDoorOpenings.length
-            : (visualSummary?.garageDoors ?? null),
-        glazedSqm: openingPricingBlocked ? null : (e?.glazed_sqm ?? null),
-        totalOpeningSqm: openingPricingBlocked ? null : (e?.total_opening_sqm ?? null),
+          : ledgerIsAuthority
+            ? readModelCount(extractedQuantityReadModel, ["garage_door"])
+            : garageDoorOpenings.length > 0
+              ? garageDoorOpenings.length
+              : (visualSummary?.garageDoors ?? null),
+        glazedSqm: openingPricingBlocked
+          ? null
+          : ledgerIsAuthority
+            ? readModelArea(extractedQuantityReadModel, ["window", "opening", "exterior_door"])
+            : (e?.glazed_sqm ?? null),
+        totalOpeningSqm: openingPricingBlocked
+          ? null
+          : ledgerIsAuthority
+            ? readModelArea(extractedQuantityReadModel, [
+                "window",
+                "opening",
+                "exterior_door",
+                "garage_door",
+              ])
+            : (e?.total_opening_sqm ?? null),
       },
       reviewOnlyTotals: {
         visualOpeningCount: openingPricingBlocked ? (visualSummary?.totalOpenings ?? null) : null,
