@@ -1034,6 +1034,22 @@ export async function runAutomaticTakeoff(args: {
                     runId,
                     composed.enriched,
                   );
+                  const { persistExtractedQuantityRowsForRun } =
+                    await import("./extracted-quantity-persistence");
+                  const eqPersistResult = await persistExtractedQuantityRowsForRun(
+                    supabase as never,
+                    {
+                      jobId,
+                      runId,
+                      quantities: composed.enriched.extracted_quantities ?? [],
+                    },
+                  );
+                  if (!eqPersistResult.written) {
+                    console.warn(
+                      "[persist-extracted-quantities] write failed:",
+                      eqPersistResult.error,
+                    );
+                  }
                   canonicalPersisted = persistResult.written;
                   if (!persistResult.written) {
                     canonicalSkipReason = `takeoff_json write failed: ${persistResult.error ?? "unknown"}`;

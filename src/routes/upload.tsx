@@ -509,12 +509,35 @@ function UploadPage() {
         }
         const runId = runRow.id as string;
 
+        const { buildExtractedQuantityLedger } =
+          await import("@/lib/takeoff/extracted-quantity-ledger");
+        const enrichedWithLedger = {
+          ...enriched,
+          extracted_quantities: buildExtractedQuantityLedger({
+            enriched,
+            jobId: job.id,
+            runId,
+            now,
+          }),
+        };
+
         // (b) Write takeoff_json via the existing persister (scalar overlay for D12/D15/D19/D20 + openings).
         const { persistEnrichedTakeoff } = await import("@/lib/takeoff/persist-takeoff");
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const tjResult = await persistEnrichedTakeoff(supabase as any, runId, enriched);
+        const tjResult = await persistEnrichedTakeoff(supabase as any, runId, enrichedWithLedger);
         if (!tjResult.written) {
           console.warn("[persist-wizard] takeoff_json write failed:", tjResult.error);
+        }
+        const { persistExtractedQuantityRowsForRun } =
+          await import("@/lib/takeoff/extracted-quantity-persistence");
+        const eqResult = await persistExtractedQuantityRowsForRun(supabase as never, {
+          jobId: job.id,
+          runId,
+          quantities: enrichedWithLedger.extracted_quantities,
+          now,
+        });
+        if (!eqResult.written) {
+          console.warn("[persist-wizard] extracted quantity rows write failed:", eqResult.error);
         }
 
         // (c) Project adjudicated canonical openings into the review table.
@@ -526,13 +549,13 @@ function UploadPage() {
         const openingProjectionResult = await projectEnrichedOpeningsToSchedule(supabase as never, {
           jobId: job.id,
           createdBy: user.id,
-          openings: enriched.openings,
-          openingEvidence: enriched.opening_evidence,
+          openings: enrichedWithLedger.openings,
+          openingEvidence: enrichedWithLedger.opening_evidence,
           pricingBlocked:
-            enriched.external_wall_area_m2.discrepancy_flags.some((flag) =>
+            enrichedWithLedger.external_wall_area_m2.discrepancy_flags.some((flag) =>
               flag.startsWith("Opening pricing blocked:"),
             ) ||
-            (enriched.opening_evidence ?? []).some((candidate) =>
+            (enrichedWithLedger.opening_evidence ?? []).some((candidate) =>
               candidate.conflicts.includes("visual_reconciliation_error"),
             ),
         });

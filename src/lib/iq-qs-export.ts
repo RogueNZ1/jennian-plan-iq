@@ -32,6 +32,10 @@ import {
   type ExtractedQuantityReadModel,
 } from "@/lib/takeoff/extracted-quantity-read-model";
 import { buildExtractedQuantitiesSheet } from "@/lib/takeoff/extracted-quantity-export";
+import {
+  loadActiveExtractedQuantityRows,
+  type ExtractedQuantityPersistenceClient,
+} from "@/lib/takeoff/extracted-quantity-persistence";
 
 // All export date stamps are NZT regardless of runtime TZ (12 Jun): CI runs UTC, and the
 // previous ISO slice stamped *yesterday* on every export generated after 1pm NZ time.
@@ -476,6 +480,7 @@ function hasOpeningPricingBlock(enriched: EnrichedTakeoff): boolean {
 export function applyEnrichedTakeoff(
   base: QSExportData,
   enriched: EnrichedTakeoff | null,
+  options: { extractedQuantityReadModel?: ExtractedQuantityReadModel | null } = {},
 ): QSExportData {
   if (!enriched) return { ...base, takeoffSource: "relational" };
   const perimeter = enriched.external_wall_lm.value;
@@ -501,9 +506,9 @@ export function applyEnrichedTakeoff(
     // the relational fallback above leaves it undefined.
     openings: enrichedOpenings,
     extractedQuantities,
-    extractedQuantityReadModel: extractedQuantities
-      ? buildExtractedQuantityReadModel(extractedQuantities)
-      : null,
+    extractedQuantityReadModel:
+      options.extractedQuantityReadModel ??
+      (extractedQuantities ? buildExtractedQuantityReadModel(extractedQuantities) : null),
     openingPricingBlocked,
     // Blocked enriched openings must not fall back into stale relational schedule rows.
     windows: openingPricingBlocked ? [] : base.windows,
@@ -531,6 +536,18 @@ export function applyEnrichedTakeoff(
         ? openingsToWindowsByRoom(enrichedOpenings)
         : base.windowsByRoom,
   };
+}
+
+export async function loadActiveExtractedQuantityReadModel(
+  jobId: string,
+  activeRunId?: string | null,
+): Promise<ExtractedQuantityReadModel | null> {
+  const result = await loadActiveExtractedQuantityRows(
+    supabase as unknown as ExtractedQuantityPersistenceClient,
+    { jobId, activeRunId },
+  );
+  if (result.error || result.rows.length === 0) return null;
+  return buildExtractedQuantityReadModel(result.rows, { activeRunId: activeRunId ?? undefined });
 }
 
 export async function buildQSExportData(
@@ -611,6 +628,7 @@ export async function buildQSExportData(
   // when present; null for every pre-convergence job → relational fallback (overlay applied at
   // the return below).
   const enrichedJson = await loadEnrichedTakeoffJson(jobId);
+  const activeExtractedQuantityReadModel = await loadActiveExtractedQuantityReadModel(jobId);
 
   function getVal(label: string): string | null {
     const needle = label.toLowerCase();
@@ -1084,7 +1102,9 @@ export async function buildQSExportData(
 
   // Convergence Slice 6 — enriched takeoff_json wins where present (values + flags); null →
   // relational base unchanged (byte-identical to today).
-  return applyEnrichedTakeoff(base, enrichedJson);
+  return applyEnrichedTakeoff(base, enrichedJson, {
+    extractedQuantityReadModel: activeExtractedQuantityReadModel,
+  });
 }
 
 /* -------------------------------------------------- electrical schedule */
