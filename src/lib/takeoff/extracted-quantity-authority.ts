@@ -9,6 +9,15 @@ import {
   loadActiveExtractedQuantityRows,
   type ExtractedQuantityPersistenceClient,
 } from "./extracted-quantity-persistence";
+import {
+  loadExtractedQuantityCorrectionsForRun,
+  type ExtractedQuantityCorrectionPersistenceClient,
+} from "./extracted-quantity-correction-persistence";
+import {
+  buildEffectiveExtractedQuantityReadModel,
+  type EffectiveExtractedQuantity,
+  type EffectiveExtractedQuantityReadModel,
+} from "./extracted-quantity-effective-model";
 
 const ENRICHED_RUN_SCAN_LIMIT = 5;
 
@@ -32,6 +41,19 @@ export type ExtractedQuantityAuthority = {
   warnings: string[];
   enriched: EnrichedTakeoff | null;
   run: EnrichedTakeoffRun | null;
+};
+
+export type ExtractedQuantityCorrectionAuthoritySource =
+  | "none"
+  | "corrections_applied"
+  | "unavailable";
+
+export type EffectiveExtractedQuantityAuthority = Omit<ExtractedQuantityAuthority, "readModel"> & {
+  baseReadModel: ExtractedQuantityReadModel | null;
+  readModel: EffectiveExtractedQuantityReadModel | null;
+  effectiveRows: EffectiveExtractedQuantity[];
+  correctionSource: ExtractedQuantityCorrectionAuthoritySource;
+  correctionCount: number;
 };
 
 export interface EnrichedTakeoffRunClient {
@@ -170,6 +192,52 @@ export async function resolveExtractedQuantityAuthorityForRun(
   };
 }
 
+export async function resolveEffectiveExtractedQuantityAuthorityForRun(
+  clients: {
+    persistence: ExtractedQuantityPersistenceClient;
+    corrections: ExtractedQuantityCorrectionPersistenceClient;
+  },
+  args: { jobId: string; enrichedRun: EnrichedTakeoffJsonWithRun },
+): Promise<EffectiveExtractedQuantityAuthority> {
+  const authority = await resolveExtractedQuantityAuthorityForRun(clients.persistence, args);
+  const warnings = [...authority.warnings];
+
+  if (!authority.runId || authority.quantities.length === 0) {
+    return {
+      ...authority,
+      baseReadModel: authority.readModel,
+      readModel: null,
+      effectiveRows: [],
+      correctionSource: "none",
+      correctionCount: 0,
+      warnings,
+    };
+  }
+
+  const correctionResult = await loadExtractedQuantityCorrectionsForRun(
+    { jobId: args.jobId, runId: authority.runId },
+    clients.corrections,
+  );
+  const corrections = correctionResult.corrections;
+  if (correctionResult.error) {
+    warnings.push(`extracted quantity corrections unavailable: ${correctionResult.error}`);
+  }
+
+  const readModel = buildEffectiveExtractedQuantityReadModel(authority.quantities, corrections, {
+    activeRunId: authority.runId,
+  });
+
+  return {
+    ...authority,
+    baseReadModel: authority.readModel,
+    readModel,
+    effectiveRows: readModel.effectiveRows,
+    correctionSource: corrections.length > 0 ? "corrections_applied" : "none",
+    correctionCount: corrections.length,
+    warnings,
+  };
+}
+
 export async function loadExtractedQuantityAuthorityForJob(
   jobId: string,
   clients: {
@@ -180,6 +248,27 @@ export async function loadExtractedQuantityAuthorityForJob(
   const enrichedRun = await loadEnrichedTakeoffJsonWithRun(jobId, clients.takeoffRuns);
   return resolveExtractedQuantityAuthorityForRun(
     clients.persistence ?? (supabase as unknown as ExtractedQuantityPersistenceClient),
+    { jobId, enrichedRun },
+  );
+}
+
+export async function loadEffectiveExtractedQuantityAuthorityForJob(
+  jobId: string,
+  clients: {
+    takeoffRuns?: EnrichedTakeoffRunClient;
+    persistence?: ExtractedQuantityPersistenceClient;
+    corrections?: ExtractedQuantityCorrectionPersistenceClient;
+  } = {},
+): Promise<EffectiveExtractedQuantityAuthority> {
+  const enrichedRun = await loadEnrichedTakeoffJsonWithRun(jobId, clients.takeoffRuns);
+  return resolveEffectiveExtractedQuantityAuthorityForRun(
+    {
+      persistence:
+        clients.persistence ?? (supabase as unknown as ExtractedQuantityPersistenceClient),
+      corrections:
+        clients.corrections ??
+        (supabase as unknown as ExtractedQuantityCorrectionPersistenceClient),
+    },
     { jobId, enrichedRun },
   );
 }
