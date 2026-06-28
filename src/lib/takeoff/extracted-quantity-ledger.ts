@@ -31,6 +31,7 @@ export type ExtractedQuantitySource =
   | "derived";
 
 export type ExtractedQuantityEvidence = {
+  source?: ExtractedQuantitySource | string;
   sheetId?: string;
   page?: number;
   bbox?: [number, number, number, number];
@@ -106,6 +107,9 @@ function evidenceText(item: OpeningEvidenceItem): string {
 
 function evidenceRefs(candidate: OpeningEvidenceCandidate): ExtractedQuantityEvidence[] {
   const evidence = candidate.evidence.map((item) => ({
+    source: openingSource({ ...candidate, evidence: [item] }),
+    ...(item.page != null ? { page: item.page } : {}),
+    ...(item.bbox ? { bbox: item.bbox } : {}),
     text: evidenceText(item),
     witnessIds: item.wall_face_id ? [item.wall_face_id] : undefined,
   }));

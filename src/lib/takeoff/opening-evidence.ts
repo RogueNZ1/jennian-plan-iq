@@ -43,6 +43,8 @@ export type OpeningEvidenceItem = {
   envelope_side?: FloorPlanGapCandidate["envelopeSide"];
   room_side?: "north" | "south" | "east" | "west" | null;
   alternate_rooms?: string[];
+  page?: number;
+  bbox?: [number, number, number, number];
   text?: string;
   note?: string;
 };
