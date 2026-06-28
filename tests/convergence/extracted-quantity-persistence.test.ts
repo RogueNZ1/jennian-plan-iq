@@ -210,21 +210,20 @@ class InMemoryExtractedQuantityClient implements ExtractedQuantityPersistenceCli
           eq: (column: "job_id", jobId: string) => {
             expect(column).toBe("job_id");
             return {
-              eq: async (eqColumn: "run_id", runId: string) => {
+              eq: (eqColumn: "run_id", runId: string) => {
                 expect(eqColumn).toBe("run_id");
                 return {
-                  data: this.rows.filter((row) => row.job_id === jobId && row.run_id === runId),
-                  error: null,
-                };
-              },
-              is: async (isColumn: "superseded_at", value: null) => {
-                expect(isColumn).toBe("superseded_at");
-                expect(value).toBeNull();
-                return {
-                  data: this.rows.filter(
-                    (row) => row.job_id === jobId && row.superseded_at == null,
-                  ),
-                  error: null,
+                  is: async (isColumn: "superseded_at", value: null) => {
+                    expect(isColumn).toBe("superseded_at");
+                    expect(value).toBeNull();
+                    return {
+                      data: this.rows.filter(
+                        (row) =>
+                          row.job_id === jobId && row.run_id === runId && row.superseded_at == null,
+                      ),
+                      error: null,
+                    };
+                  },
                 };
               },
             };
@@ -264,7 +263,10 @@ describe("extracted quantity persistence", () => {
       now: "2026-06-28T01:00:00.000Z",
     });
 
-    const active = await loadActiveExtractedQuantityRows(client, { jobId: "job-1" });
+    const active = await loadActiveExtractedQuantityRows(client, {
+      jobId: "job-1",
+      activeRunId: "run-new",
+    });
     expect(active.rows.map((row) => row.id)).toEqual(["new"]);
   });
 
@@ -304,12 +306,8 @@ describe("extracted quantity persistence", () => {
       now: "2026-06-28T01:00:00.000Z",
     });
 
-    const history = await loadActiveExtractedQuantityRows(client, {
-      jobId: "job-1",
-      activeRunId: "run-old",
-    });
-    expect(history.rows.map((row) => row.id)).toEqual(["old"]);
     expect(client.rows.find((row) => row.id === "old")?.superseded_at).not.toBeNull();
+    expect(client.rows.map((row) => row.id)).toEqual(["old", "new"]);
   });
 
   it("does not silently mix rows from multiple runIds", () => {
@@ -329,7 +327,54 @@ describe("extracted quantity persistence", () => {
     ].map((row) => ({ ...row, created_at: timestamp, updated_at: timestamp }));
 
     const result = await loadActiveExtractedQuantityRows(client, { jobId: "job-1" });
-    expect(() => buildExtractedQuantityReadModel(result.rows)).toThrow(/multiple runIds/);
+    expect(result.rows).toEqual([]);
+    expect(result.error).toMatch(/activeRunId is required/);
+  });
+
+  it("loads persisted extracted rows only for the requested activeRunId", async () => {
+    const client = new InMemoryExtractedQuantityClient();
+    client.rows = [
+      toExtractedQuantityDbRow(q({ id: "old", runId: "run-old" })),
+      toExtractedQuantityDbRow(q({ id: "new", runId: "run-new" })),
+    ].map((row) => ({ ...row, created_at: timestamp, updated_at: timestamp }));
+
+    const result = await loadActiveExtractedQuantityRows(client, {
+      jobId: "job-1",
+      activeRunId: "run-new",
+    });
+
+    expect(result.error).toBeNull();
+    expect(result.rows.map((row) => row.id)).toEqual(["new"]);
+  });
+
+  it("returns no active persisted rows when only older run rows exist", async () => {
+    const client = new InMemoryExtractedQuantityClient();
+    client.rows = [toExtractedQuantityDbRow(q({ id: "old", runId: "run-old" }))].map((row) => ({
+      ...row,
+      created_at: timestamp,
+      updated_at: timestamp,
+    }));
+
+    const result = await loadActiveExtractedQuantityRows(client, {
+      jobId: "job-1",
+      activeRunId: "run-new",
+    });
+
+    expect(result).toEqual({ rows: [], error: null });
+  });
+
+  it("old unsuperseded rows are not active for a newer runId", async () => {
+    const client = new InMemoryExtractedQuantityClient();
+    client.rows = [toExtractedQuantityDbRow(q({ id: "old-active-looking", runId: "run-old" }))].map(
+      (row) => ({ ...row, created_at: timestamp, updated_at: timestamp }),
+    );
+
+    const result = await loadActiveExtractedQuantityRows(client, {
+      jobId: "job-1",
+      activeRunId: "run-new",
+    });
+
+    expect(result.rows).toEqual([]);
   });
 
   it("preserves unknown dimensions as null after persistence round trip", () => {
@@ -416,6 +461,70 @@ describe("extracted quantity persistence", () => {
     expect(data.extractedQuantityReadModel?.rows.map((row) => row.id)).toEqual([
       "active-perimeter",
     ]);
+  });
+
+  it("does not prefer persisted extracted rows from an older run over fresh takeoff_json", () => {
+    const stalePersisted = buildExtractedQuantityReadModel([
+      q({ id: "old-persisted", runId: "run-old", category: "exterior_perimeter" }),
+    ]);
+    const data = applyEnrichedTakeoff(
+      baseData(),
+      enrichedWithQuantities([q({ id: "fresh-json", runId: "run-new", category: "window" })]),
+      { extractedQuantityReadModel: null },
+    );
+
+    expect(stalePersisted.rows.map((row) => row.id)).toEqual(["old-persisted"]);
+    expect(data.extractedQuantityReadModel?.rows.map((row) => row.id)).toEqual(["fresh-json"]);
+    expect(data.extractedQuantityReadModel?.runIds).toEqual(["run-new"]);
+  });
+
+  it("falls back to fresh takeoff_json extracted quantities when current-run persisted rows are unavailable", () => {
+    const data = applyEnrichedTakeoff(
+      baseData(),
+      enrichedWithQuantities([
+        q({
+          id: "fresh-unknown",
+          runId: "run-new",
+          widthMm: 1030,
+          heightMm: null,
+          areaM2: null,
+          status: "needs_review",
+          warnings: ["assumed_height_rejected", "area_not_calculated"],
+        }),
+      ]),
+      { extractedQuantityReadModel: null },
+    );
+
+    const row = data.extractedQuantityReadModel?.rows[0];
+    expect(row?.id).toBe("fresh-unknown");
+    expect(row?.heightMm).toBeNull();
+    expect(row?.areaM2).toBeNull();
+    expect(row?.status).toBe("needs_review");
+    expect(row?.warnings).toContain("assumed_height_rejected");
+  });
+
+  it("persistence failure after takeoff_json write cannot make old rows the active authority", async () => {
+    const client = new InMemoryExtractedQuantityClient();
+    client.rows = [toExtractedQuantityDbRow(q({ id: "old-persisted", runId: "run-old" }))].map(
+      (row) => ({ ...row, created_at: timestamp, updated_at: timestamp }),
+    );
+
+    const result = await loadActiveExtractedQuantityRows(client, {
+      jobId: "job-1",
+      activeRunId: "run-new",
+    });
+    const data = applyEnrichedTakeoff(
+      baseData(),
+      enrichedWithQuantities([q({ id: "fresh-json", runId: "run-new" })]),
+      {
+        extractedQuantityReadModel: result.rows.length
+          ? buildExtractedQuantityReadModel(result.rows)
+          : null,
+      },
+    );
+
+    expect(result.rows).toEqual([]);
+    expect(data.extractedQuantityReadModel?.rows.map((row) => row.id)).toEqual(["fresh-json"]);
   });
 
   it("rerun cannot produce fresh takeoff_json with stale active extracted quantities", () => {

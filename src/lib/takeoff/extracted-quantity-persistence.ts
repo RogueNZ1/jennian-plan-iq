@@ -63,8 +63,12 @@ export interface ExtractedQuantityPersistenceClient {
 }
 
 export interface ExtractedQuantitySelectQuery {
-  eq(column: "run_id", value: string): QueryResult<ExtractedQuantityDbRow[]>;
-  is(column: "superseded_at", value: null): QueryResult<ExtractedQuantityDbRow[]>;
+  eq(
+    column: "run_id",
+    value: string,
+  ): {
+    is(column: "superseded_at", value: null): QueryResult<ExtractedQuantityDbRow[]>;
+  };
 }
 
 export type PersistExtractedQuantityRowsResult = {
@@ -149,6 +153,14 @@ export async function persistExtractedQuantityRowsForRun(
 ): Promise<PersistExtractedQuantityRowsResult> {
   const now = args.now ?? new Date().toISOString();
   try {
+    const rows = args.quantities.map((quantity) =>
+      toExtractedQuantityDbRow(quantity, { jobId: args.jobId, runId: args.runId, now }),
+    );
+    if (rows.length > 0) {
+      const insert = await client.from("extracted_quantity_rows").insert(rows);
+      if (insert.error) return { written: false, rowCount: 0, error: insert.error.message };
+    }
+
     const supersede = await client
       .from("extracted_quantity_rows")
       .update({ superseded_at: now })
@@ -159,13 +171,6 @@ export async function persistExtractedQuantityRowsForRun(
       return { written: false, rowCount: 0, error: supersede.error.message };
     }
 
-    const rows = args.quantities.map((quantity) =>
-      toExtractedQuantityDbRow(quantity, { jobId: args.jobId, runId: args.runId, now }),
-    );
-    if (rows.length === 0) return { written: true, rowCount: 0, error: null };
-
-    const insert = await client.from("extracted_quantity_rows").insert(rows);
-    if (insert.error) return { written: false, rowCount: 0, error: insert.error.message };
     return { written: true, rowCount: rows.length, error: null };
   } catch (error) {
     return {
@@ -181,10 +186,14 @@ export async function loadActiveExtractedQuantityRows(
   args: { jobId: string; activeRunId?: string | null },
 ): Promise<LoadExtractedQuantityRowsResult> {
   try {
+    if (!args.activeRunId) {
+      return {
+        rows: [],
+        error: "activeRunId is required to load active extracted quantity rows",
+      };
+    }
     const query = client.from("extracted_quantity_rows").select("*").eq("job_id", args.jobId);
-    const result = args.activeRunId
-      ? await query.eq("run_id", args.activeRunId)
-      : await query.is("superseded_at", null);
+    const result = await query.eq("run_id", args.activeRunId).is("superseded_at", null);
     if (result.error) return { rows: [], error: result.error.message };
     return { rows: (result.data ?? []).map(fromExtractedQuantityDbRow), error: null };
   } catch (error) {

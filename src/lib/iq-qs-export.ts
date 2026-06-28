@@ -266,7 +266,14 @@ export type ElectricalSchedule = {
  */
 const ENRICHED_RUN_SCAN_LIMIT = 5;
 
-export async function loadEnrichedTakeoffJson(jobId: string): Promise<EnrichedTakeoff | null> {
+export type EnrichedTakeoffJsonWithRun = {
+  enriched: EnrichedTakeoff | null;
+  run: { id: string; started_at: string } | null;
+};
+
+export async function loadEnrichedTakeoffJsonWithRun(
+  jobId: string,
+): Promise<EnrichedTakeoffJsonWithRun> {
   try {
     const res = await supabase
       .from("takeoff_runs")
@@ -278,12 +285,25 @@ export async function loadEnrichedTakeoffJson(jobId: string): Promise<EnrichedTa
       const tj = row["takeoff_json"];
       // First (most recent) row carrying a real payload wins; null/absent rows are skipped
       // client-side so a missing column (pre-migration) still degrades gracefully to null.
-      if (tj && typeof tj === "object") return tj as EnrichedTakeoff;
+      if (tj && typeof tj === "object") {
+        return {
+          enriched: tj as EnrichedTakeoff,
+          run: { id: row["id"] as string, started_at: row["started_at"] as string },
+        };
+      }
     }
-    return null;
+    const first = (res.data ?? [])[0] as Record<string, unknown> | undefined;
+    return {
+      enriched: null,
+      run: first ? { id: first["id"] as string, started_at: first["started_at"] as string } : null,
+    };
   } catch {
-    return null;
+    return { enriched: null, run: null };
   }
+}
+
+export async function loadEnrichedTakeoffJson(jobId: string): Promise<EnrichedTakeoff | null> {
+  return (await loadEnrichedTakeoffJsonWithRun(jobId)).enriched;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -542,6 +562,7 @@ export async function loadActiveExtractedQuantityReadModel(
   jobId: string,
   activeRunId?: string | null,
 ): Promise<ExtractedQuantityReadModel | null> {
+  if (!activeRunId) return null;
   const result = await loadActiveExtractedQuantityRows(
     supabase as unknown as ExtractedQuantityPersistenceClient,
     { jobId, activeRunId },
@@ -627,8 +648,12 @@ export async function buildQSExportData(
   // Convergence Slice 6 — the canonical enriched takeoff (takeoff_json) is the PRIMARY source
   // when present; null for every pre-convergence job → relational fallback (overlay applied at
   // the return below).
-  const enrichedJson = await loadEnrichedTakeoffJson(jobId);
-  const activeExtractedQuantityReadModel = await loadActiveExtractedQuantityReadModel(jobId);
+  const enrichedRun = await loadEnrichedTakeoffJsonWithRun(jobId);
+  const enrichedJson = enrichedRun.enriched;
+  const activeExtractedQuantityReadModel = await loadActiveExtractedQuantityReadModel(
+    jobId,
+    enrichedRun.run?.id ?? null,
+  );
 
   function getVal(label: string): string | null {
     const needle = label.toLowerCase();

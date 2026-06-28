@@ -39,7 +39,10 @@ vi.mock("../../src/integrations/supabase/client", () => ({
   },
 }));
 
-import { loadEnrichedTakeoffJson } from "../../src/lib/iq-qs-export";
+import {
+  loadEnrichedTakeoffJson,
+  loadEnrichedTakeoffJsonWithRun,
+} from "../../src/lib/iq-qs-export";
 
 const GOOD_JSON = { floor_area_m2: { value: 100 }, openings: [{ type: "slider" }] };
 const OLDER_JSON = { floor_area_m2: { value: 99 }, openings: [] };
@@ -66,6 +69,19 @@ describe("loadEnrichedTakeoffJson — run selection", () => {
     ];
     const out = await loadEnrichedTakeoffJson("job-jm0020");
     expect(out).toEqual(GOOD_JSON);
+  });
+
+  it("returns the run id that supplied the selected takeoff_json", async () => {
+    rowsHolder.rows = [
+      { id: "run-empty", started_at: "2026-06-09T10:00:00Z", takeoff_json: null },
+      { id: "run-good", started_at: "2026-06-08T10:00:00Z", takeoff_json: GOOD_JSON },
+      { id: "run-old", started_at: "2026-06-07T10:00:00Z", takeoff_json: OLDER_JSON },
+    ];
+
+    const out = await loadEnrichedTakeoffJsonWithRun("job-jm0020");
+
+    expect(out.enriched).toEqual(GOOD_JSON);
+    expect(out.run).toEqual({ id: "run-good", started_at: "2026-06-08T10:00:00Z" });
   });
 
   it("returns null when no row carries a payload (pre-migration / never-converged job)", async () => {
