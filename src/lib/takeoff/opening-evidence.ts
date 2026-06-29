@@ -102,6 +102,37 @@ function sameOpeningEvidence(
   return sameWidth && sameHeight && sameRoom;
 }
 
+function normaliseRoom(value: string | null | undefined): string {
+  return (value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function openingMm(value: number | null | undefined): number | null {
+  return value == null ? null : Math.round(value * 1000);
+}
+
+function matchingCleanWindowCandidate(
+  assignment: ReturnType<typeof recoverFloorPlanLabelAssignments>[number],
+  candidates: readonly OpeningEvidenceCandidate[],
+): OpeningEvidenceCandidate | null {
+  if (assignment.status !== "extracted" || !assignment.room) return null;
+  const room = normaliseRoom(assignment.room);
+  return (
+    candidates.find((candidate) => {
+      if (candidate.type !== "window") return false;
+      if (candidate.status !== "priced" && candidate.status !== "extracted") return false;
+      if (normaliseRoom(candidate.room) !== room) return false;
+      const widthMm = openingMm(candidate.width_m);
+      const heightMm = openingMm(candidate.height_m);
+      return (
+        widthMm != null &&
+        heightMm != null &&
+        Math.abs(widthMm - assignment.widthMm) <= 10 &&
+        Math.abs(heightMm - assignment.heightMm) <= 10
+      );
+    }) ?? null
+  );
+}
+
 export function buildOpeningEvidenceLedger(args: {
   openings: readonly Opening[] | null | undefined;
   heldBlockedOpenings?: readonly HeldBlockedOpening[] | null;
@@ -288,6 +319,23 @@ export function buildOpeningEvidenceLedger(args: {
     const widthM = Math.round((assignment.widthMm / 1000) * 100) / 100;
     const heightM = Math.round((assignment.heightMm / 1000) * 100) / 100;
     const areaM2 = assignment.status === "extracted" ? assignment.areaM2 : null;
+    const existing = matchingCleanWindowCandidate(assignment, ledger);
+    if (existing) {
+      existing.evidence.push({
+        source: "floorplan_text",
+        role: "dimension",
+        confidence: assignment.confidence,
+        width_m: widthM,
+        height_m: heightM,
+        area_m2: areaM2,
+        room: assignment.room,
+        ...(assignment.page != null ? { page: assignment.page } : {}),
+        bbox: assignment.bbox,
+        text: assignment.text,
+        note: `supporting duplicate floor-plan label ${assignment.text} matched existing clean opening ${existing.id}; duplicate clean row suppressed`,
+      });
+      continue;
+    }
 
     ledger.push({
       id: assignment.id,

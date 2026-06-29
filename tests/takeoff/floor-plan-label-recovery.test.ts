@@ -3,7 +3,8 @@ import {
   recoverFloorPlanLabelAssignments,
   type FloorPlanLabelRecoveryAssignment,
 } from "../../src/lib/takeoff/floor-plan-label-recovery";
-import type { PlanText } from "../../src/lib/takeoff/plan-text";
+import type { TextLabel } from "../../src/lib/doors/door-engine";
+import { parseWindowCodes, type PlanText } from "../../src/lib/takeoff/plan-text";
 
 function planText(overrides: Partial<PlanText> = {}): PlanText {
   return {
@@ -21,6 +22,10 @@ function planText(overrides: Partial<PlanText> = {}): PlanText {
 function onlyAssignment(assignments: FloorPlanLabelRecoveryAssignment[]) {
   expect(assignments).toHaveLength(1);
   return assignments[0]!;
+}
+
+function label(text: string, x: number, y: number): TextLabel {
+  return { text, x, y, vertical: false };
 }
 
 describe("floor-plan W x H label recovery", () => {
@@ -121,5 +126,15 @@ describe("floor-plan W x H label recovery", () => {
 
     expect(assignment.status).toBe("review");
     expect(assignment.reason).toContain("near malformed/contaminated drafting label");
+  });
+
+  it("does not recover skylight labels as exterior opening assignments", () => {
+    const windowCodes = parseWindowCodes(
+      [label("780 x 1400", 100, 100), label("Skylight", 106, 112)],
+      [],
+    );
+
+    expect(windowCodes).toEqual([]);
+    expect(recoverFloorPlanLabelAssignments({ planText: planText({ windowCodes }) })).toEqual([]);
   });
 });
