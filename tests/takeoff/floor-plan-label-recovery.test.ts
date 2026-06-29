@@ -44,7 +44,7 @@ describe("floor-plan W x H label recovery", () => {
     expect(assignment.reviewFlags).toEqual([]);
   });
 
-  it("keeps tall/narrow door-like labels in review", () => {
+  it("recovers full-height narrow exterior opening labels when assignment is unique", () => {
     const assignment = onlyAssignment(
       recoverFloorPlanLabelAssignments({
         planText: planText({
@@ -53,8 +53,40 @@ describe("floor-plan W x H label recovery", () => {
       }),
     );
 
+    expect(assignment).toMatchObject({
+      status: "extracted",
+      room: "ENSUITE",
+      text: "2150 x 600",
+      widthMm: 600,
+      heightMm: 2150,
+      areaM2: 1.29,
+    });
+  });
+
+  it("keeps very narrow door-like labels in review", () => {
+    const assignment = onlyAssignment(
+      recoverFloorPlanLabelAssignments({
+        planText: planText({
+          windowCodes: [{ heightMm: 2150, widthMm: 400, x: 100, y: 260 }],
+        }),
+      }),
+    );
+
     expect(assignment.status).toBe("review");
     expect(assignment.room).toBe("ENSUITE");
+    expect(assignment.reason).toContain("dimension band is large, narrow, or door-like");
+  });
+
+  it("keeps narrow low-height bathroom labels in review", () => {
+    const assignment = onlyAssignment(
+      recoverFloorPlanLabelAssignments({
+        planText: planText({
+          windowCodes: [{ heightMm: 1100, widthMm: 600, x: 100, y: 260 }],
+        }),
+      }),
+    );
+
+    expect(assignment.status).toBe("review");
     expect(assignment.reason).toContain("dimension band is large, narrow, or door-like");
   });
 

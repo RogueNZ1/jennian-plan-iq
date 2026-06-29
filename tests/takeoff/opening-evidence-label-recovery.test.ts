@@ -67,7 +67,7 @@ describe("floor-plan label recovery into opening evidence", () => {
   it("keeps dirty/tall labels visible as needs_review and out of clean area", () => {
     const evidence = buildOpeningEvidenceLedger({
       openings: [],
-      planText: planText({ heightMm: 2150, widthMm: 600, x: 105, y: 100 }),
+      planText: planText({ heightMm: 2150, widthMm: 400, x: 105, y: 100 }),
       planPage: 2,
     });
     const candidate = evidence.find((item) => item.id === "floorplan-label-1");
@@ -76,16 +76,41 @@ describe("floor-plan label recovery into opening evidence", () => {
     expect(candidate).toMatchObject({
       status: "review",
       priced: false,
-      width_m: 0.6,
+      width_m: 0.4,
       height_m: 2.15,
       area_m2: null,
     });
     expect(row).toMatchObject({
       status: "needs_review",
-      widthMm: 600,
+      widthMm: 400,
       heightMm: 2150,
       areaM2: null,
       warnings: ["area_not_calculated"],
+    });
+  });
+
+  it("surfaces full-height narrow labels as clean extracted rows when assignment is unique", () => {
+    const evidence = buildOpeningEvidenceLedger({
+      openings: [],
+      planText: planText({ heightMm: 2150, widthMm: 600, x: 105, y: 100 }),
+      planPage: 2,
+    });
+    const candidate = evidence.find((item) => item.id === "floorplan-label-1");
+    const row = extractedRows(evidence).find((item) => item.id === "opening-floorplan-label-1");
+
+    expect(candidate).toMatchObject({
+      status: "extracted",
+      priced: false,
+      width_m: 0.6,
+      height_m: 2.15,
+      area_m2: 1.29,
+    });
+    expect(row).toMatchObject({
+      status: "extracted",
+      widthMm: 600,
+      heightMm: 2150,
+      areaM2: 1.29,
+      warnings: [],
     });
   });
 });

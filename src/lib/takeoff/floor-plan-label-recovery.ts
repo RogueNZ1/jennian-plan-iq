@@ -41,7 +41,10 @@ function labelBbox(code: PlanWindowCode): [number, number, number, number] {
 function cleanDimensionBand(code: PlanWindowCode): boolean {
   const min = Math.min(code.heightMm, code.widthMm);
   const max = Math.max(code.heightMm, code.widthMm);
-  return min >= 800 && max <= 2400 && code.heightMm <= 1800;
+  const normalWindow = min >= 800 && max <= 2400 && code.heightMm <= 1800;
+  const fullHeightNarrowWindow =
+    code.heightMm >= 1900 && code.heightMm <= 2200 && code.widthMm >= 550 && code.widthMm <= 700;
+  return normalWindow || fullHeightNarrowWindow;
 }
 
 function roomCandidates(code: PlanWindowCode, rooms: readonly PlanRoom[]) {
