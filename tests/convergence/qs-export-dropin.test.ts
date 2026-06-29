@@ -185,7 +185,7 @@ describe("buildDropInSheet — window slots (rows 33-45, B=Qty C=HEIGHT D=WIDTH)
 
   it("Toilet/WC has NO IQ slot — routed to the manual block with target row 51", () => {
     const ws = buildDropInSheet(base({ openings: [op("window", "Wc", 1.1, 0.7)] }));
-    expect(manualBlock(ws)).toMatch(/UNPLACED — Toilet: 1 window\(s\) @ 1\.1H × 0\.7W.*row 51/);
+    expect(manualBlock(ws)).toMatch(/UNPLACED - Toilet: 1 window\(s\) @ 1\.1H x 0\.7W.*row 51/);
     // and nothing leaked into a slot
     for (let r = 33; r <= 45; r++) expect(cellVal(ws, `B${r}`)).toBe(0);
   });
@@ -198,7 +198,7 @@ describe("buildDropInSheet — window slots (rows 33-45, B=Qty C=HEIGHT D=WIDTH)
   it("PA/laundry door has no IQ feed — manual block, target row 70", () => {
     const ws = buildDropInSheet(base({ openings: [op("pa_door", "Laundry", 2.0, 0.86)] }));
     expect(cellVal(ws, "B15")).toBe(1);
-    expect(manualBlock(ws)).toMatch(/Laundry\/PA door 2H × 0\.86W.*row 70/);
+    expect(manualBlock(ws)).toMatch(/Laundry\/PA door 2H x 0\.86W.*row 70/);
     expect(manualBlock(ws)).toMatch(/1 of 1 QS openings require manual\/overflow entry/);
   });
 
@@ -224,7 +224,7 @@ describe("buildDropInSheet — window slots (rows 33-45, B=Qty C=HEIGHT D=WIDTH)
     );
     expect([cellVal(ws, "B33"), cellVal(ws, "C33"), cellVal(ws, "D33")]).toEqual([2, 1.3, 1.8]);
     expect([cellVal(ws, "B39"), cellVal(ws, "C39"), cellVal(ws, "D39")]).toEqual([1, 1.8, 0.6]);
-    expect(manualBlock(ws)).toMatch(/Kitchen: 1 more @ 0\.6H × 2\.4W/); // second dim-group → manual
+    expect(manualBlock(ws)).toMatch(/Kitchen: 1 more @ 0\.6H x 2\.4W/); // second dim-group -> manual
   });
 });
 
@@ -241,7 +241,7 @@ describe("buildDropInSheet — multi-dims per room: slot takes group 1, manual b
     );
     expect([cellVal(ws, "B42"), cellVal(ws, "C42"), cellVal(ws, "D42")]).toEqual([2, 1.3, 1.8]);
     const m = manualBlock(ws);
-    expect(m).toMatch(/Lounge: 1 more @ 2\.1H × 2\.4W.*row 63/);
+    expect(m).toMatch(/Lounge: 1 more @ 2\.1H x 2\.4W.*row 63/);
     expect(m).toMatch(/Lounge QTY is manual/);
   });
 
@@ -286,7 +286,7 @@ describe("buildDropInSheet — garage door 1 (row 44) + size string B24", () => 
       }),
     );
     expect(cellVal(ws, "B24")).toBe("4.8x2.1");
-    expect(manualBlock(ws)).toMatch(/Garage door 3×2\.1 ×1/);
+    expect(manualBlock(ws)).toMatch(/Garage door 3x2\.1 x1/);
   });
 
   it("relational counters win over canonical sectionals (insulation knowledge)", () => {
@@ -356,11 +356,11 @@ describe("CLADDING (ENGINE) block on the IQ Import sheet", () => {
       }),
     );
     const t = blockText(ws);
-    expect(t).toMatch(/Wall \(perimeter × stud\): 124.8 m²/);
-    expect(t).toMatch(/Gables: 0 m²/);
-    expect(t).toMatch(/Less openings: 2.34 m²/);
-    expect(t).toMatch(/NET CLADDING: 122.46 m²/);
-    expect(t).toMatch(/– Brick Veneer: 122.46 m²/);
+    expect(t).toMatch(/Wall \(perimeter x stud\): 124.8 m2/);
+    expect(t).toMatch(/Gables: 0 m2/);
+    expect(t).toMatch(/Less openings: 2.34 m2/);
+    expect(t).toMatch(/NET CLADDING: 122.46 m2/);
+    expect(t).toMatch(/- Brick Veneer: 122.46 m2/);
   });
 
   it("gabled house without measured span: NET NOT COMPUTED + flag — never a guess", () => {
@@ -408,7 +408,7 @@ describe("dropInSheetToTSV — clipboard paste block", () => {
     const lines = tsv.split("\n");
     expect(lines[0]).toBe("Job Number\tJM-0015\t\t\t\t"); // A1:F1
     expect(lines[32]).toBe("Bed 1\t2\t1.3\t1.8\t\t"); // row 33 slot
-    expect(lines[26]).toMatch(/^— Standard hinged\t6\t/); // B27
+    expect(lines[26]).toMatch(/^- Standard hinged\t6\t/); // B27
     expect(tsv).toMatch(/CLADDING \(ENGINE\)/);
     expect(tsv).not.toMatch(/\t.*\t.*\t.*\t.*\t.*\t/); // never >6 columns
   });
@@ -441,7 +441,7 @@ describe("CLADDING V1.1 — gable span from geometry on the sheet", () => {
       const v = cellVal(ws, `A${r}`);
       if (typeof v === "string") t += v + "\n";
     }
-    expect(t).toMatch(/NET CLADDING: 148.12 m²/); // 124.8 + 23.32 − 0
+    expect(t).toMatch(/NET CLADDING: 148.12 m2/); // 124.8 + 23.32 - 0
     expect(t).toMatch(/gable span 10m = plan envelope short side/);
     expect(t).not.toMatch(/gable span not measured/);
   });

@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import { isBlockedReviewOnlyOpening } from "@/lib/opening-review-guards";
+import { REVIEW_FLAGS_LABEL, customerSafeText } from "@/lib/customer-facing-text";
 
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
 type OpeningRow = Database["public"]["Tables"]["opening_schedule"]["Row"];
@@ -36,8 +37,10 @@ type OpeningRow = Database["public"]["Tables"]["opening_schedule"]["Row"];
 export const Route = createFileRoute("/jobs/$jobId_/export")({ component: QuickExport });
 
 function fmt(v: number | null | undefined, unit = ""): string {
-  if (v === null || v === undefined) return "—";
-  return `${v.toLocaleString("en-NZ", { maximumFractionDigits: 2 })}${unit ? " " + unit : ""}`;
+  if (v === null || v === undefined) return "-";
+  return customerSafeText(
+    `${v.toLocaleString("en-NZ", { maximumFractionDigits: 2 })}${unit ? " " + unit : ""}`,
+  );
 }
 
 function fmtNA(v: number | null | undefined, unit = ""): string {
@@ -141,7 +144,7 @@ function QuickExport() {
     if (!data) return;
     try {
       await navigator.clipboard.writeText(dropInSheetToTSV(data));
-      toast.success("IQ Import block copied — paste at 'IQ Import'!A1 in the QS master");
+      toast.success("IQ Import block copied - paste at 'IQ Import'!A1 in the QS master");
     } catch (err) {
       toast.error(`Copy failed: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -172,7 +175,7 @@ function QuickExport() {
 
         <PageHeader
           title="Quick Export"
-          subtitle={job ? `${job.clientName} · ${job.address}` : "Loading…"}
+          subtitle={job ? `${job.clientName}  /  ${job.address}` : "Loading..."}
           actions={
             <div className="flex items-center gap-2">
               <Link
@@ -196,12 +199,12 @@ function QuickExport() {
                 className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
               >
                 <FileSpreadsheet className="h-4 w-4" />
-                {exporting ? "Exporting…" : `Export to Excel — ${filename}`}
+                {exporting ? "Exporting..." : `Export to Excel - ${filename}`}
               </button>
               <button
                 onClick={handleCopyIQImport}
                 disabled={!data}
-                title="Copies the paste-ready block — paste at 'IQ Import'!A1 in the QS master"
+                title="Copies the paste-ready block - paste at 'IQ Import'!A1 in the QS master"
                 className="inline-flex items-center gap-2 rounded-md border border-primary px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/10 disabled:opacity-50"
               >
                 <ClipboardCopy className="h-4 w-4" />
@@ -213,7 +216,7 @@ function QuickExport() {
 
         {loading && (
           <div className="py-12 text-center text-[13px] text-muted-foreground">
-            Loading quantities…
+            Loading quantities...
           </div>
         )}
 
@@ -225,7 +228,7 @@ function QuickExport() {
 
         {!loading && !error && data && (
           <div className="grid gap-4 mt-2">
-            {/* Convergence Slice 6 — confidence / review notes from the enriched takeoff.
+            {/* Convergence Slice 6 - confidence / review notes from the enriched takeoff.
                 Shown only when the persisted takeoff_json carried per-field flags; absent for
                 pre-convergence (relational) jobs, so those render exactly as before. */}
             {data.reviewFlags && data.reviewFlags.length > 0 && (
@@ -233,7 +236,7 @@ function QuickExport() {
                 <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-400/40 bg-amber-100/50">
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
                   <h3 className="text-[13px] font-semibold text-amber-900">
-                    Confidence / Review Notes — confirm against the plan before pricing
+                    {REVIEW_FLAGS_LABEL} - confirm against the plan before pricing
                   </h3>
                 </div>
                 <div className="p-4 space-y-2">
@@ -242,7 +245,7 @@ function QuickExport() {
                       <span className="font-semibold text-amber-900">{f.field}</span>
                       <ul className="mt-0.5 ml-4 list-disc text-amber-800/90">
                         {f.flags.map((flag, i) => (
-                          <li key={i}>{flag}</li>
+                          <li key={i}>{customerSafeText(flag)}</li>
                         ))}
                       </ul>
                     </div>
@@ -253,20 +256,20 @@ function QuickExport() {
 
             {/* Core Measurements */}
             <SectionCard icon={Ruler} title="Core Measurements">
-              <Row label="Floor Area" value={fmt(data.floorAreaM2, "m²")} />
+              <Row label="Floor Area" value={fmt(data.floorAreaM2, "m2")} />
               <Row label="Perimeter" value={fmt(data.perimeterLm, "lm")} />
               <Row
                 label="Stud Height"
-                value={data.studHeightMm ? fmt(data.studHeightMm, "mm") : "—"}
+                value={data.studHeightMm ? fmt(data.studHeightMm, "mm") : "-"}
               />
-              <Row label="Roof Pitch" value={data.roofPitch ?? "—"} />
-              <Row label="Garage Area" value={fmt(data.garageAreaM2, "m²")} />
-              <Row label="Alfresco / Deck Area" value={fmtNA(data.alfrescoAreaM2, "m²")} />
-              <Row label="First Floor Area" value={fmtNA(data.firstFloorAreaM2, "m²")} />
+              <Row label="Roof Pitch" value={data.roofPitch ?? "-"} />
+              <Row label="Garage Area" value={fmt(data.garageAreaM2, "m2")} />
+              <Row label="Alfresco / Deck Area" value={fmtNA(data.alfrescoAreaM2, "m2")} />
+              <Row label="First Floor Area" value={fmtNA(data.firstFloorAreaM2, "m2")} />
               <Row label="Exterior Wall Length" value={fmt(data.exteriorWallLengthLm, "lm")} />
               <Row label="Exterior Wall Height" value={fmt(data.exteriorWallHeightM, "m")} />
-              <Row label="Paths / Patio" value={fmt(data.pathsPatioM2, "m²")} />
-              <Row label="Driveway" value={fmt(data.drivewayM2, "m²")} />
+              <Row label="Paths / Patio" value={fmt(data.pathsPatioM2, "m2")} />
+              <Row label="Driveway" value={fmt(data.drivewayM2, "m2")} />
             </SectionCard>
 
             {/* Windows & Doors */}
@@ -286,7 +289,7 @@ function QuickExport() {
                 </div>
               )}
               {openings.length === 0 ? (
-                <EmptyNote text="No opening schedule data — run a takeoff to extract windows and doors." />
+                <EmptyNote text="No opening schedule data - run a takeoff to extract windows and doors." />
               ) : (
                 <table className="w-full text-[12px]">
                   <thead>
@@ -314,13 +317,13 @@ function QuickExport() {
                         <td className="py-1.5 pr-3 capitalize">
                           {o.opening_type.replace(/_/g, " ")}
                         </td>
-                        <td className="py-1.5 pr-3">{o.room_name ?? "—"}</td>
+                        <td className="py-1.5 pr-3">{o.room_name ?? "-"}</td>
                         <td className="py-1.5 pr-3 text-right tabular-nums">{o.quantity}</td>
                         <td className="py-1.5 pr-3 text-right tabular-nums">
-                          {o.height_mm ?? "—"}
+                          {o.height_mm ?? "-"}
                         </td>
                         <td className="py-1.5 pr-3 text-right tabular-nums">{o.width_mm}</td>
-                        <td className="py-1.5">{o.notes ?? "—"}</td>
+                        <td className="py-1.5">{o.notes ?? "-"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -335,23 +338,23 @@ function QuickExport() {
                 if (roofItems.length === 0) {
                   return (
                     <>
-                      <Row label="Roof Pitch" value={data.roofPitch ?? "—"} />
-                      <Row label="Ridge Type" value={data.ridgeType ?? "—"} />
-                      <Row label="Underlay" value={data.underlay ?? "—"} />
+                      <Row label="Roof Pitch" value={data.roofPitch ?? "-"} />
+                      <Row label="Ridge Type" value={data.ridgeType ?? "-"} />
+                      <Row label="Underlay" value={data.underlay ?? "-"} />
                       <EmptyNote text="No detailed roofing data extracted yet." />
                     </>
                   );
                 }
                 return (
                   <>
-                    <Row label="Roof Pitch" value={data.roofPitch ?? "—"} />
-                    <Row label="Ridge Type" value={data.ridgeType ?? "—"} />
-                    <Row label="Underlay" value={data.underlay ?? "—"} />
+                    <Row label="Roof Pitch" value={data.roofPitch ?? "-"} />
+                    <Row label="Ridge Type" value={data.ridgeType ?? "-"} />
+                    <Row label="Underlay" value={data.underlay ?? "-"} />
                     {roofItems.map((i) => (
                       <Row
                         key={i.id}
                         label={i.label ?? ""}
-                        value={i.approved_value ?? i.extracted_value ?? "—"}
+                        value={i.approved_value ?? i.extracted_value ?? "-"}
                       />
                     ))}
                   </>
@@ -365,8 +368,8 @@ function QuickExport() {
                 const claddingItems = getItemsByModule("iq-cladding");
                 return (
                   <>
-                    <Row label="Cladding Type 1" value={data.claddingType1 ?? "—"} />
-                    <Row label="Cladding Type 2" value={data.claddingType2 ?? "—"} />
+                    <Row label="Cladding Type 1" value={data.claddingType1 ?? "-"} />
+                    <Row label="Cladding Type 2" value={data.claddingType2 ?? "-"} />
                     {claddingItems.length === 0 ? (
                       <EmptyNote text="No detailed cladding area data extracted yet." />
                     ) : (
@@ -374,7 +377,7 @@ function QuickExport() {
                         <Row
                           key={i.id}
                           label={i.label ?? ""}
-                          value={i.approved_value ?? i.extracted_value ?? "—"}
+                          value={i.approved_value ?? i.extracted_value ?? "-"}
                         />
                       ))
                     )}
@@ -433,14 +436,14 @@ function QuickExport() {
                 const plumbingItems = getItemsByModule("iq-plumbing");
                 if (plumbingItems.length === 0) {
                   return (
-                    <EmptyNote text="No plumbing data extracted yet — run a takeoff with a specification document." />
+                    <EmptyNote text="No plumbing data extracted yet - run a takeoff with a specification document." />
                   );
                 }
                 return plumbingItems.map((i) => (
                   <Row
                     key={i.id}
                     label={i.label ?? ""}
-                    value={i.approved_value ?? i.extracted_value ?? "—"}
+                    value={i.approved_value ?? i.extracted_value ?? "-"}
                   />
                 ));
               })()}
@@ -465,7 +468,7 @@ function QuickExport() {
                   <Row
                     key={i.id}
                     label={i.label ?? ""}
-                    value={i.approved_value ?? i.extracted_value ?? "—"}
+                    value={i.approved_value ?? i.extracted_value ?? "-"}
                   />
                 ));
               })()}
@@ -482,7 +485,7 @@ function QuickExport() {
                   <Row
                     key={i.id}
                     label={i.label ?? ""}
-                    value={i.approved_value ?? i.extracted_value ?? "—"}
+                    value={i.approved_value ?? i.extracted_value ?? "-"}
                   />
                 ));
               })()}

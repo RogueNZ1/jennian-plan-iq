@@ -68,6 +68,12 @@ import { mergeElevationVectorOpenings } from "@/lib/takeoff/elevation-vector-ope
 import { extractSitePlanFn, type SitePlanData } from "@/lib/takeoff/extract-site-plan";
 import { crossReference, type CrossReferenceResult } from "@/lib/takeoff/cross-reference";
 import { loadVisualOpeningCorrectionPromptMemory } from "@/lib/takeoff/visual-opening-correction-hints";
+import {
+  EXTERNAL_WALL_AREA_BLOCKED,
+  REVIEW_FLAGS_LABEL,
+  customerSafeText,
+  formatOpeningMismatchWarning,
+} from "@/lib/customer-facing-text";
 
 export const Route = createFileRoute("/upload")({ component: UploadPage });
 
@@ -119,7 +125,7 @@ function UploadPage() {
     })();
   }, []);
   const [address, setAddress] = useState("");
-  const [template, setTemplate] = useState(TEMPLATES[0].code + " — " + TEMPLATES[0].name);
+  const [template, setTemplate] = useState(TEMPLATES[0].code + " - " + TEMPLATES[0].name);
   const [planFile, setPlanFile] = useState<File | null>(null);
   const [specFile, setSpecFile] = useState<File | null>(null);
   const [electricalFile, setElectricalFile] = useState<File | null>(null);
@@ -380,7 +386,7 @@ function UploadPage() {
         .single();
       if (jobErr) throw jobErr;
 
-      // Meeting specs captured in the wizard → persist against the new job.
+      // Meeting specs captured in the wizard -> persist against the new job.
       // FAIL-SOFT: spec persistence must never block the job save; the job-page
       // panel reads/extends the same store.
       if (Object.keys(specAnswers).length > 0) {
@@ -388,7 +394,7 @@ function UploadPage() {
           await saveJobSpecifications(job.id, specAnswers);
         } catch (specErr) {
           console.warn(
-            "[wizard-specs] save failed — selections can be re-entered on the job page:",
+            "[wizard-specs] save failed - selections can be re-entered on the job page:",
             specErr,
           );
         }
@@ -465,7 +471,7 @@ function UploadPage() {
           } as never)
           .eq("id", job.id);
 
-        // Seed module_runs shells (no module_items created — those come from the writes below).
+        // Seed module_runs shells (no module_items created - those come from the writes below).
         await seedAllModulesForJob(job.id);
 
         // ── Persist wizard takeoff ──────────────────────────────────────────────────────────
@@ -479,7 +485,7 @@ function UploadPage() {
         if (!enriched) {
           // No wizard takeoff available (user navigated here without running the in-memory
           // extraction). Fall back to letting the job page auto-run normally.
-          toast.success("Job uploaded — running takeoff…");
+          toast.success("Job uploaded - running takeoff...");
           navigate({
             to: "/jobs/$jobId",
             params: { jobId: job.id },
@@ -503,7 +509,7 @@ function UploadPage() {
           .select("id")
           .single();
         if (runErr || !runRow) {
-          toast.error("Failed to create takeoff record — job saved but export may be empty.");
+          toast.error("Failed to create takeoff record - job saved but export may be empty.");
           navigate({ to: "/jobs/$jobId", params: { jobId: job.id } });
           return;
         }
@@ -568,11 +574,11 @@ function UploadPage() {
 
         // (d) INSERT module_items for the key labels buildQSExportData.getNum() reads.
         // Labels chosen for EXACT match with getNum's needle strings (case-insensitive exact):
-        //   "floor area" → "Floor Area", "stud height" → "Stud Height",
-        //   "exterior wall length" → "Exterior Wall Length",
-        //   "external perimeter" (partial) → "External Perimeter",
-        //   "alfresco" (partial) → "Alfresco Area"
-        // Units: lm for linear distances; m² for areas; mm for stud height (getNum divides by 1000 if > 10).
+        //   "floor area" -> "Floor Area", "stud height" -> "Stud Height",
+        //   "exterior wall length" -> "Exterior Wall Length",
+        //   "external perimeter" (partial) -> "External Perimeter",
+        //   "alfresco" (partial) -> "Alfresco Area"
+        // Units: lm for linear distances; m2 for areas; mm for stud height (getNum divides by 1000 if > 10).
         const { data: moduleRunRows } = await supabase
           .from("module_runs")
           .select("id, module_id")
@@ -590,7 +596,7 @@ function UploadPage() {
           {
             moduleId: "iq-core",
             label: "Floor Area",
-            unit: "m²",
+            unit: "m2",
             value: enriched.floor_area_m2.value,
           },
           {
@@ -637,19 +643,19 @@ function UploadPage() {
                 {
                   moduleId: "iq-core",
                   label: "Alfresco Area",
-                  unit: "m²",
+                  unit: "m2",
                   value: enriched.alfresco_area_m2.value,
                 } as ItemSpec,
               ]
             : []),
-          // Coverage Area (roof m²) — surfaces takeoff_json.roof_area_m2 in "5. Data Input House".
+          // Coverage Area (roof m2) - surfaces takeoff_json.roof_area_m2 in "5. Data Input House".
           // The QS paste sheet has no dedicated roof-area paste cell; it lives in the data sheet.
           ...(enriched.roof_area_m2.value != null
             ? [
                 {
                   moduleId: "iq-roofing",
                   label: "Coverage Area",
-                  unit: "m²",
+                  unit: "m2",
                   value: enriched.roof_area_m2.value,
                 } as ItemSpec,
               ]
@@ -704,7 +710,7 @@ function UploadPage() {
 
         toast.success("Job uploaded successfully.");
         // No autostart state: the takeoff_runs row exists, so the job page's guard
-        // (takeoffRun !== null → return) will suppress the re-run on arrival.
+        // (takeoffRun !== null -> return) will suppress the re-run on arrival.
         navigate({ to: "/jobs/$jobId", params: { jobId: job.id } });
       } else {
         await supabase
@@ -725,7 +731,7 @@ function UploadPage() {
     }
   }
 
-  // After page selection — fork on plan type
+  // After page selection - fork on plan type
   async function continueFromPageSelection() {
     if (selectedIndex === null) return;
 
@@ -749,7 +755,7 @@ function UploadPage() {
       return;
     }
 
-    // Kick off scale extraction — show the scale step with a spinner while we work.
+    // Kick off scale extraction - show the scale step with a spinner while we work.
     // If a scale is found automatically, we skip the user-confirmation screen.
     await runScaleExtractionFromSelectedPage(true, renderedBlob);
   }
@@ -922,7 +928,7 @@ function UploadPage() {
           ? renderPageForAnalysis(planFile, sitePage.pageNumber).catch(() => null)
           : Promise.resolve(null);
 
-      // Phase 2b — locate the Door & Window Schedule page within the SAME plan PDF
+      // Phase 2b - locate the Door & Window Schedule page within the SAME plan PDF
       // (page selection already classified every page). The schedule is the canonical
       // window source, read alongside the primary floor plan. Render its page now.
       const schedulePick = pickWindowSchedule(pageAnalyses);
@@ -934,11 +940,11 @@ function UploadPage() {
             ).catch(() => null)
           : Promise.resolve(null);
 
-      // Phase 3 — page-of-truth reconciliation. Pin geometry to the SAME page the AI
-      // classified as the floor plan (pickPrimaryFloorplan → selectedIndex), instead of
+      // Phase 3 - page-of-truth reconciliation. Pin geometry to the SAME page the AI
+      // classified as the floor plan (pickPrimaryFloorplan -> selectedIndex), instead of
       // letting geometry independently auto-detect (which on multi-page sets can land on
       // the site plan and silently measure the wrong building). Resolved from the page
-      // ROLE, never a page literal; undefined when there is no pick → geometry self-selects.
+      // ROLE, never a page literal; undefined when there is no pick -> geometry self-selects.
       const geometryPageIndex = resolveGeometryPageIndex(selectedIndex, pageAnalyses);
 
       const visualCorrectionMemoryP = loadVisualOpeningCorrectionPromptMemory(null).catch((err) => {
@@ -987,7 +993,7 @@ function UploadPage() {
 
       const builderName = result.planContext?.builder?.name ?? "Jennian Homes";
 
-      // Phase 2b — read the Door & Window Schedule (if a schedule page was found) BEFORE
+      // Phase 2b - read the Door & Window Schedule (if a schedule page was found) BEFORE
       // composing. composeTakeoff is PURE and takes the already-read schedule as data; the
       // schedule is canonical for the window set (count + dims), the floor-plan callouts
       // are the fallback when no schedule page exists. Fails soft.
@@ -1015,14 +1021,14 @@ function UploadPage() {
       ]);
       const elev = mergeElevationVectorOpenings(elevRaw, elevVectorOpenings);
 
-      // Convergence Slice 1 — the shared, PURE plan→takeoff seam. Every impure input (the
+      // Convergence Slice 1 - the shared, PURE plan->takeoff seam. Every impure input (the
       // vision takeoff, the geometry measurement + vector_annotations, the schedule) is
       // fetched above and handed in; composeTakeoff performs the geometry overrides, the
       // vector-first garage/openings, the head-datum safeguard, the asserted entrance and
       // the F-022 reconciliation, folding every honesty flag into takeoff.notes. Pipeline A
-      // (run.ts) calls the SAME function — one implementation, no drift.
-      // Deterministic door pass (no AI) — same fail-safe contract as run.ts: any
-      // failure → null → door cells fall back through the precedence chain.
+      // (run.ts) calls the SAME function - one implementation, no drift.
+      // Deterministic door pass (no AI) - same fail-safe contract as run.ts: any
+      // failure -> null -> door cells fall back through the precedence chain.
       const doorEngine = planFile
         ? await (
             await import("@/lib/doors/run-doors")
@@ -1043,7 +1049,7 @@ function UploadPage() {
         elevationData: elev,
       });
       // composeTakeoff now returns the ENRICHED per-field shape (Slice 2). Unwrap to the bare
-      // TakeoffData the rest of /upload (state, cross-reference, exportToExcel) consumes —
+      // TakeoffData the rest of /upload (state, cross-reference, exportToExcel) consumes -
       // values are identical to before; the provenance/flags ride on composed.enriched.
       // Store the full result so persist(true) can write the wizard's takeoff without re-running.
       setComposedResult(composed);
@@ -1087,7 +1093,7 @@ function UploadPage() {
         windows_by_room: null,
         door_breakdown: null,
         garage_door_size: null,
-        notes: "Extraction failed — enter values manually.",
+        notes: "Extraction failed - enter values manually.",
       };
       setTakeoffData(empty);
       setEditedTakeoff(empty);
@@ -1120,19 +1126,19 @@ function UploadPage() {
     const headers = ["Item", "Quantity", "Unit", "Notes"];
     const rows = [
       headers,
-      ["Floor area", n(t.floor_area_m2), "m²", "Habitable, excluding garage"],
-      ["Garage area", n(t.garage_area_m2), "m²", ""],
-      ["Alfresco / deck area", n(t.alfresco_area_m2), "m²", "Low confidence — confirm vs QS"],
-      ["Total area incl alfresco", n(t.total_area_m2 ?? null), "m²", "Floor + alfresco"],
+      ["Floor area", n(t.floor_area_m2), "m2", "Habitable, excluding garage"],
+      ["Garage area", n(t.garage_area_m2), "m2", ""],
+      ["Alfresco / deck area", n(t.alfresco_area_m2), "m2", "Low confidence - confirm vs QS"],
+      ["Total area incl alfresco", n(t.total_area_m2 ?? null), "m2", "Floor + alfresco"],
       ["External wall length", n(t.external_wall_lm), "lm", ""],
       [
         "External wall area",
         n(t.external_wall_area_m2 ?? null),
-        "m²",
-        "Perimeter × stud − openings",
+        "m2",
+        "Perimeter x stud - openings",
       ],
       ["Internal wall length", n(t.internal_wall_lm), "lm", ""],
-      ["Roof area", n(t.roof_area_m2), "m²", ""],
+      ["Roof area", n(t.roof_area_m2), "m2", ""],
       ["Windows", n(t.window_count), "count", ""],
       ["Internal doors", n(t.internal_door_count), "count", ""],
       ["Bathrooms", n(t.bathroom_count), "count", ""],
@@ -1150,17 +1156,17 @@ function UploadPage() {
       doorBreakdownRows.push(
         [],
         ["Door Breakdown", "Qty", "Type", "", ""],
-        ["— Standard hinged", t.door_breakdown.standard, "count", "", ""],
-        ["— Cavity sliders", t.door_breakdown.cavity_sliders, "count", "", ""],
-        ["— Double doors", t.door_breakdown.double_doors, "count", "", ""],
-        ["— Barn sliders", t.door_breakdown.barn_sliders, "count", "", ""],
+        ["- Standard hinged", t.door_breakdown.standard, "count", "", ""],
+        ["- Cavity sliders", t.door_breakdown.cavity_sliders, "count", "", ""],
+        ["- Double doors", t.door_breakdown.double_doors, "count", "", ""],
+        ["- Barn sliders", t.door_breakdown.barn_sliders, "count", "", ""],
       );
     }
 
     // ── Room name normalisation ───────────────────────────────────────────────
     const normaliseRoom = normaliseRoomName;
 
-    // QS cell references — cladding/qty/height/width columns matching "5. Data Input House " tab
+    // QS cell references - cladding/qty/height/width columns matching "5. Data Input House " tab
     const QS_CELLS: Record<string, string> = {
       "Bed 1 (Master)": "C41/D41/E41/F41",
       Ensuite: "C43/D43/E43/F43",
@@ -1223,12 +1229,12 @@ function UploadPage() {
     }
 
     // ── Garage door classification ────────────────────────────────────────────
-    // Height is always 2.1m — never use raw measured height.
-    // Width bands: ≥4500mm → 4.8×2.1 (H176), 2700–2800mm → 2.7×2.1 (H180),
-    //              2400–2500mm → 2.4×2.1 (H178).
+    // Height is always 2.1m - never use raw measured height.
+    // Width bands: >=4500mm -> 4.8x2.1 (H176), 2700-2800mm -> 2.7x2.1 (H180),
+    //              2400-2500mm -> 2.4x2.1 (H178).
     const garageDoorRows: (string | number)[][] = [];
     if (t.garage_door_size) {
-      const m = t.garage_door_size.match(/(\d+(?:\.\d+)?)\s*[x×*]\s*/i);
+      const m = t.garage_door_size.match(/(\d+(?:\.\d+)?)\s*[xx*]\s*/i);
       let widthMm = 0;
       if (m) {
         const w = parseFloat(m[1]);
@@ -1236,9 +1242,9 @@ function UploadPage() {
       }
       const cell = classifyGarageDoor(widthMm);
       const CELL_DESC: Record<string, string> = {
-        H176: "4.8×2.1 Insulated",
-        H178: "2.4×2.1 Insulated",
-        H180: "2.7×2.1 Insulated",
+        H176: "4.8x2.1 Insulated",
+        H178: "2.4x2.1 Insulated",
+        H180: "2.7x2.1 Insulated",
       };
       const qsDesc = cell ? CELL_DESC[cell] : t.garage_door_size;
       const qsCell = cell ? `${cell} = 1` : "Check QS manually";
@@ -1256,14 +1262,14 @@ function UploadPage() {
       ...windowRows,
       ...garageDoorRows,
       [],
-      ["AI Notes / Assumptions", t.notes],
+      [REVIEW_FLAGS_LABEL, customerSafeText(t.notes ?? "")],
     ];
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(allRows);
     XLSX.utils.book_append_sheet(wb, ws, "Takeoffs");
 
-    // ── IQ Data Input sheet — cell addresses match QS Data Input tab exactly ──
+    // ── IQ Data Input sheet - cell addresses match QS Data Input tab exactly ──
     const wsQS: XLSX.WorkSheet = {};
     const iqYellow = { fill: { patternType: "solid", fgColor: { rgb: "FFFF00" } } };
     const iqRed = {
@@ -1286,14 +1292,14 @@ function UploadPage() {
       wsQS[addr] = { v: out, t: typeof out === "number" ? "n" : "s", s: iqYellow };
     };
 
-    qlbl("A1", "JENNIAN IQ — Data Input Export", iqRed);
+    qlbl("A1", "JENNIAN IQ - Data Input Export", iqRed);
     qlbl(
       "A2",
-      "Yellow cells match QS Data Input cell addresses exactly. Copy yellow cells → paste values only into QS.",
+      "Yellow cells match QS Data Input cell addresses exactly. Copy yellow cells -> paste values only into QS.",
       iqNote,
     );
 
-    qlbl("A4", "① JOB INFORMATION", iqSection);
+    qlbl("A4", "1 JOB INFORMATION", iqSection);
     qlbl("A5", "Client Name");
     qval("I3", clientName || undefined);
     qlbl("A6", "Site Address");
@@ -1305,12 +1311,12 @@ function UploadPage() {
     qlbl("A9", "Date");
     wsQS["B9"] = { v: today, t: "s", s: iqYellow };
 
-    qlbl("A11", "② CORE MEASUREMENTS", iqSection);
-    qlbl("A12", "Floor Area (m²)");
+    qlbl("A11", "2 CORE MEASUREMENTS", iqSection);
+    qlbl("A12", "Floor Area (m2)");
     qval("D12", t.floor_area_m2 ?? undefined);
-    qlbl("A13", "Alfresco Area (m²)");
+    qlbl("A13", "Alfresco Area (m2)");
     qval("D13", t.alfresco_area_m2 ?? undefined);
-    qlbl("A14", "Total Area incl Alfresco (m²)");
+    qlbl("A14", "Total Area incl Alfresco (m2)");
     qval("D14", t.total_area_m2 ?? undefined);
     qlbl("A15", "Perimeter (lm)");
     qval("D15", t.external_wall_lm ?? undefined);
@@ -1318,11 +1324,11 @@ function UploadPage() {
     qval("D19", t.external_wall_lm ?? undefined);
     qlbl("A20", "External Wall Height (m)");
     wsQS["D20"] = { v: round2(t.ceiling_height_m ?? 2.4) ?? 2.4, t: "n", s: iqYellow };
-    qlbl("A21", "External Wall Area (m²)");
+    qlbl("A21", "External Wall Area (m2)");
     qval("D21", t.external_wall_area_m2 ?? undefined);
 
     // Rows match "5. Data Input House " sheet: D=qty, E=height, F=width. C (cladding type 1/2) = gap, fill in QS.
-    qlbl("A38", "③ WINDOWS & OPENINGS", iqSection);
+    qlbl("A38", "3 WINDOWS & OPENINGS", iqSection);
     qlbl("C39", "Cladding (enter in QS)");
     qlbl("D39", "Qty");
     qlbl("E39", "H (m)");
@@ -1353,21 +1359,21 @@ function UploadPage() {
       }
     }
 
-    // --- Downpipes — concept flow has no downpipe data, cells left empty as placeholders
+    // --- Downpipes - concept flow has no downpipe data, cells left empty as placeholders
     qlbl("A143", "Downpipes");
     qlbl("A145", "White");
     qlbl("A146", "Colorsteel");
     qlbl("A147", "PVC Coloured");
 
-    qlbl("A174", "④ DOORS & GARAGE", iqSection);
-    qlbl("A176", "Garage Door 4.8×2.1 Insulated");
-    qlbl("A177", "Garage Door 4.8×2.1 Standard");
-    qlbl("A178", "Garage Door 2.4×2.1 Insulated");
-    qlbl("A179", "Garage Door 2.4×2.1 Standard");
-    qlbl("A180", "Garage Door 2.7×2.1 Insulated");
-    qlbl("A181", "Garage Door 2.7×2.1 Standard");
+    qlbl("A174", "4 DOORS & GARAGE", iqSection);
+    qlbl("A176", "Garage Door 4.8x2.1 Insulated");
+    qlbl("A177", "Garage Door 4.8x2.1 Standard");
+    qlbl("A178", "Garage Door 2.4x2.1 Insulated");
+    qlbl("A179", "Garage Door 2.4x2.1 Standard");
+    qlbl("A180", "Garage Door 2.7x2.1 Insulated");
+    qlbl("A181", "Garage Door 2.7x2.1 Standard");
     if (t.garage_door_size) {
-      const gdm = t.garage_door_size.match(/(\d+(?:\.\d+)?)\s*[x×*]\s*/i);
+      const gdm = t.garage_door_size.match(/(\d+(?:\.\d+)?)\s*[xx*]\s*/i);
       if (gdm) {
         const gw = parseFloat(gdm[1]);
         const gwMm = gw < 100 ? gw * 1000 : gw;
@@ -1386,12 +1392,12 @@ function UploadPage() {
       if (t.door_breakdown.cavity_sliders > 0) qval("H193", t.door_breakdown.cavity_sliders);
     }
 
-    // ⑤ ELEVATION & SITE PLAN DATA (if available)
+    // 5 ELEVATION & SITE PLAN DATA (if available)
     if (elevationData || sitePlanData) {
       const iqOrange = { font: { color: { rgb: "FF8C00" }, italic: true } };
       const iqGreen = { font: { color: { rgb: "008000" } } };
-      qlbl("A197", "⑤ ELEVATION & SITE PLAN DATA", iqSection);
-      qlbl("A199", "Cladding type code (1=brick · 2=weatherboard · 3=mixed)");
+      qlbl("A197", "5 ELEVATION & SITE PLAN DATA", iqSection);
+      qlbl("A199", "Cladding type code (1=brick  /  2=weatherboard  /  3=mixed)");
       if (elevationData?.claddingTypeCode != null) qval("D199", elevationData.claddingTypeCode);
       qlbl("A200", "Roof type");
       if (elevationData?.roofType) wsQS["D200"] = { v: elevationData.roofType, t: "s", s: {} };
@@ -1399,18 +1405,18 @@ function UploadPage() {
       if (elevationData?.roofPitchDegrees != null) qval("D201", elevationData.roofPitchDegrees);
       qlbl("A203", "Gable end count");
       if (elevationData?.gableEndCount) qval("D203", elevationData.gableEndCount);
-      qlbl("A205", "Driveway concrete (m²)");
+      qlbl("A205", "Driveway concrete (m2)");
       if (sitePlanData?.drivewayConcretM2 != null) qval("D205", sitePlanData.drivewayConcretM2);
-      qlbl("A206", "Paths / patio concrete (m²)");
+      qlbl("A206", "Paths / patio concrete (m2)");
       if (sitePlanData?.patioConcreteM2 != null) qval("D206", sitePlanData.patioConcreteM2);
-      qlbl("A207", "Total concrete (m²)");
+      qlbl("A207", "Total concrete (m2)");
       if (sitePlanData?.totalConcreteM2) qval("D207", sitePlanData.totalConcreteM2);
       if (crossRefResult) {
         const mismatch = crossRefResult.warnings.find((w) => /mismatch/i.test(w));
         if (mismatch) {
-          wsQS["A209"] = { v: `⚠ ${mismatch}`, t: "s", s: iqOrange };
+          wsQS["A209"] = { v: `Review ${mismatch}`, t: "s", s: iqOrange };
         } else if (crossRefResult.windowCountMatch) {
-          wsQS["A209"] = { v: "✓ Window count verified", t: "s", s: iqGreen };
+          wsQS["A209"] = { v: "OK Window count verified", t: "s", s: iqGreen };
         }
       }
       // Write cladding type code to column C of each window row
@@ -1465,12 +1471,12 @@ function UploadPage() {
               <Sparkles className="h-6 w-6 text-primary animate-pulse" />
             </div>
             <h2 className="mt-6 text-xl font-semibold tracking-tight">
-              Reviewing plan quantities…
+              Reviewing plan quantities...
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
               Reading dimensions from{" "}
               {selectedIndex !== null && pageAnalyses[selectedIndex]
-                ? `Page ${pageAnalyses[selectedIndex].pageNumber} · ${PAGE_TYPE_LABEL[pageAnalyses[selectedIndex].pageType]}`
+                ? `Page ${pageAnalyses[selectedIndex].pageNumber}  /  ${PAGE_TYPE_LABEL[pageAnalyses[selectedIndex].pageType]}`
                 : "selected plan"}
               .
             </p>
@@ -1505,7 +1511,7 @@ function UploadPage() {
             <div className="rounded-lg border border-border bg-card p-6 flex items-center gap-4">
               <Wand2 className="h-5 w-5 text-primary animate-pulse shrink-0" />
               <div>
-                <div className="text-sm font-medium">Reading scale from plan…</div>
+                <div className="text-sm font-medium">Reading scale from plan...</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   This takes a few seconds.
                 </div>
@@ -1615,7 +1621,7 @@ function UploadPage() {
             <div className="rounded-lg border border-border bg-card p-6 flex items-center gap-4">
               <Wand2 className="h-5 w-5 text-primary animate-pulse shrink-0" />
               <div>
-                <div className="text-sm font-medium">Checking plan…</div>
+                <div className="text-sm font-medium">Checking plan...</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   Reviewing for missing dimensions, labels and wet areas.
                 </div>
@@ -1663,7 +1669,7 @@ function UploadPage() {
                     onClick={() => setErrorsAcknowledged(true)}
                     className="mt-3 inline-flex items-center gap-2 rounded-md border border-red-500/40 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-500/10"
                   >
-                    <CheckCircle2 className="h-3.5 w-3.5" /> I understand — proceed anyway
+                    <CheckCircle2 className="h-3.5 w-3.5" /> I understand - proceed anyway
                   </button>
                 </div>
               )}
@@ -1711,7 +1717,7 @@ function UploadPage() {
             <div className="rounded-lg border border-border bg-card p-6 flex items-center gap-4">
               <Wand2 className="h-5 w-5 text-primary animate-pulse shrink-0" />
               <div>
-                <div className="text-sm font-medium">Extracting quantities…</div>
+                <div className="text-sm font-medium">Extracting quantities...</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   Reading dimensions and counting elements from the plan.
                 </div>
@@ -1725,7 +1731,7 @@ function UploadPage() {
                 Builder: {planContext.builder.name}
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 font-medium">
-                Dimensions: {planContext.dimensionFormat === "HEIGHT_x_WIDTH" ? "H × W" : "W × H"}
+                Dimensions: {planContext.dimensionFormat === "HEIGHT_x_WIDTH" ? "H x W" : "W x H"}
                 <span className="text-muted-foreground font-normal">
                   (
                   {planContext.dimensionFormatSource === "stated_on_plan"
@@ -1826,7 +1832,7 @@ function UploadPage() {
                           <td className="px-4 py-2.5">
                             {isNull ? (
                               <span className="text-amber-500 text-xs font-medium">
-                                Not found — enter manually
+                                {missingTakeoffValueText(key, t)}
                               </span>
                             ) : (
                               <TakeoffCell
@@ -1845,14 +1851,14 @@ function UploadPage() {
                 </table>
               </div>
 
-              {/* Internal wall low-confidence warning — only shown when very few room dims found */}
+              {/* Internal wall low-confidence warning - only shown when very few room dims found */}
               {geometryResult?.measurements?.internal_wall_confidence === "low" && (
                 <div className="rounded-lg border border-red-500/30 bg-red-50/5 p-4">
                   <div className="text-[10.5px] uppercase tracking-[0.14em] font-medium text-red-500 mb-1">
-                    Internal wall — manual check required
+                    Internal wall - manual check required
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Very few room dimensions found on this plan — check the internal wall
+                    Very few room dimensions found on this plan - check the internal wall
                     measurement manually.
                   </p>
                 </div>
@@ -1861,9 +1867,9 @@ function UploadPage() {
               {t.notes && (
                 <div className="rounded-lg border border-blue-500/20 bg-blue-50/5 p-4">
                   <div className="text-[10.5px] uppercase tracking-[0.14em] font-medium text-blue-400 mb-1">
-                    AI notes & assumptions
+                    {REVIEW_FLAGS_LABEL}
                   </div>
-                  <p className="text-xs text-muted-foreground">{t.notes}</p>
+                  <p className="text-xs text-muted-foreground">{customerSafeText(t.notes)}</p>
                 </div>
               )}
 
@@ -1900,7 +1906,7 @@ function UploadPage() {
                     <Download className="h-4 w-4" /> Export to QS (.xlsx)
                   </button>
                   {/* Quick-upload: persist the job and auto-run the saved takeoff (Pipeline A).
-                      Reuses persist(true) → /jobs/:jobId with { autostart: true }. */}
+                      Reuses persist(true) -> /jobs/:jobId with { autostart: true }. */}
                   <button
                     type="button"
                     onClick={() => persist(true)}
@@ -1957,7 +1963,7 @@ function UploadPage() {
                   className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 shadow-sm disabled:opacity-60"
                 >
                   {conceptBusy === "rendering" ? (
-                    "Rendering…"
+                    "Rendering..."
                   ) : (
                     <>
                       Continue <ArrowRight className="h-4 w-4" />
@@ -1972,7 +1978,7 @@ function UploadPage() {
             <div className="mb-6 rounded-lg border border-border bg-card px-5 py-4">
               <div className="flex items-center gap-3">
                 <Wand2 className="h-4 w-4 text-primary animate-pulse" />
-                <div className="text-sm font-medium">Reading plan set…</div>
+                <div className="text-sm font-medium">Reading plan set...</div>
                 <div className="text-xs text-muted-foreground tabular-nums">
                   {analyzeProgress.done}/{analyzeProgress.total || "?"} pages
                 </div>
@@ -1999,13 +2005,13 @@ function UploadPage() {
                     {autoCertainty === "high" ? "(auto-selected)" : "(needs confirmation)"}
                   </div>
                   <div className="mt-1 text-[15px] font-semibold tracking-tight">
-                    Page {pageAnalyses[selectedIndex].pageNumber} ·{" "}
+                    Page {pageAnalyses[selectedIndex].pageNumber}  / {" "}
                     {PAGE_TYPE_LABEL[pageAnalyses[selectedIndex].pageType]}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     Detection confidence:{" "}
                     <ConfidenceText level={pageAnalyses[selectedIndex].confidence} />
-                    {" · "}
+                    {"  /  "}
                     {confirmed ? (
                       <span className="text-confidence-high">Confirmed</span>
                     ) : (
@@ -2121,7 +2127,7 @@ function UploadPage() {
             />
           </div>
 
-          {/* Additional PDFs — elevations, site plan */}
+          {/* Additional PDFs - elevations, site plan */}
           <AdditionalPdfsZone
             pdfs={additionalPdfs}
             onChange={setAdditionalPdfs}
@@ -2160,8 +2166,8 @@ function UploadPage() {
                   className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   {TEMPLATES.map((t) => (
-                    <option key={t.id} value={`${t.code} — ${t.name}`}>
-                      {t.code} — {t.name}
+                    <option key={t.id} value={`${t.code} - ${t.name}`}>
+                      {t.code} - {t.name}
                     </option>
                   ))}
                 </select>
@@ -2169,7 +2175,7 @@ function UploadPage() {
             </div>
           </div>
 
-          {/* Client Specifications — meeting picker, captured at upload time.
+          {/* Client Specifications - meeting picker, captured at upload time.
               Optional here; the job page panel reads/extends the same answers. */}
           <div className="rounded-lg border border-border bg-card overflow-hidden">
             <button
@@ -2183,7 +2189,7 @@ function UploadPage() {
                 </div>
                 <div className="text-[12px] text-muted-foreground mt-0.5">
                   {answeredCount(specAnswers).answered} of {answeredCount(specAnswers).total}{" "}
-                  confirmed — capture meeting selections now, or complete later on the job page.
+                  confirmed - capture meeting selections now, or complete later on the job page.
                   Unanswered specs export blank, never assumed.
                 </div>
               </div>
@@ -2205,7 +2211,7 @@ function UploadPage() {
               disabled={busy !== null}
               className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2.5 text-sm font-medium hover:bg-accent disabled:opacity-60"
             >
-              {busy === "draft" ? "Saving…" : "Save Draft"}
+              {busy === "draft" ? "Saving..." : "Save Draft"}
             </button>
             <button
               type="submit"
@@ -2252,14 +2258,14 @@ function blobToBase64(blob: Blob): Promise<string> {
 }
 
 const TAKEOFF_ROWS: { key: keyof TakeoffData; label: string; unit: string }[] = [
-  { key: "floor_area_m2", label: "Floor area", unit: "m²" },
-  { key: "garage_area_m2", label: "Garage area", unit: "m²" },
-  { key: "alfresco_area_m2", label: "Alfresco / deck", unit: "m²" },
-  { key: "total_area_m2", label: "Total area incl alfresco", unit: "m²" },
+  { key: "floor_area_m2", label: "Floor area", unit: "m2" },
+  { key: "garage_area_m2", label: "Garage area", unit: "m2" },
+  { key: "alfresco_area_m2", label: "Alfresco / deck", unit: "m2" },
+  { key: "total_area_m2", label: "Total area incl alfresco", unit: "m2" },
   { key: "external_wall_lm", label: "External wall", unit: "lm" },
-  { key: "external_wall_area_m2", label: "External wall area", unit: "m²" },
+  { key: "external_wall_area_m2", label: "External wall area", unit: "m2" },
   { key: "internal_wall_lm", label: "Internal wall", unit: "lm" },
-  { key: "roof_area_m2", label: "Roof area", unit: "m²" },
+  { key: "roof_area_m2", label: "Roof area", unit: "m2" },
   { key: "window_count", label: "Windows", unit: "count" },
   { key: "internal_door_count", label: "Internal doors", unit: "count" },
   { key: "bathroom_count", label: "Bathrooms", unit: "count" },
@@ -2269,6 +2275,17 @@ const TAKEOFF_ROWS: { key: keyof TakeoffData; label: string; unit: string }[] = 
   { key: "ceiling_height_m", label: "Ceiling height", unit: "m" },
   { key: "foundation_type", label: "Foundation type", unit: "" },
 ];
+
+function missingTakeoffValueText(key: keyof TakeoffData, takeoff: TakeoffData): string {
+  if (
+    key === "external_wall_area_m2" &&
+    takeoff.external_wall_lm != null &&
+    takeoff.ceiling_height_m != null
+  ) {
+    return EXTERNAL_WALL_AREA_BLOCKED;
+  }
+  return "Unknown - enter manually";
+}
 
 function TakeoffCell({
   value,
@@ -2322,7 +2339,7 @@ function TakeoffCell({
       className="inline-flex items-center gap-1.5 text-sm font-medium hover:text-primary group"
     >
       {value === null ? (
-        <span className="text-amber-500 text-xs">Not found — click to enter</span>
+        <span className="text-amber-500 text-xs">Unknown - click to enter</span>
       ) : (
         String(value)
       )}
@@ -2382,14 +2399,14 @@ function ConceptProgressBar({ current }: { current: Step }) {
             >
               {done && <CheckCircle2 className="h-3 w-3" />}
               {String(i + 1)
-                .replace(/1/, "①")
-                .replace(/2/, "②")
-                .replace(/3/, "③")
-                .replace(/4/, "④")
-                .replace(/5/, "⑤")}{" "}
+                .replace(/1/, "1")
+                .replace(/2/, "2")
+                .replace(/3/, "3")
+                .replace(/4/, "4")
+                .replace(/5/, "5")}{" "}
               {s.label}
             </span>
-            {i < steps.length - 1 && <span className="text-muted-foreground/40">→</span>}
+            {i < steps.length - 1 && <span className="text-muted-foreground/40">{"->"}</span>}
           </div>
         );
       })}
@@ -2535,7 +2552,7 @@ function Dropzone({
             </div>
             <div className="mt-1 text-[13.5px] font-medium truncate">{file.name}</div>
             <div className="text-[11px] text-muted-foreground mt-0.5">
-              {(file.size / 1024 / 1024).toFixed(2)} MB · ready for review
+              {(file.size / 1024 / 1024).toFixed(2)} MB  /  ready for review
             </div>
             <div className="mt-3 flex items-center gap-3">
               <label className="text-[11px] text-primary font-medium hover:underline cursor-pointer">
@@ -2729,7 +2746,7 @@ function AdditionalPdfsZone({
         );
         if (sheetType === "floor_plan") {
           toast.warning(
-            `${np.file.name} looks like a floor plan — use the primary Plan PDF slot instead.`,
+            `${np.file.name} looks like a floor plan - use the primary Plan PDF slot instead.`,
           );
         }
       });
@@ -2750,7 +2767,7 @@ function AdditionalPdfsZone({
       <div>
         <div className="text-xs font-medium text-muted-foreground mb-2">
           Elevation & Site Plan PDFs{" "}
-          <span className="font-normal">(optional — up to 4 additional files)</span>
+          <span className="font-normal">(optional - up to 4 additional files)</span>
         </div>
         <label
           onDragEnter={(e) => {
@@ -2776,7 +2793,7 @@ function AdditionalPdfsZone({
           <div>
             <span className="text-sm font-medium">Add elevation or site plan PDFs</span>
             <span className="text-xs text-muted-foreground ml-2">
-              Sheet types auto-detected · Max 50 MB each
+              Sheet types auto-detected  /  Max 50 MB each
             </span>
           </div>
           <input
@@ -2810,7 +2827,7 @@ function AdditionalPdfsZone({
               </div>
             </div>
             {pdf.classifying ? (
-              <span className="text-[10px] text-muted-foreground animate-pulse">Classifying…</span>
+              <span className="text-[10px] text-muted-foreground animate-pulse">Classifying...</span>
             ) : (
               <div className="flex items-center gap-2">
                 <span
@@ -2896,7 +2913,9 @@ function ElevationSummaryCard({
             )}
             {crossRef.windowCountMatch
               ? `${crossRef.windowCountElevations} windows verified across ${Object.keys(elevation?.windowCountPerFace ?? {}).length} elevations`
-              : `Window mismatch - floor plan: ${crossRef.windowCountFloorPlan}, elevations: ${crossRef.windowCountElevations}`}
+              : (formatOpeningMismatchWarning(
+                  `Window mismatch - floor plan: ${crossRef.windowCountFloorPlan}, elevations: ${crossRef.windowCountElevations}`,
+                ) ?? "Opening reconciliation blocked")}
           </div>
           <div
             className={`rounded-md border px-3 py-2 flex items-center gap-2 text-[11px] ${
@@ -2912,7 +2931,9 @@ function ElevationSummaryCard({
             )}
             {crossRef.externalGlazedOpeningMatch
               ? `${crossRef.externalGlazedOpeningCountElevations} external glazed openings verified`
-              : `External opening mismatch - floor plan: ${crossRef.externalGlazedOpeningCountFloorPlan}, elevations: ${crossRef.externalGlazedOpeningCountElevations}`}
+              : (formatOpeningMismatchWarning(
+                  `External opening mismatch - floor plan: ${crossRef.externalGlazedOpeningCountFloorPlan}, elevations: ${crossRef.externalGlazedOpeningCountElevations}`,
+                ) ?? "Opening reconciliation blocked")}
           </div>
         </div>
       )}
@@ -2936,7 +2957,7 @@ function ElevationSummaryCard({
             <span className="text-muted-foreground">Roof: </span>
             <span className="font-medium">
               {elevation.roofType
-                ? `${elevation.roofType}${elevation.roofPitchDegrees != null ? ` @ ${elevation.roofPitchDegrees}°` : ""}`
+                ? `${elevation.roofType}${elevation.roofPitchDegrees != null ? ` @ ${elevation.roofPitchDegrees}deg` : ""}`
                 : "Not detected"}
             </span>
           </div>
@@ -2947,10 +2968,10 @@ function ElevationSummaryCard({
       {sitePlan && sitePlan.totalConcreteM2 > 0 && (
         <div className="text-[11.5px]">
           <span className="text-muted-foreground">Concrete: </span>
-          <span className="font-medium">{sitePlan.totalConcreteM2} m² total</span>
+          <span className="font-medium">{sitePlan.totalConcreteM2} m2 total</span>
           {sitePlan.drivewayConcretM2 != null && (
             <span className="text-muted-foreground ml-2">
-              ({sitePlan.drivewayConcretM2} m² driveway)
+              ({sitePlan.drivewayConcretM2} m2 driveway)
             </span>
           )}
         </div>

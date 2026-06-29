@@ -145,7 +145,7 @@ describe("export never silently drops a window (JM-0027 regression)", () => {
     const m = manualText(ws);
     let flagged = 0;
     for (const line of m.split("\n")) {
-      const hit = line.match(/UNPLACED — .*?: (\d+) window/);
+      const hit = line.match(/UNPLACED - .*?: (\d+) window/);
       if (hit) flagged += Number(hit[1]);
     }
     expect(placed + flagged).toBe(13);
@@ -153,9 +153,9 @@ describe("export never silently drops a window (JM-0027 regression)", () => {
 
   it("Media, generic Bedroom, and Laundry each surface as flagged manual lines with dims", () => {
     const m = manualText(ws);
-    expect(m).toMatch(/UNPLACED — Media: 4 window/);
-    expect(m).toMatch(/UNPLACED — Bedroom: 2 window/);
-    expect(m).toMatch(/UNPLACED — Laundry: 1 window/);
+    expect(m).toMatch(/UNPLACED - Media: 4 window/);
+    expect(m).toMatch(/UNPLACED - Bedroom: 2 window/);
+    expect(m).toMatch(/UNPLACED - Laundry: 1 window/);
     expect(m).toMatch(/7 of 13 windows have NO IQ slot/);
   });
 });
@@ -173,7 +173,7 @@ describe("JM-0029 regression: weak extraction is shown, not zeroed", () => {
   });
 
   it("the Unknown-room windows are flagged with dims", () => {
-    expect(manualText(ws)).toMatch(/UNPLACED — Unknown: 2 window/);
+    expect(manualText(ws)).toMatch(/UNPLACED - Unknown: 2 window/);
   });
 });
 
@@ -203,7 +203,7 @@ describe("zero-window hard sanity flag", () => {
 
   it("does NOT fire when opening pricing is deliberately blocked", () => {
     const ws = buildDropInSheet(base({ openings: [], openingPricingBlocked: true }));
-    expect(manualText(ws)).toMatch(/OPENING PRICING BLOCKED/);
+    expect(manualText(ws)).toMatch(/Opening reconciliation blocked/);
     expect(manualText(ws)).not.toMatch(/ZERO WINDOWS EXTRACTED/);
   });
 });

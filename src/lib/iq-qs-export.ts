@@ -1,5 +1,5 @@
 /**
- * QS export library — writes job takeoff data into an IQ data sheet for
+ * QS export library - writes job takeoff data into an IQ data sheet for
  * pasting into the Jennian master QS spreadsheet, and generates an Electrical
  * Schedule CSV for Laser Electrical.
  *
@@ -33,6 +33,11 @@ import {
 } from "@/lib/takeoff/extracted-quantity-read-model";
 import { buildExtractedQuantitiesSheet } from "@/lib/takeoff/extracted-quantity-export";
 import { loadExtractedQuantityAuthorityForJob } from "@/lib/takeoff/extracted-quantity-authority";
+import {
+  REVIEW_FLAGS_LABEL,
+  customerSafeText,
+  formatOpeningMismatchWarning,
+} from "@/lib/customer-facing-text";
 export {
   loadEnrichedTakeoffJson,
   loadEnrichedTakeoffJsonWithRun,
@@ -61,7 +66,7 @@ type OpeningRow = Database["public"]["Tables"]["opening_schedule"]["Row"];
 
 /* ------------------------------------------------------------------ types */
 
-/** Approved beats extracted on every module-sourced field — exported for tests. */
+/** Approved beats extracted on every module-sourced field - exported for tests. */
 export function pickModuleValue(
   i: { approved_value: string | null; extracted_value: string | null } | undefined,
 ): string | null {
@@ -85,12 +90,12 @@ export type QSExportData = {
   address: string;
   templateId: string | null;
   createdAt: string;
-  /** Meeting-spec answers (spec_id → code) from jobs.specifications. */
+  /** Meeting-spec answers (spec_id -> code) from jobs.specifications. */
   specifications?: import("@/lib/specs/spec-schema").SpecAnswers | null;
   // Geometry
   floorAreaM2: number | null;
   perimeterLm: number | null;
-  /** Measured internal wall length (geometry engine) — informational until the QS wires a row. */
+  /** Measured internal wall length (geometry engine) - informational until the QS wires a row. */
   internalWallLm: number | null;
   /** Pipeline safety (12 Jun): "unavailable" when the geometry layer failed for this run. */
   geometryStatus?: string | null;
@@ -106,9 +111,9 @@ export type QSExportData = {
   underlay: string | null;
   claddingType1: string | null;
   claddingType2: string | null;
-  /** 1=brick/masonry only · 2=weatherboard/panel only · 3=mixed · null=unknown */
+  /** 1=brick/masonry only  /  2=weatherboard/panel only  /  3=mixed  /  null=unknown */
   claddingTypeCode?: number | null;
-  /** Elevation extraction results for the ⑤ ELEVATION & SITE PLAN section */
+  /** Elevation extraction results for the 5 ELEVATION & SITE PLAN section */
   elevationSummary?: {
     roofType: string | null;
     roofPitchDegrees: number | null;
@@ -178,11 +183,11 @@ export type QSExportData = {
   garageDoor27x21Insulated: number;
   /** True when a HISTORICAL manually-confirmed door count exists (legacy override). */
   doorCountsConfirmed?: boolean;
-  /** Which deterministic source produced the interior door counts. null = NO source —
+  /** Which deterministic source produced the interior door counts. null = NO source -
    *  the counts are unbacked zeros and the sheet must flag, not assert (fail-safe doctrine:
    *  a confident 0 with no source is a guess, and the worst kind). */
   doorsSource?: "confirmed" | "engine" | "labels" | "schedule" | null;
-  /** Vision's door count — a HINT for the flag text only, never a number on the sheet. */
+  /** Vision's door count - a HINT for the flag text only, never a number on the sheet. */
   intDoorVisionHint?: number | null;
   intDoorStandard: number;
   intDoorUGroove: number;
@@ -197,7 +202,7 @@ export type QSExportData = {
   heatPumpWallUnit: number;
   heatPumpDucted: number;
   specItems: Record<string, string>;
-  /** Pre-loaded module_items rows — avoids a second DB query in writeIQDataSheetFull */
+  /** Pre-loaded module_items rows - avoids a second DB query in writeIQDataSheetFull */
   moduleItems?: Array<{
     module_id: string;
     label: string;
@@ -207,16 +212,16 @@ export type QSExportData = {
     value_source: string | null;
   }>;
   /**
-   * Convergence Slice 6 — per-field review flags carried over from the persisted enriched
+   * Convergence Slice 6 - per-field review flags carried over from the persisted enriched
    * takeoff (takeoff_runs.takeoff_json). Present (and surfaced in the .xlsx "Review Notes"
    * sheet + the review UI) only when an enriched takeoff exists AND it carries flags; absent
-   * for pre-convergence jobs (relational fallback) → export is byte-identical to today.
+   * for pre-convergence jobs (relational fallback) -> export is byte-identical to today.
    */
   reviewFlags?: Array<{ field: string; flags: string[] }>;
   /** Which source built the takeoff fields: the enriched takeoff_json, or the relational rows. */
   takeoffSource?: "enriched" | "relational";
   /**
-   * Stage 2a — the flat per-opening list from the enriched takeoff (window/slider/
+   * Stage 2a - the flat per-opening list from the enriched takeoff (window/slider/
    * garage_window/sectional_door/pa_door/entrance, each with glazed + area). Read-only
    * data threaded through for the Stage 2b glazed-split/cladding consumer; NOT yet
    * written to any cell. Present only on the enriched path; undefined on the relational
@@ -253,9 +258,9 @@ export type ElectricalSchedule = {
 /* -------------------------------------------------------------- data load */
 
 /**
- * Convergence Slice 6 — load the canonical enriched takeoff (takeoff_runs.takeoff_json) for a
- * job's latest run. GRACEFUL + PERMANENT FALLBACK: returns null on ANY problem — the column
- * absent (pre-migration), no run row, a non-object payload, or any query error — so the caller
+ * Convergence Slice 6 - load the canonical enriched takeoff (takeoff_runs.takeoff_json) for a
+ * job's latest run. GRACEFUL + PERMANENT FALLBACK: returns null on ANY problem - the column
+ * absent (pre-migration), no run row, a non-object payload, or any query error - so the caller
  * always falls back to the relational rows. `select("*")` is used deliberately: it never errors
  * on a column that does not exist yet, it simply omits it.
  */
@@ -263,7 +268,7 @@ export type ElectricalSchedule = {
  * How many recent takeoff_runs rows to scan for a usable payload. A failed or incomplete
  * re-run writes a row whose takeoff_json is null; taking only the single latest row made
  * one bad re-run silently flip the whole export onto the relational fallback (the canonical
- * openings — sliders, sectional doors — then never reach the sheets). Scanning a small
+ * openings - sliders, sectional doors - then never reach the sheets). Scanning a small
  * window returns the most recent run that actually carries the canonical takeoff.
  */
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -291,7 +296,7 @@ function firstCladdingType(elevation: ElevationData | null): string | null {
 }
 
 function roofPitchText(elevation: ElevationData | null): string | null {
-  return elevation?.roofPitchDegrees != null ? `${elevation.roofPitchDegrees}°` : null;
+  return elevation?.roofPitchDegrees != null ? `${elevation.roofPitchDegrees}\u00b0` : null;
 }
 
 function buildElevationSummary(
@@ -309,12 +314,14 @@ function buildElevationSummary(
     patioConcreteM2: sitePlan?.patioConcreteM2 ?? null,
     totalConcreteM2: sitePlan?.totalConcreteM2 ?? null,
     windowCountMatch: crossRef?.windowCountMatch ?? null,
-    windowCountWarning: crossRef?.warnings?.length ? crossRef.warnings.join(" ") : null,
+    windowCountWarning: crossRef?.warnings?.length
+      ? formatOpeningMismatchWarning(crossRef.warnings.join(" "))
+      : null,
   };
 }
 
 /**
- * Stage 2b — derive the fixed-slot windowsByRoom from the flat openings[] list.
+ * Stage 2b - derive the fixed-slot windowsByRoom from the flat openings[] list.
  *
  * Mirrors the relational matchWindowOpening keyword routing, but sources the cells from the
  * enriched takeoff's openings[] instead of the relational opening_schedule rows. Each opening
@@ -323,7 +330,7 @@ function buildElevationSummary(
  * first routed opening's dims (the QS sheet holds one row per slot, so same-room openings
  * collapse exactly as today). Glazed window-type openings (window/slider/garage_window) fill the
  * window slots; the solid sectional_door (glazed:false) routes to the garage-door slot, never a
- * window row — the glazed flag's only cell-level role, since the template has no glazed cell.
+ * window row - the glazed flag's only cell-level role, since the template has no glazed cell.
  * Per-opening cladding is carried onto the slot (unused by the sheet today; available for a
  * future cladding-code cell). Pure; returns a fresh map.
  */
@@ -364,7 +371,7 @@ export function openingsToWindowsByRoom(openings: Opening[]): QSExportData["wind
   let garageDoorIdx = 0;
   for (const o of openings) {
     if (o.type === "sectional_door") {
-      // Solid garage door → the garage-door slot, never a window row.
+      // Solid garage door -> the garage-door slot, never a window row.
       put(garageDoorIdx === 0 ? "garageDoor1" : "garageDoor2", o);
       garageDoorIdx += 1;
       continue;
@@ -373,7 +380,7 @@ export function openingsToWindowsByRoom(openings: Opening[]): QSExportData["wind
     const room = (o.room ?? "").toLowerCase();
     const spec = WINDOW_SLOT_SPECS.find((s) => s.keywords.some((k) => room.includes(k)));
     if (!spec) continue;
-    // Kitchen overflow → second+ kitchen window goes to kitchenExtra (mirrors the relational path).
+    // Kitchen overflow -> second+ kitchen window goes to kitchenExtra (mirrors the relational path).
     put(spec.key === "kitchen" && slots.kitchen != null ? "kitchenExtra" : spec.key, o);
   }
   return slots;
@@ -452,7 +459,7 @@ function hasOpeningPricingBlock(enriched: EnrichedTakeoff): boolean {
 
 /**
  * Overlay the enriched takeoff onto a relational QSExportData base. When `enriched` is null
- * (every pre-convergence job) the base is returned UNCHANGED apart from a source tag — the
+ * (every pre-convergence job) the base is returned UNCHANGED apart from a source tag - the
  * export is byte-identical to today (PERMANENT fallback, not a migration bridge). When present,
  * the converged takeoff VALUES win where they exist, and the per-field discrepancy flags are
  * attached for the .xlsx + review UI.
@@ -482,7 +489,7 @@ export function applyEnrichedTakeoff(
     exteriorWallHeightM: studM ?? base.exteriorWallHeightM,
     reviewFlags: [...fieldFlags(enriched), ...openingEvidenceFlags(enriched)],
     takeoffSource: "enriched",
-    // Stage 2a — thread the flat opening list through. Present only on the enriched path;
+    // Stage 2a - thread the flat opening list through. Present only on the enriched path;
     // the relational fallback above leaves it undefined.
     openings: enrichedOpenings,
     extractedQuantities,
@@ -492,7 +499,7 @@ export function applyEnrichedTakeoff(
     openingPricingBlocked,
     // Blocked enriched openings must not fall back into stale relational schedule rows.
     windows: openingPricingBlocked ? [] : base.windows,
-    // Interior doors — precedence: HISTORICAL confirmed manual counts (legacy jobs) >
+    // Interior doors - precedence: HISTORICAL confirmed manual counts (legacy jobs) >
     // deterministic door engine > module-item labels > opening-schedule fallback (the
     // latter two are already in base). The engine's counts NEVER include flagged hits.
     intDoorVisionHint: enriched.internal_door_count?.value ?? null,
@@ -505,10 +512,10 @@ export function applyEnrichedTakeoff(
           intDoorBarnSlider: enriched.door_counts_auto.barn,
         }
       : {}),
-    // Stage 2b — migrate the window CELLS' source: derive the fixed-slot windowsByRoom from
+    // Stage 2b - migrate the window CELLS' source: derive the fixed-slot windowsByRoom from
     // openings[] when the enriched takeoff carries them, else keep the relational base map
     // (the live fallback, intact until the Beddis gate passes). The window COUNT is NOT
-    // touched here — it stays vector-sourced (enriched.window_count) until the Harrison
+    // touched here - it stays vector-sourced (enriched.window_count) until the Harrison
     // re-typing lands.
     windowsByRoom: openingPricingBlocked
       ? {}
@@ -592,8 +599,8 @@ export async function buildQSExportData(
       : [];
   const items: ModuleItemRow[] = [...moduleItemsBase, ...eqSynthetic];
 
-  // Convergence Slice 6 — the canonical enriched takeoff (takeoff_json) is the PRIMARY source
-  // when present; null for every pre-convergence job → relational fallback (overlay applied at
+  // Convergence Slice 6 - the canonical enriched takeoff (takeoff_json) is the PRIMARY source
+  // when present; null for every pre-convergence job -> relational fallback (overlay applied at
   // the return below).
   const extractedQuantityAuthority = await loadExtractedQuantityAuthorityForJob(jobId);
   const enrichedJson = extractedQuantityAuthority.enriched;
@@ -604,7 +611,7 @@ export async function buildQSExportData(
     // Prefer exact label match to avoid collisions
     // (e.g. "wall length" matching both "external wall length" and "internal wall length").
     // APPROVED WINS: when an estimator has approved/corrected a value in the UI, the
-    // export must carry it — exporting the raw extraction over a human correction was
+    // export must carry it - exporting the raw extraction over a human correction was
     // silent margin erosion (cladding types, areas, every module-sourced field).
     const pick = pickModuleValue;
     const exact = items.find((i: ModuleItemRow) => i.label?.toLowerCase() === needle);
@@ -617,7 +624,7 @@ export async function buildQSExportData(
     if (!v) return null;
     // Strip commas (thousand separators) and any chars except digits, dot, minus.
     // Preserve a leading minus so negative values survive.
-    // eslint-disable-next-line no-useless-escape -- kept verbatim — regex is pinned by reference fixtures
+    // eslint-disable-next-line no-useless-escape -- kept verbatim - regex is pinned by reference fixtures
     const cleaned = v.replace(/,/g, "").replace(/[^\d.\-]/g, "");
     const n = parseFloat(cleaned);
     return isNaN(n) ? null : n;
@@ -635,7 +642,7 @@ export async function buildQSExportData(
     // AUDIT §5.5 fix: every producer (OpeningScheduleTab, extract-openings, vision
     // normaliser) writes "internal_door"; this filter matched only "interior_door", so
     // EVERY schedule-entered internal door was silently dropped from the export. Accept
-    // both — a row carries one type, so no double-count is possible.
+    // both - a row carries one type, so no double-count is possible.
     .filter(
       (o: OpeningRow) => o.opening_type === "internal_door" || o.opening_type === "interior_door",
     )
@@ -714,7 +721,7 @@ export async function buildQSExportData(
   // Wall measurements
   const exteriorWallLengthLm = getNum("exterior wall length") ?? getNum("external wall length");
 
-  // Wall height — module_items first, then plan_context stud height, then NZ default
+  // Wall height - module_items first, then plan_context stud height, then NZ default
   const planCtx = (job.plan_context ?? null) as { studHeightMm?: number } | null;
   let exteriorWallHeightM: number | null = getNum("wall height");
   if (exteriorWallHeightM === null) {
@@ -739,7 +746,7 @@ export async function buildQSExportData(
     null;
   const drivewayM2 = getNum("driveway") ?? sitePlanData?.drivewayConcretM2 ?? null;
 
-  // Windows by room — match opening_schedule window openings by room_name keywords
+  // Windows by room - match opening_schedule window openings by room_name keywords
   function matchWindowOpening(
     keywords: string[],
   ): { cladding: string; qty: number; height: number; width: number } | undefined {
@@ -787,7 +794,7 @@ export async function buildQSExportData(
   const bathroom = matchWindowOpening(["bathroom", "bath"]);
   if (bathroom) windowsByRoom.bathroom = bathroom;
 
-  // Kitchen — find first, then second if exists
+  // Kitchen - find first, then second if exists
   const kitchenOpenings = openings.filter((o: OpeningRow) => {
     if (o.opening_type !== "window") return false;
     const rn = (o.room_name ?? "").toLowerCase();
@@ -962,7 +969,7 @@ export async function buildQSExportData(
     heatPumpWallUnit = heatPumps.length;
   }
 
-  // Door count override — HISTORICAL ONLY. The manual DoorCountPanel is removed from the
+  // Door count override - HISTORICAL ONLY. The manual DoorCountPanel is removed from the
   // UI (door counting is the deterministic engine's job now); confirmed rows on existing
   // jobs are still honoured so past exports stay stable. New jobs never create these.
   const confirmedCounts = doorCountsRes.data;
@@ -1001,7 +1008,7 @@ export async function buildQSExportData(
     studHeightMm: getNum("stud height"),
     alfrescoAreaM2: getNum("alfresco") ?? getNum("porch") ?? getNum("deck"),
     internalWallLm: getNum("internal wall length"),
-    gableSpanM: null, // no module label carries the envelope — enriched path only
+    gableSpanM: null, // no module label carries the envelope - enriched path only
     roofPitch: getVal("roof pitch") ?? roofPitchText(elevationData),
     ridgeType: getVal("ridge type") ?? getVal("ridge"),
     underlay: getVal("underlay"),
@@ -1069,7 +1076,7 @@ export async function buildQSExportData(
     })),
   };
 
-  // Convergence Slice 6 — enriched takeoff_json wins where present (values + flags); null →
+  // Convergence Slice 6 - enriched takeoff_json wins where present (values + flags); null ->
   // relational base unchanged (byte-identical to today).
   return applyEnrichedTakeoff(base, enrichedJson, {
     extractedQuantityReadModel: activeExtractedQuantityReadModel,
@@ -1081,7 +1088,7 @@ export async function buildQSExportData(
 const BASE_AREA_M2 = 165;
 
 /**
- * Builds a scaled electrical schedule from 165m² base quantities.
+ * Builds a scaled electrical schedule from 165m2 base quantities.
  * All quantities are rounded to the nearest whole number.
  */
 export function buildElectricalSchedule(data: QSExportData): ElectricalSchedule {
@@ -1090,24 +1097,24 @@ export function buildElectricalSchedule(data: QSExportData): ElectricalSchedule 
   const q = (base: number) => Math.round(base * sf);
 
   const lighting: ElectricalItem[] = [
-    { description: "LED downlights — living/dining/kitchen", qty: q(14), unit: "ea", rate: 45 },
-    { description: "LED downlights — bedrooms", qty: q(8), unit: "ea", rate: 45 },
-    { description: "LED downlights — hallways", qty: q(4), unit: "ea", rate: 45 },
-    { description: "LED downlights — bathrooms/ensuites", qty: q(4), unit: "ea", rate: 45 },
+    { description: "LED downlights - living/dining/kitchen", qty: q(14), unit: "ea", rate: 45 },
+    { description: "LED downlights - bedrooms", qty: q(8), unit: "ea", rate: 45 },
+    { description: "LED downlights - hallways", qty: q(4), unit: "ea", rate: 45 },
+    { description: "LED downlights - bathrooms/ensuites", qty: q(4), unit: "ea", rate: 45 },
     { description: "Exterior coach lights", qty: q(4), unit: "ea", rate: 80 },
-    { description: "Vanity light bar — bathrooms", qty: q(2), unit: "ea", rate: 120 },
+    { description: "Vanity light bar - bathrooms", qty: q(2), unit: "ea", rate: 120 },
     { description: "Attic/storage light", qty: 1, unit: "ea", rate: 45 },
     { description: "Dimmer switches", qty: q(6), unit: "ea", rate: 55 },
-    { description: "Switching — single/double", qty: q(18), unit: "ea", rate: 30 },
+    { description: "Switching - single/double", qty: q(18), unit: "ea", rate: 30 },
   ];
 
   const power: ElectricalItem[] = [
-    { description: "Double GPOs — living/dining", qty: q(6), unit: "ea", rate: 40 },
-    { description: "Double GPOs — kitchen", qty: q(6), unit: "ea", rate: 40 },
-    { description: "Double GPOs — bedrooms", qty: q(8), unit: "ea", rate: 40 },
-    { description: "Double GPOs — bathrooms (shaver)", qty: q(2), unit: "ea", rate: 55 },
-    { description: "Double GPOs — garage", qty: q(4), unit: "ea", rate: 40 },
-    { description: "Stove/oven circuit — 32A", qty: 1, unit: "ea", rate: 180 },
+    { description: "Double GPOs - living/dining", qty: q(6), unit: "ea", rate: 40 },
+    { description: "Double GPOs - kitchen", qty: q(6), unit: "ea", rate: 40 },
+    { description: "Double GPOs - bedrooms", qty: q(8), unit: "ea", rate: 40 },
+    { description: "Double GPOs - bathrooms (shaver)", qty: q(2), unit: "ea", rate: 55 },
+    { description: "Double GPOs - garage", qty: q(4), unit: "ea", rate: 40 },
+    { description: "Stove/oven circuit - 32A", qty: 1, unit: "ea", rate: 180 },
     { description: "Dishwasher circuit", qty: 1, unit: "ea", rate: 85 },
     { description: "Rangehood connection", qty: 1, unit: "ea", rate: 65 },
     { description: "Washing machine circuit", qty: 1, unit: "ea", rate: 85 },
@@ -1130,8 +1137,8 @@ export function buildElectricalSchedule(data: QSExportData): ElectricalSchedule 
   ];
 
   const communications: ElectricalItem[] = [
-    { description: "Cat 6 data points — living/office", qty: q(4), unit: "ea", rate: 60 },
-    { description: "Cat 6 data points — bedrooms", qty: q(4), unit: "ea", rate: 60 },
+    { description: "Cat 6 data points - living/office", qty: q(4), unit: "ea", rate: 60 },
+    { description: "Cat 6 data points - bedrooms", qty: q(4), unit: "ea", rate: 60 },
     { description: "TV aerial points", qty: q(3), unit: "ea", rate: 75 },
     { description: "Network patch panel", qty: 1, unit: "ea", rate: 220 },
     { description: "Doorbell/video intercom", qty: 1, unit: "ea", rate: 180 },
@@ -1163,11 +1170,11 @@ export function buildElectricalSchedule(data: QSExportData): ElectricalSchedule 
 export function electricalScheduleToCSV(schedule: ElectricalSchedule): string {
   const rows: string[] = [];
 
-  rows.push(`Jennian Electrical Schedule — Laser Electrical Manawatū`);
+  rows.push(`Jennian Electrical Schedule - Laser Electrical Manawatū`);
   rows.push(`Job,${schedule.jobNumber}`);
   rows.push(`Client,${schedule.clientName}`);
   rows.push(`Address,"${schedule.address}"`);
-  rows.push(`Floor Area,${schedule.floorAreaM2} m²`);
+  rows.push(`Floor Area,${schedule.floorAreaM2} m2`);
   rows.push(`Generated,${NZ_DATE()}`);
   rows.push(``);
 
@@ -1212,7 +1219,7 @@ export { exportCartersLoads } from "@/lib/iq-carters-loads";
  * highlighted yellow so the estimator can filter/copy them straight into QS.
  */
 /**
- * Convergence Slice 6 — the "Review Notes" worksheet: one row per per-field discrepancy flag
+ * Convergence Slice 6 - the "Review Notes" worksheet: one row per per-field discrepancy flag
  * carried over from the enriched takeoff, so a QS sees them before pricing. Returns null when
  * there are no flags (relational/pre-convergence jobs) so the workbook is unchanged from today.
  */
@@ -1222,9 +1229,9 @@ export function buildReviewNotesSheet(
   if (!reviewFlags || reviewFlags.length === 0) return null;
   const ws: XLSX.WorkSheet = {};
   const set = (addr: string, v: string) => {
-    ws[addr] = { v, t: "s" };
+    ws[addr] = { v: customerSafeText(v), t: "s" };
   };
-  set("A1", "⚠ CONFIDENCE / REVIEW NOTES — confirm each against the plan before pricing");
+  set("A1", `${REVIEW_FLAGS_LABEL} - confirm each against the plan before pricing`);
   set("A3", "Field");
   set("B3", "Flag");
   let r = 4;
@@ -1241,23 +1248,23 @@ export function buildReviewNotesSheet(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DROP-IN PASTE SHEET — positional clone of Jennian Master_Updated_8_DROPIN
+// DROP-IN PASTE SHEET - positional clone of Jennian Master_Updated_8_DROPIN
 // Cell addresses must match the master's "IQ Input" tab exactly (D4/E4/F4,
 // rows 41-72 for windows, H175-H180 for garage, H187/190/192/193 for doors).
-// All values are plain numbers/text (no formulas) — Ctrl+A → copy → paste-values.
+// All values are plain numbers/text (no formulas) - Ctrl+A -> copy -> paste-values.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Slot key → row in the master's IQ Input sheet. */
+/** Slot key -> row in the master's IQ Input sheet. */
 /**
  * Master row ownership, VERIFIED against "5. Data Input House" (Master .xlsm): each room
- * owns its named row plus the blank row(s) beneath it — the master's F73 window total
- * sums F×D across rows 41-72 INCLUDING those blanks (and excluding garage-door rows
+ * owns its named row plus the blank row(s) beneath it - the master's F73 window total
+ * sums FxD across rows 41-72 INCLUDING those blanks (and excluding garage-door rows
  * 67/68), so they are live overflow rows. A room's openings with DIFFERING dims each get
  * their own row; same-dims openings aggregate qty on one row. Rows 69 and 71 are inside
- * the total but their ownership is ambiguous in the master — deliberately unused.
+ * the total but their ownership is ambiguous in the master - deliberately unused.
  */
 /**
- * IQ Import tab slot rows (LIVE QS master v4_1) — POSITIONAL; the QS reads them by row.
+ * IQ Import tab slot rows (LIVE QS master v4_1) - POSITIONAL; the QS reads them by row.
  * overflow = the Data Input House row an extra dim-group should be typed into manually.
  */
 const IQ_SLOT_ROW: Record<string, { row: number; label: string; overflow?: number }> = {
@@ -1292,7 +1299,7 @@ const DROP_IN_SLOT_ROWS: Record<string, ReadonlyArray<number>> = {
   entrance: [72],
   pa_door: [70],
   // garageDoor1 / garageDoor2 handled via H175-H180 garage block + rows 67/68
-  // Laundry window: no slot → dropped
+  // Laundry window: no slot -> dropped
 };
 // All window/PA-door/entrance rows (named + overflow) zeroed before writing actuals
 const ALL_OPENING_ROWS = [
@@ -1301,10 +1308,10 @@ const ALL_OPENING_ROWS = [
 ];
 
 /**
- * Standard sectional garage-door widths (m) → the drop-in H-row of the STANDARD
+ * Standard sectional garage-door widths (m) -> the drop-in H-row of the STANDARD
  * (non-insulated) count cell. Canonical openings[] carry no insulation information, so a
  * canonical-sourced door always lands in the standard bin; the relational item-label path
- * (which can read "insulated") wins whenever it has data — see the dedupe rule in
+ * (which can read "insulated") wins whenever it has data - see the dedupe rule in
  * buildDropInSheet's garage block.
  */
 const GARAGE_DOOR_STD_H_ROW_BY_WIDTH_M: ReadonlyArray<{ width_m: number; row: number }> = [
@@ -1315,7 +1322,7 @@ const GARAGE_DOOR_STD_H_ROW_BY_WIDTH_M: ReadonlyArray<{ width_m: number; row: nu
 /** Width tolerance (m) when matching a sectional door to a standard H-row bin. */
 const GARAGE_DOOR_WIDTH_TOL_M = 0.05;
 /**
- * Master rows for NON-STANDARD-width sectional doors — the dims-capable "Garage Door"
+ * Master rows for NON-STANDARD-width sectional doors - the dims-capable "Garage Door"
  * rows (D=qty, E=height m, F=width m, like the window rows). A width with no H-bin
  * (e.g. a 3.0) is written here with its real dimensions, NEVER silently re-binned to a
  * standard size and never dropped. Both rows are already zeroed via ALL_OPENING_ROWS.
@@ -1323,7 +1330,7 @@ const GARAGE_DOOR_WIDTH_TOL_M = 0.05;
 const NON_STANDARD_GARAGE_DOOR_ROWS = [67, 68] as const;
 
 /**
- * The IQ Import block as clipboard-ready TSV — the estimator clicks Copy in the app
+ * The IQ Import block as clipboard-ready TSV - the estimator clicks Copy in the app
  * and pastes at 'IQ Import'!A1 in the live QS master. No xlsx download round-trip.
  * Excel parses tab-separated clipboard text natively, including blank cells.
  */
@@ -1347,35 +1354,36 @@ export function dropInSheetToTSV(data: QSExportData): string {
 }
 
 export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
-  // ════ IQ IMPORT SHEET — retargeted to the LIVE QS master (Jennian_QS_IQ_Updated_v4_1) ════
+  // ════ IQ IMPORT SHEET - retargeted to the LIVE QS master (Jennian_QS_IQ_Updated_v4_1) ════
   // The live "5. Data Input House" no longer takes pastes: its cells are IFERROR formulas
-  // pulling from an 'IQ Import' tab. This sheet IS that tab's content — the estimator
+  // pulling from an 'IQ Import' tab. This sheet IS that tab's content - the estimator
   // pastes it at 'IQ Import'!A1. Verified against the live workbook (structure dump,
   // 10 Jun 2026):
-  //   meta:    B1 job#, B2 client, B3 address, B9 floor m², B11 alfresco, B12 ext-wall lm,
+  //   meta:    B1 job#, B2 client, B3 address, B9 floor m2, B11 alfresco, B12 ext-wall lm,
   //            B22 ceiling m, B24 garage-door size string (H176 compares B24=="4.8x2.1")
-  //   doors:   B27 standard, B28 cavity, B29 doubles, B30 barn (→ H187/H193/H192/H190)
+  //   doors:   B27 standard, B28 cavity, B29 doubles, B30 barn (-> H187/H193/H192/H190)
   //   windows: FIXED slot rows 33-45, columns B=Qty, C=HEIGHT(m), D=WIDTH(m).
-  //            The QS pulls E(Height)←C and F(Width)←D — the OLD export wrote Width in C,
+  //            The QS pulls E(Height)<-C and F(Width)<-D - the OLD export wrote Width in C,
   //            transposing every window in the live QS (and corrupting the brick-sill
   //            total). Height-in-C here fixes that by construction. Room order is
   //            POSITIONAL: 33 Bed1, 34 Ensuite, 35 Bed2, 36 Bed3, 37 Bed4, 38 Bathroom,
   //            39 Kitchen, 40 Family, 41 Dining, 42 Lounge, 43 GarageWindows,
   //            44 GarageDoor1, 45 Entrance.
   //   manual in the live QS (no IQ feed): Toilet (row 51), Dining qty (D59), Lounge qty
-  //            (D62), overflow rows (42,44,…63,64,66), Garage Door 2 (68), Laundry door
+  //            (D62), overflow rows (42,44,...63,64,66), Garage Door 2 (68), Laundry door
   //            (70), garage H-rows other than H176. Anything we can't feed goes into a
-  //            visible MANUAL ENTRIES block from row 47 — an unfilled cell beats a wrong
+  //            visible MANUAL ENTRIES block from row 47 - an unfilled cell beats a wrong
   //            cell, and the estimator sees exactly what to type and where.
   const ws: XLSX.WorkSheet = {};
   const yellow = { fill: { patternType: "solid", fgColor: { rgb: "FFFF00" } } };
   function put(addr: string, v: number | string) {
-    ws[addr] = { v, t: typeof v === "number" ? "n" : "s", s: yellow };
+    const out = typeof v === "string" ? customerSafeText(v) : v;
+    ws[addr] = { v: out, t: typeof out === "number" ? "n" : "s", s: yellow };
   }
   const r3 = (n: number) => Math.round(n * 1000) / 1000;
-  const dim = (n: number) => String(r3(n)); // 4.8 → "4.8", 3 → "3" (H176 string compare)
+  const dim = (n: number) => String(r3(n)); // 4.8 -> "4.8", 3 -> "3" (H176 string compare)
 
-  // ── meta block (rows 1-24) — every QS-read cell written explicitly ──
+  // ── meta block (rows 1-24) - every QS-read cell written explicitly ──
   put("A1", "Job Number");
   put("B1", data.jmwNumber ?? "");
   put("A2", "Client Name");
@@ -1392,34 +1400,34 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   put("D8", "Notes");
   put("A9", "Floor area");
   put("B9", data.floorAreaM2 ?? 0);
-  put("C9", "m²");
+  put("C9", "m2");
   put("A10", "Garage area");
   put("B10", data.garageAreaM2 ?? "");
-  put("C10", "m²");
+  put("C10", "m2");
   if (data.garageAreaM2 == null) put("D10", "Measure manually / verify on plan");
   put("A11", "Alfresco / deck area");
   put("B11", data.alfrescoAreaM2 ?? "");
-  put("C11", "m²");
-  if (data.alfrescoAreaM2 == null) put("D11", "N/A or not extracted — verify on plan");
+  put("C11", "m2");
+  if (data.alfrescoAreaM2 == null) put("D11", "N/A or not extracted - verify on plan");
   put("A12", "External wall length");
   put("B12", data.perimeterLm ?? 0);
   put("C12", "lm");
   put("A13", "Internal wall length");
   // P2 pending (12 Jun): the engine's room-based internal-wall estimate is known wrong-low
   // (live audit: 7 lm vs ~50+ real). Never surface a priceable number until the ribbon-trace
-  // method ships — blank value + explicit flag instead.
+  // method ships - blank value + explicit flag instead.
   put("B13", "");
   put("C13", "lm");
   put(
     "D13",
-    "⚑ UNVERIFIED — engine estimate unreliable (P2 ribbon-trace pending); measure manually",
+    "Review UNVERIFIED - engine estimate unreliable (P2 ribbon-trace pending); measure manually",
   );
   put("A14", "Roof area");
   put("B14", "");
-  put("C14", "m²"); // never invented
-  // Fail-safe doctrine: door counts with NO deterministic source are unbacked zeros —
+  put("C14", "m2"); // never invented
+  // Fail-safe doctrine: door counts with NO deterministic source are unbacked zeros -
   // blank the cells and flag, never assert. (JM-0021: engine null, no labels, no schedule
-  // → sheet said 0 doors while vision saw ~9. A confident 0 on a quote is a guess.)
+  // -> sheet said 0 doors while vision saw ~9. A confident 0 on a quote is a guess.)
   const doorsUnresolved = (data.doorsSource ?? null) === null;
   put("A17", "Internal doors");
   put(
@@ -1437,17 +1445,17 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   put("A23", "Foundation type");
   put("B23", "");
 
-  // ── interior doors (rows 26-30) — precedence already resolved upstream ──
+  // ── interior doors (rows 26-30) - precedence already resolved upstream ──
   put("A26", "Door Breakdown");
   put("B26", "Qty");
   put("C26", "Type");
-  put("A27", "— Standard hinged");
+  put("A27", "- Standard hinged");
   put("B27", doorsUnresolved ? "" : data.intDoorStandard);
-  put("A28", "— Cavity sliders");
+  put("A28", "- Cavity sliders");
   put("B28", doorsUnresolved ? "" : data.intDoorCavitySlider);
-  put("A29", "— Double doors");
+  put("A29", "- Double doors");
   put("B29", doorsUnresolved ? "" : data.intDoorDouble);
-  put("A30", "— Barn sliders");
+  put("A30", "- Barn sliders");
   put("B30", doorsUnresolved ? "" : data.intDoorBarnSlider);
 
   // ── window slot accumulation (same grouping semantics as before) ──
@@ -1463,7 +1471,7 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   // Fix (12 Jun, JM-0027/JM-0029 audit): NO WINDOW IS EVER SILENTLY DROPPED.
   // Anything without an IQ slot collects here, counts toward the B15 total, and
   // surfaces as a flagged manual line with full dims. A flagged manual entry
-  // beats a silently missing window — always.
+  // beats a silently missing window - always.
   const unplaced: Array<{ room: string; qty: number; h: number; w: number; hint?: string }> = [];
   function addUnplaced(room: string, qty: number, h: number, w: number, hint?: string) {
     const g = unplaced.find((x) => x.room === room && x.h === h && x.w === w && x.hint === hint);
@@ -1472,16 +1480,16 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   }
   if (doorsUnresolved) {
     const hint = data.intDoorVisionHint
-      ? ` — vision suggests ~${data.intDoorVisionHint}, verify`
+      ? ` - vision suggests ~${data.intDoorVisionHint}, verify`
       : "";
     manual.push(
-      `⚑ Internal doors NOT deterministically counted${hint}; count on the plan and enter at B27–30 before pricing`,
+      `Review Internal doors NOT deterministically counted${hint}; count on the plan and enter at B27-30 before pricing`,
     );
   }
 
   if (data.openingPricingBlocked) {
     manual.unshift(
-      "OPENING PRICING BLOCKED - unresolved opening reconciliation; do not price windows or cladding from this export until Review Notes are resolved.",
+      "Opening reconciliation blocked - use Extracted Quantities Review; do not price windows, openings, or cladding from this export.",
     );
   }
 
@@ -1500,7 +1508,7 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
       }
       if (o.type === "pa_door") {
         manual.push(
-          `Laundry/PA door ${dim(o.height_m)}H × ${dim(o.width_m)}W → Data Input House row 70`,
+          `Laundry/PA door ${dim(o.height_m)}H x ${dim(o.width_m)}W -> Data Input House row 70`,
         );
         continue; // row 70 has no IQ feed in the live QS
       }
@@ -1511,7 +1519,7 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
           1,
           o.height_m,
           o.width_m,
-          "no laundry IQ slot — enter on Data Input House",
+          "no laundry IQ slot - enter on Data Input House",
         );
         continue;
       }
@@ -1546,7 +1554,7 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
 
   // ── write slots: rows 33-45, B=Qty C=Height D=Width; ALL slots written (zeros kill
   //    stale paste residue). Group 1 lands in the slot; further dim-groups go to the
-  //    MANUAL block with their Data Input House overflow row — the live QS has no second
+  //    MANUAL block with their Data Input House overflow row - the live QS has no second
   //    IQ row per room, and a flagged manual line beats a silently folded wrong dim. ──
   put("A32", "Windows by Room");
   put("B32", "Qty");
@@ -1562,14 +1570,14 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     put(`D${slot.row}`, g && g.width_m > 0 ? r3(g.width_m) : 0);
     for (const extra of groups.slice(1)) {
       manual.push(
-        `${slot.label}: ${extra.qty} more @ ${dim(extra.height_m)}H × ${dim(extra.width_m)}W → Data Input House overflow row ${slot.overflow ?? "(under " + slot.label + ")"}`,
+        `${slot.label}: ${extra.qty} more @ ${dim(extra.height_m)}H x ${dim(extra.width_m)}W -> Data Input House overflow row ${slot.overflow ?? "(under " + slot.label + ")"}`,
       );
     }
   }
   if ((slotGroups["dining"] ?? []).length > 0)
-    manual.push("Dining QTY is manual in the QS (D59) — dims auto-fill, enter the count");
+    manual.push("Dining QTY is manual in the QS (D59) - dims auto-fill, enter the count");
   if ((slotGroups["lounge"] ?? []).length > 0)
-    manual.push("Lounge QTY is manual in the QS (D62) — dims auto-fill, enter the count");
+    manual.push("Lounge QTY is manual in the QS (D62) - dims auto-fill, enter the count");
 
   // ── garage door 1 (row 44) + size string (B24, read by H176) ──
   const gdSlot = IQ_SLOT_ROW["garageDoor1"];
@@ -1577,12 +1585,12 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   // Source rule unchanged: relational item-label counters win (they know insulation);
   // canonical sectionals fill only when the relational path is empty.
   const rel = [
-    { n: data.garageDoor48x21Std, sz: "4.8x2.1", lbl: "4.8×2.1 Standard" },
-    { n: data.garageDoor48x21Insulated, sz: "4.8x2.1", lbl: "4.8×2.1 Insulated" },
-    { n: data.garageDoor24x21Std, sz: "2.4x2.1", lbl: "2.4×2.1 Standard" },
-    { n: data.garageDoor24x21Insulated, sz: "2.4x2.1", lbl: "2.4×2.1 Insulated" },
-    { n: data.garageDoor27x21Std, sz: "2.7x2.1", lbl: "2.7×2.1 Standard" },
-    { n: data.garageDoor27x21Insulated, sz: "2.7x2.1", lbl: "2.7×2.1 Insulated" },
+    { n: data.garageDoor48x21Std, sz: "4.8x2.1", lbl: "4.8x2.1 Standard" },
+    { n: data.garageDoor48x21Insulated, sz: "4.8x2.1", lbl: "4.8x2.1 Insulated" },
+    { n: data.garageDoor24x21Std, sz: "2.4x2.1", lbl: "2.4x2.1 Standard" },
+    { n: data.garageDoor24x21Insulated, sz: "2.4x2.1", lbl: "2.4x2.1 Insulated" },
+    { n: data.garageDoor27x21Std, sz: "2.7x2.1", lbl: "2.7x2.1 Standard" },
+    { n: data.garageDoor27x21Insulated, sz: "2.7x2.1", lbl: "2.7x2.1 Insulated" },
   ].filter((x) => x.n > 0);
   if (rel.length > 0) {
     const first = rel[0];
@@ -1593,9 +1601,9 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     put(`C${gdSlot.row}`, h);
     put(`D${gdSlot.row}`, w);
     for (const x of rel.slice(1))
-      manual.push(`Garage door ${x.lbl} ×${x.n} → Data Input House garage block (H175-180)`);
+      manual.push(`Garage door ${x.lbl} x${x.n} -> Data Input House garage block (H175-180)`);
     manual.push(
-      "Garage H-block: only H176 (4.8×2.1 Insulated) auto-fills in the QS — verify/enter the rest manually",
+      "Garage H-block: only H176 (4.8x2.1 Insulated) auto-fills in the QS - verify/enter the rest manually",
     );
   } else if (sectionalDoors.length > 0) {
     const groups: Array<{ qty: number; h: number; w: number }> = [];
@@ -1612,7 +1620,7 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     put(`D${gdSlot.row}`, r3(first.w));
     for (const g of groups.slice(1))
       manual.push(
-        `Garage door ${dim(g.w)}×${dim(g.h)} ×${g.qty} → Data Input House row 68 / garage block`,
+        `Garage door ${dim(g.w)}x${dim(g.h)} x${g.qty} -> Data Input House row 68 / garage block`,
       );
   } else {
     put("A24", "Garage door size");
@@ -1643,18 +1651,18 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     put("C15", `${slotWindowTotal} in rows 33-45 + ${reviewTotal} manual/overflow below`);
     if (manualOrOverflowWindowTotal > 0) {
       manual.unshift(
-        `⚑ ${manualOrOverflowWindowTotal} of ${trueWindowTotal} QS openings require manual/overflow entry — listed below with dims; enter on Data Input House before pricing`,
+        `Review ${manualOrOverflowWindowTotal} of ${trueWindowTotal} QS openings require manual/overflow entry - listed below with dims; enter on Data Input House before pricing`,
       );
     }
   }
   if (unplacedWindowTotal > 0) {
     manual.unshift(
-      `⚑ ${unplacedWindowTotal} of ${trueWindowTotal} windows have NO IQ slot — listed below with dims; enter on Data Input House before pricing`,
+      `Review ${unplacedWindowTotal} of ${trueWindowTotal} windows have NO IQ slot - listed below with dims; enter on Data Input House before pricing`,
     );
   }
   for (const u of unplaced) {
     manual.push(
-      `⚑ UNPLACED — ${u.room}: ${u.qty} window(s) @ ${dim(u.h)}H × ${dim(u.w)}W${u.hint ? ` → ${u.hint}` : " — no IQ slot, enter manually"}`,
+      `Review UNPLACED - ${u.room}: ${u.qty} window(s) @ ${dim(u.h)}H x ${dim(u.w)}W${u.hint ? ` -> ${u.hint}` : " - no IQ slot, enter manually"}`,
     );
   }
   // Hard sanity flag: a dwelling with zero windows is physically impossible. Fires only
@@ -1662,47 +1670,47 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   const extractionRan = data.openings != null || Object.keys(data.windowsByRoom).length > 0;
   if (trueWindowTotal === 0 && extractionRan && !data.openingPricingBlocked) {
     manual.unshift(
-      `⚑⚑ ZERO WINDOWS EXTRACTED — physically impossible for a dwelling. Extraction failed on this plan; DO NOT price windows or cladding from this export.`,
+      `Review ZERO WINDOWS EXTRACTED - physically impossible for a dwelling. Extraction failed on this plan; DO NOT price windows or cladding from this export.`,
     );
   }
-  // Pipeline safety (12 Jun): geometry-offline takeoffs are vision-only — say so at the top.
+  // Pipeline safety (12 Jun): geometry-offline takeoffs are vision-only - say so at the top.
   if (data.geometryStatus === "unavailable") {
     manual.unshift(
-      `⚑⚑ GEOMETRY LAYER OFFLINE — vision-only takeoff; deterministic measurement and cross-checks did not run. Verify all measurements against the plan before pricing.`,
+      `Review GEOMETRY LAYER OFFLINE - vision-only takeoff; deterministic measurement and cross-checks did not run. Verify all measurements against the plan before pricing.`,
     );
   }
 
-  // ── MANUAL ENTRIES block (row 47+) — the visible flag set ──
+  // ── MANUAL ENTRIES block (row 47+) - the visible flag set ──
   // Capped so the floating blocks can never reach the fixed SPECIFICATIONS
-  // rows (guard tested): ≤25 lines printed, remainder summarised.
+  // rows (guard tested): <=25 lines printed, remainder summarised.
   const MANUAL_LINE_CAP = 25;
   put(
     "A47",
     manual.length > 0
-      ? "MANUAL ENTRIES — no IQ feed; enter directly on '5. Data Input House':"
-      : "MANUAL ENTRIES: none — all extracted values feed automatically.",
+      ? "MANUAL ENTRIES - no IQ feed; enter directly on '5. Data Input House':"
+      : "MANUAL ENTRIES: none - all extracted values feed automatically.",
   );
   const manualShown = manual.slice(0, MANUAL_LINE_CAP);
-  manualShown.forEach((m, i) => put(`A${48 + i}`, "• " + m));
+  manualShown.forEach((m, i) => put(`A${48 + i}`, "- " + m));
   if (manual.length > MANUAL_LINE_CAP) {
     put(
       `A${48 + MANUAL_LINE_CAP}`,
-      `• …plus ${manual.length - MANUAL_LINE_CAP} more — see Review Notes sheet`,
+      `- ...plus ${manual.length - MANUAL_LINE_CAP} more - see Review flags sheet`,
     );
   }
   const manualRows = Math.min(manual.length, MANUAL_LINE_CAP + 1);
 
-  // ── CLADDING (ENGINE) — deterministic, fail-safe; every term sourced, flags visible ──
+  // ── CLADDING (ENGINE) - deterministic, fail-safe; every term sourced, flags visible ──
   // Inputs available today: measured perimeter, extracted stud height + pitch + gable
-  // count + cladding types, canonical openings. Gable SPAN is not yet measured →
+  // count + cladding types, canonical openings. Gable SPAN is not yet measured ->
   // gabled houses carry a flag instead of a guess (V1.1 wires the geometry bbox).
   const adapterFlags: string[] = [];
   const gables = data.elevationSummary?.gableEndCount ?? null;
   if (gables == null)
-    adapterFlags.push("gable count not extracted — net assumes no gables, VERIFY on elevations");
+    adapterFlags.push("gable count not extracted - net assumes no gables, VERIFY on elevations");
   if ((gables ?? 0) > 0 && data.gableSpanM != null)
     adapterFlags.push(
-      `gable span ${data.gableSpanM}m = plan envelope short side — verify for non-rectangular plans`,
+      `gable span ${data.gableSpanM}m = plan envelope short side - verify for non-rectangular plans`,
     );
   const clad = data.openingPricingBlocked
     ? null
@@ -1716,39 +1724,39 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
         claddingTypes: [data.claddingType1, data.claddingType2].filter((t): t is string => !!t),
       });
   const cladStart = 49 + manualRows;
-  put(`A${cladStart}`, "CLADDING (ENGINE) — provable terms; flags need a human:");
-  const fmt = (n: number | null) => (n == null ? "NOT COMPUTED" : `${n} m²`);
-  put(`A${cladStart + 1}`, `• Wall (perimeter × stud): ${fmt(clad?.wallRectAreaM2 ?? null)}`);
-  put(`A${cladStart + 2}`, `• Gables: ${fmt(clad?.gableAreaM2 ?? null)}`);
+  put(`A${cladStart}`, "CLADDING (ENGINE) - provable terms; flags need a human:");
+  const fmt = (n: number | null) => (n == null ? "NOT COMPUTED" : `${n} m2`);
+  put(`A${cladStart + 1}`, `- Wall (perimeter x stud): ${fmt(clad?.wallRectAreaM2 ?? null)}`);
+  put(`A${cladStart + 2}`, `- Gables: ${fmt(clad?.gableAreaM2 ?? null)}`);
   put(
     `A${cladStart + 3}`,
     data.openingPricingBlocked
-      ? "• Less openings: NOT COMPUTED - opening pricing blocked"
-      : `• Less openings: ${clad?.glazingDeductionM2 ?? 0} m²`,
+      ? "Less openings: NOT COMPUTED - opening reconciliation blocked"
+      : `- Less openings: ${clad?.glazingDeductionM2 ?? 0} m2`,
   );
-  put(`A${cladStart + 4}`, `• NET CLADDING: ${fmt(clad?.netCladdingAreaM2 ?? null)}`);
+  put(`A${cladStart + 4}`, `- NET CLADDING: ${fmt(clad?.netCladdingAreaM2 ?? null)}`);
   let cr = cladStart + 5;
   for (const pc of clad?.perCladding ?? []) {
-    put(`A${cr}`, `   – ${pc.type}: ${fmt(pc.areaM2)}`);
+    put(`A${cr}`, `   - ${pc.type}: ${fmt(pc.areaM2)}`);
     cr++;
   }
   const claddingFlags = data.openingPricingBlocked
-    ? ["opening pricing blocked - resolve opening review before calculating cladding"]
+    ? ["opening reconciliation blocked - resolve Extracted Quantities Review before calculating cladding"]
     : (clad?.flags ?? []);
   for (const f of [...adapterFlags, ...claddingFlags]) {
-    put(`A${cr}`, `⚑ ${f}`);
+    put(`A${cr}`, `Review ${f}`);
     cr++;
   }
 
-  // ── SPECIFICATIONS (CODED) — fixed-row contract block ──
+  // ── SPECIFICATIONS (CODED) - fixed-row contract block ──
   // The QS reads column B by ABSOLUTE row ('IQ Import'!B{row}). Rows are
   // permanent (append-only schema, frozen by tests/specs/spec-contract.golden.json).
   // blank B = not answered (never invented), 0 = N/A, 1+ = selection.
-  // Floating blocks above must stay below SPEC_GUARD_ROW — guarded by test.
+  // Floating blocks above must stay below SPEC_GUARD_ROW - guarded by test.
   const specAnswers = data.specifications ?? {};
   put(
     `A${SPEC_BLOCK_HEADER_ROW}`,
-    "SPECIFICATIONS (CODED) — QS reads column B by fixed row · blank = not selected · 0 = N/A",
+    "SPECIFICATIONS (CODED) - QS reads column B by fixed row  /  blank = not selected  /  0 = N/A",
   );
   put(`B${SPEC_BLOCK_HEADER_ROW}`, "Code");
   put(`C${SPEC_BLOCK_HEADER_ROW}`, "Selection");
@@ -1760,7 +1768,7 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
       put(`B${s.row}`, code);
       put(`C${s.row}`, optionLabel(s, code) ?? "");
     }
-    // unanswered → B and C stay blank by construction
+    // unanswered -> B and C stay blank by construction
     put(`D${s.row}`, s.group);
   }
 
@@ -1785,19 +1793,19 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
   const instructionStyle = { font: { italic: true, color: { rgb: "444444" } } };
 
   function lbl(addr: string, v: string, style: object = labelStyle) {
-    ws[addr] = { v, t: "s", s: style };
+    ws[addr] = { v: customerSafeText(v), t: "s", s: style };
   }
 
   // Write a value cell only when v is a non-null, non-zero, non-empty value.
   // Per spec: leave QS cells empty rather than writing 0 for missing data.
   function val(addr: string, v: string | number | null | undefined) {
     if (v === null || v === undefined || v === "" || v === 0) return;
-    const out = typeof v === "number" ? (round2(v) ?? v) : v;
+    const out = typeof v === "number" ? (round2(v) ?? v) : customerSafeText(v);
     ws[addr] = { v: out, t: typeof out === "number" ? "n" : "s", s: yellowStyle };
   }
 
   // --- Row 1: banner ---
-  lbl("A1", "JENNIAN IQ — Data Input Export", redHeaderStyle);
+  lbl("A1", "JENNIAN IQ - Data Input Export", redHeaderStyle);
 
   // --- Row 2: instructions ---
   lbl(
@@ -1806,8 +1814,8 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
     instructionStyle,
   );
 
-  // --- ① JOB INFORMATION ---
-  lbl("A4", "① JOB INFORMATION", sectionStyle);
+  // --- 1 JOB INFORMATION ---
+  lbl("A4", "1 JOB INFORMATION", sectionStyle);
   lbl("A5", "Client Name");
   lbl("A6", "Site Address");
   lbl("A7", "City");
@@ -1816,17 +1824,17 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
 
   val("I3", data.clientName || undefined);
   val("I4", data.streetAddress || undefined);
-  // City always has a value — default to Palmerston North per QS convention
+  // City always has a value - default to Palmerston North per QS convention
   ws["I5"] = { v: data.city || "Palmerston North", t: "s", s: yellowStyle };
   val("I8", data.jmwNumber || undefined);
   ws["B9"] = { v: NZ_DATE(), t: "s", s: yellowStyle };
 
-  // --- ② CORE MEASUREMENTS ---
-  lbl("A11", "② CORE MEASUREMENTS", sectionStyle);
-  lbl("A12", "Floor Area (m²)");
-  lbl("A13", "Alfresco Area (m²)");
+  // --- 2 CORE MEASUREMENTS ---
+  lbl("A11", "2 CORE MEASUREMENTS", sectionStyle);
+  lbl("A12", "Floor Area (m2)");
+  lbl("A13", "Alfresco Area (m2)");
   lbl("A15", "Perimeter (lm)");
-  lbl("A16", "First Floor Area (m²)");
+  lbl("A16", "First Floor Area (m2)");
   lbl("A19", "External Wall Length (lm)");
   lbl("A20", "External Wall Height (m)");
 
@@ -1840,20 +1848,20 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
     ws["D20"] = { v: data.exteriorWallHeightM, t: "n", s: yellowStyle };
   }
 
-  // --- ③ WINDOWS & OPENINGS ---
-  // BRANCHED: enriched path (data.openings present) → flat per-opening block (one row per
+  // --- 3 WINDOWS & OPENINGS ---
+  // BRANCHED: enriched path (data.openings present) -> flat per-opening block (one row per
   // opening, no keyword routing, no collapse, no silent drops). Relational path (openings
-  // absent) → old per-room slot block, unchanged — exact fallback for legacy/null jobs.
-  lbl("A38", "③ WINDOWS & OPENINGS", sectionStyle);
+  // absent) -> old per-room slot block, unchanged - exact fallback for legacy/null jobs.
+  lbl("A38", "3 WINDOWS & OPENINGS", sectionStyle);
 
   if (data.openings != null) {
     // ── FLAT PER-OPENING BLOCK (enriched path) ────────────────────────────────────────
-    // Column headers: Type | Room | H (m) | W (m) | Area (m²) | Glazed | Cladding/Notes
+    // Column headers: Type | Room | H (m) | W (m) | Area (m2) | Glazed | Cladding/Notes
     lbl("A39", "Type", labelStyle);
     lbl("B39", "Room", labelStyle);
     lbl("C39", "H (m)", labelStyle);
     lbl("D39", "W (m)", labelStyle);
-    lbl("E39", "Area (m²)", labelStyle);
+    lbl("E39", "Area (m2)", labelStyle);
     lbl("F39", "Glazed", labelStyle);
     lbl("G39", "Cladding / Notes", labelStyle);
 
@@ -1870,9 +1878,13 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
       ws[`E${r}`] = { v: o.area_m2, t: "n", s };
       ws[`F${r}`] = { v: o.glazed ? "Y" : "N", t: "s", s };
       ws[`G${r}`] = {
-        v: data.openingPricingBlocked
-          ? `REVIEW ONLY - opening pricing blocked${o.flags?.length ? `; ${o.flags.join("; ")}` : ""}`
-          : (o.cladding ?? o.flags?.join("; ") ?? ""),
+        v: customerSafeText(
+          data.openingPricingBlocked
+            ? `REVIEW ONLY - opening reconciliation blocked${
+                o.flags?.length ? `; ${o.flags.join("; ")}` : ""
+              }`
+            : (o.cladding ?? o.flags?.join("; ") ?? ""),
+        ),
         t: "s",
         s,
       };
@@ -1881,7 +1893,7 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
     if (data.openingPricingBlocked) {
       lbl(
         `A${r}`,
-        "OPENING PRICING BLOCKED - see Review Notes before pricing windows, openings, or cladding.",
+        "Opening reconciliation blocked - see Review flags before pricing windows, openings, or cladding.",
         instructionStyle,
       );
       r++;
@@ -1919,10 +1931,10 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
       val(`E${summaryRow + 3}`, qsGlazedOpeningAreaM2);
     }
   } else {
-    // ── RELATIONAL SLOT BLOCK (unchanged — exact fallback for old/null-openings jobs) ──
+    // ── RELATIONAL SLOT BLOCK (unchanged - exact fallback for old/null-openings jobs) ──
     // Rows match "5. Data Input House " sheet exactly: C=cladding type (1=brick/2=other),
     // D=qty, E=height(m), F=width(m)
-    lbl("C39", "Cladding type (1/2) — enter in QS");
+    lbl("C39", "Cladding type (1/2) - enter in QS");
     lbl("D39", "Qty");
     lbl("E39", "H (m)");
     lbl("F39", "W (m)");
@@ -1972,17 +1984,17 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
   val("E146", data.downpipesColourSteel > 0 ? data.downpipesColourSteel : undefined);
   val("E147", data.downpipesPvcColoured > 0 ? data.downpipesPvcColoured : undefined);
 
-  // --- ④ DOORS & GARAGE ---
-  lbl("A174", "④ DOORS & GARAGE", sectionStyle);
+  // --- 4 DOORS & GARAGE ---
+  lbl("A174", "4 DOORS & GARAGE", sectionStyle);
   // Rows realigned to the master "5. Data Input House": H175/177/179 = Standard,
-  // H176/178/180 = Insulated. H181 is the master's TRAVEL line — writing a door count
+  // H176/178/180 = Insulated. H181 is the master's TRAVEL line - writing a door count
   // there silently bought $50 of travel per door. Never write it.
-  lbl("A175", "Garage Door 4.8×2.1 Standard");
-  lbl("A176", "Garage Door 4.8×2.1 Insulated");
-  lbl("A177", "Garage Door 2.4×2.1 Standard");
-  lbl("A178", "Garage Door 2.4×2.1 Insulated");
-  lbl("A179", "Garage Door 2.7×2.1 Standard");
-  lbl("A180", "Garage Door 2.7×2.1 Insulated");
+  lbl("A175", "Garage Door 4.8x2.1 Standard");
+  lbl("A176", "Garage Door 4.8x2.1 Insulated");
+  lbl("A177", "Garage Door 2.4x2.1 Standard");
+  lbl("A178", "Garage Door 2.4x2.1 Insulated");
+  lbl("A179", "Garage Door 2.7x2.1 Standard");
+  lbl("A180", "Garage Door 2.7x2.1 Insulated");
 
   val("H175", data.garageDoor48x21Std > 0 ? data.garageDoor48x21Std : undefined);
   val("H176", data.garageDoor48x21Insulated > 0 ? data.garageDoor48x21Insulated : undefined);
@@ -2001,11 +2013,11 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
   val("H192", data.intDoorDouble > 0 ? data.intDoorDouble : undefined);
   val("H193", data.intDoorCavitySlider > 0 ? data.intDoorCavitySlider : undefined);
 
-  // --- ⑤ ELEVATION & SITE PLAN DATA (auto-derived from elevation/site plan PDFs) ---
+  // --- 5 ELEVATION & SITE PLAN DATA (auto-derived from elevation/site plan PDFs) ---
   if (data.elevationSummary) {
     const ev = data.elevationSummary;
-    lbl("A197", "⑤ ELEVATION & SITE PLAN DATA", sectionStyle);
-    lbl("A199", "Cladding type code (1=brick · 2=weatherboard · 3=mixed)");
+    lbl("A197", "5 ELEVATION & SITE PLAN DATA", sectionStyle);
+    lbl("A199", "Cladding type code (1=brick  /  2=weatherboard  /  3=mixed)");
     if (data.claddingTypeCode != null) val("D199", data.claddingTypeCode);
     lbl("A200", "Roof type");
     if (ev.roofType) lbl("D200", ev.roofType, { font: {} });
@@ -2013,19 +2025,19 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
     if (ev.roofPitchDegrees != null) val("D201", ev.roofPitchDegrees);
     lbl("A203", "Gable end count");
     if (ev.gableEndCount > 0) val("D203", ev.gableEndCount);
-    lbl("A205", "Driveway concrete (m²)");
+    lbl("A205", "Driveway concrete (m2)");
     if (ev.drivewayConcretM2 != null) val("D205", ev.drivewayConcretM2);
-    lbl("A206", "Paths / patio concrete (m²)");
+    lbl("A206", "Paths / patio concrete (m2)");
     if (ev.patioConcreteM2 != null) val("D206", ev.patioConcreteM2);
-    lbl("A207", "Total concrete (m²)");
+    lbl("A207", "Total concrete (m2)");
     if (ev.totalConcreteM2 != null) val("D207", ev.totalConcreteM2);
     if (ev.windowCountWarning) {
-      lbl("A209", `⚠ ${ev.windowCountWarning}`, {
+      lbl("A209", ev.windowCountWarning, {
         font: { color: { rgb: "FF8C00" }, italic: true },
       });
     }
     if (ev.windowCountMatch === true) {
-      lbl("A209", "✓ Window count verified — floor plan and elevations agree", {
+      lbl("A209", "OK Window count verified - floor plan and elevations agree", {
         font: { color: { rgb: "008000" } },
       });
     }
@@ -2033,15 +2045,15 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
 
   // --- sheet metadata ---
   ws["!cols"] = [
-    { wch: 35 }, // A — labels
-    { wch: 12 }, // B — date reference
-    { wch: 15 }, // C — window cladding
-    { wch: 15 }, // D — measurements / window qty
-    { wch: 15 }, // E — window height / downpipes
-    { wch: 15 }, // F — first floor / window width
-    { wch: 22 }, // G — Cladding / Notes (flat-block path)
-    { wch: 15 }, // H — garage door / interior door counts
-    { wch: 25 }, // I — job info values
+    { wch: 35 }, // A - labels
+    { wch: 12 }, // B - date reference
+    { wch: 15 }, // C - window cladding
+    { wch: 15 }, // D - measurements / window qty
+    { wch: 15 }, // E - window height / downpipes
+    { wch: 15 }, // F - first floor / window width
+    { wch: 22 }, // G - Cladding / Notes (flat-block path)
+    { wch: 15 }, // H - garage door / interior door counts
+    { wch: 25 }, // I - job info values
   ];
   ws["!ref"] = "A1:I210";
 
@@ -2098,7 +2110,7 @@ export async function writeIQDataSheetFull(
 
   // Cover sheet
   const coverRows: (string | number | null)[][] = [
-    ["Jennian Homes — IQ Data Sheet"],
+    ["Jennian Homes - IQ Data Sheet"],
     [],
     ["Job Number", data.jobNumber],
     ["Client", data.clientName],
@@ -2115,7 +2127,7 @@ export async function writeIQDataSheetFull(
       coverRows.push([
         item.module_id.replace("iq-", "").toUpperCase(),
         item.label,
-        pickModuleValue(item) ?? "—", // approved beats the raw assumption
+        pickModuleValue(item) ?? "-", // approved beats the raw assumption
         item.unit ?? "",
       ]);
     }
@@ -2125,9 +2137,9 @@ export async function writeIQDataSheetFull(
   wsCover["!cols"] = [{ wch: 20 }, { wch: 40 }, { wch: 20 }, { wch: 12 }];
   XLSX.utils.book_append_sheet(wb, wsCover, "Cover");
 
-  // Convergence Slice 6 — Review Notes sheet: the per-field confidence flags carried over from
+  // Convergence Slice 6 - Review Notes sheet: the per-field confidence flags carried over from
   // the enriched takeoff, placed prominently (right after the Cover) so a QS sees them before
-  // pricing. Added ONLY when there are flags → a pre-convergence/relational export (no flags)
+  // pricing. Added ONLY when there are flags -> a pre-convergence/relational export (no flags)
   // is byte-identical to today.
   const wsFlags = buildReviewNotesSheet(data.reviewFlags);
   if (wsFlags) XLSX.utils.book_append_sheet(wb, wsFlags, "Review Notes");
@@ -2143,13 +2155,13 @@ export async function writeIQDataSheetFull(
     const suppressedInternalWall = isSuppressedInternalWallDataItem(item);
     if (suppressedInternalWall) {
       item.approved_value = null;
-      item.extracted_value = "—";
+      item.extracted_value = "-";
       item.value_source = "review";
     }
     dataRows.push([
       item.module_id.replace("iq-", "").toUpperCase(),
       item.label,
-      pickModuleValue(item) ?? "—",
+      pickModuleValue(item) ?? "-",
       item.unit ?? "",
       item.approved_value != null ? "approved" : (item.value_source ?? "extracted"),
     ]);
@@ -2173,8 +2185,8 @@ export async function writeIQDataSheetFull(
 
   XLSX.utils.book_append_sheet(wb, wsData, "5. Data Input House ");
 
-  // Drop-in paste sheet — cell addresses match the master's IQ Input tab exactly.
-  // Ctrl+A → copy → paste-values into master. Replaces the retired D12-style sheet.
+  // Drop-in paste sheet - cell addresses match the master's IQ Input tab exactly.
+  // Ctrl+A -> copy -> paste-values into master. Replaces the retired D12-style sheet.
   const wsDropIn = buildDropInSheet(data);
   XLSX.utils.book_append_sheet(wb, wsDropIn, "IQ Import");
 

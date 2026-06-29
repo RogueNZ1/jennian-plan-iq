@@ -24,6 +24,7 @@ import { composeTakeoff } from "../../src/lib/takeoff/compose-takeoff";
 import type { EnrichedTakeoff } from "../../src/lib/takeoff/enriched-takeoff";
 import type { TakeoffData } from "../../src/lib/takeoff/takeoff-types";
 import type { GeometryApiResult } from "../../src/lib/takeoff/geometry-api";
+import { REVIEW_FLAGS_LABEL, hasCustomerVisibleMojibake } from "../../src/lib/customer-facing-text";
 
 // A realistic enriched takeoff from the frozen mcalevey fixtures (it carries the garage F-022
 // flag + the entrance unresolved-width flag — exactly the kind a QS must confirm).
@@ -213,15 +214,19 @@ describe("Slice 6 — export sheets: additive fallback + visible flags", () => {
     expect(relational).toEqual(today); // overlay no-ops when json is null → identical worksheet
   });
 
-  it("VISIBLE: enriched flags → a 'Review Notes' sheet a QS reads, with the flag text", () => {
+  it("VISIBLE: enriched flags produce a customer-safe Review flags sheet", () => {
     const data = applyEnrichedTakeoff(baseData(), enriched);
     const ws = buildReviewNotesSheet(data.reviewFlags);
     expect(ws).not.toBeNull();
     const text = allText(ws!);
-    expect(text).toContain("CONFIDENCE / REVIEW NOTES");
+    expect(text).toContain(REVIEW_FLAGS_LABEL);
+    expect(text).not.toContain("AI NOTES & ASSUMPTIONS");
+    expect(text).not.toContain("AI Notes / Assumptions");
+    expect(text).not.toContain("CONFIDENCE / REVIEW NOTES");
+    expect(hasCustomerVisibleMojibake(text)).toBe(false);
     expect(text).toContain("Garage door");
     expect(text).toContain("garage_door_width"); // F-022 disagreement
-    expect(text).toContain("width unresolved — confirm against plan"); // entrance unresolved-width review flag
+    expect(text).toContain("width unresolved - confirm against plan"); // entrance unresolved-width review flag
   });
 
   it("VISIBLE: review notes include opening evidence without changing the IQ paste cells", () => {

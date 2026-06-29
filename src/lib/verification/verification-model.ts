@@ -4,12 +4,12 @@
  * Pure assembly: takes the SAME QSExportData the spreadsheet export consumes, plus the
  * persisted EnrichedTakeoff (takeoff_runs.takeoff_json) for per-field provenance, and
  * produces a render-ready model for the human printout. No fetching, no Date.now side
- * effects beyond the injected `now` — fully unit-testable.
+ * effects beyond the injected `now` - fully unit-testable.
  *
  * Doctrine carried over from the export composer:
  *  - values shown MUST be the values the QS sheet receives (single composer, no parallel math);
  *  - flags are surfaced LOUD, never summarised away;
- *  - an unbacked number is worse than a blank — provenance is printed next to every measure.
+ *  - an unbacked number is worse than a blank - provenance is printed next to every measure.
  */
 
 import type { QSExportData } from "@/lib/iq-qs-export";
@@ -50,6 +50,12 @@ import {
   type OverlaySummary,
   type VisualOpeningMarker,
 } from "./plan-overlay";
+import {
+  EXTERNAL_WALL_AREA_BLOCKED,
+  customerSafeText,
+  formatOpeningMismatchWarning,
+  openingReconciliationBlockedFlags,
+} from "@/lib/customer-facing-text";
 
 /* ------------------------------------------------------------------ NZT stamps */
 // Same Pacific/Auckland discipline as the export composer (12 Jun fix): CI and Pages run
@@ -82,7 +88,7 @@ export type SourceTag = "GEO" | "VEC" | "VIS" | "SCH" | "DRV" | "AST" | "FLG" | 
 
 export type MeasureRow = {
   label: string;
-  /** Display-formatted value, "—" when null. */
+  /** Display-formatted value, "-" when null. */
   value: string;
   unit: string;
   source: SourceTag;
@@ -170,7 +176,7 @@ export type VerificationModel = {
       qsGlazedOpeningCount: number | null;
       garageDoorCount: number | null;
     };
-    unplacedFlags: string[]; // ⚑ UNPLACED entries pulled from window-field flags
+    unplacedFlags: string[]; // Review UNPLACED entries pulled from window-field flags
   };
   doors: {
     interior: CountRow[];
@@ -225,40 +231,44 @@ const SOURCE_MAP: Record<string, SourceTag> = {
 export const SOURCE_LEGEND: Array<{ tag: NonNullable<SourceTag>; meaning: string }> = [
   { tag: "GEO", meaning: "Measured by geometry engine" },
   { tag: "VEC", meaning: "Read from PDF vector layer" },
-  { tag: "VIS", meaning: "AI vision read" },
+  { tag: "VIS", meaning: "Vision read" },
   { tag: "SCH", meaning: "Door & Window Schedule" },
   { tag: "DRV", meaning: "Derived from other fields" },
   { tag: "AST", meaning: "Asserted building standard" },
-  { tag: "FLG", meaning: "Unknown — needs confirmation" },
+  { tag: "FLG", meaning: "Unknown - needs confirmation" },
   { tag: "MAN", meaning: "Manual override" },
 ];
 
 function fmtNum(v: number | null | undefined, dp = 2): string {
-  if (v === null || v === undefined || Number.isNaN(v)) return "—";
+  if (v === null || v === undefined || Number.isNaN(v)) return "-";
   return v.toLocaleString("en-NZ", { maximumFractionDigits: dp });
 }
 
 function fmtStr(v: string | null | undefined): string {
-  return v && v.trim() !== "" ? v : "—";
+  return v && v.trim() !== "" ? customerSafeText(v) : "-";
 }
 
 function openingPricingBlockFlags(data: QSExportData, e: EnrichedTakeoff | null): string[] {
-  const flags: string[] = [];
+  const details: string[] = [];
   if (data.openingPricingBlocked) {
-    flags.push(
-      "OPENING PRICING BLOCKED - unresolved opening reconciliation; do not price windows, openings, garage doors, or cladding from this printout.",
-    );
+    details.push("Opening pricing is blocked while the opening reconciliation is unresolved.");
   }
   for (const flag of e?.external_wall_area_m2.discrepancy_flags ?? []) {
-    if (flag.startsWith("Opening pricing blocked:")) flags.push(flag);
+    if (flag.startsWith("Opening pricing blocked:")) {
+      details.push(customerSafeText(flag.replace(/^Opening pricing blocked:\s*/i, "Detail: ")));
+    }
   }
   for (const issue of e?.visual_opening_reconciliation?.issues ?? []) {
-    if (issue.severity === "error") flags.push(`Visual QS reconciliation: ${issue.message}`);
+    if (issue.severity === "error") {
+      details.push(
+        `Detail: floor-plan/elevation check ${issue.visual}; active composed openings ${issue.composed}.`,
+      );
+    }
   }
   for (const flag of e?.opening_ai_check?.flags ?? []) {
-    flags.push(`AI opening check: ${flag}`);
+    details.push(`Opening review detail: ${flag}`);
   }
-  return [...new Set(flags)];
+  return details.length > 0 ? [...new Set(openingReconciliationBlockedFlags(details))] : [];
 }
 
 function prov(f: FieldValue<unknown> | undefined | null): {
@@ -285,7 +295,7 @@ function measure(
   return {
     label,
     value: typeof value === "string" ? fmtStr(value) : fmtNum(value, dp),
-    unit,
+    unit: customerSafeText(unit),
     ...p,
   };
 }
@@ -294,7 +304,7 @@ function notApplicableMeasure(label: string, unit = ""): MeasureRow {
   return {
     label,
     value: "N/A",
-    unit,
+    unit: customerSafeText(unit),
     source: null,
     confidence: null,
     flagged: false,
@@ -305,7 +315,7 @@ function manualReviewMeasure(label: string, unit = ""): MeasureRow {
   return {
     label,
     value: "Measure manually",
-    unit,
+    unit: customerSafeText(unit),
     source: "MAN",
     confidence: "low",
     flagged: true,
@@ -520,20 +530,31 @@ export function buildVerificationModel(
     data.garageDoor27x21Insulated > 0 ||
     data.garageDoor48x21Std > 0 ||
     data.garageDoor48x21Insulated > 0;
+  const hasExternalWallShape =
+    (data.exteriorWallLengthLm ?? data.perimeterLm ?? null) != null &&
+    data.exteriorWallHeightM != null;
+  const externalWallAreaBlocked =
+    data.openingPricingBlocked === true &&
+    e?.external_wall_area_m2?.value == null &&
+    hasExternalWallShape;
+  const printedCladdingAreaM2 =
+    typeof e?.plan_text?.titleAreas?.claddingAreaM2 === "number"
+      ? e.plan_text.titleAreas.claddingAreaM2
+      : null;
 
   /* key measures -------------------------------------------------- */
   const measures: MeasureRow[] = [
-    measure("Floor area (living)", data.floorAreaM2, "m²", e?.floor_area_m2),
+    measure("Floor area (living)", data.floorAreaM2, "m2", e?.floor_area_m2),
     e?.garage_area_m2?.value == null && hasGarageEvidence
-      ? manualReviewMeasure("Garage area", "m²")
-      : measure("Garage area", e?.garage_area_m2?.value ?? null, "m²", e?.garage_area_m2),
+      ? manualReviewMeasure("Garage area", "m2")
+      : measure("Garage area", e?.garage_area_m2?.value ?? null, "m2", e?.garage_area_m2),
     data.alfrescoAreaM2 == null
-      ? notApplicableMeasure("Alfresco area", "m²")
-      : measure("Alfresco area", data.alfrescoAreaM2, "m²", e?.alfresco_area_m2),
+      ? notApplicableMeasure("Alfresco area", "m2")
+      : measure("Alfresco area", data.alfrescoAreaM2, "m2", e?.alfresco_area_m2),
     data.firstFloorAreaM2 == null
-      ? notApplicableMeasure("First-floor area", "m²")
-      : measure("First-floor area", data.firstFloorAreaM2, "m²", null),
-    measure("Total area", e?.total_area_m2?.value ?? null, "m²", e?.total_area_m2),
+      ? notApplicableMeasure("First-floor area", "m2")
+      : measure("First-floor area", data.firstFloorAreaM2, "m2", null),
+    measure("Total area", e?.total_area_m2?.value ?? null, "m2", e?.total_area_m2),
     measure(
       "External wall length",
       data.exteriorWallLengthLm ?? data.perimeterLm,
@@ -543,17 +564,31 @@ export function buildVerificationModel(
     measure("External wall height", data.exteriorWallHeightM, "m", null),
     measure(
       "External wall area",
-      e?.external_wall_area_m2?.value ?? null,
-      "m²",
+      externalWallAreaBlocked
+        ? EXTERNAL_WALL_AREA_BLOCKED
+        : (e?.external_wall_area_m2?.value ?? null),
+      "m2",
       e?.external_wall_area_m2,
     ),
+    ...(printedCladdingAreaM2 != null
+      ? [
+          {
+            label: "Printed cladding area (review only - not calculated external wall area)",
+            value: fmtNum(printedCladdingAreaM2),
+            unit: "m2",
+            source: "VEC" as const,
+            confidence: "mid" as const,
+            flagged: true,
+          },
+        ]
+      : []),
     // Internal walls: the export still refuses to write this number, and the
     // printout matches. P2 ribbon-trace v1 (13 Jun 2026) now produces a
-    // VERIFY-grade value — shown WITH its bias warning when present; the bare
+    // VERIFY-grade value - shown WITH its bias warning when present; the bare
     // measure-manually line remains for pre-v1 runs.
     e?.internal_wall_lm?.source === "vector" && typeof e.internal_wall_lm.value === "number"
       ? {
-          label: "Internal walls — ribbon-trace v1 (verify; ~+25% joinery bias; not exported)",
+          label: "Internal walls - ribbon-trace v1 (verify; ~+25% joinery bias; not exported)",
           value: String(e.internal_wall_lm.value),
           unit: "lm",
           source: "VEC" as const,
@@ -561,14 +596,14 @@ export function buildVerificationModel(
           flagged: true,
         }
       : {
-          label: "Internal walls — measure manually (P2 ribbon-trace pending)",
-          value: "—",
+          label: "Internal walls - measure manually (P2 ribbon-trace pending)",
+          value: "-",
           unit: "",
           source: null,
           confidence: null,
           flagged: true,
         },
-    measure("Roof area", e?.roof_area_m2?.value ?? null, "m²", e?.roof_area_m2),
+    measure("Roof area", e?.roof_area_m2?.value ?? null, "m2", e?.roof_area_m2),
     measure("Gable span (envelope short side)", data.gableSpanM, "m", e?.gable_span_m),
     measure("Stud height", data.studHeightMm, "mm", null, 0),
     measure("Ceiling height", e?.ceiling_height_m?.value ?? null, "m", e?.ceiling_height_m),
@@ -664,12 +699,12 @@ export function buildVerificationModel(
   const interiorTotal = interior.reduce((s, r) => s + (r.qty || 0), 0);
 
   const garageLegacy: CountRow[] = [
-    { label: "4.8 × 2.1 standard", qty: data.garageDoor48x21Std },
-    { label: "4.8 × 2.1 insulated", qty: data.garageDoor48x21Insulated },
-    { label: "2.7 × 2.1 standard", qty: data.garageDoor27x21Std },
-    { label: "2.7 × 2.1 insulated", qty: data.garageDoor27x21Insulated },
-    { label: "2.4 × 2.1 standard", qty: data.garageDoor24x21Std },
-    { label: "2.4 × 2.1 insulated", qty: data.garageDoor24x21Insulated },
+    { label: "4.8 x 2.1 standard", qty: data.garageDoor48x21Std },
+    { label: "4.8 x 2.1 insulated", qty: data.garageDoor48x21Insulated },
+    { label: "2.7 x 2.1 standard", qty: data.garageDoor27x21Std },
+    { label: "2.7 x 2.1 insulated", qty: data.garageDoor27x21Insulated },
+    { label: "2.4 x 2.1 standard", qty: data.garageDoor24x21Std },
+    { label: "2.4 x 2.1 insulated", qty: data.garageDoor24x21Insulated },
   ].filter((r) => r.qty > 0);
   const garage: CountRow[] = ledgerIsAuthority
     ? extractedQuantityReadModel.groups.extracted
@@ -694,21 +729,20 @@ export function buildVerificationModel(
       ? "Extracted Quantity Ledger"
       : data.doorsSource
         ? (DOORS_SOURCE_LABELS[data.doorsSource] ?? data.doorsSource)
-        : "⚑ NO SOURCE — counts are unbacked zeros, do not price",
+        : "Review NO SOURCE - counts are unbacked zeros, do not price",
     visionHint: data.intDoorVisionHint ?? null,
     garage,
     garageDoorSize:
       openingPricingBlocked && exportedGarageDoorCount === 0
         ? "Blocked - verify manually"
         : fmtStr(e?.garage_door_size?.value ?? null),
-    garageDoorFlags: visualReconciliationFlags(
-      e?.visual_opening_reconciliation,
-      "garage_door_size",
-    ).concat(
-      openingPricingBlocked && exportedGarageDoorCount === 0
-        ? ["Opening pricing is blocked; garage door size is review-only until reconciled."]
-        : [],
-    ),
+    garageDoorFlags: visualReconciliationFlags(e?.visual_opening_reconciliation, "garage_door_size")
+      .concat(
+        openingPricingBlocked && exportedGarageDoorCount === 0
+          ? ["Opening reconciliation blocked; garage door size is review-only until reconciled."]
+          : [],
+      )
+      .map(customerSafeText),
     hardware,
   };
 
@@ -722,7 +756,7 @@ export function buildVerificationModel(
     measure(
       "Cladding code",
       data.claddingTypeCode != null
-        ? `${data.claddingTypeCode} — ${{ 1: "brick/masonry only", 2: "weatherboard/panel only", 3: "mixed" }[data.claddingTypeCode] ?? "?"}`
+        ? `${data.claddingTypeCode} - ${{ 1: "brick/masonry only", 2: "weatherboard/panel only", 3: "mixed" }[data.claddingTypeCode] ?? "?"}`
         : null,
       "",
       null,
@@ -734,17 +768,17 @@ export function buildVerificationModel(
   const elevation: MeasureRow[] = el
     ? [
         measure("Roof type (elevations)", el.roofType, "", null),
-        measure("Roof pitch (elevations)", el.roofPitchDegrees, "°", null, 1),
+        measure("Roof pitch (elevations)", el.roofPitchDegrees, "deg", null, 1),
         measure("Gable ends", el.gableEndCount, "", null, 0),
-        measure("Driveway concrete", el.drivewayConcretM2 ?? data.drivewayM2, "m²", null),
-        measure("Paths / patio concrete", el.patioConcreteM2 ?? data.pathsPatioM2, "m²", null),
-        measure("Total concrete", el.totalConcreteM2, "m²", null),
+        measure("Driveway concrete", el.drivewayConcretM2 ?? data.drivewayM2, "m2", null),
+        measure("Paths / patio concrete", el.patioConcreteM2 ?? data.pathsPatioM2, "m2", null),
+        measure("Total concrete", el.totalConcreteM2, "m2", null),
       ]
     : [
-        measure("Driveway concrete", data.drivewayM2, "m²", null),
-        measure("Paths / patio concrete", data.pathsPatioM2, "m²", null),
+        measure("Driveway concrete", data.drivewayM2, "m2", null),
+        measure("Paths / patio concrete", data.pathsPatioM2, "m2", null),
       ];
-  const elevationWarning = el?.windowCountWarning ?? null;
+  const elevationWarning = formatOpeningMismatchWarning(el?.windowCountWarning) ?? null;
 
   /* services / extras ---------------------------------------------- */
   const services: VerificationModel["services"] = {
@@ -763,12 +797,12 @@ export function buildVerificationModel(
       .filter((x) => x.description && x.description.trim() !== "")
       .map((x) => ({
         label: x.description,
-        value: x.value ? `$${x.value.toLocaleString("en-NZ")}` : "—",
+        value: x.value ? `$${x.value.toLocaleString("en-NZ")}` : "-",
       })),
   };
 
   /* specs ----------------------------------------------------------- */
-  // QSExportData.specifications is the already-parsed flat SpecAnswers (spec_id → code);
+  // QSExportData.specifications is the already-parsed flat SpecAnswers (spec_id -> code);
   // the {v, answers} jsonb branch is a safety net for callers handing the raw column.
   const rawSpecs = data.specifications as unknown;
   const answers: Record<string, number> =
@@ -780,7 +814,7 @@ export function buildVerificationModel(
     rows: specsInGroup(g.id).map((s) => {
       const code = answers[s.id];
       const ans = code != null ? optionLabel(s, code) : null;
-      return { label: s.label, answer: ans ?? "— not set" };
+      return { label: s.label, answer: ans ?? "- not set" };
     }),
   })).filter((g) => g.rows.length > 0);
 
@@ -807,7 +841,7 @@ export function buildVerificationModel(
   /* exceptions ------------------------------------------------------ */
   const exceptions: ExceptionGroup[] = (data.reviewFlags ?? [])
     .filter((f) => f.flags.length > 0)
-    .map((f) => ({ field: f.field, flags: f.flags }));
+    .map((f) => ({ field: f.field, flags: f.flags.map(customerSafeText) }));
 
   /* integrity guard -------------------------------------------------- */
   // Same-composer doctrine means these can never diverge; if they do, something upstream
@@ -820,7 +854,7 @@ export function buildVerificationModel(
       Math.abs(e.floor_area_m2.value - data.floorAreaM2) > 0.01
     ) {
       integrityAlerts.push(
-        `Floor area diverges: export ${data.floorAreaM2} m² vs takeoff ${e.floor_area_m2.value} m²`,
+        `Floor area diverges: export ${data.floorAreaM2} m2 vs takeoff ${e.floor_area_m2.value} m2`,
       );
     }
     const exportWindowQty = qsRows.reduce((s, w) => s + (w.qty || 0), 0);

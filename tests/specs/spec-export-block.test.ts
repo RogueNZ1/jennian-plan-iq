@@ -174,7 +174,7 @@ describe("collision guard — floating blocks never reach the spec rows", () => 
     let foundSummary = false;
     for (let r = 47; r < SPEC_GUARD_ROW; r++) {
       const v = cellVal(ws, `A${r}`);
-      if (typeof v === "string" && v.includes("more — see Review Notes")) foundSummary = true;
+      if (typeof v === "string" && v.includes("more - see Review flags")) foundSummary = true;
     }
     expect(foundSummary).toBe(true);
   });

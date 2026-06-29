@@ -1,10 +1,10 @@
-﻿/**
- * TAKEOFF VERIFICATION PRINTOUT â€” /jobs/$jobId/verification
+/**
+ * TAKEOFF VERIFICATION PRINTOUT - /jobs/$jobId/verification
  *
  * The human twin of the QS export: an A4 print-first document the estimator holds next to
  * the plans. Values come from buildQSExportData (the SAME composer the spreadsheet uses);
  * provenance, confidence and flags come from the persisted enriched takeoff, selected with
- * the SAME run-scan rule the export uses â€” so paper and sheet can never tell two stories.
+ * the SAME run-scan rule the export uses - so paper and sheet can never tell two stories.
  *
  * Acceptance criterion (12 Jun STATE): a verification page ships with EVERY takeoff.
  */
@@ -54,7 +54,7 @@ function SourceChip({ row }: { row: MeasureRow }) {
   return (
     <span className="vchip">
       {row.source}
-      {row.confidence ? <span className="vconf">Â·{row.confidence}</span> : null}
+      {row.confidence ? <span className="vconf"> / {row.confidence}</span> : null}
     </span>
   );
 }
@@ -66,12 +66,12 @@ function MeasureTable({ rows }: { rows: MeasureRow[] }) {
         {rows.map((r) => (
           <tr key={r.label}>
             <td className="vlabel">
-              {r.flagged ? <span className="vflag">âš‘ </span> : null}
+              {r.flagged ? <span className="vflag">Review </span> : null}
               {r.label}
             </td>
             <td className="vvalue">
               {r.value}
-              {r.value !== "â€”" && r.unit ? ` ${r.unit}` : ""}
+              {r.value !== "-" && r.unit ? ` ${r.unit}` : ""}
             </td>
             <td className="vsrc">
               <SourceChip row={r} />
@@ -116,11 +116,11 @@ function CountTable({
 }
 
 function fmtLedgerCell(value: number | string | null | undefined): string {
-  return value === null || value === undefined || value === "" ? "â€”" : String(value);
+  return value === null || value === undefined || value === "" ? "-" : String(value);
 }
 
 function bboxText(bbox: [number, number, number, number] | undefined): string {
-  return bbox ? bbox.map((n) => Math.round(n * 100) / 100).join(", ") : "â€”";
+  return bbox ? bbox.map((n) => Math.round(n * 100) / 100).join(", ") : "-";
 }
 
 function LedgerQuantityTable({ category }: { category: VerificationQuantityCategorySummary }) {
@@ -155,7 +155,7 @@ function LedgerQuantityTable({ category }: { category: VerificationQuantityCateg
               <td className="vlabel">
                 {row.label ?? row.id}
                 <div className="vledger-sub">
-                  {row.source} Â· {row.runId ?? "no run"} Â· {row.id}
+                  {row.source}  /  {row.runId ?? "no run"}  /  {row.id}
                 </div>
               </td>
               <td>{row.status}</td>
@@ -173,7 +173,7 @@ function LedgerQuantityTable({ category }: { category: VerificationQuantityCateg
                   evidence?.text,
                 ]
                   .filter(Boolean)
-                  .join(" Â· ")}
+                  .join("  /  ")}
               </td>
             </tr>
           );
@@ -198,7 +198,7 @@ function LedgerQuantitySection({ model }: { model: VerificationModel }) {
   return (
     <>
       <div className="vsrcline">
-        Authority: <strong>{q.source}</strong> Â· run <strong>{q.runId ?? "â€”"}</strong> Â· clean
+        Authority: <strong>{q.source}</strong>  /  run <strong>{q.runId ?? "-"}</strong>  /  clean
         totals exclude needs_review, missing_evidence, conflict, and ignored rows.
       </div>
       {q.warnings.length > 0 && (
@@ -215,13 +215,13 @@ function LedgerQuantitySection({ model }: { model: VerificationModel }) {
           <h3>{category.label}</h3>
           <div className="vledger-summary">
             <span>Clean count {category.cleanTotals.count}</span>
-            <span>Clean length {category.cleanTotals.lengthMm || "â€”"} mm</span>
-            <span>Clean area {category.cleanTotals.areaM2 || "â€”"} mÂ²</span>
+            <span>Clean length {category.cleanTotals.lengthMm || "-"} mm</span>
+            <span>Clean area {category.cleanTotals.areaM2 || "-"} m2</span>
             <span>needs_review {category.statusCounts.needs_review}</span>
             <span>missing {category.statusCounts.missing_evidence}</span>
             <span>conflict {category.statusCounts.conflict}</span>
             <span>ignored {category.statusCounts.ignored}</span>
-            <span>confidence {category.confidence ?? "â€”"}</span>
+            <span>confidence {category.confidence ?? "-"}</span>
           </div>
           <LedgerQuantityTable category={category} />
         </div>
@@ -259,10 +259,10 @@ function LedgerOverlayRowsTable({
             <td className="vlabel">
               {row.label ?? row.extractedQuantityId}
               <div className="vledger-sub">
-                {row.source} · {row.runId ?? "no run"} · {row.extractedQuantityId}
+                {row.source}  /  {row.runId ?? "no run"}  /  {row.extractedQuantityId}
               </div>
               {row.visualAnchorId ? (
-                <div className="vledger-sub">anchor · {row.visualAnchorId}</div>
+                <div className="vledger-sub">anchor  /  {row.visualAnchorId}</div>
               ) : null}
             </td>
             <td>{row.category}</td>
@@ -279,7 +279,7 @@ function LedgerOverlayRowsTable({
                 row.evidenceText,
               ]
                 .filter(Boolean)
-                .join(" · ")}
+                .join("  /  ")}
             </td>
           </tr>
         ))}
@@ -292,8 +292,8 @@ function LedgerOverlaySection({ overlay }: { overlay: LedgerPlanOverlayModel }) 
   return (
     <>
       <div className="vsrcline">
-        Active extracted quantity overlay: <strong>{overlay.authoritySource}</strong> · run{" "}
-        <strong>{overlay.runId ?? "—"}</strong>
+        Active extracted quantity overlay: <strong>{overlay.authoritySource}</strong>  /  run{" "}
+        <strong>{overlay.runId ?? "-"}</strong>
       </div>
       <div className="vledger-summary">
         <span>Total ledger rows {overlay.totalLedgerRows}</span>
@@ -351,8 +351,8 @@ function doorMarkerNeedsReview(note: string | undefined): boolean {
 }
 
 function doorMarkerStatus(d: { confidence: "confirmed" | "flag"; note?: string }): string {
-  if (d.confidence === "flag") return "âš‘ flag â€” review";
-  return doorMarkerNeedsReview(d.note) ? "counted â€” verify" : "confirmed";
+  if (d.confidence === "flag") return "Review flag - review";
+  return doorMarkerNeedsReview(d.note) ? "counted - verify" : "confirmed";
 }
 
 const VISUAL_CORRECTION_ACTIONS: Array<{
@@ -442,7 +442,7 @@ function Section({
     <section className={["vsec", className].filter(Boolean).join(" ")}>
       <div className="vsec-head">
         <h2>{title}</h2>
-        {checkbox ? <span className="vcheck">Checked against plan&nbsp;â˜</span> : null}
+        {checkbox ? <span className="vcheck">Checked against plan&nbsp;[ ]</span> : null}
       </div>
       {children}
     </section>
@@ -562,7 +562,7 @@ function VerificationPrintout() {
 
   if (loading) {
     return (
-      <div className="p-10 text-sm text-muted-foreground">Building verification documentâ€¦</div>
+      <div className="p-10 text-sm text-muted-foreground">Building verification document...</div>
     );
   }
   if (error || !model) {
@@ -576,7 +576,7 @@ function VerificationPrintout() {
           params={{ jobId }}
           className="text-sm text-primary underline mt-3 inline-block"
         >
-          â† Back to job
+          {"<- Back to job"}
         </Link>
       </div>
     );
@@ -601,7 +601,7 @@ function VerificationPrintout() {
           aria-busy={!overlayReady}
         >
           <Printer className="h-3.5 w-3.5" />{" "}
-          {overlayReady ? "Print / Save as PDF" : "Preparing printâ€¦"}
+          {overlayReady ? "Print / Save as PDF" : "Preparing print..."}
         </button>
       </div>
       <div className="no-print" data-verification-ready={overlayReady ? "true" : "false"} />
@@ -613,7 +613,7 @@ function VerificationPrintout() {
           <div className="vhead-row">
             <div>
               <div className="vtitle">TAKEOFF VERIFICATION</div>
-              <div className="vsub">Jennian IQ Â· hold this document against the plans</div>
+              <div className="vsub">Jennian IQ  /  hold this document against the plans</div>
             </div>
             <div className="vmeta">
               <div>
@@ -641,8 +641,8 @@ function VerificationPrintout() {
             </div>
             <div>
               <span>Takeoff run</span>
-              {m.header.runIdShort ?? "â€”"}
-              {m.header.runStartedNzt ? ` Â· ${m.header.runStartedNzt} NZT` : ""}
+              {m.header.runIdShort ?? "-"}
+              {m.header.runStartedNzt ? `  /  ${m.header.runStartedNzt} NZT` : ""}
             </div>
             <div>
               <span>Printed</span>
@@ -656,7 +656,7 @@ function VerificationPrintout() {
           <div className="vbanner vbanner-red">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <div>
-              <strong>DO NOT USE â€” printout/export divergence detected.</strong>
+              <strong>DO NOT USE - printout/export divergence detected.</strong>
               {m.integrityAlerts.map((a) => (
                 <div key={a}>{a}</div>
               ))}
@@ -667,15 +667,15 @@ function VerificationPrintout() {
           <div className="vbanner">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <div>
-              <strong>âš‘âš‘ GEOMETRY LAYER OFFLINE</strong> â€” vision-only takeoff; deterministic
+              <strong>ReviewReview GEOMETRY LAYER OFFLINE</strong> - vision-only takeoff; deterministic
               measurement and cross-checks did not run. Verify all measurements against the plan
               before pricing.
             </div>
           </div>
         )}
 
-        {/* 1 Â· key measures */}
-        <Section title="1 Â· Key measures">
+        {/* 1  /  key measures */}
+        <Section title="1  /  Key measures">
           <MeasureTable rows={m.measures} />
         </Section>
 
@@ -683,8 +683,8 @@ function VerificationPrintout() {
           <LedgerQuantitySection model={m} />
         </Section>
 
-        {/* 2 Â· windows */}
-        <Section title="2 Â· Windows & glazed openings">
+        {/* 2  /  windows */}
+        <Section title="2  /  Windows & glazed openings">
           {m.windows.pricingBlockFlags.length > 0 && (
             <div className="vbanner vbanner-compact">
               {m.windows.pricingBlockFlags.map((f) => (
@@ -732,7 +732,7 @@ function VerificationPrintout() {
                         <td className="vvalue">{r.height}</td>
                         <td className="vvalue">{r.width}</td>
                         <td className="vvalue">{r.area}</td>
-                        <td>{[r.source, ...r.flags].filter(Boolean).join(" Â· ")}</td>
+                        <td>{[r.source, ...r.flags].filter(Boolean).join("  /  ")}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -781,8 +781,8 @@ function VerificationPrintout() {
                     {m.windows.schedule.map((s) => (
                       <tr key={s.id}>
                         <td className="vlabel">{s.id}</td>
-                        <td className="vvalue">{s.height_m ?? "â€”"}</td>
-                        <td className="vvalue">{s.width_m ?? "â€”"}</td>
+                        <td className="vvalue">{s.height_m ?? "-"}</td>
+                        <td className="vvalue">{s.width_m ?? "-"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -797,7 +797,7 @@ function VerificationPrintout() {
                         ? "QS openings"
                         : "Window count"}
                   </span>
-                  {m.windows.totals.qsGlazedOpeningCount ?? m.windows.totals.windowCount ?? "â€”"}
+                  {m.windows.totals.qsGlazedOpeningCount ?? m.windows.totals.windowCount ?? "-"}
                 </div>
                 {m.windows.pricingBlocked &&
                   m.windows.reviewOnlyTotals.qsGlazedOpeningCount != null && (
@@ -820,11 +820,11 @@ function VerificationPrintout() {
                 )}
                 <div>
                   <span>Glazed</span>
-                  {m.windows.totals.glazedSqm ?? "â€”"} mÂ²
+                  {m.windows.totals.glazedSqm ?? "-"} m2
                 </div>
                 <div>
                   <span>Total openings</span>
-                  {m.windows.totals.totalOpeningSqm ?? "â€”"} mÂ²
+                  {m.windows.totals.totalOpeningSqm ?? "-"} m2
                 </div>
               </div>
             </div>
@@ -837,12 +837,12 @@ function VerificationPrintout() {
           )}
         </Section>
 
-        {/* 3 Â· doors */}
-        <Section title="3 Â· Doors">
+        {/* 3  /  doors */}
+        <Section title="3  /  Doors">
           <div className="vsrcline">
             Interior counts source: <strong>{m.doors.sourceLabel}</strong>
             {m.doors.visionHint != null ? (
-              <span className="vhint"> Â· vision hint: {m.doors.visionHint} (never exported)</span>
+              <span className="vhint">  /  vision hint: {m.doors.visionHint} (never exported)</span>
             ) : null}
           </div>
           <div className="vcols">
@@ -861,7 +861,7 @@ function VerificationPrintout() {
                   <tr>
                     <td className="vlabel">Garage door size</td>
                     <td className="vvalue">{m.doors.garageDoorSize}</td>
-                    <td className="vsrc">{m.doors.garageDoorFlags.length > 0 ? "âš‘" : null}</td>
+                    <td className="vsrc">{m.doors.garageDoorFlags.length > 0 ? "Review" : null}</td>
                   </tr>
                   {m.doors.garageDoorFlags.map((flag) => (
                     <tr key={flag}>
@@ -884,8 +884,8 @@ function VerificationPrintout() {
           </div>
         </Section>
 
-        {/* 4 · plan overlay */}
-        <Section title="4 · Plan overlay - active extracted quantity ledger" className="vsec-plan">
+        {/* 4  /  plan overlay */}
+        <Section title="4  /  Plan overlay - active extracted quantity ledger" className="vsec-plan">
           <LedgerOverlaySection overlay={m.planOverlay.ledgerOverlay} />
           <VerificationPlanOverlay
             jobId={jobId}
@@ -911,12 +911,12 @@ function VerificationPrintout() {
             <>
               <div className="vsrcline" style={{ marginTop: 8 }}>
                 Legacy visual evidence only - not active extracted quantity authority:{" "}
-                <strong>{m.planOverlay.visualSummary?.totalOpenings ?? "â€”"}</strong> total Â·{" "}
-                <strong>{m.planOverlay.visualSummary?.qsGlazedOpenings ?? "â€”"}</strong> QS
-                glazed/opening items Â·{" "}
-                <strong>{m.planOverlay.visualSummary?.garageDoors ?? "â€”"}</strong> garage door
-                excluded from glazing Â·{" "}
-                <strong>{m.planOverlay.visualSummary?.uncertain ?? "â€”"}</strong> uncertain/low.
+                <strong>{m.planOverlay.visualSummary?.totalOpenings ?? "-"}</strong> total  / {" "}
+                <strong>{m.planOverlay.visualSummary?.qsGlazedOpenings ?? "-"}</strong> QS
+                glazed/opening items  / {" "}
+                <strong>{m.planOverlay.visualSummary?.garageDoors ?? "-"}</strong> garage door
+                excluded from glazing  / {" "}
+                <strong>{m.planOverlay.visualSummary?.uncertain ?? "-"}</strong> uncertain/low.
               </div>
               <table className="vtable">
                 <thead>
@@ -935,11 +935,11 @@ function VerificationPrintout() {
                     <tr key={o.markerLabel}>
                       <td className="vlabel">{o.markerLabel}</td>
                       <td>{openingDisplayType(o.type)}</td>
-                      <td>{o.room ?? "â€”"}</td>
+                      <td>{o.room ?? "-"}</td>
                       <td className="vvalue">
                         {o.height_m != null && o.width_m != null
-                          ? `${Math.round(o.height_m * 1000)} Ã— ${Math.round(o.width_m * 1000)}`
-                          : (o.label ?? "â€”")}
+                          ? `${Math.round(o.height_m * 1000)} Ã- ${Math.round(o.width_m * 1000)}`
+                          : (o.label ?? "-")}
                       </td>
                       <td>{o.confidence}</td>
                       <td className="no-print vcorrection-cell">
@@ -968,7 +968,7 @@ function VerificationPrintout() {
                           })}
                         </div>
                       </td>
-                      <td>{[o.evidence, ...o.flags].filter(Boolean).join(" Â· ")}</td>
+                      <td>{[o.evidence, ...o.flags].filter(Boolean).join("  /  ")}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -984,12 +984,12 @@ function VerificationPrintout() {
             <>
               <div className="vsrcline" style={{ marginTop: 8 }}>
                 Legacy door-engine evidence only - not active extracted quantity authority:{" "}
-                {m.planOverlay.markers.length} hits Â·{" "}
+                {m.planOverlay.markers.length} hits  / {" "}
                 {m.planOverlay.markers.filter((d) => doorMarkerNeedsReview(d.note)).length} verify
-                Â· {m.planOverlay.summary.flagged} flagged &nbsp;(hinged{" "}
-                {m.planOverlay.summary.byType.hinged} Â· double{" "}
+                 /  {m.planOverlay.summary.flagged} flagged &nbsp;(hinged{" "}
+                {m.planOverlay.summary.byType.hinged}  /  double{" "}
                 {m.planOverlay.summary.byType.double}
-                &nbsp;Â· cavity {m.planOverlay.summary.byType.cavity}). These legacy hits are not
+                &nbsp; /  cavity {m.planOverlay.summary.byType.cavity}). These legacy hits are not
                 active ledger totals.
               </div>
               <table className="vtable">
@@ -1018,11 +1018,11 @@ function VerificationPrintout() {
           )}
         </Section>
 
-        {/* 5 Â· roof / cladding / elevations */}
-        <Section title="5 Â· Roof, cladding & elevations">
+        {/* 5  /  roof / cladding / elevations */}
+        <Section title="5  /  Roof, cladding & elevations">
           {m.elevationWarning && (
             <div className="vbanner vbanner-compact">
-              <strong>âš‘ {m.elevationWarning}</strong>
+              <strong>Review {m.elevationWarning}</strong>
             </div>
           )}
           <div className="vcols">
@@ -1037,8 +1037,8 @@ function VerificationPrintout() {
           </div>
         </Section>
 
-        {/* 6 Â· services & extras */}
-        <Section title="6 Â· Services & extras">
+        {/* 6  /  services & extras */}
+        <Section title="6  /  Services & extras">
           <div className="vcols">
             <div>
               <h3>Downpipes</h3>
@@ -1069,8 +1069,8 @@ function VerificationPrintout() {
           </div>
         </Section>
 
-        {/* 7 Â· specifications */}
-        <Section title="7 Â· Specifications (meeting answers)">
+        {/* 7  /  specifications */}
+        <Section title="7  /  Specifications (meeting answers)">
           <div className="vspec-grid">
             {m.specs.map((g) => (
               <div key={g.group} className="vspec-group">
@@ -1080,7 +1080,7 @@ function VerificationPrintout() {
                     {g.rows.map((r) => (
                       <tr key={r.label}>
                         <td className="vlabel">{r.label}</td>
-                        <td className={r.answer === "â€” not set" ? "vvalue vunset" : "vvalue"}>
+                        <td className={r.answer === "- not set" ? "vvalue vunset" : "vvalue"}>
                           {r.answer}
                         </td>
                       </tr>
@@ -1092,15 +1092,15 @@ function VerificationPrintout() {
           </div>
         </Section>
 
-        {/* 8 Â· exceptions */}
-        <Section title="8 Â· Exceptions & review flags" checkbox={false}>
+        {/* 8  /  exceptions */}
+        <Section title="8  /  Exceptions & review flags" checkbox={false}>
           {m.exceptions.length === 0 ? (
             <p className="vempty">No exceptions raised on this takeoff.</p>
           ) : (
             <div className="vexceptions">
               {m.exceptions.map((g) => (
                 <div key={g.field} className="vex-group">
-                  <div className="vex-field">âš‘ {g.field}</div>
+                  <div className="vex-field">Review {g.field}</div>
                   {g.flags.map((f) => (
                     <div key={f} className="vex-flag">
                       {f}
@@ -1136,9 +1136,9 @@ function VerificationPrintout() {
             </div>
           </div>
           <div className="vfoot-note">
-            Generated by Jennian IQ Â· values on this document are produced by the same composer as
+            Generated by Jennian IQ  /  values on this document are produced by the same composer as
             the QS export (source: {m.header.takeoffSource ?? "unknown"}). An unfilled cell beats a
-            wrong cell â€” anything marked âš‘ or â€œâ€” not setâ€ must be resolved before pricing.
+            wrong cell - anything marked Review or "- not set" must be resolved before pricing.
           </div>
         </footer>
       </div>

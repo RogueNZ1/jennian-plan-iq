@@ -10,6 +10,11 @@ import type { EnrichedTakeoff } from "../takeoff/enriched-takeoff";
 import { fv } from "../takeoff/enriched-takeoff";
 import type { ExtractedQuantity } from "../takeoff/extracted-quantity-ledger";
 import { buildExtractedQuantityReadModel } from "../takeoff/extracted-quantity-read-model";
+import {
+  EXTERNAL_WALL_AREA_BLOCKED,
+  OPENING_RECONCILIATION_BLOCKED,
+  hasCustomerVisibleMojibake,
+} from "../customer-facing-text";
 
 /* ------------------------------------------------------------------ fixtures */
 
@@ -37,8 +42,8 @@ function makeData(overrides: Partial<QSExportData> = {}): QSExportData {
     claddingTypeCode: 1,
     elevationSummary: null,
     windows: [
-      { type: "Awning 1200×1000", qty: 6 },
-      { type: "Slider 2400×2000", qty: 2 },
+      { type: "Awning 1200x1000", qty: 6 },
+      { type: "Slider 2400x2000", qty: 2 },
     ],
     garageDoors: [],
     interiorDoors: [],
@@ -193,21 +198,21 @@ describe("buildVerificationModel", () => {
     const internal = m.measures.find((r) => r.label.startsWith("Internal walls"))!;
     expect(internal.flagged).toBe(true);
     // Suppressed identically to the export (P2 ribbon-trace pending): never the raw number.
-    expect(internal.value).toBe("—");
+    expect(internal.value).toBe("-");
     expect(internal.label).toContain("measure manually");
 
     const ceiling = m.measures.find((r) => r.label === "Ceiling height")!;
     expect(ceiling.source).toBe("AST");
   });
 
-  it("renders '—' for missing values and survives a null enriched payload (relational fallback)", () => {
+  it("renders '-' for missing values and survives a null enriched payload (relational fallback)", () => {
     const m = buildVerificationModel(
       makeData({ floorAreaM2: null, takeoffSource: "relational" }),
       null,
       null,
     );
     const floor = m.measures.find((r) => r.label.startsWith("Floor area"))!;
-    expect(floor.value).toBe("—");
+    expect(floor.value).toBe("-");
     expect(floor.source).toBeNull();
     expect(m.header.runIdShort).toBeNull();
     expect(m.windows.schedule).toEqual([]);
@@ -242,8 +247,8 @@ describe("buildVerificationModel", () => {
     expect(m.windows.byRoom[0]).toMatchObject({ room: "Bed 1", qty: 2, height: 1000, width: 1200 });
     expect(m.windows.schedule.map((s) => s.id)).toEqual(["W1", "W2"]);
     expect(m.windows.qsRows).toEqual([
-      { label: "Awning 1200×1000", qty: 6 },
-      { label: "Slider 2400×2000", qty: 2 },
+      { label: "Awning 1200x1000", qty: 6 },
+      { label: "Slider 2400x2000", qty: 2 },
     ]);
     expect(m.windows.totals).toMatchObject({
       windowCount: 8,
@@ -338,6 +343,11 @@ describe("buildVerificationModel", () => {
         external_wall_area_m2: fv<number>(null, "derived", null, [
           "Opening pricing blocked: unresolved Visual QS reconciliation error. Visual QS found 17 QS-glazed external openings, but the composed opening set has 20. Reconcile before pricing.",
         ]),
+        plan_text: {
+          rooms: [],
+          windowCodes: [],
+          titleAreas: { claddingAreaM2: 258.8 },
+        },
         total_opening_sqm: null,
         glazed_sqm: null,
         visual_opening_audit: {
@@ -373,8 +383,30 @@ describe("buildVerificationModel", () => {
     );
 
     expect(m.windows.pricingBlocked).toBe(true);
-    expect(m.windows.pricingBlockFlags.join(" ")).toContain("OPENING PRICING BLOCKED");
-    expect(m.windows.pricingBlockFlags.join(" ")).toContain("do not price windows");
+    expect(m.windows.pricingBlockFlags[0]).toBe(OPENING_RECONCILIATION_BLOCKED);
+    expect(m.windows.pricingBlockFlags.join(" ")).toContain("do not price openings or cladding");
+    expect(m.windows.pricingBlockFlags.join(" ")).not.toContain("OPENING PRICING BLOCKED");
+    const externalWallArea = m.measures.find((r) => r.label === "External wall area");
+    expect(externalWallArea).toMatchObject({
+      value: EXTERNAL_WALL_AREA_BLOCKED,
+      unit: "m2",
+      flagged: true,
+    });
+    expect(externalWallArea?.value).not.toContain("Not found");
+    const printedCladding = m.measures.find((r) => r.label.startsWith("Printed cladding area"));
+    expect(printedCladding).toMatchObject({
+      value: "258.8",
+      unit: "m2",
+      flagged: true,
+    });
+    expect(printedCladding?.label).toContain("review only");
+    expect(printedCladding?.label).toContain("not calculated external wall area");
+    const customerText = JSON.stringify({
+      measures: m.measures,
+      pricingBlockFlags: m.windows.pricingBlockFlags,
+      garageDoorSize: m.doors.garageDoorSize,
+    });
+    expect(hasCustomerVisibleMojibake(customerText)).toBe(false);
     expect(m.windows.byRoom).toEqual([]);
     expect(m.windows.qsRows).toEqual([]);
     expect(m.windows.totals.qsGlazedOpeningCount).toBeNull();
@@ -388,6 +420,56 @@ describe("buildVerificationModel", () => {
     });
     expect(m.doors.garageDoorSize).toBe("Blocked - verify manually");
     expect(m.doors.garageDoorFlags.join(" ")).toContain("review-only until reconciled");
+  });
+
+  it("elevation mismatch warning leads with opening reconciliation blocked", () => {
+    const m = buildVerificationModel(
+      makeData({
+        elevationSummary: {
+          roofType: null,
+          roofPitchDegrees: null,
+          externalDoorCount: 0,
+          gableEndCount: 0,
+          drivewayConcretM2: null,
+          patioConcreteM2: null,
+          totalConcreteM2: null,
+          windowCountMatch: false,
+          windowCountWarning: "Window mismatch - floor plan: 16, elevations: 45",
+        },
+      }),
+      makeEnriched(),
+      RUN,
+    );
+
+    expect(m.elevationWarning).toContain(OPENING_RECONCILIATION_BLOCKED);
+    expect(m.elevationWarning).toContain("Use Extracted Quantities Review");
+    expect(m.elevationWarning).toContain("Detail: floor plan 16, elevations 45.");
+  });
+
+  it("blocked wall display does not change clean extracted quantity totals", () => {
+    const readModel = buildExtractedQuantityReadModel(
+      [
+        quantity({ id: "clean-window", count: 2, areaM2: 3 }),
+        quantity({
+          id: "review-window",
+          status: "needs_review",
+          heightMm: null,
+          areaM2: null,
+          warnings: ["assumed_height_rejected"],
+        }),
+      ],
+      { activeRunId: RUN.id },
+    );
+    const m = buildVerificationModel(
+      makeData({ openingPricingBlocked: true, extractedQuantityReadModel: readModel }),
+      makeEnriched({ external_wall_area_m2: fv<number>(null, "derived", null) }),
+      RUN,
+    );
+
+    const windows = m.extractedQuantities.categories.find((c) => c.category === "window");
+    expect(windows?.cleanTotals.count).toBe(2);
+    expect(windows?.cleanTotals.areaM2).toBe(3);
+    expect(windows?.statusCounts.needs_review).toBe(1);
   });
 
   it("windows: canonical rows keep visual O labels when a garage-door exception is excluded", () => {
@@ -587,8 +669,8 @@ describe("buildVerificationModel", () => {
     expect(m.doors.interiorTotal).toBe(13);
     expect(m.doors.sourceLabel).toBe("Deterministic door engine");
     expect(m.doors.visionHint).toBe(12);
-    expect(m.doors.garage).toEqual([{ label: "4.8 × 2.1 insulated", qty: 1 }]);
-    expect(m.doors.garageDoorSize).toBe("4.8 × 2.1");
+    expect(m.doors.garage).toEqual([{ label: "4.8 x 2.1 insulated", qty: 1 }]);
+    expect(m.doors.garageDoorSize).toBe("4.8 x 2.1");
   });
 
   it("doors: garage visual reconciliation warning is printed beside the garage size", () => {
@@ -626,7 +708,7 @@ describe("buildVerificationModel", () => {
 
   it("doors with NO source print the fail-safe warning, never a quiet zero", () => {
     const m = buildVerificationModel(makeData({ doorsSource: null }), makeEnriched(), RUN);
-    expect(m.doors.sourceLabel).toContain("⚑ NO SOURCE");
+    expect(m.doors.sourceLabel).toContain("Review NO SOURCE");
     expect(m.doors.sourceLabel).toContain("do not price");
   });
 
@@ -660,7 +742,7 @@ describe("buildVerificationModel", () => {
     const services = m.specs.flatMap((g) => g.rows).find((r) => r.label === "Services")!;
     expect(services.answer).toBe("Residential");
     // Unanswered specs print as not set, never invented.
-    const unset = m.specs.flatMap((g) => g.rows).filter((r) => r.answer === "— not set");
+    const unset = m.specs.flatMap((g) => g.rows).filter((r) => r.answer === "- not set");
     expect(unset.length).toBeGreaterThan(0);
   });
 

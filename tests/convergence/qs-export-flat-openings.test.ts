@@ -462,7 +462,7 @@ describe("Fallback intact — null openings triggers relational slot layout", ()
     );
     const c = cells(ws);
     expect(c["A39"]).toBe("Type");
-    expect(c["A40"]).toContain("OPENING PRICING BLOCKED");
+    expect(c["A40"]).toContain("Opening reconciliation blocked");
     expect(c["D62"]).toBeUndefined();
   });
 
@@ -476,8 +476,8 @@ describe("Fallback intact — null openings triggers relational slot layout", ()
     const c = cells(ws);
 
     expect(c["A40"]).toBe("window");
-    expect(c["G40"]).toContain("REVIEW ONLY - opening pricing blocked");
-    expect(c["A41"]).toContain("OPENING PRICING BLOCKED");
+    expect(c["G40"]).toContain("REVIEW ONLY - opening reconciliation blocked");
+    expect(c["A41"]).toContain("Opening reconciliation blocked");
     expect(Object.values(c).join(" ")).not.toContain("Opening totals (QS tab 5 contract)");
   });
 
@@ -496,8 +496,8 @@ describe("Fallback intact — null openings triggers relational slot layout", ()
     expect(c["C42"]).toBe(0);
     expect(c["D42"]).toBe(0);
     expect(c["B15"]).toBe("");
-    expect(text).toContain("OPENING PRICING BLOCKED");
-    expect(text).toContain("Less openings: NOT COMPUTED - opening pricing blocked");
+    expect(text).toContain("Opening reconciliation blocked");
+    expect(text).toContain("Less openings: NOT COMPUTED - opening reconciliation blocked");
     expect(text).toContain("NET CLADDING: NOT COMPUTED");
   });
 });
