@@ -4,6 +4,8 @@
 
 PASS WITH FIX
 
+Review follow-up on `657f33b`: PASS WITH FIX.
+
 ## Question
 
 Can clean floor-plan W x H label recovery duplicate an existing clean opening row?
@@ -17,6 +19,18 @@ evidence after already-created opening candidates. When the existing opening and
 the clean floor-plan label represented the same physical window, both candidates
 could flow into `buildExtractedQuantityLedger` as clean `window` rows and double
 count clean extracted area.
+
+Review follow-up found a second risk in the first guard:
+
+Because floor-plan label candidates are appended into the same opening evidence
+ledger during the same loop, the matcher could also see a previously appended
+clean `floorplan-label-N` row. That meant two separate same-room/same-dimension
+floor-plan labels, such as two BED 1 / MASTERBED `1100 x 800` windows with
+different bboxes, could collapse into one clean label row.
+
+That over-suppression was unsafe. Repeated printed labels can represent repeated
+physical units and must remain represented unless an existing priced/composed
+opening already covers the same unit.
 
 The duplicate path was:
 
@@ -42,6 +56,9 @@ Focused tests were added for:
 - duplicate clean label vs existing clean opening: one clean ledger row remains,
   clean area does not double count, and the floor-plan label is attached as
   supporting evidence;
+- repeated same-room/same-dimension floor-plan labels with different bboxes:
+  both remain represented as separate clean extracted rows when there is no
+  existing composed/priced opening row;
 - same dimensions in different rooms: distinct physical openings remain distinct;
 - dirty/review labels: review evidence remains visible, no clean area is created;
 - Fenner full-height narrow case `2150 x 600`: remains clean, width 600, height
@@ -56,13 +73,16 @@ Changed `src/lib/takeoff/opening-evidence.ts`.
 The fix is intentionally narrow:
 
 - applies only to clean floor-plan label assignments;
-- matches only existing clean/priced `window` candidates;
+- matches only existing priced `window` candidates (`priced: true`,
+  `status: "priced"`);
+- does not match earlier `floorplan-label-N` rows from the same loop;
 - requires same normalized room;
 - requires explicit width and height on both sides;
 - requires width and height to match within 10 mm;
 - appends the floor-plan label as supporting `floorplan_text` evidence on the
   existing candidate;
-- suppresses only the duplicate clean label row.
+- suppresses only the duplicate clean label row when a prior priced/composed
+  opening candidate already exists.
 
 No pricing path was changed. Existing clean openings keep their original source,
 status, and priced state.
@@ -110,7 +130,7 @@ npm run test
 Results:
 
 - `git diff --check`: passed.
-- focused required tests: 5 files passed, 41 tests passed.
+- focused required tests: 5 files passed, 42 tests passed.
 - `npx tsc --noEmit`: passed.
-- `npm run test`: 103 files passed, 9 skipped; 982 tests passed, 1 expected
+- `npm run test`: 103 files passed, 9 skipped; 983 tests passed, 1 expected
   fail, 26 skipped.

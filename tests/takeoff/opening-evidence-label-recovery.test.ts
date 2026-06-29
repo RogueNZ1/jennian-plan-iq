@@ -164,6 +164,42 @@ describe("floor-plan label recovery into opening evidence", () => {
     });
   });
 
+  it("keeps repeated same-room same-dimension floor-plan labels as separate clean rows", () => {
+    const evidence = buildOpeningEvidenceLedger({
+      openings: [],
+      planText: planText(
+        { heightMm: 1100, widthMm: 800, x: 95, y: 94 },
+        {
+          windowCodes: [
+            { heightMm: 1100, widthMm: 800, x: 95, y: 94 },
+            { heightMm: 1100, widthMm: 800, x: 112, y: 110 },
+          ],
+        },
+      ),
+      planPage: 2,
+    });
+    const ledger = extractedRows(evidence);
+    const cleanWindows = ledger.filter(
+      (row) => row.category === "window" && row.status === "extracted",
+    );
+    const readModel = buildExtractedQuantityReadModel(ledger, { activeRunId: "run-1" });
+
+    expect(evidence.filter((item) => item.id.startsWith("floorplan-label-"))).toHaveLength(2);
+    expect(cleanWindows.map((row) => row.id)).toEqual([
+      "opening-floorplan-label-1",
+      "opening-floorplan-label-2",
+    ]);
+    expect(cleanWindows.map((row) => row.evidence[0]?.bbox)).toEqual([
+      [77, 87, 113, 101],
+      [94, 103, 130, 117],
+    ]);
+    expect(readModel.cleanTotalsByCategory.window).toEqual({
+      count: 2,
+      lengthMm: 0,
+      areaM2: 1.76,
+    });
+  });
+
   it("keeps same-size openings in different rooms distinct", () => {
     const opening = (room: string): Opening => ({
       type: "window",

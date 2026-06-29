@@ -119,7 +119,7 @@ function matchingCleanWindowCandidate(
   return (
     candidates.find((candidate) => {
       if (candidate.type !== "window") return false;
-      if (candidate.status !== "priced" && candidate.status !== "extracted") return false;
+      if (!candidate.priced || candidate.status !== "priced") return false;
       if (normaliseRoom(candidate.room) !== room) return false;
       const widthMm = openingMm(candidate.width_m);
       const heightMm = openingMm(candidate.height_m);
