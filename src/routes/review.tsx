@@ -62,6 +62,7 @@ import {
   buildExtractedQuantityReviewModel,
   reviewHasLegacyDataBesideLedger,
   type ExtractedQuantityReviewModel,
+  type OpeningTriageRow,
 } from "@/lib/review/extracted-quantity-review-model";
 import type { ExtractedQuantityExportRow } from "@/lib/takeoff/extracted-quantity-read-model";
 
@@ -682,6 +683,16 @@ function firstEvidenceBbox(row: ExtractedQuantityExportRow): string {
   return bboxCell(bbox);
 }
 
+function triageReasonText(row: OpeningTriageRow): string {
+  const warnings = row.warnings.length ? row.warnings.join(", ") : "";
+  return warnings || evidenceText(row) || "null";
+}
+
+function overlayMarkerText(row: OpeningTriageRow): string {
+  if (!row.hasOverlayMarker) return "No overlay marker";
+  return `Marker p${row.evidencePage ?? "null"} [${bboxCell(row.evidenceBbox ?? undefined)}]`;
+}
+
 function ExtractedQuantityLedgerReview({
   model,
   loading,
@@ -764,6 +775,120 @@ function ExtractedQuantityLedgerReview({
         )}
       </div>
 
+      <div className="rounded-lg border border-border bg-card px-5 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="text-[13px] font-semibold tracking-tight">
+              Extracted Quantities Review Summary
+            </div>
+            <div className="mt-1 text-[11px] text-muted-foreground">
+              Opening rows are grouped for review only; ledger status, dimensions, and totals are
+              unchanged.
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-3 lg:grid-cols-6">
+            <SummaryMetric label="Clean extracted" value={model.summary.cleanExtracted} />
+            <SummaryMetric label="Needs review" value={model.summary.needsReview} />
+            <SummaryMetric label="Missing evidence" value={model.summary.missingEvidence} />
+            <SummaryMetric label="Conflict" value={model.summary.conflict} />
+            <SummaryMetric label="With markers" value={model.summary.rowsWithOverlayMarkers} />
+            <SummaryMetric
+              label="Without markers"
+              value={model.summary.rowsWithoutOverlayMarkers}
+            />
+          </div>
+        </div>
+        <div className="mt-4 border-t border-border pt-3">
+          <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            Opening triage
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4 lg:grid-cols-8">
+            {model.openingTriage.groups.map((group) => (
+              <SummaryMetric key={group.id} label={group.label} value={group.rows.length} />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {model.openingTriage.groups.map((group) => (
+          <div key={group.id} className="rounded-lg border border-border bg-card overflow-hidden">
+            <div className="border-b border-border px-5 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[13px] font-semibold tracking-tight">{group.label}</div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">{group.explanation}</div>
+                </div>
+                <div className="text-[11px] text-muted-foreground tabular-nums">
+                  {group.rows.length} rows
+                </div>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1080px] text-sm">
+                <thead className="bg-muted/30">
+                  <tr className="text-left text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">
+                    <th className="px-4 py-2.5 font-medium">Row</th>
+                    <th className="px-4 py-2.5 font-medium">Category</th>
+                    <th className="px-4 py-2.5 font-medium">Status</th>
+                    <th className="px-4 py-2.5 font-medium">Width mm</th>
+                    <th className="px-4 py-2.5 font-medium">Height mm</th>
+                    <th className="px-4 py-2.5 font-medium">Area m2</th>
+                    <th className="px-4 py-2.5 font-medium">Source</th>
+                    <th className="px-4 py-2.5 font-medium">Reason / warnings</th>
+                    <th className="px-4 py-2.5 font-medium">Page / bbox</th>
+                    <th className="px-4 py-2.5 font-medium">Overlay</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {group.rows.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={10}
+                        className="px-4 py-6 text-center text-xs text-muted-foreground"
+                      >
+                        No rows.
+                      </td>
+                    </tr>
+                  ) : (
+                    group.rows.map((row) => (
+                      <tr
+                        key={`${group.id}:${row.id}`}
+                        className="border-t border-border align-top"
+                      >
+                        <td className="px-4 py-2.5">
+                          <div className="font-medium">{row.label ?? row.id}</div>
+                          <div className="mt-1 font-mono text-[10.5px] text-muted-foreground">
+                            {row.id}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5">{row.category}</td>
+                        <td className="px-4 py-2.5">{row.status}</td>
+                        <td className="px-4 py-2.5 tabular-nums">{nullCell(row.widthMm)}</td>
+                        <td className="px-4 py-2.5 tabular-nums">{nullCell(row.heightMm)}</td>
+                        <td className="px-4 py-2.5 tabular-nums">{nullCell(row.areaM2)}</td>
+                        <td className="px-4 py-2.5">{row.source}</td>
+                        <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                          <div className="max-w-[300px] whitespace-normal">
+                            {triageReasonText(row)}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                          p{row.evidencePage ?? "null"} / {bboxCell(row.evidenceBbox ?? undefined)}
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                          {overlayMarkerText(row)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {model.sections.map((section) => (
         <div
           key={section.status}
@@ -844,6 +969,15 @@ function ExtractedQuantityLedgerReview({
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function SummaryMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md bg-muted/40 px-2 py-1.5">
+      <div className="text-muted-foreground">{label}</div>
+      <div className="mt-0.5 text-[13px] font-semibold tabular-nums text-foreground">{value}</div>
     </div>
   );
 }

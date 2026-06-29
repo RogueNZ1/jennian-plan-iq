@@ -5,6 +5,7 @@ import type { ExtractedQuantityAuthority } from "../../src/lib/takeoff/extracted
 import type { ExtractedQuantity } from "../../src/lib/takeoff/extracted-quantity-ledger";
 import {
   buildExtractedQuantityReviewModel,
+  classifyOpeningTriageRow,
   legacyActionPolicy,
   reviewHasLegacyDataBesideLedger,
 } from "../../src/lib/review/extracted-quantity-review-model";
@@ -297,5 +298,186 @@ describe("Extracted Quantity Review model", () => {
         printedReferenceRows: 1,
       }),
     ).toBe(false);
+  });
+
+  it("triages clean extracted opening rows as Clean without mutating status or totals", () => {
+    const clean = q({ id: "clean-window", status: "extracted", areaM2: 1.68 });
+    const review = buildExtractedQuantityReviewModel(authority([clean]));
+
+    expect(review.openingTriage.groups.find((group) => group.id === "clean")?.rows).toHaveLength(1);
+    expect(review.openingTriage.summary.clean).toBe(1);
+    expect(review.openingTriage.rows[0]).toMatchObject({
+      id: "clean-window",
+      status: "extracted",
+      widthMm: 1400,
+      heightMm: 1200,
+      areaM2: 1.68,
+      hasOverlayMarker: true,
+    });
+    expect(review.cleanTotals).toEqual({ count: 1, lengthMm: 0, areaM2: 1.68 });
+  });
+
+  it("triages malformed and assembly evidence as Dirty assembly", () => {
+    const review = buildExtractedQuantityReviewModel(
+      authority([
+        q({
+          id: "family-overlight",
+          status: "needs_review",
+          widthMm: null,
+          heightMm: null,
+          areaM2: null,
+          evidence: [
+            {
+              page: 1,
+              bbox: [10, 20, 30, 40],
+              text: "malformed assembly 1300x175036001300x1750 overlight",
+            },
+          ],
+        }),
+      ]),
+    );
+
+    expect(review.openingTriage.summary.dirty_assembly).toBe(1);
+    expect(
+      review.openingTriage.groups.find((group) => group.id === "dirty_assembly")?.rows[0].id,
+    ).toBe("family-overlight");
+  });
+
+  it("triages width-only and height-missing rows without filling unknowns", () => {
+    const review = buildExtractedQuantityReviewModel(
+      authority([
+        q({
+          id: "width-only-slider",
+          status: "needs_review",
+          widthMm: 2400,
+          heightMm: null,
+          areaM2: null,
+          warnings: ["height_not_extracted", "area_not_calculated"],
+        }),
+      ]),
+    );
+    const row = review.openingTriage.rows[0];
+
+    expect(row.triageGroups).toEqual(expect.arrayContaining(["width_only", "height_missing"]));
+    expect(row).toMatchObject({
+      status: "needs_review",
+      widthMm: 2400,
+      heightMm: null,
+      areaM2: null,
+    });
+    expect(review.readModel?.cleanTotalsByCategory.window).toBeUndefined();
+  });
+
+  it("triages face, elevation, order, garage, and slider review rows", () => {
+    const review = buildExtractedQuantityReviewModel(
+      authority([
+        q({
+          id: "face-check",
+          status: "needs_review",
+          widthMm: 3600,
+          heightMm: null,
+          areaM2: null,
+          warnings: ["height_not_extracted"],
+          evidence: [
+            {
+              page: 1,
+              bbox: [1, 2, 3, 4],
+              text: "slider needs face/elevation check; room/order assignment ambiguous",
+            },
+          ],
+        }),
+      ]),
+    );
+
+    expect(review.openingTriage.summary.face_elevation_check).toBe(1);
+    expect(
+      review.openingTriage.groups.find((group) => group.id === "face_elevation_check")?.rows[0].id,
+    ).toBe("face-check");
+  });
+
+  it("triages rows without page and bbox as No overlay marker", () => {
+    const review = buildExtractedQuantityReviewModel(
+      authority([
+        q({
+          id: "missing-bbox",
+          status: "needs_review",
+          evidence: [{ text: "width witness without page bbox" }],
+        }),
+      ]),
+    );
+
+    expect(review.summary.rowsWithOverlayMarkers).toBe(0);
+    expect(review.summary.rowsWithoutOverlayMarkers).toBe(1);
+    expect(review.openingTriage.summary.missing_bbox).toBe(1);
+    expect(review.openingTriage.rows[0]).toMatchObject({
+      id: "missing-bbox",
+      hasOverlayMarker: false,
+      evidencePage: null,
+      evidenceBbox: null,
+    });
+  });
+
+  it("triages conflict rows as Conflict", () => {
+    const review = buildExtractedQuantityReviewModel(
+      authority([
+        q({
+          id: "source-conflict",
+          status: "conflict",
+          warnings: ["source_conflict"],
+        }),
+      ]),
+    );
+
+    expect(review.openingTriage.summary.conflict).toBe(1);
+    expect(classifyOpeningTriageRow(review.readModel!.rows[0])).toContain("conflict");
+  });
+
+  it("triages unknown review rows as Other review", () => {
+    const review = buildExtractedQuantityReviewModel(
+      authority([
+        q({
+          id: "unknown-review",
+          status: "needs_review",
+          widthMm: null,
+          heightMm: 1200,
+          areaM2: null,
+          warnings: [],
+          evidence: [{ page: 1, bbox: [1, 2, 3, 4], text: "review manually" }],
+        }),
+      ]),
+    );
+
+    expect(review.openingTriage.summary.other_review).toBe(1);
+    expect(
+      review.openingTriage.groups.find((group) => group.id === "other_review")?.rows[0],
+    ).toMatchObject({
+      id: "unknown-review",
+      status: "needs_review",
+      areaM2: null,
+    });
+  });
+
+  it("triage classification preserves clean totals and null unknowns", () => {
+    const rows = [
+      q({ id: "clean-window", status: "extracted", areaM2: 1.68 }),
+      q({
+        id: "review-window",
+        status: "needs_review",
+        widthMm: 1400,
+        heightMm: null,
+        areaM2: null,
+        warnings: ["height_not_extracted", "area_not_calculated"],
+      }),
+    ];
+    const before = buildExtractedQuantityReadModel(rows, { activeRunId: "run-active" });
+    const review = buildExtractedQuantityReviewModel(authority(rows));
+
+    expect(review.cleanTotals).toEqual(before.cleanTotals);
+    expect(review.readModel?.rows.find((row) => row.id === "review-window")).toMatchObject({
+      status: "needs_review",
+      heightMm: null,
+      areaM2: null,
+    });
+    expect(review.openingTriage.summary.height_missing).toBe(1);
   });
 });

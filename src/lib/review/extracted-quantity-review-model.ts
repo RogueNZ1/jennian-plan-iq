@@ -23,6 +23,51 @@ export type ExtractedQuantityReviewSection = {
   rows: ExtractedQuantityExportRow[];
 };
 
+export type OpeningTriageGroupId =
+  | "clean"
+  | "dirty_assembly"
+  | "width_only"
+  | "height_missing"
+  | "face_elevation_check"
+  | "missing_bbox"
+  | "conflict"
+  | "other_review";
+
+export type OpeningTriageGroupDefinition = {
+  id: OpeningTriageGroupId;
+  label: string;
+  explanation: string;
+};
+
+export type OpeningTriageRow = ExtractedQuantityExportRow & {
+  hasOverlayMarker: boolean;
+  evidencePage: number | null;
+  evidenceBbox: [number, number, number, number] | null;
+  triageGroups: OpeningTriageGroupId[];
+};
+
+export type OpeningTriageGroup = OpeningTriageGroupDefinition & {
+  rows: OpeningTriageRow[];
+};
+
+export type OpeningTriageSummary = Record<OpeningTriageGroupId, number>;
+
+export type ExtractedQuantityReviewSummary = {
+  cleanExtracted: number;
+  needsReview: number;
+  missingEvidence: number;
+  conflict: number;
+  rowsWithOverlayMarkers: number;
+  rowsWithoutOverlayMarkers: number;
+  openingTriage: OpeningTriageSummary;
+};
+
+export type ExtractedQuantityOpeningTriage = {
+  rows: OpeningTriageRow[];
+  groups: OpeningTriageGroup[];
+  summary: OpeningTriageSummary;
+};
+
 export type ExtractedQuantityReviewModel = {
   source: ExtractedQuantityAuthority["source"];
   runId: string | null;
@@ -31,6 +76,8 @@ export type ExtractedQuantityReviewModel = {
   readModel: ExtractedQuantityReadModel | null;
   sections: ExtractedQuantityReviewSection[];
   cleanTotals: ExtractedQuantityTotals;
+  summary: ExtractedQuantityReviewSummary;
+  openingTriage: ExtractedQuantityOpeningTriage;
 };
 
 export type ReviewLegacyWritePathClass =
@@ -48,6 +95,53 @@ export type ReviewLegacyActionPolicy = {
 };
 
 const EMPTY_TOTALS: ExtractedQuantityTotals = { count: 0, lengthMm: 0, areaM2: 0 };
+
+const OPENING_CATEGORIES = new Set(["window", "opening", "exterior_door", "garage_door"]);
+
+export const OPENING_TRIAGE_GROUPS: OpeningTriageGroupDefinition[] = [
+  {
+    id: "clean",
+    label: "Clean",
+    explanation: "Trusted extracted opening rows.",
+  },
+  {
+    id: "dirty_assembly",
+    label: "Dirty assembly",
+    explanation:
+      "Malformed, contaminated, multi-part, overlight, sidelight, or split-entry evidence.",
+  },
+  {
+    id: "width_only",
+    label: "Width only",
+    explanation: "Width is visible but height is still unknown.",
+  },
+  {
+    id: "height_missing",
+    label: "Height missing",
+    explanation: "Height or area is missing, so glass area is not clean.",
+  },
+  {
+    id: "face_elevation_check",
+    label: "Needs face/elevation check",
+    explanation:
+      "Useful evidence exists, but face, elevation, order, garage, or slider assignment needs review.",
+  },
+  {
+    id: "missing_bbox",
+    label: "No overlay marker",
+    explanation: "No usable page and bbox evidence is available for an overlay marker.",
+  },
+  {
+    id: "conflict",
+    label: "Conflict",
+    explanation: "Conflicting source evidence or conflict status.",
+  },
+  {
+    id: "other_review",
+    label: "Other review",
+    explanation: "Needs review but does not match a more specific triage reason.",
+  },
+];
 
 export const REVIEW_LEGACY_ACTION_POLICIES: ReviewLegacyActionPolicy[] = [
   {
@@ -109,10 +203,161 @@ export function reviewHasLegacyDataBesideLedger(args: {
   );
 }
 
+function usableBbox(value: unknown): value is [number, number, number, number] {
+  return (
+    Array.isArray(value) &&
+    value.length === 4 &&
+    value.every((item) => typeof item === "number" && Number.isFinite(item))
+  );
+}
+
+function firstOverlayEvidence(row: ExtractedQuantityExportRow): {
+  page: number | null;
+  bbox: [number, number, number, number] | null;
+} {
+  const evidence = row.evidence.find((item) => item.page != null && usableBbox(item.bbox));
+  return {
+    page: evidence?.page ?? null,
+    bbox: usableBbox(evidence?.bbox) ? evidence.bbox : null,
+  };
+}
+
+function rowReviewText(row: ExtractedQuantityExportRow): string {
+  return [
+    row.id,
+    row.label ?? "",
+    row.category,
+    row.status,
+    row.source,
+    ...row.warnings,
+    ...row.evidence.flatMap((item) => [
+      item.source ?? "",
+      item.text ?? "",
+      item.witnessIds?.join(" ") ?? "",
+    ]),
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function isOpeningRow(row: ExtractedQuantityExportRow): boolean {
+  return OPENING_CATEGORIES.has(row.category);
+}
+
+function emptyOpeningTriageSummary(): OpeningTriageSummary {
+  return {
+    clean: 0,
+    dirty_assembly: 0,
+    width_only: 0,
+    height_missing: 0,
+    face_elevation_check: 0,
+    missing_bbox: 0,
+    conflict: 0,
+    other_review: 0,
+  };
+}
+
+export function classifyOpeningTriageRow(row: ExtractedQuantityExportRow): OpeningTriageGroupId[] {
+  const groups = new Set<OpeningTriageGroupId>();
+  const text = rowReviewText(row);
+  const hasOverlayMarker = firstOverlayEvidence(row).page != null;
+
+  if (row.status === "extracted") groups.add("clean");
+  if (
+    row.status === "conflict" ||
+    row.warnings.includes("source_conflict") ||
+    /conflict/.test(text)
+  ) {
+    groups.add("conflict");
+  }
+  if (
+    /malformed|contaminated|assembly|multi[- ]?part|sidelight|overlight|split entry|drafting issue/.test(
+      text,
+    )
+  ) {
+    groups.add("dirty_assembly");
+  }
+  if (row.widthMm != null && row.heightMm == null) groups.add("width_only");
+  if (
+    row.heightMm == null &&
+    row.areaM2 == null &&
+    (row.warnings.includes("height_not_extracted") ||
+      row.warnings.includes("area_not_calculated") ||
+      /height.*missing|height.*not extracted|area.*not calculated/.test(text))
+  ) {
+    groups.add("height_missing");
+  }
+  if (
+    /face|elevation|room\/order|order assignment|assignment ambiguous|garage anchor|slider|garage door/.test(
+      text,
+    )
+  ) {
+    groups.add("face_elevation_check");
+  }
+  if (!hasOverlayMarker) groups.add("missing_bbox");
+
+  const hasSpecificReviewReason = [...groups].some((group) => group !== "missing_bbox");
+  if (row.status !== "extracted" && row.status !== "conflict" && !hasSpecificReviewReason) {
+    groups.add("other_review");
+  }
+
+  return [...groups];
+}
+
+function buildOpeningTriage(
+  readModel: ExtractedQuantityReadModel | null,
+): ExtractedQuantityOpeningTriage {
+  const rows = (readModel?.rows ?? []).filter(isOpeningRow).map((row) => {
+    const overlay = firstOverlayEvidence(row);
+    return {
+      ...row,
+      hasOverlayMarker: overlay.page != null && overlay.bbox != null,
+      evidencePage: overlay.page,
+      evidenceBbox: overlay.bbox,
+      triageGroups: classifyOpeningTriageRow(row),
+    };
+  });
+  const summary = emptyOpeningTriageSummary();
+  for (const row of rows) {
+    for (const group of row.triageGroups) summary[group] += 1;
+  }
+
+  return {
+    rows,
+    groups: OPENING_TRIAGE_GROUPS.map((group) => ({
+      ...group,
+      rows: rows.filter((row) => row.triageGroups.includes(group.id)),
+    })),
+    summary,
+  };
+}
+
+function buildReviewSummary(
+  readModel: ExtractedQuantityReadModel | null,
+  openingTriage: ExtractedQuantityOpeningTriage,
+): ExtractedQuantityReviewSummary {
+  const rows = readModel?.rows ?? [];
+  const rowsWithOverlayMarkers = rows.filter((row) => {
+    const overlay = firstOverlayEvidence(row);
+    return overlay.page != null && overlay.bbox != null;
+  }).length;
+
+  return {
+    cleanExtracted: readModel?.groups.extracted.length ?? 0,
+    needsReview: readModel?.groups.needs_review.length ?? 0,
+    missingEvidence: readModel?.groups.missing_evidence.length ?? 0,
+    conflict: readModel?.groups.conflict.length ?? 0,
+    rowsWithOverlayMarkers,
+    rowsWithoutOverlayMarkers: rows.length - rowsWithOverlayMarkers,
+    openingTriage: openingTriage.summary,
+  };
+}
+
 export function buildExtractedQuantityReviewModel(
   authority: ExtractedQuantityAuthority | null | undefined,
 ): ExtractedQuantityReviewModel {
   const readModel = authority?.readModel ?? null;
+  const openingTriage = buildOpeningTriage(readModel);
   return {
     source: authority?.source ?? "unavailable",
     runId: authority?.runId ?? null,
@@ -124,5 +369,7 @@ export function buildExtractedQuantityReviewModel(
       rows: readModel?.groups[section.status] ?? [],
     })),
     cleanTotals: readModel?.cleanTotals ?? EMPTY_TOTALS,
+    summary: buildReviewSummary(readModel, openingTriage),
+    openingTriage,
   };
 }
