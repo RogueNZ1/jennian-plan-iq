@@ -245,6 +245,25 @@ describe("plan-text - parser hardening", () => {
     ]);
   });
 
+  it("excludes nearby skylight labels from exterior opening window codes", () => {
+    const codes = parseWindowCodes(
+      [
+        label("780 x 1400", 100, 100),
+        label("Skylight", 106, 112),
+        label("1300 x 1500", 200, 100),
+        label("1100 x 1200", 210, 160),
+        label("1100 x 600", 260, 160),
+      ],
+      [],
+    );
+
+    expect(codes.map((code) => `${code.heightMm}x${code.widthMm}`).sort()).toEqual([
+      "1100x1200",
+      "1100x600",
+      "1300x1500",
+    ]);
+  });
+
   it("uses unit-compatible title values across the widened association radius", () => {
     const titleAreas = parseTitleAreas([
       label("TOTALAREA:", 10, 20),

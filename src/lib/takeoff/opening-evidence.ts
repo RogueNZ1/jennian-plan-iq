@@ -3,6 +3,7 @@ import type { PlanText } from "./plan-text";
 import type { FloorPlanGapCandidate } from "./floor-plan-gaps";
 import type { FloorPlanGapElevationMatch } from "./elevation-gap-match";
 import type { FloorPlanTextDimensionMatch } from "./floor-plan-text-height-witness";
+import { recoverFloorPlanLabelAssignments } from "./floor-plan-label-recovery";
 import type { HeldBlockedOpening, QuarantinedOpening } from "./opening-pricing-adjudication";
 import type { VisualOpeningAudit } from "./visual-opening-audit";
 
@@ -106,7 +107,8 @@ export function buildOpeningEvidenceLedger(args: {
   heldBlockedOpenings?: readonly HeldBlockedOpening[] | null;
   quarantinedOpenings?: readonly QuarantinedOpening[] | null;
   visualOpeningAudit?: VisualOpeningAudit | null;
-  planText?: Pick<PlanText, "draftingIssues"> | null;
+  planText?: PlanText | null;
+  planPage?: number | null;
   floorPlanGaps?: readonly FloorPlanGapCandidate[] | null;
   floorPlanGapElevationMatches?: ReadonlyMap<string, FloorPlanGapElevationMatch> | null;
   floorPlanTextDimensionMatches?: ReadonlyMap<string, FloorPlanTextDimensionMatch> | null;
@@ -276,6 +278,48 @@ export function buildOpeningEvidenceLedger(args: {
         `Malformed dimension label "${issue.text}" found on the floor plan; do not price from that label unless another source confirms the opening size.`,
       ],
       conflicts: [issue.text],
+    });
+  }
+
+  for (const assignment of recoverFloorPlanLabelAssignments({
+    planText: args.planText,
+    page: args.planPage,
+  })) {
+    const widthM = Math.round((assignment.widthMm / 1000) * 100) / 100;
+    const heightM = Math.round((assignment.heightMm / 1000) * 100) / 100;
+    const areaM2 = assignment.status === "extracted" ? assignment.areaM2 : null;
+
+    ledger.push({
+      id: assignment.id,
+      status: assignment.status,
+      priced: false,
+      type: "window",
+      room: assignment.room,
+      width_m: widthM,
+      height_m: heightM,
+      area_m2: areaM2,
+      evidence: [
+        {
+          source: "floorplan_text",
+          role: "dimension",
+          confidence: assignment.confidence,
+          width_m: widthM,
+          height_m: heightM,
+          area_m2: areaM2,
+          room: assignment.room,
+          ...(assignment.page != null ? { page: assignment.page } : {}),
+          bbox: assignment.bbox,
+          text: assignment.text,
+          note: assignment.reason,
+        },
+      ],
+      review_flags:
+        assignment.status === "extracted"
+          ? [
+              `Clean floor-plan W x H label ${assignment.text} auto-recovered as evidence-only opening; not a pricing write.`,
+            ]
+          : assignment.reviewFlags,
+      conflicts: [],
     });
   }
 

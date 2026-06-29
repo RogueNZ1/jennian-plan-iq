@@ -152,6 +152,15 @@ function hasAnonymousOpeningCluster(
   return sameColumn >= 1 || sameRow >= 1 || nearby >= 2;
 }
 
+function hasNearbySkylightLabel(label: TextLabel, labels: readonly TextLabel[]): boolean {
+  return labels.some(
+    (candidate) =>
+      candidate !== label &&
+      /\bsky\s*light\b|\bskylight\b/i.test(candidate.text.trim()) &&
+      Math.hypot(candidate.x - label.x, candidate.y - label.y) <= 28,
+  );
+}
+
 function titleValueFor(text: string, key: keyof PlanTitleAreas): number | null {
   const trimmed = text.trim();
   const m =
@@ -240,6 +249,7 @@ export function parseWindowCodes(labels: TextLabel[], rooms: PlanRoom[]): PlanWi
       anonymousClusterLabels.includes(l) &&
       hasAnonymousOpeningCluster(l, anonymousClusterLabels);
     if (!id && !strictMatch && !anonymousLowercaseOpeningLabel) continue;
+    if (hasNearbySkylightLabel(l, labels)) continue;
     out.push({
       ...(id ? { id } : {}),
       heightMm: h,

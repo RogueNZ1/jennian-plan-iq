@@ -927,6 +927,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     quarantinedOpenings: openingPricingAdjudication.quarantinedOpenings,
     visualOpeningAudit: recoveredVisualOpeningAudit,
     planText,
+    planPage: doorEngine?.pageMeta?.pageNumber ?? null,
     floorPlanGaps: doorEngine?.floorPlanGaps,
     floorPlanGapElevationMatches,
     floorPlanTextDimensionMatches,
