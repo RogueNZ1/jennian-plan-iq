@@ -197,11 +197,71 @@ Ensuite `2150 x 600` is now clean recovered because it is a witnessed floor-plan
 room assignment and corroborating same-size elevation evidence. The dirty assemblies and skylights
 remain contained.
 
+## Remaining Review / Conflict Inventory
+
+Date: 2026-06-29 NZT
+
+Result: PASS WITH WARNINGS
+
+This inventory rechecked every remaining non-clean Fenner benchmark row after the safe Ensuite
+recovery. It used current floor-plan text, floor-gap candidates, and vector elevation candidates as
+diagnostic context. It did not use `opening_schedule`, `visual_opening_audit`, or `door_hits` as
+authority, and it did not change pricing, detector tolerances, or correction UI.
+
+Automatic Recovery Rate after this inventory:
+
+- Auto recovered clean: 8 rows / 9 units.
+- Review required: 8 rows.
+- Missing/conflict: 1 row.
+- False positives: 0.
+
+Remaining review classifications:
+
+- Correctly review-required: 5 rows.
+- Safely recoverable misses fixed: 0 rows.
+- Missing usable evidence: 3 rows.
+- Benchmark/source ambiguity: 1 row.
+- Non-exterior/excluded: 0 rows.
+
+Dirty architect annotations among the remaining rows: 2 rows (`fenner-sc-11`, `fenner-sc-17`).
+Realistic clean floor-plan label recovery ceiling on Fenner under the current rule is therefore
+8/17 benchmark rows, 9/18 units. Further recovery needs a separate evidence-class slice
+(face/elevation/garage anchors or human review), not wider label matching.
+
+| Row            | Benchmark opening                         | Qty | Current status   | Source label / text                                                    | Parsed W x H                                | Area | Page/bbox                                                                    | Nearby room / annotation text                                                                           | Exterior wall / face relationship                                                                                                                         | Associated opening candidate                                                                                                                                                         | Why not clean-recovered                                        | Classification                                                                                       | Authority check                                                                               |
+| -------------- | ----------------------------------------- | --: | ---------------- | ---------------------------------------------------------------------- | ------------------------------------------- | ---- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `fenner-sc-02` | Bed 1 slider                              |   1 | review-required  | width-only `2400`                                                      | width 2400, height null                     | null | width text p1 near `(258.2,504.5)`                                           | nearest room `MASTERBED`; nearby `1100x800` and room footprint text                                     | vector elevation has slider candidates around `2400 x 2049/2070`; nearest floor gap routes elsewhere and does not prove this opening row                  | no clean floor-plan W x H label row; width-only text cannot calculate area                                                                                                           | Needs a height/type/face witness outside the clean-label rule. | missing usable evidence                                                                              | floor-plan width/elevation diagnostic only; no schedule, visual audit, or door-hit authority. |
+| `fenner-sc-07` | Toilet window                             |   1 | review-required  | `floorplan-label-8: 1100 x 600`                                        | 600 x 1100                                  | null | p1 `[402.39,646.52,438.39,660.52]`                                           | nearby `WC`, `ENSUITE`, `BATH`; nearest parsed rooms are `ENSUITE` 65 pt and `BATH` 73 pt               | nearest exterior gap `floorplan-gap-11` is low-confidence/ambiguous near `BATH`/`BED2`; elevation has several `656 x 1143` candidates                     | label is explicit, but it is a narrow low-height row with ambiguous room/face assignment; accepting it would turn a likely toilet/bath cluster into a clean row without enough proof | correctly review-required                                      | floor-plan label exists; no schedule, visual audit, or door-hit authority used.                      |
+| `fenner-sc-09` | Kitchen window                            |   1 | review-required  | `floorplan-label-3: 1100 x 1500`                                       | 1500 x 1100                                 | null | p1 `[565.61,168.32,601.61,182.32]`                                           | nearby `PANTRY`, `DINING`, `KITCHEN`; closest parsed room is `PANTRY`, with Dining/Kitchen split nearby | nearest exterior gap `floorplan-gap-1` routes to `PANTRY` and measures 2747 mm, not the printed 1500 mm width; elevation has only loose dimension matches | room/order and gap relationship are ambiguous; the label is useful review evidence but not a clean Kitchen row                                                                       | correctly review-required                                      | floor-plan label exists; no schedule, visual audit, or door-hit authority used.                      |
+| `fenner-sc-11` | Family slider / overlight assembly        |   1 | review-required  | malformed `1300x175036001300x1750`; width-only `3600`/assembly context | null                                        | null | malformed text p1 near `(299.6,271.8)`                                       | nearby `FAMILY`, `Skylight`, `780 x 1400`, plus the contaminated jammed annotation                      | no clean single-row floor-plan/elevation association; the printed text is a multi-part assembly-style annotation                                          | the evidence is not one clean W x H label; no fake merge of two `1300 x 1750` parts plus width-only `3600` is allowed                                                                | correctly review-required                                      | contaminated floor-plan text preserved; no schedule, visual audit, or door-hit authority used.       |
+| `fenner-sc-13` | Lounge slider                             |   1 | review-required  | width-only `3600`                                                      | width 3600, height null                     | null | width text p1 near `(358.2,436.1)`                                           | nearest room `LOUNGE`; another `3600` exists near the lower page edge                                   | vector elevation has sliders around `3581/3598 x 2049/2125`; floor gap relationship is not row-safe                                                       | no clean floor-plan W x H label row; future face-signature/elevation proof may recover it, but this clean-label slice cannot                                                         | missing usable evidence                                        | floor-plan width/elevation diagnostic only; no schedule, visual audit, or door-hit authority.        |
+| `fenner-sc-14` | Garage window                             |   1 | missing/conflict | width-only `2000`                                                      | width 2000, height null                     | null | width text p1 near `(709.9,175.3)`                                           | nearby text includes garage services notes; nearest rooms `PANTRY`/`GARAGE` are close but not decisive  | nearest exterior gap routes to `PANTRY`; only soft elevation context exists                                                                               | there is no clean current floor-plan W x H label and no direct safe height witness in this slice; height and area remain null                                                        | missing usable evidence                                        | floor-plan width/elevation diagnostic only; no schedule, visual audit, or door-hit authority.        |
+| `fenner-sc-15` | Garage window                             |   1 | review-required  | `floorplan-label-4: 700 x 3000`                                        | 3000 x 700                                  | null | p1 `[695.13,363.08,731.13,377.08]`                                           | nearest room `LAUNDRY/MUDROOM`, second-nearest `GARAGE`; nearby `attic stairs` and laundry text         | nearest exterior gap is low-confidence/ambiguous near `LAUNDRY/MUDROOM`/`ENTRY`; vector elevation has `3048 x 597` context                                | dimensions likely describe a real opening, but benchmark says Garage while floor text/room/gap context points to a garage/laundry boundary; clean association is not safe            | benchmark/source ambiguity                                     | floor-plan label exists; no schedule, visual audit, or door-hit authority used.                      |
+| `fenner-sc-16` | Garage Door 1                             |   1 | review-required  | width-only `4800`; nearby `Insulated garage door`                      | width 4800, height null                     | null | width text p1 near `(850.4,271.4)`                                           | nearest room `GARAGE`; marker text says `Insulated garage door`                                         | vector elevation has `4873 x 2100` sectional garage-door candidate                                                                                        | this is a garage-door/face-anchor evidence class, not a clean floor-plan W x H exterior-window label; keep out of this recovery slice                                                | correctly review-required                                      | garage marker/elevation diagnostic only; no schedule, visual audit, or door-hit authority.           |
+| `fenner-sc-17` | Entrance front entry / sidelight assembly |   1 | review-required  | width-only `1400`; nearby `1030`; `floorplan-label-5: 2150 x 400`      | label piece 400 x 2150, assembly width 1400 | null | `2150 x 400` p1 `[595.32,392.93,631.32,406.93]`; `1400` near `(505.8,382.8)` | nearby `ENTRY`, `1030`, `2150x400`, `810`, coat cupboard and room footprint text                        | nearest exterior gap is low-confidence/ambiguous near `LAUNDRY/MUDROOM`/`ENTRY`                                                                           | split entry/sidelight evidence is not one clean opening label; `1030` is not used as an assumed height or width, and `2150 x 400` remains a sidelight piece                          | correctly review-required                                      | floor-plan text preserved as review evidence; no schedule, visual audit, or door-hit authority used. |
+
+Skylight check:
+
+- Raw `780 x 1400` labels with nearby `Skylight` text remain excluded by the parser.
+- They produce no clean exterior wall opening row and no exterior-wall review target.
+- False positives remain 0.
+
+Inventory decision:
+
+- No additional implementation is justified in this slice.
+- There are 0 safely recoverable clean-label misses left under the current evidence rules.
+- Rows with width-only plus elevation context should move to a separate face/elevation/garage-anchor
+  audit, not into the clean W x H label matcher.
+
 ## Commands Run
 
 ```powershell
 git status --short
+git branch --show-current
+git log --oneline -5
+npx tsx scripts/fenner-opening-ledger.mts
 npx vitest run tests/takeoff/floor-plan-label-recovery.test.ts tests/takeoff/opening-evidence-label-recovery.test.ts tests/takeoff/plan-text.test.ts tests/takeoff/plan-text-compose.test.ts tests/takeoff/floor-plan-text-height-witness.test.ts
 npx tsx - # parsed Fenner floor text and floor-plan label recovery assignments
 npx tsx - # post-commit follow-up audit over Fenner labels, gaps, elevation candidates, and ledger rows
+npx tsx - # remaining review/conflict inventory over Fenner benchmark rows
 ```
