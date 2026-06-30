@@ -4,7 +4,7 @@ JOB JM-0061
 JMW JM-0061
 PLAN VER. 1
 CLIENT Fenner Haydon ADDRESS Trial
-TAKEOFF RUN c2159cc7 / 30/06/2026, 08:40 NZT PRINTED 30/06/2026, 12:10 NZT
+TAKEOFF RUN c2159cc7 / 30/06/2026, 08:40 NZT PRINTED 30/06/2026, 13:14 NZT
 1 / Key measures Checked against plan [ ]
 Review Floor area (living) 249.9 m2 VIS / mid
 Review Garage area 36.3 m2 VEC
@@ -59,8 +59,8 @@ interior-door-cavity
 extracted2 - - - - 95 - / deterministic interior-door engine
 confirmed count
 WINDOWS/OPENINGS
-Clean count 9 Clean length - mm Clean area 17.630000000000003 m2 needs_review 19 missing 1 conflict 13
-ignored 0 confidence 75
+Clean count 9 Clean length - mm Clean area 17.63 m2 needs_review 19 missing 1 conflict 13 ignored 0
+confidence 75
 
 ---PAGE---
 

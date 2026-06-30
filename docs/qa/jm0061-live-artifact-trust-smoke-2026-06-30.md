@@ -4,19 +4,19 @@ Result: PASS
 
 Scope:
 - JM-0061 / Fenner live artifact smoke from current local main.
-- Generated fresh verification PDF and workbook through the browser against `http://127.0.0.1:5187`.
+- Generated fresh verification PDF and workbook through the browser against `http://127.0.0.1:5188`.
 - Inspected saved PDF text, Quick Export page text, and workbook cells.
 - No extraction, detector, tolerance, pricing, correction UI, or ledger authority changes were made.
 
 Committed review packet:
-- `docs/qa/jm0061-live-artifact-trust-smoke-2026-06-30/JM-0061-Fenner-1f627c6-verification.pdf`
-- `docs/qa/jm0061-live-artifact-trust-smoke-2026-06-30/JM-0061-Fenner-1f627c6.xlsx`
-- `docs/qa/jm0061-live-artifact-trust-smoke-2026-06-30/JM-0061-Fenner-1f627c6-pdf-text.txt`
-- `docs/qa/jm0061-live-artifact-trust-smoke-2026-06-30/JM-0061-Fenner-1f627c6-export-page-text.txt`
-- `docs/qa/jm0061-live-artifact-trust-smoke-2026-06-30/JM-0061-Fenner-1f627c6-workbook-inspection.json`
+- `docs/qa/jm0061-live-artifact-trust-smoke-2026-06-30/JM-0061-Fenner-347dd02-verification.pdf`
+- `docs/qa/jm0061-live-artifact-trust-smoke-2026-06-30/JM-0061-Fenner-347dd02.xlsx`
+- `docs/qa/jm0061-live-artifact-trust-smoke-2026-06-30/JM-0061-Fenner-347dd02-pdf-text.txt`
+- `docs/qa/jm0061-live-artifact-trust-smoke-2026-06-30/JM-0061-Fenner-347dd02-export-page-text.txt`
+- `docs/qa/jm0061-live-artifact-trust-smoke-2026-06-30/JM-0061-Fenner-347dd02-workbook-inspection.json`
 
 Artifact hashes:
-- PDF SHA256: `09AF41301A2A063C8266796DF53802CEA7FA332BED1BB02E604AD9AAD15FF5F7`
+- PDF SHA256: `69BF33EC916C73B980650B9648FCE451FBCDA162C7FFEE8C70F8B30A8E9654CE`
 - Workbook SHA256: `A6969C8D729C0063955F9EA292B52537AF325678B06CCF06DC428EEAD730126F`
 
 ## Artifact Findings
@@ -27,6 +27,8 @@ PDF:
 - Practical opening block count: 1.
 - External wall area blocked wording count: 1.
 - Page 1 external wall area now states: `Review External wall area Not calculated - opening reconciliation required m2 DRV`.
+- Extracted Quantity summary area is rounded: `Clean count 9 Clean length - mm Clean area 17.63 m2 needs_review 19 missing 1 conflict 13 ignored 0`.
+- Raw floating point summary output absent: no `17.630000000000003`.
 
 Workbook:
 - Sheets after: `Cover`, `Review flags`, `Extracted Quantities`, `5. Data Input House `, `IQ Import`.
@@ -35,6 +37,7 @@ Workbook:
 - Old `OPENING PRICING BLOCKED` wording absent.
 - Practical opening block count: 1, in `Review flags!B31`.
 - `IQ Import` carries only a pointer: `Review flags required before pricing windows, openings, or cladding from this export.`
+- Inspection JSON now reports `masterbed1100x800: 2`.
 
 Quick Export page:
 - Raw repeated row text removed.
@@ -51,6 +54,7 @@ PDF after:
 - No `Ã` size separator hits.
 - No `AI opening check` hits.
 - `Review External wall area Not calculated - opening reconciliation required m2 DRV`
+- `Clean count 9 Clean length - mm Clean area 17.63 m2 needs_review 19 missing 1 conflict 13 ignored 0`
 
 Workbook before:
 - Sheet name: `Review Notes`.
@@ -77,10 +81,11 @@ MASTERBED rows:
 
 Passed:
 - `git diff --check`
-- `npx vitest run src/lib/__tests__/verification-model.test.ts tests/convergence/qs-export-flags.test.ts tests/convergence/qs-export-flat-openings.test.ts`
 - `npx tsc --noEmit`
+- `npx vitest run src/lib/__tests__/verification-model.test.ts tests/convergence/qs-export-flags.test.ts tests/convergence/qs-export-flat-openings.test.ts`
 - `npm run test` - 103 files passed, 9 skipped; 996 tests passed, 1 expected fail, 26 skipped.
 - `npm run build` - Vitest pass plus production Vite build and postbuild passed.
+- Regenerated artifact scans: PDF forbidden token scan passed, workbook forbidden token scan passed, external wall blocked wording present, practical opening block count 1, clean totals unchanged, MASTERBED 1100 x 800 rows counted as 2.
 
 Notes:
 - Temporary smoke working files under `output/` are not committed.

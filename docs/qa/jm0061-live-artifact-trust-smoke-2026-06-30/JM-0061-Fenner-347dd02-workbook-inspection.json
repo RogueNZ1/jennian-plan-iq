@@ -13,7 +13,7 @@
   "cleanWindowArea": 17.63,
   "cleanInteriorDoors": 20,
   "perimeterLm": 89.1,
-  "masterbed1100x800": 0,
+  "masterbed1100x800": 2,
   "openingReviewCells": [
     {
       "sheet": "Review flags",
