@@ -2,7 +2,7 @@
 
 ## Result
 
-PASS WITH WARNINGS after a tiny render/export-boundary fix.
+PASS WITH WARNINGS after a tiny render/export-boundary fix and production redeploy.
 
 The broken artifact Haydon saw is a stale PDF/workbook generated before the customer-facing text cleanup was available in the artifact being viewed. Current production is serving commit `5663891a5de7fb00ce4f465edb70a41b05be11a7`, and a fresh production verification PDF generated from JM-0061 no longer shows the mojibake or old opening-pricing wording.
 
@@ -14,7 +14,9 @@ Haydon was seeing an old artifact, not current production output. The broken art
 
 Production itself is not stale: `/version.json` reports `5663891a5de7fb00ce4f465edb70a41b05be11a7`. The browser loaded current production verification/export/review routes, and the fresh production PDF matched the cleaned customer-facing wording.
 
-The only live defect still proven on current production was numeric formatting in customer surfaces: Review showed `Clean area 17.630000000000003 m2`, and the workbook contained raw numeric cell values `17.630000000000003` even though Excel displayed `17.63`. The patch rounds exported/displayed area values to two decimals without touching extraction, pricing, correction UI, detector logic, tolerances, ledger authority, or recovery scoring.
+The only live defect still proven before this patch was numeric formatting in customer surfaces: Review showed `Clean area 17.630000000000003 m2`, and the workbook contained raw numeric cell values `17.630000000000003` even though Excel displayed `17.63`. The patch rounds exported/displayed area values to two decimals without touching extraction, pricing, correction UI, detector logic, tolerances, ledger authority, or recovery scoring.
+
+After pushing commit `92ed04392ff93dc441f996c4afa633b0c84ff0b4`, production `/version.json` served that commit and fresh production PDF/workbook/route scans passed.
 
 ## Scope
 
@@ -39,15 +41,22 @@ Local after-fix artifacts saved under `output/live-regression-audit-2026-06-30/l
 - Workbook SHA256: `38E049E4D89F14C4D68AFA626FEE3CB709A180F1968DCA62CEAED4DFDCF26ACE`
 - Generated: `2026-06-30T19:52:24.031Z` (`01/07/2026 07:52 NZT`)
 
+Post-deploy production artifacts saved under `output/live-regression-audit-2026-06-30/production-after-fix/`:
+
+- Production build: `92ed04392ff93dc441f996c4afa633b0c84ff0b4`
+- PDF SHA256: `E8087604BA393AE9B0BFBF6DF0FAC212CDCB4297D4135BF6F194762729C0E918`
+- Workbook SHA256: `38E049E4D89F14C4D68AFA626FEE3CB709A180F1968DCA62CEAED4DFDCF26ACE`
+- Generated: `2026-06-30T20:01:59.485Z` (`01/07/2026 08:01 NZT`)
+
 `output/` remains uncommitted.
 
 ## Artifact Comparison
 
-| Check | Broken user artifact | Signed-off packet | Fresh production | Local after fix |
+| Check | Broken user artifact | Signed-off packet | Fresh production before patch | Production after fix |
 | --- | --- | --- | --- | --- |
 | Run ID | `c2159cc7-aecd-4644-b339-fe3443acef9f` | `c2159cc7-aecd-4644-b339-fe3443acef9f` | `c2159cc7-aecd-4644-b339-fe3443acef9f` | `c2159cc7-aecd-4644-b339-fe3443acef9f` |
-| Printed timestamp | Around `30/06/2026 08:42 / 08:43 NZT` | Around `30/06/2026 13:14 NZT` | `01/07/2026 07:49 NZT` | `01/07/2026 07:52 NZT` |
-| PDF hash | Not available from uploaded view | Packet hash in committed review packet | `60707399D0C7581A0993AE3BAD4291D22DBBDDEB9699C1B2B43E6A60B0E3F3F9` | `8FBDCE0D20C5842E411567DD69028B226008FD91A7320D7A9CDB2FDAA13E79A5` |
+| Printed timestamp | Around `30/06/2026 08:42 / 08:43 NZT` | Around `30/06/2026 13:14 NZT` | `01/07/2026 07:49 NZT` | `01/07/2026 08:01 NZT` |
+| PDF hash | Not available from uploaded view | Packet hash in committed review packet | `60707399D0C7581A0993AE3BAD4291D22DBBDDEB9699C1B2B43E6A60B0E3F3F9` | `E8087604BA393AE9B0BFBF6DF0FAC212CDCB4297D4135BF6F194762729C0E918` |
 | PDF forbidden tokens | Present in the viewed artifact | None in packet scan | None | None |
 | External wall area wording | Dash/blank | `Not calculated - opening reconciliation required` | `Not calculated - opening reconciliation required` | `Not calculated - opening reconciliation required` |
 | Clean window area in PDF | `17.630000000000003 m2` with mojibake | `17.63 m2` | `17.63 m2` | `17.63 m2` |
@@ -100,7 +109,7 @@ Fresh production workbook scan before this patch:
 - MASTERBED 1100 x 800 rows: 2.
 - Defect: raw XLSX cell values still contained `17.630000000000003`.
 
-Local after-fix workbook scan:
+Post-deploy production workbook scan:
 
 - Forbidden hits: none.
 - Required text present: `Opening reconciliation blocked`, `Review flags`.
@@ -128,7 +137,7 @@ Fresh production Review route before this patch:
 - Forbidden hits: `17.630000000000003`.
 - Raw float count: 1.
 
-Local after-fix Review route:
+Post-deploy production Review route:
 
 - Forbidden hits: none.
 - Raw float count: 0.
@@ -175,7 +184,7 @@ The current production PDF no longer has that trust problem, but the workbook/Re
 
 ## Recommended Next Action
 
-Deploy the new commit, then regenerate and upload a fresh JM-0061 PDF/workbook review packet from production. The packet should include the generated artifacts and their inspection JSON, with the raw float token scan enabled for PDF, workbook, Verification route, Export route, and Review route.
+Replace any stale uploaded/shared JM-0061 PDF/workbook links with fresh artifacts generated from production commit `92ed04392ff93dc441f996c4afa633b0c84ff0b4`.
 
 ## What Was Not Changed
 
@@ -197,6 +206,9 @@ Commands run:
 - Production `/version.json`: `{"build":"5663891a5de7fb00ce4f465edb70a41b05be11a7"}`.
 - Generated fresh production PDF/workbook under `output/live-regression-audit-2026-06-30/`.
 - Generated fresh local after-fix PDF/workbook under `output/live-regression-audit-2026-06-30/local-after-fix/`.
+- Pushed commit `92ed04392ff93dc441f996c4afa633b0c84ff0b4` to `main`.
+- Production `/version.json` confirmed `{"build":"92ed04392ff93dc441f996c4afa633b0c84ff0b4"}`.
+- Generated fresh post-deploy production PDF/workbook under `output/live-regression-audit-2026-06-30/production-after-fix/`.
 - PDF forbidden token scan: passed.
 - Workbook forbidden token scan: passed after fix.
 - Review route forbidden token scan: passed after fix.
