@@ -119,6 +119,11 @@ function fmtLedgerCell(value: number | string | null | undefined): string {
   return value === null || value === undefined || value === "" ? "-" : String(value);
 }
 
+function fmtLedgerArea(value: number | null | undefined): string {
+  if (value === null || value === undefined || value === 0) return "-";
+  return value.toLocaleString("en-NZ", { maximumFractionDigits: 2 });
+}
+
 function bboxText(bbox: [number, number, number, number] | undefined): string {
   return bbox ? bbox.map((n) => Math.round(n * 100) / 100).join(", ") : "-";
 }
@@ -216,7 +221,7 @@ function LedgerQuantitySection({ model }: { model: VerificationModel }) {
           <div className="vledger-summary">
             <span>Clean count {category.cleanTotals.count}</span>
             <span>Clean length {category.cleanTotals.lengthMm || "-"} mm</span>
-            <span>Clean area {category.cleanTotals.areaM2 || "-"} m2</span>
+            <span>Clean area {fmtLedgerArea(category.cleanTotals.areaM2)} m2</span>
             <span>needs_review {category.statusCounts.needs_review}</span>
             <span>missing {category.statusCounts.missing_evidence}</span>
             <span>conflict {category.statusCounts.conflict}</span>
