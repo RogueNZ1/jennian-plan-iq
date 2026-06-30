@@ -8,12 +8,16 @@ Scope:
 - Inspected saved PDF text, Quick Export page text, and workbook cells.
 - No extraction, detector, tolerance, pricing, correction UI, or ledger authority changes were made.
 
-Generated artifacts, not committed:
-- `output/live-artifact-smoke-2026-06-30/JM-0061-Fenner-current-after-verification.pdf`
-- `output/live-artifact-smoke-2026-06-30/JM-0061-Fenner-current-after.xlsx`
-- `output/live-artifact-smoke-2026-06-30/current-after-pdf-text.txt`
-- `output/live-artifact-smoke-2026-06-30/current-after-export-page-text.txt`
-- `output/live-artifact-smoke-2026-06-30/current-after-workbook-inspection.json`
+Committed review packet:
+- `docs/qa/jm0061-live-artifact-trust-smoke-2026-06-30/JM-0061-Fenner-1f627c6-verification.pdf`
+- `docs/qa/jm0061-live-artifact-trust-smoke-2026-06-30/JM-0061-Fenner-1f627c6.xlsx`
+- `docs/qa/jm0061-live-artifact-trust-smoke-2026-06-30/JM-0061-Fenner-1f627c6-pdf-text.txt`
+- `docs/qa/jm0061-live-artifact-trust-smoke-2026-06-30/JM-0061-Fenner-1f627c6-export-page-text.txt`
+- `docs/qa/jm0061-live-artifact-trust-smoke-2026-06-30/JM-0061-Fenner-1f627c6-workbook-inspection.json`
+
+Artifact hashes:
+- PDF SHA256: `09AF41301A2A063C8266796DF53802CEA7FA332BED1BB02E604AD9AAD15FF5F7`
+- Workbook SHA256: `A6969C8D729C0063955F9EA292B52537AF325678B06CCF06DC428EEAD730126F`
 
 ## Artifact Findings
 
@@ -79,5 +83,6 @@ Passed:
 - `npm run build` - Vitest pass plus production Vite build and postbuild passed.
 
 Notes:
-- Temporary smoke files under `output/` are not committed.
+- Temporary smoke working files under `output/` are not committed.
+- The actual PDF/workbook review artifacts are committed in the review packet above.
 - Two throwaway `.test.ts` files created under `output/` during smoke setup were removed because Vitest picked them up during `npm run test`.

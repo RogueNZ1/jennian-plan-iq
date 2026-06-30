@@ -1,0 +1,819 @@
+{
+  "sheets": [
+    "Cover",
+    "Review flags",
+    "Extracted Quantities",
+    "5. Data Input House ",
+    "IQ Import"
+  ],
+  "forbiddenHits": [],
+  "practicalBlockCount": 1,
+  "reviewFlagsCount": 3,
+  "cleanWindowRows": 9,
+  "cleanWindowArea": 17.63,
+  "cleanInteriorDoors": 20,
+  "perimeterLm": 89.1,
+  "masterbed1100x800": 0,
+  "openingReviewCells": [
+    {
+      "sheet": "Review flags",
+      "addr": "A1",
+      "value": "Review flags - confirm each against the plan before pricing"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A6",
+      "value": "Internal wall (lm)"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A33",
+      "value": "Opening evidence - held-blocked-opening-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A34",
+      "value": "Opening evidence - held-blocked-opening-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A35",
+      "value": "Opening evidence - held-blocked-opening-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A36",
+      "value": "Opening evidence - held-blocked-opening-2"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A37",
+      "value": "Opening evidence - held-blocked-opening-2"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A38",
+      "value": "Opening evidence - held-blocked-opening-3"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A39",
+      "value": "Opening evidence - held-blocked-opening-3"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A40",
+      "value": "Opening evidence - held-blocked-opening-4"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A41",
+      "value": "Opening evidence - held-blocked-opening-4"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A42",
+      "value": "Opening evidence - held-blocked-opening-5"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A43",
+      "value": "Opening evidence - held-blocked-opening-5"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A44",
+      "value": "Opening evidence - held-blocked-opening-6"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A45",
+      "value": "Opening evidence - held-blocked-opening-6"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A46",
+      "value": "Opening evidence - held-blocked-opening-7"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A47",
+      "value": "Opening evidence - held-blocked-opening-7"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A48",
+      "value": "Opening evidence - held-blocked-opening-8"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A49",
+      "value": "Opening evidence - held-blocked-opening-8"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A50",
+      "value": "Opening evidence - held-blocked-opening-9"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A51",
+      "value": "Opening evidence - held-blocked-opening-9"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A52",
+      "value": "Opening evidence - held-blocked-opening-10"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A53",
+      "value": "Opening evidence - held-blocked-opening-10"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A54",
+      "value": "Opening evidence - held-blocked-opening-11"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A55",
+      "value": "Opening evidence - held-blocked-opening-11"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A56",
+      "value": "Opening evidence - held-blocked-opening-13"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A57",
+      "value": "Opening evidence - held-blocked-opening-13"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A58",
+      "value": "Opening evidence - held-blocked-opening-14"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A59",
+      "value": "Opening evidence - held-blocked-opening-14"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A60",
+      "value": "Opening evidence - quarantined-opening-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A61",
+      "value": "Opening evidence - quarantined-opening-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A62",
+      "value": "Opening evidence - quarantined-opening-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A63",
+      "value": "Opening evidence - quarantined-opening-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A64",
+      "value": "Opening evidence - quarantined-opening-2"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A65",
+      "value": "Opening evidence - quarantined-opening-2"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A66",
+      "value": "Opening evidence - quarantined-opening-2"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A67",
+      "value": "Opening evidence - quarantined-opening-2"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A68",
+      "value": "Opening evidence - visual-opening-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A69",
+      "value": "Opening evidence - visual-opening-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A70",
+      "value": "Opening evidence - visual-opening-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A71",
+      "value": "Opening evidence - visual-opening-2"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A72",
+      "value": "Opening evidence - visual-opening-2"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A73",
+      "value": "Opening evidence - visual-opening-3"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A74",
+      "value": "Opening evidence - visual-opening-3"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A75",
+      "value": "Opening evidence - visual-opening-4"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A76",
+      "value": "Opening evidence - visual-opening-4"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A77",
+      "value": "Opening evidence - visual-opening-5"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A78",
+      "value": "Opening evidence - visual-opening-5"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A79",
+      "value": "Opening evidence - visual-opening-6"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A80",
+      "value": "Opening evidence - visual-opening-6"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A81",
+      "value": "Opening evidence - visual-opening-7"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A82",
+      "value": "Opening evidence - visual-opening-7"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A83",
+      "value": "Opening evidence - visual-opening-8"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A84",
+      "value": "Opening evidence - visual-opening-8"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A85",
+      "value": "Opening evidence - visual-opening-8"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A86",
+      "value": "Opening evidence - visual-opening-9"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A87",
+      "value": "Opening evidence - visual-opening-9"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A88",
+      "value": "Opening evidence - visual-opening-9"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A89",
+      "value": "Opening evidence - visual-opening-9"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A90",
+      "value": "Opening evidence - visual-opening-9"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A91",
+      "value": "Opening evidence - visual-opening-10"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A92",
+      "value": "Opening evidence - visual-opening-10"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A93",
+      "value": "Opening evidence - visual-opening-10"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A94",
+      "value": "Opening evidence - visual-opening-10"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A95",
+      "value": "Opening evidence - visual-opening-11"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A96",
+      "value": "Opening evidence - visual-opening-11"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A97",
+      "value": "Opening evidence - visual-opening-12"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A98",
+      "value": "Opening evidence - visual-opening-12"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A99",
+      "value": "Opening evidence - visual-opening-13"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A100",
+      "value": "Opening evidence - visual-opening-14"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A101",
+      "value": "Opening evidence - visual-opening-14"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A102",
+      "value": "Opening evidence - visual-opening-15"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A103",
+      "value": "Opening evidence - visual-opening-15"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A104",
+      "value": "Opening evidence - visual-opening-16"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A105",
+      "value": "Opening evidence - visual-opening-17"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A106",
+      "value": "Opening evidence - visual-opening-17"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A107",
+      "value": "Opening evidence - visual-opening-18"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A108",
+      "value": "Opening evidence - visual-opening-18"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A109",
+      "value": "Opening evidence - visual-opening-19"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A110",
+      "value": "Opening evidence - visual-opening-19"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A111",
+      "value": "Opening evidence - drafting-issue-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A112",
+      "value": "Opening evidence - drafting-issue-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A113",
+      "value": "Opening evidence - drafting-issue-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A114",
+      "value": "Opening evidence - drafting-issue-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A115",
+      "value": "Opening evidence - floorplan-label-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A116",
+      "value": "Opening evidence - floorplan-label-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A117",
+      "value": "Opening evidence - floorplan-label-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A118",
+      "value": "Opening evidence - floorplan-label-2"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A119",
+      "value": "Opening evidence - floorplan-label-2"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A120",
+      "value": "Opening evidence - floorplan-label-3"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A121",
+      "value": "Opening evidence - floorplan-label-3"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A122",
+      "value": "Opening evidence - floorplan-label-3"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A123",
+      "value": "Opening evidence - floorplan-label-4"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A124",
+      "value": "Opening evidence - floorplan-label-4"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A125",
+      "value": "Opening evidence - floorplan-label-4"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A126",
+      "value": "Opening evidence - floorplan-label-5"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A127",
+      "value": "Opening evidence - floorplan-label-5"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A128",
+      "value": "Opening evidence - floorplan-label-5"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A129",
+      "value": "Opening evidence - floorplan-label-6"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A130",
+      "value": "Opening evidence - floorplan-label-6"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A131",
+      "value": "Opening evidence - floorplan-label-6"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A132",
+      "value": "Opening evidence - floorplan-label-7"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A133",
+      "value": "Opening evidence - floorplan-label-7"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A134",
+      "value": "Opening evidence - floorplan-label-7"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A135",
+      "value": "Opening evidence - floorplan-label-8"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A136",
+      "value": "Opening evidence - floorplan-label-8"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A137",
+      "value": "Opening evidence - floorplan-label-8"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A138",
+      "value": "Opening evidence - floorplan-label-9"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A139",
+      "value": "Opening evidence - floorplan-label-9"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A140",
+      "value": "Opening evidence - floorplan-label-9"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A141",
+      "value": "Opening evidence - floorplan-label-10"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A142",
+      "value": "Opening evidence - floorplan-label-10"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A143",
+      "value": "Opening evidence - floorplan-label-11"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A144",
+      "value": "Opening evidence - floorplan-label-11"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A145",
+      "value": "Opening evidence - floorplan-label-11"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A146",
+      "value": "Opening evidence - floorplan-label-13"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A147",
+      "value": "Opening evidence - floorplan-label-13"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A148",
+      "value": "Opening evidence - floorplan-gap-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A149",
+      "value": "Opening evidence - floorplan-gap-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A150",
+      "value": "Opening evidence - floorplan-gap-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A151",
+      "value": "Opening evidence - floorplan-gap-1"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A152",
+      "value": "Opening evidence - floorplan-gap-2"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A153",
+      "value": "Opening evidence - floorplan-gap-2"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A154",
+      "value": "Opening evidence - floorplan-gap-2"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A155",
+      "value": "Opening evidence - floorplan-gap-3"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A156",
+      "value": "Opening evidence - floorplan-gap-3"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A157",
+      "value": "Opening evidence - floorplan-gap-3"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A158",
+      "value": "Opening evidence - floorplan-gap-4"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A159",
+      "value": "Opening evidence - floorplan-gap-4"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A160",
+      "value": "Opening evidence - floorplan-gap-4"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A161",
+      "value": "Opening evidence - floorplan-gap-5"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A162",
+      "value": "Opening evidence - floorplan-gap-5"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A163",
+      "value": "Opening evidence - floorplan-gap-5"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A164",
+      "value": "Opening evidence - floorplan-gap-6"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A165",
+      "value": "Opening evidence - floorplan-gap-6"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A166",
+      "value": "Opening evidence - floorplan-gap-6"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A167",
+      "value": "Opening evidence - floorplan-gap-7"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A168",
+      "value": "Opening evidence - floorplan-gap-7"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A169",
+      "value": "Opening evidence - floorplan-gap-7"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A170",
+      "value": "Opening evidence - floorplan-gap-7"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A171",
+      "value": "Opening evidence - floorplan-gap-8"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A172",
+      "value": "Opening evidence - floorplan-gap-8"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A173",
+      "value": "Opening evidence - floorplan-gap-8"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A174",
+      "value": "Opening evidence - floorplan-gap-9"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A175",
+      "value": "Opening evidence - floorplan-gap-9"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A176",
+      "value": "Opening evidence - floorplan-gap-9"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A177",
+      "value": "Opening evidence - floorplan-gap-9"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A178",
+      "value": "Opening evidence - floorplan-gap-10"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A179",
+      "value": "Opening evidence - floorplan-gap-10"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A180",
+      "value": "Opening evidence - floorplan-gap-10"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A181",
+      "value": "Opening evidence - floorplan-gap-11"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A182",
+      "value": "Opening evidence - floorplan-gap-11"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A183",
+      "value": "Opening evidence - floorplan-gap-11"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A184",
+      "value": "Opening evidence - floorplan-gap-11"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A185",
+      "value": "Opening evidence - floorplan-gap-12"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A186",
+      "value": "Opening evidence - floorplan-gap-12"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A187",
+      "value": "Opening evidence - floorplan-gap-12"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A188",
+      "value": "Opening evidence - floorplan-gap-12"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A189",
+      "value": "Opening evidence - floorplan-gap-13"
+    },
+    {
+      "sheet": "Review flags",
+      "addr": "A190",
+      "value": "Opening evidence - floorplan-gap-13"
+    }
+  ]
+}

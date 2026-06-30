@@ -1,0 +1,500 @@
+Jennian IQ
+Plans · Quantities · Pricing · Procurement
+Dashboard
+Jobs
+Upload Plan
+Quantity Review
+Modules
+Reports
+Users
+ESTIMATING WORKSPACE
+Plans, quantities and pricing preparation.
+WORKSPACE
+Jennian Homes Manawātū
+TJ
+Jobs
+JM-0061
+Quick Export
+Quick Export
+
+Fenner Haydon / Trial
+
+Back to Job
+Verification Printout
+Export to Excel - JM-0061-IQ-Data-Haydon.xlsx
+Copy IQ Import block
+Review flags - confirm against the plan before pricing
+Floor area
+Floor area: rejected geometry candidate 317.62; floor_area_m2: geometry=317.62, printed=249.9, diff=27.1%. Using vision/title-block candidate 249.9.
+Garage area
+reconciliation: garage area taken from the plan's printed room dims (6050x6000 = 36.3 m2).
+Internal wall (lm)
+Review ribbon-trace v1 - deterministic from the plan's wall pairs (38 ribbons); known ~+25% joinery bias, VERIFY before pricing. Not exported.
+Windows by room
+Visual QS retained external-wall openings as review evidence only; deterministic geometry, schedule, or approved measured evidence must promote priceable openings.
+O1: visual opening retained as evidence only; not promoted into QS openings.
+O2: visual opening retained as evidence only; not promoted into QS openings.
+O3: visual opening retained as evidence only; not promoted into QS openings.
+O4: visual opening retained as evidence only; not promoted into QS openings.
+O5: visual opening retained as evidence only; not promoted into QS openings.
+O6: visual opening retained as evidence only; not promoted into QS openings.
+O7: visual opening retained as evidence only; not promoted into QS openings.
+O8: visual opening retained as evidence only; not promoted into QS openings.
+O9: visual marker rejected by floor-plan validation; not promoted.
+O10: visual garage door size unreadable; not promoted.
+O10: visual opening retained as evidence only; not promoted into QS openings.
+O11: visual opening retained as evidence only; not promoted into QS openings.
+O12: visual opening retained as evidence only; not promoted into QS openings.
+O13: visual opening retained as evidence only; not promoted into QS openings.
+O14: visual opening retained as evidence only; not promoted into QS openings.
+O15: visual opening retained as evidence only; not promoted into QS openings.
+O16: visual opening retained as evidence only; not promoted into QS openings.
+O17: visual opening size unreadable; retained as review evidence only.
+O17: visual opening retained as evidence only; not promoted into QS openings.
+O18: visual opening retained as evidence only; not promoted into QS openings.
+O19: visual opening retained as evidence only; not promoted into QS openings.
+Laundry Mudroom: pa_door 1.03m x 2.1m quarantined from pricing (asserted height).
+Entry: entrance 0m x 2.1m quarantined from pricing (missing width, asserted height).
+Opening reconciliation blocked Floor-plan and elevation opening counts disagree. Use Extracted Quantities Review; do not price openings or cladding from this run. Detail: review found 17 QS-glazed external openings; composed opening set has 13.
+Garage door
+Garage door recovered from elevation-face-5 elevation vector candidate 4873x2100mm and snapped to QS size 4.8x2.1.
+Opening evidence - held-blocked-opening-1
+Status: not priced; held_blocked; type window; near FAMILY; width 2400mm; height 1300mm
+vector dimension (width 2400mm, height 1300mm, near FAMILY): window opening has complete dimensions but is held out of pricing from vector
+Conflicts: visual_reconciliation_error
+Opening evidence - held-blocked-opening-2
+Status: not priced; held_blocked; type window; near DINING; width 2400mm; height 1300mm
+vector dimension (width 2400mm, height 1300mm, near DINING): window opening has complete dimensions but is held out of pricing from vector
+Opening evidence - held-blocked-opening-3
+Status: not priced; held_blocked; type window; near DINING; width 1500mm; height 1100mm
+vector dimension (width 1500mm, height 1100mm, near DINING): window opening has complete dimensions but is held out of pricing from vector
+Opening evidence - held-blocked-opening-4
+Status: not priced; held_blocked; type window; near LAUNDRY/MUDROOM; width 3000mm; height 700mm
+vector dimension (width 3000mm, height 700mm, near LAUNDRY/MUDROOM): window opening has complete dimensions but is held out of pricing from vector
+Opening evidence - held-blocked-opening-5
+Status: not priced; held_blocked; type window; near STUDY/BED4; width 400mm; height 2150mm
+vector dimension (width 400mm, height 2150mm, near STUDY/BED4): window opening has complete dimensions but is held out of pricing from vector
+Opening evidence - held-blocked-opening-6
+Status: not priced; held_blocked; type window; near STUDY/BED4; width 1500mm; height 1300mm
+vector dimension (width 1500mm, height 1300mm, near STUDY/BED4): window opening has complete dimensions but is held out of pricing from vector
+Opening evidence - held-blocked-opening-7
+Status: not priced; held_blocked; type window; near ENSUITE; width 600mm; height 2150mm
+vector dimension (width 600mm, height 2150mm, near ENSUITE): window opening has complete dimensions but is held out of pricing from vector
+Opening evidence - held-blocked-opening-8
+Status: not priced; held_blocked; type window; near ENSUITE; width 600mm; height 1100mm
+vector dimension (width 600mm, height 1100mm, near ENSUITE): window opening has complete dimensions but is held out of pricing from vector
+Opening evidence - held-blocked-opening-9
+Status: not priced; held_blocked; type window; near BATH; width 1200mm; height 1100mm
+vector dimension (width 1200mm, height 1100mm, near BATH): window opening has complete dimensions but is held out of pricing from vector
+Opening evidence - held-blocked-opening-10
+Status: not priced; held_blocked; type window; near BED2; width 1500mm; height 1300mm
+vector dimension (width 1500mm, height 1300mm, near BED2): window opening has complete dimensions but is held out of pricing from vector
+Opening evidence - held-blocked-opening-11
+Status: not priced; held_blocked; type window; near MASTERBED; width 800mm; height 1100mm
+vector dimension (width 800mm, height 1100mm, near MASTERBED): window opening has complete dimensions but is held out of pricing from vector
+Opening evidence - held-blocked-opening-13
+Status: not priced; held_blocked; type window; near BED3; width 2400mm; height 1300mm
+vector dimension (width 2400mm, height 1300mm, near BED3): window opening has complete dimensions but is held out of pricing from vector
+Opening evidence - held-blocked-opening-14
+Status: not priced; held_blocked; type sectional_door; near Garage; width 4800mm; height 2100mm
+vector dimension (width 4800mm, height 2100mm, near Garage): sectional_door opening has complete dimensions but is held out of pricing from vector
+Opening evidence - quarantined-opening-1
+Status: not priced; review; type pa_door; near Laundry Mudroom; width 1030mm; height 2100mm
+height assumed standard 2.1m - confirm against the elevation/joinery schedule
+floorplan_text dimension (width 1030mm, height 2100mm, near Laundry Mudroom): pa_door opening held out of pricing from floorplan_text
+Conflicts: asserted_height
+Opening evidence - quarantined-opening-2
+Status: not priced; review; type entrance; near Entry; width 0mm; height 2100mm
+width unresolved - confirm against plan
+vector dimension (width 0mm, height 2100mm, near Entry): entrance opening held out of pricing from vector
+Conflicts: missing_width, asserted_height
+Opening evidence - visual-opening-1
+Status: not priced; review; type window; near Master Bed; width 600mm; height 1100mm
+Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it.
+vision dimension (width 600mm, height 1100mm, near Master Bed): printed 1100x600 on Master Bed south wall; marker placed on window symbol in external wall
+Opening evidence - visual-opening-2
+Status: not priced; review; type window; near Ensuite; width 600mm; height 2130mm
+vision dimension (width 600mm, height 2130mm, near Ensuite): printed 2130x600 on Ensuite south wall; marker placed on window line
+Opening evidence - visual-opening-3
+Status: not priced; review; type window; near Bath; width 600mm; height 1100mm
+vision dimension (width 600mm, height 1100mm, near Bath): printed 1100x600 on Bath south wall; marker placed on window symbol
+Opening evidence - visual-opening-4
+Status: not priced; review; type window; near Bed 2; width 1200mm; height 1100mm
+vision dimension (width 1200mm, height 1100mm, near Bed 2): printed 1100x1200 on Bed 2 south wall; marker placed on window line
+Opening evidence - visual-opening-5
+Status: not priced; review; type window; near Bed 3; width 1300mm; height 1300mm
+vision dimension (width 1300mm, height 1300mm, near Bed 3): printed 1300x1300 on Bed 3 south wall; marker placed on window symbol
+Opening evidence - visual-opening-6
+Status: not priced; review; type window; near Bed 3; width 1510mm; height 1810mm
+vision dimension (width 1510mm, height 1810mm, near Bed 3): printed 1810x1510 on Bed 3 east wall; marker placed on window line
+Opening evidence - visual-opening-7
+Status: not priced; review; type window; near Study/Bed 4; width 1300mm; height 1300mm
+vision dimension (width 1300mm, height 1300mm, near Study/Bed 4): printed 1300x1300 on Study/Bed 4 east wall; marker placed on window symbol
+Opening evidence - visual-opening-8
+Status: not priced; review; type window; near Laundry/Mudroom; width 3000mm; height 700mm
+unusual height dimension
+vision dimension (width 3000mm, height 700mm, near Laundry/Mudroom): printed 700x3000 near Laundry/Mudroom; marker placed on window line in east wall
+Opening evidence - visual-opening-9
+Status: not priced; review; type pa_door; near Laundry/Mudroom; width 900mm; height 2100mm
+dimension not labelled
+visual marker not on verified floor-plan opening - not counted
+nearby dimensioned visual opening already represents this physical opening
+vision dimension (width 900mm, height 2100mm, near Laundry/Mudroom): door symbol visible on Laundry east wall leading to garage area; standard door assumed; marker on door opening
+Opening evidence - visual-opening-10
+Status: not priced; review; type sectional_door; near Garage
+marker position approximate
+marker not confirmed on physical opening
+vision candidate (near Garage): large garage opening visible on north wall of Garage; no clear dimension label on floor plan; elevation shows sectional door
+Opening evidence - visual-opening-11
+Status: not priced; review; type slider; near Pantry; width 1500mm; height 1100mm
+vision dimension (width 1500mm, height 1100mm, near Pantry): printed 1100x1500 on Pantry north wall; marker placed on opening line
+Opening evidence - visual-opening-12
+Status: not priced; review; type slider; near Dining; width 2400mm; height 1300mm
+vision dimension (width 2400mm, height 1300mm, near Dining): printed 1300x2400 on Dining north wall; marker placed on slider opening
+Opening evidence - visual-opening-13
+vision dimension (width 2400mm, height 1300mm, near Dining): printed 1300x2400 second slider on Dining north wall; marker placed on slider opening
+Opening evidence - visual-opening-14
+Status: not priced; review; type window; near Family; width 1400mm; height 790mm
+vision dimension (width 1400mm, height 790mm, near Family): printed 790x1400 on Family west wall; marker placed on window symbol
+Opening evidence - visual-opening-15
+Status: not priced; review; type slider; near Family; width 1730mm; height 1300mm
+vision dimension (width 1730mm, height 1300mm, near Family): printed 1300x1725 on Family west wall; marker placed on slider opening
+Opening evidence - visual-opening-16
+vision dimension (width 1400mm, height 790mm, near Family): printed 790x1400 on Family west wall lower; marker placed on window line
+Opening evidence - visual-opening-17
+Status: not priced; review; type slider; near Lounge
+vision candidate (near Lounge): slider opening visible on Lounge west wall to deck; no clear dimension label; elevation confirms slider presence
+Opening evidence - visual-opening-18
+Status: not priced; review; type window; near Master Bed; width 600mm; height 1320mm
+vision dimension (width 600mm, height 1320mm, near Master Bed): printed 1320x600 on Master Bed west wall; marker placed on window symbol
+Opening evidence - visual-opening-19
+Status: not priced; review; type entrance; near Entry; width 1000mm; height 2100mm
+vision dimension (width 1000mm, height 2100mm, near Entry): entry door visible on Entry west wall; standard entry door assumed; marker on door opening
+Opening evidence - drafting-issue-1
+Status: not priced; review; type unknown
+Malformed dimension label "1300x175036001300x1750" found on the floor plan; do not price from that label unless another source confirms the opening size.
+floorplan_text conflict: malformed floor-plan text is retained as evidence but is not priced unless another source confirms the opening
+Conflicts: 1300x175036001300x1750
+Opening evidence - floorplan-label-1
+Status: not priced; extracted; type window; near FAMILY; width 2400mm; height 1300mm
+Clean floor-plan W x H label 1300 x 2400 auto-recovered as evidence-only opening; not a pricing write.
+floorplan_text dimension (width 2400mm, height 1300mm, near FAMILY): clean floor-plan opening label 1300 x 2400 assigned to FAMILY by unique room proximity/order
+Opening evidence - floorplan-label-2
+Status: not priced; extracted; type window; near DINING; width 2400mm; height 1300mm
+floorplan_text dimension (width 2400mm, height 1300mm, near DINING): clean floor-plan opening label 1300 x 2400 assigned to DINING by unique room proximity/order
+Opening evidence - floorplan-label-3
+Status: not priced; review; type window; near DINING; width 1500mm; height 1100mm
+Floor-plan opening label 1100 x 1500 is not clean enough for automatic recovery: room/order assignment is ambiguous.
+floorplan_text dimension (width 1500mm, height 1100mm, near DINING): floor-plan opening label 1100 x 1500 retained for review: room/order assignment is ambiguous
+Opening evidence - floorplan-label-4
+Status: not priced; review; type window; near LAUNDRY/MUDROOM; width 3000mm; height 700mm
+Floor-plan opening label 700 x 3000 is not clean enough for automatic recovery: dimension band is large, narrow, or door-like; keep for review.
+floorplan_text dimension (width 3000mm, height 700mm, near LAUNDRY/MUDROOM): floor-plan opening label 700 x 3000 retained for review: dimension band is large, narrow, or door-like; keep for review
+Opening evidence - floorplan-label-5
+Status: not priced; review; type window; near STUDY/BED4; width 400mm; height 2150mm
+Floor-plan opening label 2150 x 400 is not clean enough for automatic recovery: dimension band is large, narrow, or door-like; keep for review.
+floorplan_text dimension (width 400mm, height 2150mm, near STUDY/BED4): floor-plan opening label 2150 x 400 retained for review: dimension band is large, narrow, or door-like; keep for review
+Opening evidence - floorplan-label-6
+Status: not priced; extracted; type window; near STUDY/BED4; width 1500mm; height 1300mm
+Clean floor-plan W x H label 1300 x 1500 auto-recovered as evidence-only opening; not a pricing write.
+floorplan_text dimension (width 1500mm, height 1300mm, near STUDY/BED4): clean floor-plan opening label 1300 x 1500 assigned to STUDY/BED4 by unique room proximity/order
+Opening evidence - floorplan-label-7
+Status: not priced; extracted; type window; near ENSUITE; width 600mm; height 2150mm
+Clean floor-plan W x H label 2150 x 600 auto-recovered as evidence-only opening; not a pricing write.
+floorplan_text dimension (width 600mm, height 2150mm, near ENSUITE): clean floor-plan opening label 2150 x 600 assigned to ENSUITE by unique room proximity/order
+Opening evidence - floorplan-label-8
+Status: not priced; review; type window; near ENSUITE; width 600mm; height 1100mm
+Floor-plan opening label 1100 x 600 is not clean enough for automatic recovery: dimension band is large, narrow, or door-like; keep for review.
+floorplan_text dimension (width 600mm, height 1100mm, near ENSUITE): floor-plan opening label 1100 x 600 retained for review: dimension band is large, narrow, or door-like; keep for review
+Opening evidence - floorplan-label-9
+Status: not priced; extracted; type window; near BATH; width 1200mm; height 1100mm
+Clean floor-plan W x H label 1100 x 1200 auto-recovered as evidence-only opening; not a pricing write.
+floorplan_text dimension (width 1200mm, height 1100mm, near BATH): clean floor-plan opening label 1100 x 1200 assigned to BATH by unique room proximity/order
+Opening evidence - floorplan-label-10
+Status: not priced; extracted; type window; near BED2; width 1500mm; height 1300mm
+floorplan_text dimension (width 1500mm, height 1300mm, near BED2): clean floor-plan opening label 1300 x 1500 assigned to BED2 by unique room proximity/order
+Opening evidence - floorplan-label-11
+Status: not priced; extracted; type window; near MASTERBED; width 800mm; height 1100mm
+Clean floor-plan W x H label 1100 x 800 auto-recovered as evidence-only opening; not a pricing write.
+floorplan_text dimension (width 800mm, height 1100mm, near MASTERBED): clean floor-plan opening label 1100 x 800 assigned to MASTERBED by unique room proximity/order
+Opening evidence - floorplan-label-13
+Status: not priced; extracted; type window; near BED3; width 2400mm; height 1300mm
+floorplan_text dimension (width 2400mm, height 1300mm, near BED3): clean floor-plan opening label 1300 x 2400 assigned to BED3 by unique room proximity/order
+Opening evidence - floorplan-gap-1
+Status: not priced; review; type unknown; near PANTRY; width 2750mm; height 1000mm
+Measured floor-plan wall gap 2747mm near PANTRY on exterior wall face V-111; elevation elevation-face-1 has matching width/height evidence, but its face is not matched to the floor-plan wall; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 2750mm, near PANTRY, wall V-111): measured floor-plan exterior wall gap near PANTRY; gap routed to PANTRY on the west side of the wall; height still needs text/elevation/schedule confirmation
+elevation_measurement height (width 2710mm, height 1000mm, near PANTRY, wall V-111): elevation-face-1 elevation opening confirms 2714mm width within 33mm of measured floor-plan gap; height 999mm recovered as evidence only.
+Opening evidence - floorplan-gap-2
+Status: not priced; review; type unknown; near ENSUITE; width 1990mm
+Measured floor-plan wall gap 1994mm near ENSUITE on exterior wall face V-52; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 1990mm, near ENSUITE, wall V-52): measured floor-plan exterior wall gap near ENSUITE; gap routed to ENSUITE on the east side of the wall; height still needs text/elevation/schedule confirmation
+Opening evidence - floorplan-gap-3
+Status: not priced; review; type unknown; near ENSUITE; width 380mm
+Measured floor-plan wall gap 381mm near ENSUITE on exterior wall face V-34; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 380mm, near ENSUITE, wall V-34): measured floor-plan exterior wall gap near ENSUITE; gap routed to ENSUITE on the east side of the wall; height still needs text/elevation/schedule confirmation
+Opening evidence - floorplan-gap-4
+Status: not priced; review; type unknown; near LOUNGE; width 4980mm
+Measured floor-plan wall gap 4983mm near LOUNGE on interior wall face V-77; gap routed to LOUNGE on the west side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 4980mm, near LOUNGE, wall V-77): measured floor-plan interior wall gap near LOUNGE; gap routed to LOUNGE on the west side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation
+Opening evidence - floorplan-gap-5
+Status: not priced; review; type unknown; near ENSUITE; width 4590mm
+Measured floor-plan wall gap 4589mm near ENSUITE on interior wall face V-61; gap routed to ENSUITE on the west side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 4590mm, near ENSUITE, wall V-61): measured floor-plan interior wall gap near ENSUITE; gap routed to ENSUITE on the west side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation
+Opening evidence - floorplan-gap-6
+Status: not priced; review; type unknown; near MASTERBED; width 4310mm
+Measured floor-plan wall gap 4310mm near MASTERBED on interior wall face H-60; gap routed to MASTERBED on the south side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 4310mm, near MASTERBED, wall H-60): measured floor-plan interior wall gap near MASTERBED; gap routed to MASTERBED on the south side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation
+Opening evidence - floorplan-gap-7
+Status: not priced; review; type unknown; near BATH; width 3650mm
+Measured floor-plan wall gap 3645mm near BATH on interior wall face H-99; gap is near BATH and WIR; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 3650mm, near BATH, wall H-99): measured floor-plan interior wall gap near BATH; gap is near BATH and WIR; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation
+Conflicts: WIR
+Opening evidence - floorplan-gap-8
+Status: not priced; review; type unknown; near MASTERBED; width 3630mm
+Measured floor-plan wall gap 3630mm near MASTERBED on interior wall face H-107; gap routed to MASTERBED on the north side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 3630mm, near MASTERBED, wall H-107): measured floor-plan interior wall gap near MASTERBED; gap routed to MASTERBED on the north side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation
+Opening evidence - floorplan-gap-9
+Status: not priced; review; type unknown; near STUDY/BED4; width 3180mm
+Measured floor-plan wall gap 3183mm near STUDY/BED4 on interior wall face V-95; gap is near STUDY/BED4 and ENTRY; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 3180mm, near STUDY/BED4, wall V-95): measured floor-plan interior wall gap near STUDY/BED4; gap is near STUDY/BED4 and ENTRY; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation
+Conflicts: ENTRY
+Opening evidence - floorplan-gap-10
+Status: not priced; review; type unknown; near MASTERBED; width 3110mm
+Measured floor-plan wall gap 3111mm near MASTERBED on interior wall face H-85; gap routed to MASTERBED on the south side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 3110mm, near MASTERBED, wall H-85): measured floor-plan interior wall gap near MASTERBED; gap routed to MASTERBED on the south side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation
+Opening evidence - floorplan-gap-11
+Status: not priced; review; type unknown; near BATH; width 1960mm
+Measured floor-plan wall gap 1960mm near BATH on exterior wall face V-83; gap is near BATH and BED2; keep room routing under review; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 1960mm, near BATH, wall V-83): measured floor-plan exterior wall gap near BATH; gap is near BATH and BED2; keep room routing under review; height still needs text/elevation/schedule confirmation
+Conflicts: BED2
+Opening evidence - floorplan-gap-12
+Status: not priced; review; type unknown; near BED2; width 1960mm
+Measured floor-plan wall gap 1960mm near BED2 on exterior wall face V-100; gap is near BED2 and BED3; keep room routing under review; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 1960mm, near BED2, wall V-100): measured floor-plan exterior wall gap near BED2; gap is near BED2 and BED3; keep room routing under review; height still needs text/elevation/schedule confirmation
+Conflicts: BED3
+Opening evidence - floorplan-gap-13
+Status: not priced; review; type unknown; near BED3; width 1960mm
+Measured floor-plan wall gap 1960mm near BED3 on exterior wall face V-103; gap is near BED3 and BED2; keep room routing under review; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 1960mm, near BED3, wall V-103): measured floor-plan exterior wall gap near BED3; gap is near BED3 and BED2; keep room routing under review; height still needs text/elevation/schedule confirmation
+Opening evidence - floorplan-gap-14
+Status: not priced; review; type unknown; near WIR; width 1880mm
+Measured floor-plan wall gap 1875mm near WIR on interior wall face V-62; gap routed to WIR on the west side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 1880mm, near WIR, wall V-62): measured floor-plan interior wall gap near WIR; gap routed to WIR on the west side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation
+Opening evidence - floorplan-gap-15
+Status: not priced; review; type unknown; near FAMILY; width 1870mm
+Measured floor-plan wall gap 1871mm near FAMILY on interior wall face H-60; gap routed to FAMILY on the north side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 1870mm, near FAMILY, wall H-60): measured floor-plan interior wall gap near FAMILY; gap routed to FAMILY on the north side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation
+Opening evidence - floorplan-gap-16
+Status: not priced; review; type unknown; near MASTERBED; width 1850mm
+Measured floor-plan wall gap 1854mm near MASTERBED on interior wall face V-33; gap routed to MASTERBED on the east side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 1850mm, near MASTERBED, wall V-33): measured floor-plan interior wall gap near MASTERBED; gap routed to MASTERBED on the east side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation
+Opening evidence - floorplan-gap-17
+Status: not priced; review; type unknown; near LAUNDRY/MUDROOM; width 1850mm
+Measured floor-plan wall gap 1848mm near LAUNDRY/MUDROOM on exterior wall face V-106; gap is near LAUNDRY/MUDROOM and ENTRY; keep room routing under review; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 1850mm, near LAUNDRY/MUDROOM, wall V-106): measured floor-plan exterior wall gap near LAUNDRY/MUDROOM; gap is near LAUNDRY/MUDROOM and ENTRY; keep room routing under review; height still needs text/elevation/schedule confirmation
+Opening evidence - floorplan-gap-18
+Status: not priced; review; type unknown; near MASTERBED; width 1770mm
+Measured floor-plan wall gap 1774mm near MASTERBED on interior wall face H-100; gap is near MASTERBED and ENSUITE; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 1770mm, near MASTERBED, wall H-100): measured floor-plan interior wall gap near MASTERBED; gap is near MASTERBED and ENSUITE; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation
+Conflicts: ENSUITE
+Opening evidence - floorplan-gap-19
+Status: not priced; review; type unknown; near FAMILY; width 1770mm
+Measured floor-plan wall gap 1767mm near FAMILY on interior wall face H-31; gap routed to FAMILY on the south side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 1770mm, near FAMILY, wall H-31): measured floor-plan interior wall gap near FAMILY; gap routed to FAMILY on the south side of the wall; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation
+Opening evidence - floorplan-gap-20
+Status: not priced; review; type unknown; near BATH; width 1660mm
+Measured floor-plan wall gap 1659mm near BATH on interior wall face H-87; gap is near BATH and LOUNGE; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 1660mm, near BATH, wall H-87): measured floor-plan interior wall gap near BATH; gap is near BATH and LOUNGE; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation
+Conflicts: LOUNGE
+Opening evidence - floorplan-gap-21
+Status: not priced; review; type unknown; width 510mm
+Measured floor-plan wall gap 508mm on interior wall face H-60; no room label found near the measured wall gap; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 510mm, wall H-60): measured floor-plan wall gap; room and height still need confirmation
+Opening evidence - floorplan-gap-22
+Status: not priced; review; type unknown; near BED2; width 470mm
+Measured floor-plan wall gap 466mm near BED2 on interior wall face H-91; gap is near BED2 and STUDY/BED4; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 470mm, near BED2, wall H-91): measured floor-plan interior wall gap near BED2; gap is near BED2 and STUDY/BED4; keep room routing under review; measured gap is on an interior wall line, so it is review-only until exterior wall identity is proven; height still needs text/elevation/schedule confirmation
+Conflicts: STUDY/BED4
+Opening evidence - floorplan-gap-23
+Status: not priced; review; type unknown; width 400mm
+Measured floor-plan wall gap 402mm on exterior wall face V-119; no room label found near the measured wall gap; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 400mm, wall V-119): measured floor-plan wall gap; room and height still need confirmation
+Opening evidence - floorplan-gap-24
+Measured floor-plan wall gap 398mm on exterior wall face V-51; no room label found near the measured wall gap; not priced until height/type/face are confirmed by text, elevation, schedule, or review.
+floorplan_gap width (width 400mm, wall V-51): measured floor-plan wall gap; room and height still need confirmation
+Core Measurements
+Floor Area
+249.9 m2
+Perimeter
+89.1 lm
+Stud Height
+2,400 mm
+Roof Pitch
+30°
+Garage Area
+36.3 m2
+Alfresco / Deck Area
+2.7 m2
+First Floor Area
+N/A
+Exterior Wall Length
+89.1 lm
+Exterior Wall Height
+2.4 m
+Paths / Patio
+-
+Driveway
+-
+Windows & Doors
+Review-only opening rows
+45 review-only candidates shown below for evidence only. Use Extracted Quantities Review before pricing openings or cladding.
+Type	Room	Qty	H (mm)	W (mm)	Notes
+Window	FAMILY	1	1300	2400	Candidate held-blocked-opening-1: not priced. | window opening has complete dimensions but is held out of pricing from vector | Conflict: opening reconciliation.
+Window	DINING	1	1300	2400	Candidate held-blocked-opening-2: not priced. | window opening has complete dimensions but is held out of pricing from vector | Conflict: opening reconciliation.
+Window	DINING	1	1100	1500	Candidate held-blocked-opening-3: not priced. | window opening has complete dimensions but is held out of pricing from vector | Conflict: opening reconciliation.
+Window	LAUNDRY/MUDROOM	1	700	3000	Candidate held-blocked-opening-4: not priced. | window opening has complete dimensions but is held out of pricing from vector | Conflict: opening reconciliation.
+Window	STUDY/BED4	1	2150	400	Candidate held-blocked-opening-5: not priced. | window opening has complete dimensions but is held out of pricing from vector | Conflict: opening reconciliation.
+Window	STUDY/BED4	1	1300	1500	Candidate held-blocked-opening-6: not priced. | window opening has complete dimensions but is held out of pricing from vector | Conflict: opening reconciliation.
+Window	ENSUITE	1	2150	600	Candidate held-blocked-opening-7: not priced. | window opening has complete dimensions but is held out of pricing from vector | Conflict: opening reconciliation.
+Window	ENSUITE	1	1100	600	Candidate held-blocked-opening-8: not priced. | window opening has complete dimensions but is held out of pricing from vector | Conflict: opening reconciliation.
+Window	BATH	1	1100	1200	Candidate held-blocked-opening-9: not priced. | window opening has complete dimensions but is held out of pricing from vector | Conflict: opening reconciliation.
+Window	BED2	1	1300	1500	Candidate held-blocked-opening-10: not priced. | window opening has complete dimensions but is held out of pricing from vector | Conflict: opening reconciliation.
+Window	MASTERBED	1	1100	800	Candidate held-blocked-opening-11: not priced. | window opening has complete dimensions but is held out of pricing from vector | Conflict: opening reconciliation.
+Window	MASTERBED	1	1100	800	Candidate held-blocked-opening-12: not priced. | window opening has complete dimensions but is held out of pricing from vector | Conflict: opening reconciliation.
+Window	BED3	1	1300	2400	Candidate held-blocked-opening-13: not priced. | window opening has complete dimensions but is held out of pricing from vector | Conflict: opening reconciliation.
+Garage Door	Garage	1	2100	4800	Candidate held-blocked-opening-14: not priced. | Garage door recovered from elevation-face-5 elevation vector candidate 4873x2100mm and snapped to QS size 4.8x2.1. | sectional_door opening has complete dimensions but is held out of pricing from vector | Conflict: opening reconciliation.
+External Door	Laundry Mudroom	1	2100	1030	Candidate quarantined-opening-1: not priced. | height assumed standard 2.1m - confirm against the elevation/joinery schedule | Laundry Mudroom: pa_door 1.03m x 2.1m quarantined from pricing (asserted height). | pa_door opening held out of pricing from floorplan_text | Conflicts: asserted_height
+Window	Master Bed	1	1100	600	Candidate visual-opening-1: not priced. | Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it. | printed 1100x600 on Master Bed south wall; marker placed on window symbol in external wall
+Window	Ensuite	1	2130	600	Candidate visual-opening-2: not priced. | Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it. | printed 2130x600 on Ensuite south wall; marker placed on window line
+Window	Bath	1	1100	600	Candidate visual-opening-3: not priced. | Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it. | printed 1100x600 on Bath south wall; marker placed on window symbol
+Window	Bed 2	1	1100	1200	Candidate visual-opening-4: not priced. | Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it. | printed 1100x1200 on Bed 2 south wall; marker placed on window line
+Window	Bed 3	1	1300	1300	Candidate visual-opening-5: not priced. | Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it. | printed 1300x1300 on Bed 3 south wall; marker placed on window symbol
+Window	Bed 3	1	1810	1510	Candidate visual-opening-6: not priced. | Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it. | printed 1810x1510 on Bed 3 east wall; marker placed on window line
+Window	Study/Bed 4	1	1300	1300	Candidate visual-opening-7: not priced. | Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it. | printed 1300x1300 on Study/Bed 4 east wall; marker placed on window symbol
+Window	Laundry/Mudroom	1	700	3000	Candidate visual-opening-8: not priced. | unusual height dimension | Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it. | printed 700x3000 near Laundry/Mudroom; marker placed on window line in east wall
+External Door	Laundry/Mudroom	1	2100	900	Candidate visual-opening-9: not priced. | dimension not labelled | visual marker not on verified floor-plan opening - not counted | nearby dimensioned visual opening already represents this physical opening | Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it. | door symbol visible on Laundry east wall leading to garage area; standard door assumed; marker on door opening
+Slider	Pantry	1	1100	1500	Candidate visual-opening-11: not priced. | Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it. | printed 1100x1500 on Pantry north wall; marker placed on opening line
+Slider	Dining	1	1300	2400	Candidate visual-opening-12: not priced. | Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it. | printed 1300x2400 on Dining north wall; marker placed on slider opening
+Slider	Dining	1	1300	2400	Candidate visual-opening-13: not priced. | Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it. | printed 1300x2400 second slider on Dining north wall; marker placed on slider opening
+Window	Family	1	790	1400	Candidate visual-opening-14: not priced. | Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it. | printed 790x1400 on Family west wall; marker placed on window symbol
+Slider	Family	1	1300	1730	Candidate visual-opening-15: not priced. | Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it. | printed 1300x1725 on Family west wall; marker placed on slider opening
+Window	Family	1	790	1400	Candidate visual-opening-16: not priced. | Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it. | printed 790x1400 on Family west wall lower; marker placed on window line
+Window	Master Bed	1	1320	600	Candidate visual-opening-18: not priced. | Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it. | printed 1320x600 on Master Bed west wall; marker placed on window symbol
+External Door	Entry	1	2100	1000	Candidate visual-opening-19: not priced. | dimension not labelled | Visual opening is evidence only; it is not priced until deterministic geometry/schedule proof promotes it. | entry door visible on Entry west wall; standard entry door assumed; marker on door opening
+Window	FAMILY	1	1300	2400	Candidate floorplan-label-1: not priced. | Clean floor-plan W x H label 1300 x 2400 auto-recovered as evidence-only opening; not a pricing write. | clean floor-plan opening label 1300 x 2400 assigned to FAMILY by unique room proximity/order
+Window	DINING	1	1300	2400	Candidate floorplan-label-2: not priced. | Clean floor-plan W x H label 1300 x 2400 auto-recovered as evidence-only opening; not a pricing write. | clean floor-plan opening label 1300 x 2400 assigned to DINING by unique room proximity/order
+Window	DINING	1	1100	1500	Candidate floorplan-label-3: not priced. | Floor-plan opening label 1100 x 1500 is not clean enough for automatic recovery: room/order assignment is ambiguous. | floor-plan opening label 1100 x 1500 retained for review: room/order assignment is ambiguous
+Window	LAUNDRY/MUDROOM	1	700	3000	Candidate floorplan-label-4: not priced. | Floor-plan opening label 700 x 3000 is not clean enough for automatic recovery: dimension band is large, narrow, or door-like; keep for review. | floor-plan opening label 700 x 3000 retained for review: dimension band is large, narrow, or door-like; keep for review
+Window	STUDY/BED4	1	2150	400	Candidate floorplan-label-5: not priced. | Floor-plan opening label 2150 x 400 is not clean enough for automatic recovery: dimension band is large, narrow, or door-like; keep for review. | floor-plan opening label 2150 x 400 retained for review: dimension band is large, narrow, or door-like; keep for review
+Window	STUDY/BED4	1	1300	1500	Candidate floorplan-label-6: not priced. | Clean floor-plan W x H label 1300 x 1500 auto-recovered as evidence-only opening; not a pricing write. | clean floor-plan opening label 1300 x 1500 assigned to STUDY/BED4 by unique room proximity/order
+Window	ENSUITE	1	2150	600	Candidate floorplan-label-7: not priced. | Clean floor-plan W x H label 2150 x 600 auto-recovered as evidence-only opening; not a pricing write. | clean floor-plan opening label 2150 x 600 assigned to ENSUITE by unique room proximity/order
+Window	ENSUITE	1	1100	600	Candidate floorplan-label-8: not priced. | Floor-plan opening label 1100 x 600 is not clean enough for automatic recovery: dimension band is large, narrow, or door-like; keep for review. | floor-plan opening label 1100 x 600 retained for review: dimension band is large, narrow, or door-like; keep for review
+Window	BATH	1	1100	1200	Candidate floorplan-label-9: not priced. | Clean floor-plan W x H label 1100 x 1200 auto-recovered as evidence-only opening; not a pricing write. | clean floor-plan opening label 1100 x 1200 assigned to BATH by unique room proximity/order
+Window	BED2	1	1300	1500	Candidate floorplan-label-10: not priced. | Clean floor-plan W x H label 1300 x 1500 auto-recovered as evidence-only opening; not a pricing write. | clean floor-plan opening label 1300 x 1500 assigned to BED2 by unique room proximity/order
+Window	MASTERBED	1	1100	800	Candidate floorplan-label-11: not priced. | Clean floor-plan W x H label 1100 x 800 auto-recovered as evidence-only opening; not a pricing write. | clean floor-plan opening label 1100 x 800 assigned to MASTERBED by unique room proximity/order
+Window	MASTERBED	1	1100	800	Candidate floorplan-label-12: not priced. | Clean floor-plan W x H label 1100 x 800 auto-recovered as evidence-only opening; not a pricing write. | clean floor-plan opening label 1100 x 800 assigned to MASTERBED by unique room proximity/order
+Window	BED3	1	1300	2400	Candidate floorplan-label-13: not priced. | Clean floor-plan W x H label 1300 x 2400 auto-recovered as evidence-only opening; not a pricing write. | clean floor-plan opening label 1300 x 2400 assigned to BED3 by unique room proximity/order
+Roofing
+Roof Pitch
+30°
+Ridge Type
+-
+Underlay
+-
+Coverage Area
+287.39
+Cladding
+Cladding Type 1
+BRICK
+Cladding Type 2
+-
+External Perimeter
+89.1
+Electrical
+LIGHTING
+LED downlights - living/dining/kitchen
+21 ea
+LED downlights - bedrooms
+12 ea
+LED downlights - hallways
+6 ea
+LED downlights - bathrooms/ensuites
+6 ea
+Exterior coach lights
+6 ea
+Vanity light bar - bathrooms
+3 ea
+Attic/storage light
+1 ea
+Dimmer switches
+9 ea
+Switching - single/double
+27 ea
+POWER
+Double GPOs - living/dining
+9 ea
+Double GPOs - kitchen
+9 ea
+Double GPOs - bedrooms
+12 ea
+Double GPOs - bathrooms (shaver)
+3 ea
+Double GPOs - garage
+6 ea
+Stove/oven circuit - 32A
+1 ea
+Dishwasher circuit
+1 ea
+Rangehood connection
+1 ea
+Washing machine circuit
+1 ea
+Dryer circuit
+1 ea
+Heat pump circuits (indoor + outdoor)
+2 ea
+Garage door operator circuit
+1 ea
+Hot water cylinder connection
+1 ea
+Mains switchboard (100A)
+1 ea
+Mains cable to boundary
+1 lot
+COMMUNICATIONS
+Cat 6 data points - living/office
+6 ea
+Cat 6 data points - bedrooms
+6 ea
+TV aerial points
+5 ea
+Network patch panel
+1 ea
+Doorbell/video intercom
+1 ea
+Smoke alarms (interconnected)
+5 ea
+MECHANICAL
+Bathroom exhaust fans
+3 ea
+Kitchen rangehood power point
+1 ea
+Heated towel rail connections
+3 ea
+Total Estimate (excl. GST)
+$11,020
+Plumbing
+
+No plumbing data extracted yet - run a takeoff with a specification document.
+
+Framing
+External Walls
+89.1
+Exterior Wall Length
+89.1
+Internal Walls
+117.8
+Linings
+Internal Wall Length
+117.8
