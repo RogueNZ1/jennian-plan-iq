@@ -45,7 +45,7 @@ const REPLACEMENTS: Array<[string | RegExp, string]> = [
 ];
 
 const MOJIBAKE_GUARD = new RegExp(
-  `${c(0x00c3)}|${c(0x00c2)}|${c(0x00e2)}${c(0x20ac)}|m${c(0x00c2)}?${c(0x00b2)}`,
+  `${c(0x00c3)}|${c(0x00c2)}|${c(0x00e2)}|m${c(0x00c2)}?${c(0x00b2)}`,
 );
 
 export function customerSafeText(value: string): string {
@@ -66,6 +66,14 @@ function rawCountDetail(raw: string): string | null {
   return `Detail: floor plan ${match[1]}, elevations ${match[2]}.`;
 }
 
+function openingReviewCountDetail(raw: string): string | null {
+  const match = raw.match(
+    /found\s*(\d+)\s*QS-glazed external openings.*?composed opening set has\s*(\d+)/i,
+  );
+  if (!match) return null;
+  return `Detail: review found ${match[1]} QS-glazed external openings; composed opening set has ${match[2]}.`;
+}
+
 export function formatOpeningMismatchWarning(raw: string | null | undefined): string | null {
   if (!raw || raw.trim() === "") return null;
   const safe = customerSafeText(raw);
@@ -81,10 +89,71 @@ export function formatOpeningMismatchWarning(raw: string | null | undefined): st
   return safe;
 }
 
+export function customerReviewFlagText(raw: string | null | undefined): string | null {
+  if (!raw || raw.trim() === "") return null;
+  const safe = customerSafeText(raw);
+  if (
+    /^Opening pricing blocked:/i.test(safe) ||
+    /AI opening check/i.test(safe) ||
+    /Visual QS reconciliation error/i.test(safe)
+  ) {
+    return [
+      OPENING_RECONCILIATION_BLOCKED,
+      OPENING_RECONCILIATION_BLOCKED_DETAIL,
+      openingReviewCountDetail(safe),
+    ]
+      .filter((part): part is string => !!part)
+      .join(" ");
+  }
+  return safe;
+}
+
 export function openingReconciliationBlockedFlags(details: string[] = []): string[] {
+  const normalizedDetails = details
+    .map(customerReviewFlagText)
+    .filter((detail): detail is string => !!detail)
+    .map((detail) =>
+      detail
+        .replace(OPENING_RECONCILIATION_BLOCKED, "")
+        .replace(OPENING_RECONCILIATION_BLOCKED_DETAIL, "")
+        .trim(),
+    )
+    .filter((detail) => detail !== "");
   return [
     OPENING_RECONCILIATION_BLOCKED,
     OPENING_RECONCILIATION_BLOCKED_DETAIL,
-    ...details.map(customerSafeText),
+    ...normalizedDetails,
   ];
+}
+
+export function customerOpeningEvidenceNoteText(raw: string | null | undefined): string {
+  if (!raw || raw.trim() === "") return "-";
+  const seen = new Set<string>();
+  const parts = raw
+    .split("|")
+    .map((part) => customerSafeText(part))
+    .map((part) => {
+      if (part.trim() === "") return null;
+      if (/^REVIEW ONLY\s*-\s*opening pricing blocked/i.test(part)) {
+        return null;
+      }
+      if (
+        /^Opening pricing blocked:/i.test(part) ||
+        /AI opening check/i.test(part) ||
+        /Visual QS reconciliation error/i.test(part)
+      ) {
+        return null;
+      }
+      if (/^Conflicts:\s*visual_reconciliation_error/i.test(part)) {
+        return "Conflict: opening reconciliation.";
+      }
+      return part;
+    })
+    .filter((part): part is string => !!part)
+    .filter((part) => {
+      if (seen.has(part)) return false;
+      seen.add(part);
+      return true;
+    });
+  return parts.length > 0 ? parts.join(" | ") : "-";
 }

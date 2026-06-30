@@ -24,7 +24,11 @@ import { composeTakeoff } from "../../src/lib/takeoff/compose-takeoff";
 import type { EnrichedTakeoff } from "../../src/lib/takeoff/enriched-takeoff";
 import type { TakeoffData } from "../../src/lib/takeoff/takeoff-types";
 import type { GeometryApiResult } from "../../src/lib/takeoff/geometry-api";
-import { REVIEW_FLAGS_LABEL, hasCustomerVisibleMojibake } from "../../src/lib/customer-facing-text";
+import {
+  REVIEW_FLAGS_LABEL,
+  customerOpeningEvidenceNoteText,
+  hasCustomerVisibleMojibake,
+} from "../../src/lib/customer-facing-text";
 
 // A realistic enriched takeoff from the frozen mcalevey fixtures (it carries the garage F-022
 // flag + the entrance unresolved-width flag — exactly the kind a QS must confirm).
@@ -329,6 +333,57 @@ describe("Slice 6 — export sheets: additive fallback + visible flags", () => {
     expect(text).toContain("Status: priced; priced");
     expect(text).toContain("Measured floor-plan wall gap promoted before global reconciliation.");
     expect(text).not.toContain("Conflicts: visual_reconciliation_error");
+  });
+
+  it("GENERATED WORKBOOK SHEET: customer-facing review strings are practical, deduped, and safe", () => {
+    const rawBlock =
+      "Opening pricing blocked: unresolved Visual QS reconciliation error. AI opening check found 17 QS-glazed external openings, but the composed opening set has 13. Reconcile before pricing.";
+    const ws = buildReviewNotesSheet([
+      { field: "External wall area", flags: [rawBlock] },
+      { field: "Opening evidence - raw duplicate", flags: [rawBlock] },
+    ]);
+    expect(ws).not.toBeNull();
+    const text = allText(ws!);
+    expect(text).toContain(REVIEW_FLAGS_LABEL);
+    expect(text).not.toContain("Review Notes");
+    expect(text).toContain("Opening reconciliation blocked");
+    expect(text).toContain(
+      "Use Extracted Quantities Review; do not price openings or cladding from this run.",
+    );
+    expect(text).toContain(
+      "Detail: review found 17 QS-glazed external openings; composed opening set has 13.",
+    );
+    expect(text).not.toContain("AI NOTES & ASSUMPTIONS");
+    expect(text).not.toContain("OPENING PRICING BLOCKED");
+    expect(text).not.toContain("Opening pricing blocked:");
+    expect(text).not.toContain("AI opening check");
+    expect(text).not.toContain("mÂ²");
+    expect(hasCustomerVisibleMojibake(text)).toBe(false);
+    expect((text.match(/Opening reconciliation blocked/g) ?? []).length).toBe(1);
+  });
+
+  it("EXPORT PAGE ROW NOTES: opening rows point to review flags without repeating raw blocker text", () => {
+    const rawBlock =
+      "Opening pricing blocked: unresolved Visual QS reconciliation error. AI opening check found 17 QS-glazed external openings, but the composed opening set has 13. Reconcile before pricing.";
+    const text = customerOpeningEvidenceNoteText(
+      [
+        "REVIEW ONLY - opening pricing blocked; do not price from this row until reconciled.",
+        "Candidate held-blocked-opening-1: not priced.",
+        rawBlock,
+        rawBlock,
+        "window opening has complete dimensions but is held out of pricing from vector",
+        "Conflicts: visual_reconciliation_error",
+      ].join(" | "),
+    );
+
+    expect(text).toContain("Candidate held-blocked-opening-1: not priced.");
+    expect(text).toContain("Conflict: opening reconciliation.");
+    expect(text).not.toContain("Review only - see Review flags");
+    expect(text).not.toContain("Opening pricing blocked:");
+    expect(text).not.toContain("AI opening check");
+    expect(text).not.toContain("Visual QS reconciliation error");
+    expect(text).not.toContain("OPENING PRICING BLOCKED");
+    expect(hasCustomerVisibleMojibake(text)).toBe(false);
   });
 
   it("BLOCKED: partial priced openings do not repopulate export window slots", () => {

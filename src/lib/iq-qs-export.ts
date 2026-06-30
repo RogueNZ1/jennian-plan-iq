@@ -35,6 +35,8 @@ import { buildExtractedQuantitiesSheet } from "@/lib/takeoff/extracted-quantity-
 import { loadExtractedQuantityAuthorityForJob } from "@/lib/takeoff/extracted-quantity-authority";
 import {
   REVIEW_FLAGS_LABEL,
+  customerOpeningEvidenceNoteText,
+  customerReviewFlagText,
   customerSafeText,
   formatOpeningMismatchWarning,
 } from "@/lib/customer-facing-text";
@@ -213,7 +215,7 @@ export type QSExportData = {
   }>;
   /**
    * Convergence Slice 6 - per-field review flags carried over from the persisted enriched
-   * takeoff (takeoff_runs.takeoff_json). Present (and surfaced in the .xlsx "Review Notes"
+   * takeoff (takeoff_runs.takeoff_json). Present (and surfaced in the .xlsx "Review flags"
    * sheet + the review UI) only when an enriched takeoff exists AND it carries flags; absent
    * for pre-convergence jobs (relational fallback) -> export is byte-identical to today.
    */
@@ -1219,7 +1221,7 @@ export { exportCartersLoads } from "@/lib/iq-carters-loads";
  * highlighted yellow so the estimator can filter/copy them straight into QS.
  */
 /**
- * Convergence Slice 6 - the "Review Notes" worksheet: one row per per-field discrepancy flag
+ * Convergence Slice 6 - the "Review flags" worksheet: one row per per-field discrepancy flag
  * carried over from the enriched takeoff, so a QS sees them before pricing. Returns null when
  * there are no flags (relational/pre-convergence jobs) so the workbook is unchanged from today.
  */
@@ -1235,10 +1237,15 @@ export function buildReviewNotesSheet(
   set("A3", "Field");
   set("B3", "Flag");
   let r = 4;
+  const seenFlags = new Set<string>();
   for (const f of reviewFlags) {
     for (const flag of f.flags) {
+      const displayFlag = customerReviewFlagText(flag);
+      if (!displayFlag) continue;
+      if (seenFlags.has(displayFlag)) continue;
+      seenFlags.add(displayFlag);
       set(`A${r}`, f.field);
-      set(`B${r}`, flag);
+      set(`B${r}`, displayFlag);
       r += 1;
     }
   }
@@ -1489,7 +1496,7 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
 
   if (data.openingPricingBlocked) {
     manual.unshift(
-      "Opening reconciliation blocked - use Extracted Quantities Review; do not price windows, openings, or cladding from this export.",
+      "Review flags required before pricing windows, openings, or cladding from this export.",
     );
   }
 
@@ -1877,12 +1884,11 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
       ws[`D${r}`] = { v: o.width_m, t: "n", s }; // 0 = unresolved; shown, not dropped
       ws[`E${r}`] = { v: o.area_m2, t: "n", s };
       ws[`F${r}`] = { v: o.glazed ? "Y" : "N", t: "s", s };
+      const openingNotes = customerOpeningEvidenceNoteText(o.flags?.join(" | ") ?? "");
       ws[`G${r}`] = {
         v: customerSafeText(
           data.openingPricingBlocked
-            ? `REVIEW ONLY - opening reconciliation blocked${
-                o.flags?.length ? `; ${o.flags.join("; ")}` : ""
-              }`
+            ? `Review-only evidence${openingNotes !== "-" ? ` - ${openingNotes}` : ""}`
             : (o.cladding ?? o.flags?.join("; ") ?? ""),
         ),
         t: "s",
@@ -1893,7 +1899,7 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
     if (data.openingPricingBlocked) {
       lbl(
         `A${r}`,
-        "Opening reconciliation blocked - see Review flags before pricing windows, openings, or cladding.",
+        "Review flags required before pricing windows, openings, or cladding.",
         instructionStyle,
       );
       r++;
@@ -2137,12 +2143,12 @@ export async function writeIQDataSheetFull(
   wsCover["!cols"] = [{ wch: 20 }, { wch: 40 }, { wch: 20 }, { wch: 12 }];
   XLSX.utils.book_append_sheet(wb, wsCover, "Cover");
 
-  // Convergence Slice 6 - Review Notes sheet: the per-field confidence flags carried over from
+  // Convergence Slice 6 - Review flags sheet: the per-field confidence flags carried over from
   // the enriched takeoff, placed prominently (right after the Cover) so a QS sees them before
   // pricing. Added ONLY when there are flags -> a pre-convergence/relational export (no flags)
   // is byte-identical to today.
   const wsFlags = buildReviewNotesSheet(data.reviewFlags);
-  if (wsFlags) XLSX.utils.book_append_sheet(wb, wsFlags, "Review Notes");
+  if (wsFlags) XLSX.utils.book_append_sheet(wb, wsFlags, REVIEW_FLAGS_LABEL);
   const wsExtractedQuantities = buildExtractedQuantitiesSheet(data.extractedQuantityReadModel);
   if (wsExtractedQuantities) {
     XLSX.utils.book_append_sheet(wb, wsExtractedQuantities, "Extracted Quantities");

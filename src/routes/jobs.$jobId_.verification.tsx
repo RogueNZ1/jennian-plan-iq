@@ -189,8 +189,8 @@ function LedgerQuantitySection({ model }: { model: VerificationModel }) {
     return (
       <div className="vbanner vbanner-compact">
         <strong>Extracted quantity ledger unavailable.</strong>
-        {q.warnings.map((warning) => (
-          <div key={warning}>{warning}</div>
+        {q.warnings.map((warning, index) => (
+          <div key={`${warning}-${index}`}>{warning}</div>
         ))}
       </div>
     );
@@ -203,8 +203,8 @@ function LedgerQuantitySection({ model }: { model: VerificationModel }) {
       </div>
       {q.warnings.length > 0 && (
         <div className="vbanner vbanner-compact">
-          {q.warnings.map((warning) => (
-            <div key={warning}>
+          {q.warnings.map((warning, index) => (
+            <div key={`${warning}-${index}`}>
               <strong>{warning}</strong>
             </div>
           ))}
@@ -302,8 +302,8 @@ function LedgerOverlaySection({ overlay }: { overlay: LedgerPlanOverlayModel }) 
       </div>
       {overlay.warnings.length > 0 && (
         <div className="vbanner vbanner-compact">
-          {overlay.warnings.map((warning) => (
-            <div key={warning}>
+          {overlay.warnings.map((warning, index) => (
+            <div key={`${warning}-${index}`}>
               <strong>{warning}</strong>
             </div>
           ))}
@@ -687,8 +687,8 @@ function VerificationPrintout() {
         <Section title="2  /  Windows & glazed openings">
           {m.windows.pricingBlockFlags.length > 0 && (
             <div className="vbanner vbanner-compact">
-              {m.windows.pricingBlockFlags.map((f) => (
-                <div key={f}>
+              {m.windows.pricingBlockFlags.map((f, index) => (
+                <div key={`${f}-${index}`}>
                   <strong>{f}</strong>
                 </div>
               ))}
@@ -696,8 +696,8 @@ function VerificationPrintout() {
           )}
           {m.windows.unplacedFlags.length > 0 && (
             <div className="vbanner vbanner-compact">
-              {m.windows.unplacedFlags.map((f) => (
-                <div key={f}>
+              {m.windows.unplacedFlags.map((f, index) => (
+                <div key={`${f}-${index}`}>
                   <strong>{f}</strong>
                 </div>
               ))}
@@ -863,8 +863,8 @@ function VerificationPrintout() {
                     <td className="vvalue">{m.doors.garageDoorSize}</td>
                     <td className="vsrc">{m.doors.garageDoorFlags.length > 0 ? "Review" : null}</td>
                   </tr>
-                  {m.doors.garageDoorFlags.map((flag) => (
-                    <tr key={flag}>
+                  {m.doors.garageDoorFlags.map((flag, index) => (
+                    <tr key={`${flag}-${index}`}>
                       <td />
                       <td colSpan={2} className="vflag">
                         {flag}
@@ -900,8 +900,8 @@ function VerificationPrintout() {
           <div className="vplan-detail-break" />
           {m.planOverlay.visualWarnings.length > 0 && (
             <div className="vbanner vbanner-compact">
-              {m.planOverlay.visualWarnings.map((w) => (
-                <div key={w}>
+              {m.planOverlay.visualWarnings.map((w, index) => (
+                <div key={`${w}-${index}`}>
                   <strong>{w}</strong>
                 </div>
               ))}
@@ -938,7 +938,7 @@ function VerificationPrintout() {
                       <td>{o.room ?? "-"}</td>
                       <td className="vvalue">
                         {o.height_m != null && o.width_m != null
-                          ? `${Math.round(o.height_m * 1000)} Ã- ${Math.round(o.width_m * 1000)}`
+                          ? `${Math.round(o.height_m * 1000)} x ${Math.round(o.width_m * 1000)}`
                           : (o.label ?? "-")}
                       </td>
                       <td>{o.confidence}</td>
@@ -1101,8 +1101,8 @@ function VerificationPrintout() {
               {m.exceptions.map((g) => (
                 <div key={g.field} className="vex-group">
                   <div className="vex-field">Review {g.field}</div>
-                  {g.flags.map((f) => (
-                    <div key={f} className="vex-flag">
+                  {g.flags.map((f, index) => (
+                    <div key={`${f}-${index}`} className="vex-flag">
                       {f}
                     </div>
                   ))}

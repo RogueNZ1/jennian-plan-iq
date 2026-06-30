@@ -422,6 +422,50 @@ describe("buildVerificationModel", () => {
     expect(m.doors.garageDoorFlags.join(" ")).toContain("review-only until reconciled");
   });
 
+  it("normalizes raw opening-pricing review text once in customer-facing verification strings", () => {
+    const rawBlock =
+      "Opening pricing blocked: unresolved Visual QS reconciliation error. AI opening check found 17 QS-glazed external openings, but the composed opening set has 13. Reconcile before pricing.";
+    const m = buildVerificationModel(
+      makeData({
+        openingPricingBlocked: true,
+        reviewFlags: [
+          { field: "External wall area", flags: [rawBlock] },
+          { field: "Opening evidence - raw duplicate", flags: [rawBlock] },
+        ],
+      }),
+      makeEnriched({
+        external_wall_area_m2: fv<number>(null, "derived", null, [rawBlock]),
+        opening_ai_check: {
+          method: "ai_opening_review",
+          required: true,
+          visualAuditPresent: true,
+          status: "blocked",
+          flags: [rawBlock],
+        },
+      }),
+      RUN,
+    );
+
+    const customerText = JSON.stringify({
+      pricingBlockFlags: m.windows.pricingBlockFlags,
+      exceptions: m.exceptions,
+    });
+    expect(customerText).toContain(OPENING_RECONCILIATION_BLOCKED);
+    expect(customerText).toContain(
+      "Use Extracted Quantities Review; do not price openings or cladding from this run.",
+    );
+    expect(customerText).toContain(
+      "Detail: review found 17 QS-glazed external openings; composed opening set has 13.",
+    );
+    expect(customerText).not.toContain("AI NOTES & ASSUMPTIONS");
+    expect(customerText).not.toContain("OPENING PRICING BLOCKED");
+    expect(customerText).not.toContain("Opening pricing blocked:");
+    expect(customerText).not.toContain("AI opening check");
+    expect(customerText).not.toContain("mÂ²");
+    expect(hasCustomerVisibleMojibake(customerText)).toBe(false);
+    expect((customerText.match(/Opening reconciliation blocked/g) ?? []).length).toBe(1);
+  });
+
   it("elevation mismatch warning leads with opening reconciliation blocked", () => {
     const m = buildVerificationModel(
       makeData({

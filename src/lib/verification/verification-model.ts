@@ -52,6 +52,8 @@ import {
 } from "./plan-overlay";
 import {
   EXTERNAL_WALL_AREA_BLOCKED,
+  OPENING_RECONCILIATION_BLOCKED,
+  customerReviewFlagText,
   customerSafeText,
   formatOpeningMismatchWarning,
   openingReconciliationBlockedFlags,
@@ -251,11 +253,13 @@ function fmtStr(v: string | null | undefined): string {
 function openingPricingBlockFlags(data: QSExportData, e: EnrichedTakeoff | null): string[] {
   const details: string[] = [];
   if (data.openingPricingBlocked) {
-    details.push("Opening pricing is blocked while the opening reconciliation is unresolved.");
+    details.push(
+      "Opening reconciliation is unresolved. Use Extracted Quantities Review before pricing.",
+    );
   }
   for (const flag of e?.external_wall_area_m2.discrepancy_flags ?? []) {
     if (flag.startsWith("Opening pricing blocked:")) {
-      details.push(customerSafeText(flag.replace(/^Opening pricing blocked:\s*/i, "Detail: ")));
+      details.push(flag);
     }
   }
   for (const issue of e?.visual_opening_reconciliation?.issues ?? []) {
@@ -266,9 +270,27 @@ function openingPricingBlockFlags(data: QSExportData, e: EnrichedTakeoff | null)
     }
   }
   for (const flag of e?.opening_ai_check?.flags ?? []) {
-    details.push(`Opening review detail: ${flag}`);
+    details.push(flag);
   }
   return details.length > 0 ? [...new Set(openingReconciliationBlockedFlags(details))] : [];
+}
+
+function customerReviewFlags(flags: string[], seen?: Set<string>): string[] {
+  const out: string[] = [];
+  for (const raw of flags) {
+    const flag = customerReviewFlagText(raw);
+    if (!flag) continue;
+    if (
+      seen?.has(OPENING_RECONCILIATION_BLOCKED) &&
+      flag.startsWith(OPENING_RECONCILIATION_BLOCKED)
+    ) {
+      continue;
+    }
+    if (seen?.has(flag)) continue;
+    seen?.add(flag);
+    out.push(flag);
+  }
+  return out;
 }
 
 function prov(f: FieldValue<unknown> | undefined | null): {
@@ -742,7 +764,7 @@ export function buildVerificationModel(
           ? ["Opening reconciliation blocked; garage door size is review-only until reconciled."]
           : [],
       )
-      .map(customerSafeText),
+      .map((flag) => customerReviewFlagText(flag) ?? customerSafeText(flag)),
     hardware,
   };
 
@@ -839,9 +861,11 @@ export function buildVerificationModel(
   };
 
   /* exceptions ------------------------------------------------------ */
+  const seenExceptionFlags = new Set<string>(pricingBlockFlags);
   const exceptions: ExceptionGroup[] = (data.reviewFlags ?? [])
     .filter((f) => f.flags.length > 0)
-    .map((f) => ({ field: f.field, flags: f.flags.map(customerSafeText) }));
+    .map((f) => ({ field: f.field, flags: customerReviewFlags(f.flags, seenExceptionFlags) }))
+    .filter((f) => f.flags.length > 0);
 
   /* integrity guard -------------------------------------------------- */
   // Same-composer doctrine means these can never diverge; if they do, something upstream

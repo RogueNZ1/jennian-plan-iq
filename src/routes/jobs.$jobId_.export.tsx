@@ -29,7 +29,12 @@ import {
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import { isBlockedReviewOnlyOpening } from "@/lib/opening-review-guards";
-import { REVIEW_FLAGS_LABEL, customerSafeText } from "@/lib/customer-facing-text";
+import {
+  REVIEW_FLAGS_LABEL,
+  customerOpeningEvidenceNoteText,
+  customerReviewFlagText,
+  customerSafeText,
+} from "@/lib/customer-facing-text";
 
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
 type OpeningRow = Database["public"]["Tables"]["opening_schedule"]["Row"];
@@ -79,6 +84,23 @@ function Row({ label, value }: { label: string; value: string }) {
 
 function EmptyNote({ text }: { text: string }) {
   return <p className="text-[12px] text-muted-foreground italic">{text}</p>;
+}
+
+function visibleReviewFlags(reviewFlags: QSExportData["reviewFlags"]) {
+  const seen = new Set<string>();
+  return (reviewFlags ?? [])
+    .map((f) => ({
+      field: f.field,
+      flags: f.flags
+        .map(customerReviewFlagText)
+        .filter((flag): flag is string => !!flag)
+        .filter((flag) => {
+          if (seen.has(flag)) return false;
+          seen.add(flag);
+          return true;
+        }),
+    }))
+    .filter((f) => f.flags.length > 0);
 }
 
 function QuickExport() {
@@ -156,6 +178,7 @@ function QuickExport() {
 
   const job = data;
   const blockedOpenings = openings.filter(isBlockedReviewOnlyOpening);
+  const reviewFlags = visibleReviewFlags(data?.reviewFlags);
 
   const surname = job ? job.clientSurname || job.clientName.split(" ").pop() || "Client" : "";
   const filename = job
@@ -231,7 +254,7 @@ function QuickExport() {
             {/* Convergence Slice 6 - confidence / review notes from the enriched takeoff.
                 Shown only when the persisted takeoff_json carried per-field flags; absent for
                 pre-convergence (relational) jobs, so those render exactly as before. */}
-            {data.reviewFlags && data.reviewFlags.length > 0 && (
+            {reviewFlags.length > 0 && (
               <div className="rounded-lg border border-amber-400/50 bg-amber-50/60 overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-400/40 bg-amber-100/50">
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
@@ -240,12 +263,12 @@ function QuickExport() {
                   </h3>
                 </div>
                 <div className="p-4 space-y-2">
-                  {data.reviewFlags.map((f) => (
+                  {reviewFlags.map((f) => (
                     <div key={f.field} className="text-[12px]">
                       <span className="font-semibold text-amber-900">{f.field}</span>
                       <ul className="mt-0.5 ml-4 list-disc text-amber-800/90">
                         {f.flags.map((flag, i) => (
-                          <li key={i}>{customerSafeText(flag)}</li>
+                          <li key={`${f.field}-${i}`}>{flag}</li>
                         ))}
                       </ul>
                     </div>
@@ -279,10 +302,11 @@ function QuickExport() {
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-confidence-low" />
                     <div>
-                      <div className="font-medium text-confidence-low">Opening pricing blocked</div>
+                      <div className="font-medium text-confidence-low">Review-only opening rows</div>
                       <div>
                         {blockedOpenings.length} review-only candidate
-                        {blockedOpenings.length === 1 ? "" : "s"} shown below for evidence only.
+                        {blockedOpenings.length === 1 ? "" : "s"} shown below for evidence only. Use
+                        Extracted Quantities Review before pricing openings or cladding.
                       </div>
                     </div>
                   </div>
@@ -323,7 +347,7 @@ function QuickExport() {
                           {o.height_mm ?? "-"}
                         </td>
                         <td className="py-1.5 pr-3 text-right tabular-nums">{o.width_mm}</td>
-                        <td className="py-1.5">{o.notes ?? "-"}</td>
+                        <td className="py-1.5">{customerOpeningEvidenceNoteText(o.notes)}</td>
                       </tr>
                     ))}
                   </tbody>
