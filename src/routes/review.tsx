@@ -662,6 +662,11 @@ function nullCell(value: number | string | null | undefined): string {
   return value === null || value === undefined || value === "" ? "null" : String(value);
 }
 
+function areaCell(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "null";
+  return String(Math.round(value * 100) / 100);
+}
+
 function bboxCell(bbox: [number, number, number, number] | undefined): string {
   return bbox ? bbox.map((n) => Math.round(n * 100) / 100).join(", ") : "null";
 }
@@ -757,7 +762,7 @@ function ExtractedQuantityLedgerReview({
             <span className="rounded-md bg-muted/40 px-2 py-1">
               Clean area{" "}
               <span className="font-medium text-foreground tabular-nums">
-                {model.cleanTotals.areaM2} m²
+                {areaCell(model.cleanTotals.areaM2)} m²
               </span>
             </span>
           </div>
@@ -866,7 +871,7 @@ function ExtractedQuantityLedgerReview({
                         <td className="px-4 py-2.5">{row.status}</td>
                         <td className="px-4 py-2.5 tabular-nums">{nullCell(row.widthMm)}</td>
                         <td className="px-4 py-2.5 tabular-nums">{nullCell(row.heightMm)}</td>
-                        <td className="px-4 py-2.5 tabular-nums">{nullCell(row.areaM2)}</td>
+                        <td className="px-4 py-2.5 tabular-nums">{areaCell(row.areaM2)}</td>
                         <td className="px-4 py-2.5">{row.source}</td>
                         <td className="px-4 py-2.5 text-xs text-muted-foreground">
                           <div className="max-w-[300px] whitespace-normal">
@@ -944,7 +949,7 @@ function ExtractedQuantityLedgerReview({
                       <td className="px-4 py-2.5 tabular-nums">{nullCell(row.widthMm)}</td>
                       <td className="px-4 py-2.5 tabular-nums">{nullCell(row.heightMm)}</td>
                       <td className="px-4 py-2.5 tabular-nums">{nullCell(row.lengthMm)}</td>
-                      <td className="px-4 py-2.5 tabular-nums">{nullCell(row.areaM2)}</td>
+                      <td className="px-4 py-2.5 tabular-nums">{areaCell(row.areaM2)}</td>
                       <td className="px-4 py-2.5">{row.status}</td>
                       <td className="px-4 py-2.5 tabular-nums">{row.confidence}</td>
                       <td className="px-4 py-2.5 text-xs text-muted-foreground">

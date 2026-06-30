@@ -222,6 +222,18 @@ describe("Extracted Quantities worksheet", () => {
     expect(rowContaining(ws, "ALL")).toEqual(expect.arrayContaining(["ALL", 12, 58130, 0]));
   });
 
+  it("rounds exported clean area totals to two decimals", () => {
+    const ws = buildExtractedQuantitiesSheet(
+      buildExtractedQuantityReadModel([
+        q({ id: "window-a", areaM2: 0.1, lengthMm: null }),
+        q({ id: "window-b", areaM2: 0.2, lengthMm: null }),
+      ]),
+    )!;
+
+    expect(rowContaining(ws, "ALL")).toEqual(expect.arrayContaining(["ALL", 2, 0, 0.3]));
+    expect(sheetText(ws)).not.toContain("0.30000000000000004");
+  });
+
   it("includes needs_review rows but excludes them from clean totals", () => {
     const ws = buildExtractedQuantitiesSheet(buildExtractedQuantityReadModel(quantities()))!;
 

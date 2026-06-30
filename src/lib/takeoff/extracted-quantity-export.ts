@@ -28,6 +28,10 @@ function valueOrNullCell(value: string | number | null | undefined): string | nu
   return value ?? null;
 }
 
+function areaOrNullCell(value: number | null | undefined): number | null {
+  return value == null ? null : Math.round(value * 100) / 100;
+}
+
 function cellAddress(row: number, col: number): string {
   let n = col + 1;
   let letters = "";
@@ -81,7 +85,7 @@ export function buildExtractedQuantitiesSheet(
         valueOrNullCell(row.widthMm),
         valueOrNullCell(row.heightMm),
         valueOrNullCell(row.lengthMm),
-        valueOrNullCell(row.areaM2),
+        areaOrNullCell(row.areaM2),
         row.status,
         row.confidence,
         row.warnings.join("; "),
@@ -103,13 +107,13 @@ export function buildExtractedQuantitiesSheet(
 
   rows.push(["Clean totals"], ["category", "count", "lengthMm", "areaM2"]);
   for (const [category, total] of Object.entries(readModel.cleanTotalsByCategory)) {
-    rows.push([category, total.count, total.lengthMm, total.areaM2]);
+    rows.push([category, total.count, total.lengthMm, areaOrNullCell(total.areaM2)]);
   }
   rows.push([
     "ALL",
     readModel.cleanTotals.count,
     readModel.cleanTotals.lengthMm,
-    readModel.cleanTotals.areaM2,
+    areaOrNullCell(readModel.cleanTotals.areaM2),
   ]);
 
   const ws: XLSX.WorkSheet = {};
