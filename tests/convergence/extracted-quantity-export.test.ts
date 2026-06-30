@@ -90,6 +90,83 @@ function quantities(): ExtractedQuantity[] {
   ];
 }
 
+function fennerCleanWindowQuantities(): ExtractedQuantity[] {
+  return [
+    q({
+      id: "fenner-family",
+      label: "Opening floorplan-label-1 - FAMILY",
+      widthMm: 2400,
+      heightMm: 1300,
+      areaM2: 3.12,
+      source: "pdf_text",
+    }),
+    q({
+      id: "fenner-dining",
+      label: "Opening floorplan-label-2 - DINING",
+      widthMm: 2400,
+      heightMm: 1300,
+      areaM2: 3.12,
+      source: "pdf_text",
+    }),
+    q({
+      id: "fenner-study",
+      label: "Opening floorplan-label-6 - STUDY/BED4",
+      widthMm: 1500,
+      heightMm: 1300,
+      areaM2: 1.95,
+      source: "pdf_text",
+    }),
+    q({
+      id: "fenner-ensuite",
+      label: "Opening floorplan-label-7 - ENSUITE",
+      widthMm: 600,
+      heightMm: 2150,
+      areaM2: 1.29,
+      source: "pdf_text",
+    }),
+    q({
+      id: "fenner-bath",
+      label: "Opening floorplan-label-9 - BATH",
+      widthMm: 1200,
+      heightMm: 1100,
+      areaM2: 1.32,
+      source: "pdf_text",
+    }),
+    q({
+      id: "fenner-bed2",
+      label: "Opening floorplan-label-10 - BED2",
+      widthMm: 1500,
+      heightMm: 1300,
+      areaM2: 1.95,
+      source: "pdf_text",
+    }),
+    q({
+      id: "fenner-masterbed-a",
+      label: "Opening floorplan-label-11 - MASTERBED",
+      widthMm: 800,
+      heightMm: 1100,
+      areaM2: 0.88,
+      source: "pdf_text",
+    }),
+    q({
+      id: "fenner-masterbed-b",
+      label: "Opening floorplan-label-12 - MASTERBED",
+      widthMm: 800,
+      heightMm: 1100,
+      areaM2: 0.88,
+      source: "pdf_text",
+    }),
+    q({
+      id: "fenner-bed3",
+      label: "Opening floorplan-label-13 - BED3",
+      widthMm: 2400,
+      heightMm: 1300,
+      areaM2: 3.12,
+      source: "pdf_text",
+    }),
+  ];
+}
+
 function cell(ws: XLSX.WorkSheet, address: string): string | number | null {
   const value = (ws[address] as XLSX.CellObject | undefined)?.v;
   return value == null ? null : (value as string | number);
@@ -127,6 +204,24 @@ function cellAddress(row: number, col: number): string {
     n = Math.floor((n - 1) / 26);
   }
   return `${letters}${row + 1}`;
+}
+
+function rows(ws: XLSX.WorkSheet): Array<Array<string | number | null>> {
+  const end = String(ws["!ref"] ?? "A1:A1").split(":")[1] ?? "A1";
+  const maxRow = Number(end.replace(/[A-Z]/g, "")) || 1;
+  const maxColLetters = end.replace(/[0-9]/g, "") || "A";
+  const maxCol =
+    maxColLetters.split("").reduce((acc, char) => acc * 26 + char.charCodeAt(0) - 64, 0) - 1;
+
+  const out: Array<Array<string | number | null>> = [];
+  for (let r = 0; r < maxRow; r++) {
+    const row: Array<string | number | null> = [];
+    for (let c = 0; c <= maxCol; c++) {
+      row.push(cell(ws, cellAddress(r, c)));
+    }
+    out.push(row);
+  }
+  return out;
 }
 
 function baseData(over: Partial<QSExportData> = {}): QSExportData {
@@ -232,6 +327,26 @@ describe("Extracted Quantities worksheet", () => {
 
     expect(rowContaining(ws, "ALL")).toEqual(expect.arrayContaining(["ALL", 2, 0, 0.3]));
     expect(sheetText(ws)).not.toContain("0.30000000000000004");
+  });
+
+  it("preserves duplicate same-room clean window rows in the worksheet", () => {
+    const ws = buildExtractedQuantitiesSheet(
+      buildExtractedQuantityReadModel(fennerCleanWindowQuantities()),
+    )!;
+    const cleanWindowRows = rows(ws).filter((row) => row[2] === "window" && row[9] === "extracted");
+    const masterbedRows = cleanWindowRows.filter(
+      (row) =>
+        row[3] === "Opening floorplan-label-11 - MASTERBED" ||
+        row[3] === "Opening floorplan-label-12 - MASTERBED",
+    );
+
+    expect(cleanWindowRows).toHaveLength(9);
+    expect(masterbedRows).toHaveLength(2);
+    expect(masterbedRows.map((row) => [row[5], row[6], row[8]])).toEqual([
+      [800, 1100, 0.88],
+      [800, 1100, 0.88],
+    ]);
+    expect(rowContaining(ws, "ALL")).toEqual(expect.arrayContaining(["ALL", 9, 0, 17.63]));
   });
 
   it("includes needs_review rows but excludes them from clean totals", () => {

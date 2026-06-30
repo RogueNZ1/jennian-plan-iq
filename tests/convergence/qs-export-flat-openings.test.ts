@@ -493,9 +493,9 @@ describe("Fallback intact — null openings triggers relational slot layout", ()
     );
     const c = cells(ws);
     const text = Object.values(cells(ws)).join(" ");
-    expect(c["B42"]).toBe(0);
-    expect(c["C42"]).toBe(0);
-    expect(c["D42"]).toBe(0);
+    expect(c["B42"]).toBe("");
+    expect(c["C42"]).toBe("");
+    expect(c["D42"]).toBe("");
     expect(c["B15"]).toBe("");
     expect(text).toContain("Review flags required before pricing");
     expect(text).toContain("Less openings: NOT COMPUTED - opening reconciliation blocked");

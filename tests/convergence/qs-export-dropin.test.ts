@@ -10,6 +10,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { buildDropInSheet, type QSExportData } from "../../src/lib/iq-qs-export";
+import { buildExtractedQuantityReadModel } from "../../src/lib/takeoff/extracted-quantity-read-model";
+import type { ExtractedQuantity } from "../../src/lib/takeoff/extracted-quantity-ledger";
 import type { Opening } from "../../src/lib/takeoff/takeoff-types";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -96,6 +98,55 @@ function op(type: Opening["type"], room: string | null, h: number, w: number): O
     source: "vision",
     confidence: "medium",
   };
+}
+
+function eq(over: Partial<ExtractedQuantity>): ExtractedQuantity {
+  const timestamp = "2026-07-01T00:00:00.000Z";
+  return {
+    id: "eq-window",
+    jobId: "job-62",
+    runId: "run-62",
+    category: "window",
+    label: "Window",
+    count: 1,
+    widthMm: 1300,
+    heightMm: 2400,
+    lengthMm: null,
+    areaM2: 3.12,
+    source: "pdf_text",
+    evidence: [],
+    status: "extracted",
+    confidence: 95,
+    warnings: [],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    ...over,
+  };
+}
+
+function fennerExtractedQuantityReadModel() {
+  return buildExtractedQuantityReadModel([
+    eq({ id: "family", label: "FAMILY", widthMm: 2400, heightMm: 1300, areaM2: 3.12 }),
+    eq({ id: "dining", label: "DINING", widthMm: 2400, heightMm: 1300, areaM2: 3.12 }),
+    eq({ id: "study", label: "STUDY/BED4", widthMm: 1500, heightMm: 1300, areaM2: 1.95 }),
+    eq({ id: "ensuite", label: "ENSUITE", widthMm: 600, heightMm: 2150, areaM2: 1.29 }),
+    eq({ id: "bath", label: "BATH", widthMm: 1200, heightMm: 1100, areaM2: 1.32 }),
+    eq({ id: "bed2", label: "BED2", widthMm: 1500, heightMm: 1300, areaM2: 1.95 }),
+    eq({ id: "masterbed-a", label: "MASTERBED", widthMm: 800, heightMm: 1100, areaM2: 0.88 }),
+    eq({ id: "masterbed-b", label: "MASTERBED", widthMm: 800, heightMm: 1100, areaM2: 0.88 }),
+    eq({ id: "bed3", label: "BED3", widthMm: 2400, heightMm: 1300, areaM2: 3.12 }),
+    eq({
+      id: "garage-review",
+      category: "garage_door",
+      label: "Garage Door",
+      widthMm: 4800,
+      heightMm: 2100,
+      areaM2: 10.08,
+      status: "conflict",
+      warnings: ["source_conflict"],
+      source: "floorplan_symbol",
+    }),
+  ]);
 }
 
 // ── Young-shaped openings (10 rows, Dining slider included) ──────────────────
@@ -298,6 +349,43 @@ describe("buildDropInSheet — garage door 1 (row 44) + size string B24", () => 
     );
     expect(cellVal(ws, "B24")).toBe("2.4x2.1");
     expect([cellVal(ws, "C44"), cellVal(ws, "D44")]).toEqual([2.1, 2.4]);
+  });
+});
+
+describe("buildDropInSheet - blocked opening handoff semantics", () => {
+  it("leaves window import slots blank and summarizes clean extracted evidence", () => {
+    const ws = buildDropInSheet(
+      base({
+        openings: [op("window", "Lounge", 1.3, 1.8)],
+        openingPricingBlocked: true,
+        extractedQuantityReadModel: fennerExtractedQuantityReadModel(),
+      }),
+    );
+
+    for (const r of [33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 45]) {
+      expect(cellVal(ws, `B${r}`), `B${r}`).toBe("");
+      expect(cellVal(ws, `C${r}`), `C${r}`).toBe("");
+      expect(cellVal(ws, `D${r}`), `D${r}`).toBe("");
+    }
+    expect(cellVal(ws, "B15")).toBe("");
+    expect(manualBlock(ws)).toContain("Clean extracted window evidence: 9 rows / 17.63 m2");
+    expect(manualBlock(ws)).toContain("Review flags required before pricing");
+  });
+
+  it("does not emit legacy 2.4x2.1 garage import values while garage evidence is review-only", () => {
+    const ws = buildDropInSheet(
+      base({
+        openingPricingBlocked: true,
+        garageDoor24x21Std: 1,
+        extractedQuantityReadModel: fennerExtractedQuantityReadModel(),
+      }),
+    );
+    const text = manualBlock(ws);
+
+    expect(cellVal(ws, "B24")).toBe("");
+    expect([cellVal(ws, "B44"), cellVal(ws, "C44"), cellVal(ws, "D44")]).toEqual(["", "", ""]);
+    expect(manualBlock(ws)).toContain("Garage door review evidence: 4.8x2.1 review only");
+    expect(text).not.toContain("2.4x2.1");
   });
 });
 

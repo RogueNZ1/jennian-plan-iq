@@ -1475,6 +1475,25 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   }
   const sectionalDoors: Opening[] = [];
   const manual: string[] = []; // human-visible MANUAL ENTRIES lines
+  const blockedOpeningImportCell = () => (data.openingPricingBlocked ? "" : 0);
+  function cleanExtractedWindowEvidenceSummary(): string | null {
+    const cleanWindows =
+      data.extractedQuantityReadModel?.groups.extracted.filter(
+        (row) => row.category === "window",
+      ) ?? [];
+    if (cleanWindows.length === 0) return null;
+    const areaM2 = round2(cleanWindows.reduce((sum, row) => sum + (row.areaM2 ?? 0), 0)) ?? 0;
+    return `Clean extracted window evidence: ${cleanWindows.length} rows / ${areaM2} m2 - review before pricing; see Extracted Quantities.`;
+  }
+  function garageDoorReviewEvidenceSummary(): string | null {
+    const garageRows =
+      data.extractedQuantityReadModel?.rows.filter((row) => row.category === "garage_door") ?? [];
+    const row = garageRows.find(
+      (candidate) => candidate.widthMm != null && candidate.heightMm != null,
+    );
+    if (!row || row.widthMm == null || row.heightMm == null) return null;
+    return `Garage door review evidence: ${dim(row.widthMm / 1000)}x${dim(row.heightMm / 1000)} review only - see Extracted Quantities.`;
+  }
   // Fix (12 Jun, JM-0027/JM-0029 audit): NO WINDOW IS EVER SILENTLY DROPPED.
   // Anything without an IQ slot collects here, counts toward the B15 total, and
   // surfaces as a flagged manual line with full dims. A flagged manual entry
@@ -1498,6 +1517,10 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     manual.unshift(
       "Review flags required before pricing windows, openings, or cladding from this export.",
     );
+    const cleanWindowSummary = cleanExtractedWindowEvidenceSummary();
+    if (cleanWindowSummary) manual.unshift(cleanWindowSummary);
+    const garageDoorSummary = garageDoorReviewEvidenceSummary();
+    if (garageDoorSummary) manual.unshift(garageDoorSummary);
   }
 
   if (data.openingPricingBlocked) {
@@ -1572,9 +1595,9 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     const groups = slotGroups[key] ?? [];
     const g = groups[0];
     put(`A${slot.row}`, slot.label);
-    put(`B${slot.row}`, g ? g.qty : 0);
-    put(`C${slot.row}`, g && g.height_m > 0 ? r3(g.height_m) : 0);
-    put(`D${slot.row}`, g && g.width_m > 0 ? r3(g.width_m) : 0);
+    put(`B${slot.row}`, g ? g.qty : blockedOpeningImportCell());
+    put(`C${slot.row}`, g && g.height_m > 0 ? r3(g.height_m) : blockedOpeningImportCell());
+    put(`D${slot.row}`, g && g.width_m > 0 ? r3(g.width_m) : blockedOpeningImportCell());
     for (const extra of groups.slice(1)) {
       manual.push(
         `${slot.label}: ${extra.qty} more @ ${dim(extra.height_m)}H x ${dim(extra.width_m)}W -> Data Input House overflow row ${slot.overflow ?? "(under " + slot.label + ")"}`,
@@ -1599,7 +1622,13 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     { n: data.garageDoor27x21Std, sz: "2.7x2.1", lbl: "2.7x2.1 Standard" },
     { n: data.garageDoor27x21Insulated, sz: "2.7x2.1", lbl: "2.7x2.1 Insulated" },
   ].filter((x) => x.n > 0);
-  if (rel.length > 0) {
+  if (data.openingPricingBlocked) {
+    put("A24", "Garage door size");
+    put("B24", "");
+    put(`B${gdSlot.row}`, "");
+    put(`C${gdSlot.row}`, "");
+    put(`D${gdSlot.row}`, "");
+  } else if (rel.length > 0) {
     const first = rel[0];
     const [w, h] = first.sz.split("x").map(Number);
     put("A24", "Garage door size");
@@ -1748,7 +1777,9 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     cr++;
   }
   const claddingFlags = data.openingPricingBlocked
-    ? ["opening reconciliation blocked - resolve Extracted Quantities Review before calculating cladding"]
+    ? [
+        "opening reconciliation blocked - resolve Extracted Quantities Review before calculating cladding",
+      ]
     : (clad?.flags ?? []);
   for (const f of [...adapterFlags, ...claddingFlags]) {
     put(`A${cr}`, `Review ${f}`);
