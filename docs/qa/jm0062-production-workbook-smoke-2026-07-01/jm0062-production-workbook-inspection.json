@@ -1,0 +1,145 @@
+{
+  "generatedFrom": "https://www.jennianiq.nz",
+  "jobId": "886687aa-fbd5-40e1-b196-5f4286ce98e4",
+  "productionVersion": "6409a00bfd396ce655f933ad9957fd36cb4d292f",
+  "workbookPath": "output\\jm0062-production-workbook-smoke-2026-07-01\\JM-0061-Fenner-live-production.xlsx",
+  "workbookSha256": "2C9060F6B8F4B4CF4CB71D9596E9367870E2F5DE51757E801F56DE6C4B76FD8C",
+  "sheets": [
+    "Cover",
+    "Review flags",
+    "Extracted Quantities",
+    "5. Data Input House ",
+    "IQ Import"
+  ],
+  "jobNumber": "JM-0062",
+  "activeRunId": "84052442-d462-45f6-8da6-47763aaafaef",
+  "iqImport": {
+    "windowRows": [
+      {
+        "row": 33,
+        "label": "Bed 1",
+        "qty": "",
+        "height": "",
+        "width": ""
+      },
+      {
+        "row": 34,
+        "label": "Ensuite",
+        "qty": "",
+        "height": "",
+        "width": ""
+      },
+      {
+        "row": 35,
+        "label": "Bed 2",
+        "qty": "",
+        "height": "",
+        "width": ""
+      },
+      {
+        "row": 36,
+        "label": "Bed 3",
+        "qty": "",
+        "height": "",
+        "width": ""
+      },
+      {
+        "row": 37,
+        "label": "Bed 4",
+        "qty": "",
+        "height": "",
+        "width": ""
+      },
+      {
+        "row": 38,
+        "label": "Bathroom",
+        "qty": "",
+        "height": "",
+        "width": ""
+      },
+      {
+        "row": 39,
+        "label": "Kitchen",
+        "qty": "",
+        "height": "",
+        "width": ""
+      },
+      {
+        "row": 40,
+        "label": "Family / Living",
+        "qty": "",
+        "height": "",
+        "width": ""
+      },
+      {
+        "row": 41,
+        "label": "Dining",
+        "qty": "",
+        "height": "",
+        "width": ""
+      },
+      {
+        "row": 42,
+        "label": "Lounge",
+        "qty": "",
+        "height": "",
+        "width": ""
+      },
+      {
+        "row": 43,
+        "label": "Garage Windows",
+        "qty": "",
+        "height": "",
+        "width": ""
+      },
+      {
+        "row": 45,
+        "label": "Entrance",
+        "qty": "",
+        "height": "",
+        "width": ""
+      }
+    ],
+    "hardZeroWindowCells": 0,
+    "blankWindowCells": 36,
+    "b15": "",
+    "garageDoorSize": "",
+    "garageDoorRow44": {
+      "qty": "",
+      "height": "",
+      "width": ""
+    },
+    "manualEntries": [
+      "MANUAL ENTRIES - no IQ feed; enter directly on '5. Data Input House':",
+      "- Garage door review evidence: 4.8x2.1 review only - see Extracted Quantities.",
+      "- Clean extracted window evidence: 9 rows / 17.63 m2 - review before pricing; see Extracted Quantities.",
+      "- Review flags required before pricing windows, openings, or cladding from this export.",
+      "CLADDING (ENGINE) - provable terms; flags need a human:",
+      "- Wall (perimeter x stud): NOT COMPUTED",
+      "- Gables: NOT COMPUTED",
+      "Less openings: NOT COMPUTED - opening reconciliation blocked",
+      "- NET CLADDING: NOT COMPUTED",
+      "Review gable span 16.48m = plan envelope short side - verify for non-rectangular plans",
+      "Review opening reconciliation blocked - resolve Extracted Quantities Review before calculating cladding"
+    ]
+  },
+  "extractedQuantities": {
+    "cleanWindowRows": 9,
+    "cleanWindowAreaM2": 17.63,
+    "masterbed1100x800Rows": 2,
+    "interiorDoors": 20,
+    "perimeterMm": 89100,
+    "perimeterLm": 89.1
+  },
+  "reviewFlags": {
+    "openingReconciliationBlockCount": 1,
+    "hasPracticalBlock": true
+  },
+  "scans": {
+    "noStale2400Garage": true,
+    "hasCleanWindowSummary": true,
+    "hasGarageReviewOnlySummary": true,
+    "claddingNotComputed": true
+  },
+  "pass": true
+}
