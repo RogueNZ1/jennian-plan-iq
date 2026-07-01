@@ -55,6 +55,7 @@ import { OpeningScheduleTab } from "@/components/jennian/OpeningScheduleTab";
 import { ValidationTab } from "@/components/jennian/ValidationTab";
 import { loadMeasurements, loadOpenings, type PlanMeasurement } from "@/lib/iq-measurements";
 import { buildQSExportData, writeIQDataSheetFull } from "@/lib/iq-qs-export";
+import { buildAiCheckSummary, type AiCheckSummary } from "@/lib/ai-check-summary";
 import { AutomaticTakeoffDialog } from "@/components/jennian/AutomaticTakeoffDialog";
 import { VisionTakeoffDialog } from "@/components/jennian/VisionTakeoffDialog";
 import { loadExtractedQuantityAuthorityForJob } from "@/lib/takeoff/extracted-quantity-authority";
@@ -118,10 +119,12 @@ function ReviewPage() {
   const [extractedQuantityReview, setExtractedQuantityReview] =
     useState<ExtractedQuantityReviewModel | null>(null);
   const [extractedQuantityLoading, setExtractedQuantityLoading] = useState(false);
+  const [aiCheckSummary, setAiCheckSummary] = useState<AiCheckSummary | null>(null);
 
   useEffect(() => {
     if (!jobId) {
       setLoading(false);
+      setAiCheckSummary(null);
       return;
     }
     Promise.all([getJob(jobId), listQuantities(jobId), listOverrides(jobId)])
@@ -136,14 +139,24 @@ function ReviewPage() {
       .then((r) => setRollup(r))
       .catch(() => {});
     setExtractedQuantityLoading(true);
-    loadExtractedQuantityAuthorityForJob(jobId)
-      .then((authority) => setExtractedQuantityReview(buildExtractedQuantityReviewModel(authority)))
-      .catch((e) =>
+    Promise.all([loadExtractedQuantityAuthorityForJob(jobId), buildQSExportData(jobId)])
+      .then(([authority, exportData]) => {
+        setExtractedQuantityReview(buildExtractedQuantityReviewModel(authority));
+        setAiCheckSummary(
+          buildAiCheckSummary(exportData, {
+            visualSummary: authority.enriched?.visual_opening_audit?.summary ?? null,
+            runId: authority.runId,
+            authoritySource: authority.source,
+          }),
+        );
+      })
+      .catch((e) => {
         setExtractedQuantityReview({
           ...buildExtractedQuantityReviewModel(null),
           warnings: [e instanceof Error ? e.message : String(e)],
-        }),
-      )
+        });
+        setAiCheckSummary(null);
+      })
       .finally(() => setExtractedQuantityLoading(false));
     (async () => {
       const [m, o, p] = await Promise.all([
@@ -351,6 +364,8 @@ function ReviewPage() {
             </div>
           </div>
         )}
+
+        <AiCheckSummaryPanel summary={aiCheckSummary} />
 
         <ModulesOverview jobId={job.id} />
 
@@ -654,6 +669,82 @@ function LegacyAuthorityNotice({ title, body }: { title: string; body: string })
     <div className="mb-4 rounded-lg border border-confidence-mid/30 bg-confidence-mid/8 px-4 py-3 text-[12.5px] text-confidence-mid">
       <div className="font-semibold">{title}</div>
       <div className="mt-1 text-muted-foreground">{body}</div>
+    </div>
+  );
+}
+
+function AiCheckSummaryPanel({ summary }: { summary: AiCheckSummary | null }) {
+  if (!summary) return null;
+  return (
+    <div className="mb-6 rounded-lg border border-border bg-card px-5 py-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-3">
+        <div>
+          <div className="text-[15px] font-semibold tracking-tight">{summary.title}</div>
+          <div className="mt-1 text-[11px] text-muted-foreground">
+            {summary.jobNumber}
+            {summary.clientName ? ` / ${summary.clientName}` : ""}
+            {summary.runIdShort ? ` / run ${summary.runIdShort}` : ""}
+          </div>
+        </div>
+        <div
+          className={
+            summary.status === "review_required"
+              ? "rounded-md border border-confidence-mid/35 bg-confidence-mid/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-confidence-mid"
+              : "rounded-md border border-confidence-high/35 bg-confidence-high/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-confidence-high"
+          }
+        >
+          {summary.statusLabel}
+        </div>
+      </div>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Safe to use
+          </div>
+          <div className="mt-2 space-y-2 text-[13px]">
+            {summary.safeToUse.map((item) => (
+              <div key={item.label} className="flex justify-between gap-3">
+                <span className="text-muted-foreground">{item.label}</span>
+                <span className="font-medium tabular-nums text-foreground">{item.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Blocked
+          </div>
+          <div className="mt-2 space-y-2 text-[13px]">
+            {summary.blocked.length === 0 ? (
+              <div className="text-muted-foreground">No blocked scopes in the active summary.</div>
+            ) : (
+              summary.blocked.map((item) => (
+                <div key={item.label} className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">{item.label}</span>
+                  <span className="text-right font-medium text-foreground">{item.value}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="mt-4 space-y-1.5 border-t border-border pt-3 text-[12.5px] text-muted-foreground">
+        <div>
+          <span className="font-medium text-foreground">Vision check:</span> {summary.vision.line}
+        </div>
+        <div>
+          <span className="font-medium text-foreground">Garage:</span> {summary.garage.line}
+        </div>
+        <div>
+          <span className="font-medium text-foreground">Next action:</span> {summary.nextAction}
+        </div>
+        {summary.mustNotPrice.length > 0 && (
+          <div>
+            <span className="font-medium text-foreground">Do not price:</span>{" "}
+            {summary.mustNotPrice.join(", ")} from this run until reconciliation is resolved.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

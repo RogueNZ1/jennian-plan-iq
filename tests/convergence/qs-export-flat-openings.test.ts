@@ -462,7 +462,8 @@ describe("Fallback intact — null openings triggers relational slot layout", ()
     );
     const c = cells(ws);
     expect(c["A39"]).toBe("Type");
-    expect(c["A40"]).toContain("Review flags required");
+    expect(c["A40"]).toContain("AI Takeoff Check");
+    expect(c["A41"]).toContain("Status: REVIEW REQUIRED - openings unresolved");
     expect(c["D62"]).toBeUndefined();
   });
 
@@ -478,7 +479,8 @@ describe("Fallback intact — null openings triggers relational slot layout", ()
     expect(c["A40"]).toBe("window");
     expect(c["G40"]).toContain("Review-only evidence");
     expect(c["G40"]).not.toContain("opening reconciliation blocked");
-    expect(c["A41"]).toContain("Review flags required");
+    expect(c["A41"]).toContain("AI Takeoff Check");
+    expect(c["A42"]).toContain("Status: REVIEW REQUIRED - openings unresolved");
     expect(Object.values(c).join(" ")).not.toContain("Opening totals (QS tab 5 contract)");
   });
 
@@ -497,7 +499,8 @@ describe("Fallback intact — null openings triggers relational slot layout", ()
     expect(c["C42"]).toBe("");
     expect(c["D42"]).toBe("");
     expect(c["B15"]).toBe("");
-    expect(text).toContain("Review flags required before pricing");
+    expect(text).toContain("AI Takeoff Check");
+    expect(text).toContain("Do not price: windows, openings, garage door, cladding");
     expect(text).toContain("Less openings: NOT COMPUTED - opening reconciliation blocked");
     expect(text).toContain("NET CLADDING: NOT COMPUTED");
   });

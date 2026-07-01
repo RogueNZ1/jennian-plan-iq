@@ -203,7 +203,8 @@ describe("zero-window hard sanity flag", () => {
 
   it("does NOT fire when opening pricing is deliberately blocked", () => {
     const ws = buildDropInSheet(base({ openings: [], openingPricingBlocked: true }));
-    expect(manualText(ws)).toMatch(/Review flags required before pricing/);
+    expect(manualText(ws)).toMatch(/AI Takeoff Check/);
+    expect(manualText(ws)).toMatch(/Status: REVIEW REQUIRED - openings unresolved/);
     expect(manualText(ws)).not.toMatch(/ZERO WINDOWS EXTRACTED/);
   });
 });

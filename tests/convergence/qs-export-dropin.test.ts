@@ -368,8 +368,10 @@ describe("buildDropInSheet - blocked opening handoff semantics", () => {
       expect(cellVal(ws, `D${r}`), `D${r}`).toBe("");
     }
     expect(cellVal(ws, "B15")).toBe("");
-    expect(manualBlock(ws)).toContain("Clean extracted window evidence: 9 rows / 17.63 m2");
-    expect(manualBlock(ws)).toContain("Review flags required before pricing");
+    expect(manualBlock(ws)).toContain("AI Takeoff Check - JM-0015");
+    expect(manualBlock(ws)).toContain("Status: REVIEW REQUIRED - openings unresolved");
+    expect(manualBlock(ws)).toContain("Clean window evidence 9 rows / 17.63 m2");
+    expect(manualBlock(ws)).toContain("Do not price: windows, openings, garage door, cladding");
   });
 
   it("does not emit legacy 2.4x2.1 garage import values while garage evidence is review-only", () => {
@@ -384,7 +386,7 @@ describe("buildDropInSheet - blocked opening handoff semantics", () => {
 
     expect(cellVal(ws, "B24")).toBe("");
     expect([cellVal(ws, "B44"), cellVal(ws, "C44"), cellVal(ws, "D44")]).toEqual(["", "", ""]);
-    expect(manualBlock(ws)).toContain("Garage door review evidence: 4.8x2.1 review only");
+    expect(manualBlock(ws)).toContain("Garage: 4.8 x 2.1 garage door candidate found");
     expect(text).not.toContain("2.4x2.1");
   });
 });

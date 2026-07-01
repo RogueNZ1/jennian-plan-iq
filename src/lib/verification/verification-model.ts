@@ -58,6 +58,7 @@ import {
   formatOpeningMismatchWarning,
   openingReconciliationBlockedFlags,
 } from "@/lib/customer-facing-text";
+import { buildAiCheckSummary, type AiCheckSummary } from "@/lib/ai-check-summary";
 
 /* ------------------------------------------------------------------ NZT stamps */
 // Same Pacific/Auckland discipline as the export composer (12 Jun fix): CI and Pages run
@@ -150,6 +151,7 @@ export type VerificationModel = {
     generatedNzt: string;
     takeoffSource: "enriched" | "relational" | null;
   };
+  aiCheck: AiCheckSummary;
   geometryOffline: boolean;
   extractedQuantities: {
     source: ExtractedQuantityAuthoritySource | "none";
@@ -896,6 +898,11 @@ export function buildVerificationModel(
 
   return {
     header,
+    aiCheck: buildAiCheckSummary(data, {
+      visualSummary,
+      runId: extractedQuantities.runId,
+      authoritySource: extractedQuantities.source,
+    }),
     geometryOffline,
     extractedQuantities,
     measures,

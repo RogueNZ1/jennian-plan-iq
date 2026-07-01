@@ -115,6 +115,77 @@ function CountTable({
   );
 }
 
+function AiCheckSummaryBlock({ summary }: { summary: VerificationModel["aiCheck"] }) {
+  return (
+    <section className="vsummary">
+      <div className="vsummary-head">
+        <div>
+          <div className="vsummary-title">{summary.title}</div>
+          <div className="vsummary-meta">
+            {summary.jobNumber}
+            {summary.clientName ? ` / ${summary.clientName}` : ""}
+            {summary.runIdShort ? ` / run ${summary.runIdShort}` : ""}
+          </div>
+        </div>
+        <div
+          className={
+            summary.status === "review_required"
+              ? "vsummary-status-review"
+              : "vsummary-status-ready"
+          }
+        >
+          {summary.statusLabel}
+        </div>
+      </div>
+      <div className="vsummary-grid">
+        <div>
+          <h3>Safe to use</h3>
+          <ul>
+            {summary.safeToUse.map((item) => (
+              <li key={item.label}>
+                <strong>{item.label}:</strong> {item.value}
+                {item.detail ? <span> - {item.detail}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h3>Blocked</h3>
+          {summary.blocked.length > 0 ? (
+            <ul>
+              {summary.blocked.map((item) => (
+                <li key={item.label}>
+                  <strong>{item.label}:</strong> {item.value}
+                  {item.detail ? <span> - {item.detail}</span> : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>No blocked scopes in the active summary.</p>
+          )}
+        </div>
+      </div>
+      <div className="vsummary-lines">
+        <div>
+          <strong>Vision check:</strong> {summary.vision.line}
+        </div>
+        <div>
+          <strong>Garage:</strong> {summary.garage.line}
+        </div>
+        <div>
+          <strong>Next action:</strong> {summary.nextAction}
+        </div>
+        {summary.mustNotPrice.length > 0 ? (
+          <div>
+            <strong>Do not price:</strong> {summary.mustNotPrice.join(", ")} from this run until
+            reconciliation is resolved.
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function fmtLedgerCell(value: number | string | null | undefined): string {
   return value === null || value === undefined || value === "" ? "-" : String(value);
 }
@@ -160,7 +231,7 @@ function LedgerQuantityTable({ category }: { category: VerificationQuantityCateg
               <td className="vlabel">
                 {row.label ?? row.id}
                 <div className="vledger-sub">
-                  {row.source}  /  {row.runId ?? "no run"}  /  {row.id}
+                  {row.source} / {row.runId ?? "no run"} / {row.id}
                 </div>
               </td>
               <td>{row.status}</td>
@@ -203,7 +274,7 @@ function LedgerQuantitySection({ model }: { model: VerificationModel }) {
   return (
     <>
       <div className="vsrcline">
-        Authority: <strong>{q.source}</strong>  /  run <strong>{q.runId ?? "-"}</strong>  /  clean
+        Authority: <strong>{q.source}</strong> / run <strong>{q.runId ?? "-"}</strong> / clean
         totals exclude needs_review, missing_evidence, conflict, and ignored rows.
       </div>
       {q.warnings.length > 0 && (
@@ -264,10 +335,10 @@ function LedgerOverlayRowsTable({
             <td className="vlabel">
               {row.label ?? row.extractedQuantityId}
               <div className="vledger-sub">
-                {row.source}  /  {row.runId ?? "no run"}  /  {row.extractedQuantityId}
+                {row.source} / {row.runId ?? "no run"} / {row.extractedQuantityId}
               </div>
               {row.visualAnchorId ? (
-                <div className="vledger-sub">anchor  /  {row.visualAnchorId}</div>
+                <div className="vledger-sub">anchor / {row.visualAnchorId}</div>
               ) : null}
             </td>
             <td>{row.category}</td>
@@ -297,7 +368,7 @@ function LedgerOverlaySection({ overlay }: { overlay: LedgerPlanOverlayModel }) 
   return (
     <>
       <div className="vsrcline">
-        Active extracted quantity overlay: <strong>{overlay.authoritySource}</strong>  /  run{" "}
+        Active extracted quantity overlay: <strong>{overlay.authoritySource}</strong> / run{" "}
         <strong>{overlay.runId ?? "-"}</strong>
       </div>
       <div className="vledger-summary">
@@ -617,8 +688,8 @@ function VerificationPrintout() {
           <div className="vbrand-bar" />
           <div className="vhead-row">
             <div>
-              <div className="vtitle">TAKEOFF VERIFICATION</div>
-              <div className="vsub">Jennian IQ  /  hold this document against the plans</div>
+              <div className="vtitle">AI TAKEOFF CHECK</div>
+              <div className="vsub">AI takeoff verdict first; supporting evidence follows</div>
             </div>
             <div className="vmeta">
               <div>
@@ -656,6 +727,8 @@ function VerificationPrintout() {
           </div>
         </header>
 
+        <AiCheckSummaryBlock summary={m.aiCheck} />
+
         {/* integrity / geometry banners */}
         {m.integrityAlerts.length > 0 && (
           <div className="vbanner vbanner-red">
@@ -672,9 +745,9 @@ function VerificationPrintout() {
           <div className="vbanner">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <div>
-              <strong>ReviewReview GEOMETRY LAYER OFFLINE</strong> - vision-only takeoff; deterministic
-              measurement and cross-checks did not run. Verify all measurements against the plan
-              before pricing.
+              <strong>ReviewReview GEOMETRY LAYER OFFLINE</strong> - vision-only takeoff;
+              deterministic measurement and cross-checks did not run. Verify all measurements
+              against the plan before pricing.
             </div>
           </div>
         )}
@@ -684,7 +757,7 @@ function VerificationPrintout() {
           <MeasureTable rows={m.measures} />
         </Section>
 
-        <Section title="2 - Extracted quantity ledger">
+        <Section title="Supporting evidence - extracted quantity ledger">
           <LedgerQuantitySection model={m} />
         </Section>
 
@@ -847,7 +920,7 @@ function VerificationPrintout() {
           <div className="vsrcline">
             Interior counts source: <strong>{m.doors.sourceLabel}</strong>
             {m.doors.visionHint != null ? (
-              <span className="vhint">  /  vision hint: {m.doors.visionHint} (never exported)</span>
+              <span className="vhint"> / vision hint: {m.doors.visionHint} (never exported)</span>
             ) : null}
           </div>
           <div className="vcols">
@@ -890,7 +963,10 @@ function VerificationPrintout() {
         </Section>
 
         {/* 4  /  plan overlay */}
-        <Section title="4  /  Plan overlay - active extracted quantity ledger" className="vsec-plan">
+        <Section
+          title="4  /  Plan overlay - active extracted quantity ledger"
+          className="vsec-plan"
+        >
           <LedgerOverlaySection overlay={m.planOverlay.ledgerOverlay} />
           <VerificationPlanOverlay
             jobId={jobId}
@@ -916,11 +992,11 @@ function VerificationPrintout() {
             <>
               <div className="vsrcline" style={{ marginTop: 8 }}>
                 Legacy visual evidence only - not active extracted quantity authority:{" "}
-                <strong>{m.planOverlay.visualSummary?.totalOpenings ?? "-"}</strong> total  / {" "}
+                <strong>{m.planOverlay.visualSummary?.totalOpenings ?? "-"}</strong> total /{" "}
                 <strong>{m.planOverlay.visualSummary?.qsGlazedOpenings ?? "-"}</strong> QS
-                glazed/opening items  / {" "}
+                glazed/opening items /{" "}
                 <strong>{m.planOverlay.visualSummary?.garageDoors ?? "-"}</strong> garage door
-                excluded from glazing  / {" "}
+                excluded from glazing /{" "}
                 <strong>{m.planOverlay.visualSummary?.uncertain ?? "-"}</strong> uncertain/low.
               </div>
               <table className="vtable">
@@ -989,12 +1065,11 @@ function VerificationPrintout() {
             <>
               <div className="vsrcline" style={{ marginTop: 8 }}>
                 Legacy door-engine evidence only - not active extracted quantity authority:{" "}
-                {m.planOverlay.markers.length} hits  / {" "}
-                {m.planOverlay.markers.filter((d) => doorMarkerNeedsReview(d.note)).length} verify
-                 /  {m.planOverlay.summary.flagged} flagged &nbsp;(hinged{" "}
-                {m.planOverlay.summary.byType.hinged}  /  double{" "}
-                {m.planOverlay.summary.byType.double}
-                &nbsp; /  cavity {m.planOverlay.summary.byType.cavity}). These legacy hits are not
+                {m.planOverlay.markers.length} hits /{" "}
+                {m.planOverlay.markers.filter((d) => doorMarkerNeedsReview(d.note)).length} verify /{" "}
+                {m.planOverlay.summary.flagged} flagged &nbsp;(hinged{" "}
+                {m.planOverlay.summary.byType.hinged} / double {m.planOverlay.summary.byType.double}
+                &nbsp; / cavity {m.planOverlay.summary.byType.cavity}). These legacy hits are not
                 active ledger totals.
               </div>
               <table className="vtable">
@@ -1141,7 +1216,7 @@ function VerificationPrintout() {
             </div>
           </div>
           <div className="vfoot-note">
-            Generated by Jennian IQ  /  values on this document are produced by the same composer as
+            Generated by Jennian IQ / values on this document are produced by the same composer as
             the QS export (source: {m.header.takeoffSource ?? "unknown"}). An unfilled cell beats a
             wrong cell - anything marked Review or "- not set" must be resolved before pricing.
           </div>
@@ -1176,6 +1251,20 @@ const PRINT_CSS = `
 .vbanner { display:flex; gap:8px; align-items:flex-start; border:2px solid #111827; background:#fef9c3; padding:8px 10px; margin:12px 0; font-size:11px; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
 .vbanner-red { border-color:#E71B23; background:#fee2e2; }
 .vbanner-compact { margin:6px 0 10px; }
+
+.vsummary { margin:14px 0 16px; border:2px solid #111827; background:#f9fafb; padding:10px 12px; break-inside:avoid; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.vsummary-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; border-bottom:1px solid #d1d5db; padding-bottom:7px; margin-bottom:8px; }
+.vsummary-title { font-size:15px; font-weight:900; letter-spacing:.04em; text-transform:uppercase; }
+.vsummary-meta { margin-top:2px; font-size:10px; color:#4b5563; }
+.vsummary-status-review, .vsummary-status-ready { font-size:10.5px; font-weight:800; text-transform:uppercase; padding:4px 7px; border:1px solid #111827; white-space:nowrap; }
+.vsummary-status-review { background:#fef3c7; }
+.vsummary-status-ready { background:#dcfce7; }
+.vsummary-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.vsummary h3 { margin:0 0 4px; font-size:10.5px; font-weight:800; text-transform:uppercase; color:#374151; letter-spacing:.06em; }
+.vsummary ul { margin:0; padding-left:15px; }
+.vsummary li { margin:2px 0; }
+.vsummary p { margin:0; color:#4b5563; }
+.vsummary-lines { margin-top:8px; padding-top:7px; border-top:1px solid #d1d5db; display:grid; gap:3px; }
 
 .vsec { margin-top:16px; break-inside:avoid; }
 .vsec-head { display:flex; justify-content:space-between; align-items:baseline; border-bottom:2px solid #111827; padding-bottom:3px; margin-bottom:7px; }

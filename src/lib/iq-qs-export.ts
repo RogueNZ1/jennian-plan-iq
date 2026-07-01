@@ -40,6 +40,11 @@ import {
   customerSafeText,
   formatOpeningMismatchWarning,
 } from "@/lib/customer-facing-text";
+import {
+  aiCheckSummaryLines,
+  aiCheckSummaryWorkbookRows,
+  buildAiCheckSummary,
+} from "@/lib/ai-check-summary";
 export {
   loadEnrichedTakeoffJson,
   loadEnrichedTakeoffJsonWithRun,
@@ -1476,24 +1481,6 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   const sectionalDoors: Opening[] = [];
   const manual: string[] = []; // human-visible MANUAL ENTRIES lines
   const blockedOpeningImportCell = () => (data.openingPricingBlocked ? "" : 0);
-  function cleanExtractedWindowEvidenceSummary(): string | null {
-    const cleanWindows =
-      data.extractedQuantityReadModel?.groups.extracted.filter(
-        (row) => row.category === "window",
-      ) ?? [];
-    if (cleanWindows.length === 0) return null;
-    const areaM2 = round2(cleanWindows.reduce((sum, row) => sum + (row.areaM2 ?? 0), 0)) ?? 0;
-    return `Clean extracted window evidence: ${cleanWindows.length} rows / ${areaM2} m2 - review before pricing; see Extracted Quantities.`;
-  }
-  function garageDoorReviewEvidenceSummary(): string | null {
-    const garageRows =
-      data.extractedQuantityReadModel?.rows.filter((row) => row.category === "garage_door") ?? [];
-    const row = garageRows.find(
-      (candidate) => candidate.widthMm != null && candidate.heightMm != null,
-    );
-    if (!row || row.widthMm == null || row.heightMm == null) return null;
-    return `Garage door review evidence: ${dim(row.widthMm / 1000)}x${dim(row.heightMm / 1000)} review only - see Extracted Quantities.`;
-  }
   // Fix (12 Jun, JM-0027/JM-0029 audit): NO WINDOW IS EVER SILENTLY DROPPED.
   // Anything without an IQ slot collects here, counts toward the B15 total, and
   // surfaces as a flagged manual line with full dims. A flagged manual entry
@@ -1514,13 +1501,7 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   }
 
   if (data.openingPricingBlocked) {
-    manual.unshift(
-      "Review flags required before pricing windows, openings, or cladding from this export.",
-    );
-    const cleanWindowSummary = cleanExtractedWindowEvidenceSummary();
-    if (cleanWindowSummary) manual.unshift(cleanWindowSummary);
-    const garageDoorSummary = garageDoorReviewEvidenceSummary();
-    if (garageDoorSummary) manual.unshift(garageDoorSummary);
+    manual.unshift(...aiCheckSummaryLines(buildAiCheckSummary(data)));
   }
 
   if (data.openingPricingBlocked) {
@@ -1928,12 +1909,10 @@ export function buildQSDataInputSheet(data: QSExportData): XLSX.WorkSheet {
       r++;
     }
     if (data.openingPricingBlocked) {
-      lbl(
-        `A${r}`,
-        "Review flags required before pricing windows, openings, or cladding.",
-        instructionStyle,
-      );
-      r++;
+      for (const line of aiCheckSummaryLines(buildAiCheckSummary(data))) {
+        lbl(`A${r}`, line, instructionStyle);
+        r++;
+      }
     }
 
     if (!data.openingPricingBlocked) {
@@ -2144,6 +2123,7 @@ export async function writeIQDataSheetFull(
   }
 
   const assumedItems = allItems.filter((i) => i.value_source === "assumed");
+  const aiCheckSummary = buildAiCheckSummary(data);
 
   // Cover sheet
   const coverRows: (string | number | null)[][] = [
@@ -2154,6 +2134,8 @@ export async function writeIQDataSheetFull(
     ["Address", data.address],
     ["Date", NZ_DATE()],
     ...(confidenceScore != null ? [["Confidence Score", `${confidenceScore}%`]] : []),
+    [],
+    ...aiCheckSummaryWorkbookRows(aiCheckSummary),
     [],
   ];
 
