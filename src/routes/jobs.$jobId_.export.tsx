@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppLayout, PageHeader } from "@/components/jennian/AppLayout";
 import { Breadcrumbs } from "@/components/jennian/Breadcrumbs";
+import { AiCheckSummaryPanel } from "@/components/jennian/AiCheckSummaryPanel";
 import {
   buildQSExportData,
   writeIQDataSheetFull,
@@ -35,6 +36,7 @@ import {
   customerReviewFlagText,
   customerSafeText,
 } from "@/lib/customer-facing-text";
+import { buildAiCheckSummary } from "@/lib/ai-check-summary";
 
 type ModuleItemRow = Database["public"]["Tables"]["module_items"]["Row"];
 type OpeningRow = Database["public"]["Tables"]["opening_schedule"]["Row"];
@@ -184,6 +186,7 @@ function QuickExport() {
   const filename = job
     ? `${job.jmwNumber || job.jobNumber}-IQ-Data-${surname}.xlsx`
     : "IQ-Data.xlsx";
+  const aiCheckSummary = data ? buildAiCheckSummary(data) : null;
 
   return (
     <AppLayout>
@@ -251,6 +254,8 @@ function QuickExport() {
 
         {!loading && !error && data && (
           <div className="grid gap-4 mt-2">
+            <AiCheckSummaryPanel summary={aiCheckSummary} />
+
             {/* Convergence Slice 6 - confidence / review notes from the enriched takeoff.
                 Shown only when the persisted takeoff_json carried per-field flags; absent for
                 pre-convergence (relational) jobs, so those render exactly as before. */}
@@ -302,7 +307,9 @@ function QuickExport() {
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-confidence-low" />
                     <div>
-                      <div className="font-medium text-confidence-low">Review-only opening rows</div>
+                      <div className="font-medium text-confidence-low">
+                        Review-only opening rows
+                      </div>
                       <div>
                         {blockedOpenings.length} review-only candidate
                         {blockedOpenings.length === 1 ? "" : "s"} shown below for evidence only. Use
