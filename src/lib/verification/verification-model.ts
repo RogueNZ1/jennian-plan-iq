@@ -763,7 +763,7 @@ export function buildVerificationModel(
     garageDoorFlags: visualReconciliationFlags(e?.visual_opening_reconciliation, "garage_door_size")
       .concat(
         openingPricingBlocked && exportedGarageDoorCount === 0
-          ? ["Opening reconciliation blocked; garage door size is review-only until reconciled."]
+          ? ["Garage door size is review-only until reconciled with exterior openings."]
           : [],
       )
       .map((flag) => customerReviewFlagText(flag) ?? customerSafeText(flag)),
