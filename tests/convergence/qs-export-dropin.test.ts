@@ -353,7 +353,7 @@ describe("buildDropInSheet — garage door 1 (row 44) + size string B24", () => 
 });
 
 describe("buildDropInSheet - blocked opening handoff semantics", () => {
-  it("leaves window import slots blank and summarizes clean extracted evidence", () => {
+  it("row-level gate: clean extracted rows auto-fill their slots; unresolved slots stay blank", () => {
     const ws = buildDropInSheet(
       base({
         openings: [op("window", "Lounge", 1.3, 1.8)],
@@ -362,16 +362,50 @@ describe("buildDropInSheet - blocked opening handoff semantics", () => {
       }),
     );
 
-    for (const r of [33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 45]) {
+    // Clean W x H rows land in their IQ slots (B=Qty C=Height D=Width).
+    expect([cellVal(ws, "B33"), cellVal(ws, "C33"), cellVal(ws, "D33")]).toEqual([2, 1.1, 0.8]); // Bed 1 (MASTERBED x2)
+    expect([cellVal(ws, "B34"), cellVal(ws, "C34"), cellVal(ws, "D34")]).toEqual([1, 2.15, 0.6]); // Ensuite
+    expect([cellVal(ws, "B35"), cellVal(ws, "C35"), cellVal(ws, "D35")]).toEqual([1, 1.3, 1.5]); // Bed 2
+    expect([cellVal(ws, "B36"), cellVal(ws, "C36"), cellVal(ws, "D36")]).toEqual([1, 1.3, 2.4]); // Bed 3
+    expect([cellVal(ws, "B37"), cellVal(ws, "C37"), cellVal(ws, "D37")]).toEqual([1, 1.3, 1.5]); // Bed 4 (STUDY/BED4)
+    expect([cellVal(ws, "B38"), cellVal(ws, "C38"), cellVal(ws, "D38")]).toEqual([1, 1.1, 1.2]); // Bathroom
+    expect([cellVal(ws, "B40"), cellVal(ws, "C40"), cellVal(ws, "D40")]).toEqual([1, 1.3, 2.4]); // Family
+    expect([cellVal(ws, "B41"), cellVal(ws, "C41"), cellVal(ws, "D41")]).toEqual([1, 1.3, 2.4]); // Dining
+
+    // Unresolved slots stay blank - never zero. The blocked composed opening (Lounge)
+    // must NOT leak into its slot; only clean ledger rows write.
+    for (const r of [39, 42, 43, 45]) {
       expect(cellVal(ws, `B${r}`), `B${r}`).toBe("");
       expect(cellVal(ws, `C${r}`), `C${r}`).toBe("");
       expect(cellVal(ws, `D${r}`), `D${r}`).toBe("");
     }
+    // Aggregate window total stays unconfirmed while reconciliation is blocked.
     expect(cellVal(ws, "B15")).toBe("");
+    expect(cellVal(ws, "C15")).toBe(
+      "9 clean window(s) auto-filled in rows 33-45; total unconfirmed - opening reconciliation blocked",
+    );
     expect(manualBlock(ws)).toContain("AI Takeoff Check - JM-0015");
     expect(manualBlock(ws)).toContain("Status: REVIEW REQUIRED - openings unresolved");
     expect(manualBlock(ws)).toContain("Clean window evidence 9 rows / 17.63 m2");
-    expect(manualBlock(ws)).toContain("Do not price: windows, openings, garage door, cladding");
+    expect(manualBlock(ws)).toContain("Do not price: unresolved openings, garage door, cladding");
+  });
+
+  it("row-level gate: clean rows without an IQ slot surface as manual lines, never dropped", () => {
+    const ws = buildDropInSheet(
+      base({
+        openingPricingBlocked: true,
+        extractedQuantityReadModel: buildExtractedQuantityReadModel([
+          eq({ id: "scullery", label: "SCULLERY", widthMm: 900, heightMm: 1100, areaM2: 0.99 }),
+          eq({ id: "wc", label: "WC", widthMm: 700, heightMm: 1100, areaM2: 0.77 }),
+        ]),
+      }),
+    );
+    for (const r of [33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 45]) {
+      expect(cellVal(ws, `B${r}`), `B${r}`).toBe("");
+    }
+    const text = manualBlock(ws);
+    expect(text).toContain("Review CLEAN (no IQ slot) - SCULLERY: 1 @ 1.1H x 0.9W");
+    expect(text).toContain("Review CLEAN (manual slot) - WC: 1 @ 1.1H x 0.7W -> Data Input House row 51");
   });
 
   it("does not emit legacy 2.4x2.1 garage import values while garage evidence is review-only", () => {

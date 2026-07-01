@@ -188,7 +188,7 @@ describe("AI Check Summary", () => {
     expect(lines).toContain("Vision found 17 likely QS-glazed external openings");
     expect(lines).toContain("active clean extracted window rows 9");
     expect(lines).toContain("Garage: 4.8 x 2.1 garage door candidate found");
-    expect(lines).toContain("Do not price: windows, openings, garage door, cladding");
+    expect(lines).toContain("Do not price: unresolved openings, garage door, cladding");
     expect(lines).not.toContain("AI opening check");
     expect(lines).not.toContain("OPENING PRICING BLOCKED");
     expect(lines).not.toContain("mÂ²");
@@ -210,7 +210,7 @@ describe("AI Check Summary", () => {
     expect(coverText).toContain(summary.vision.line);
     expect(iqImportText).toContain("AI Takeoff Check - JM-0062");
     expect(iqImportText).toContain("Clean window evidence 9 rows / 17.63 m2");
-    expect(iqImportText).toContain("Do not price: windows, openings, garage door, cladding");
+    expect(iqImportText).toContain("Do not price: unresolved openings, garage door, cladding");
     expect((iqImport["B15"] as XLSX.CellObject | undefined)?.v ?? null).toBe("");
     expect((iqImport["B44"] as XLSX.CellObject | undefined)?.v ?? null).toBe("");
     expect(allText).not.toContain("Review flags required before pricing");

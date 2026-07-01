@@ -181,7 +181,7 @@ export function buildAiCheckSummary(
     safeToUse.push({
       label: "Clean window evidence",
       value: `${cleanWindowRowsCount} rows / ${areaM2(cleanWindowAreaM2)}`,
-      detail: "Review before pricing openings.",
+      detail: "Dimensions auto-filled into IQ Import Windows by Room; unresolved rows stay blank.",
     });
   }
 
@@ -215,7 +215,7 @@ export function buildAiCheckSummary(
         }.`;
 
   const nextAction = openingBlocked
-    ? "Review exterior openings in Extracted Quantities before pricing windows, openings, garage door, or cladding."
+    ? "Review exterior openings in Extracted Quantities before pricing unresolved openings, garage door, or cladding; clean window dimensions are auto-filled in IQ Import."
     : hasReviewRows
       ? "Review flagged extracted quantities before pricing affected scopes."
       : "Proceed with normal QS check against the plans.";
@@ -252,7 +252,7 @@ export function buildAiCheckSummary(
         : "No garage door candidate with complete dimensions is available in the active ledger.",
     },
     nextAction,
-    mustNotPrice: openingBlocked ? ["windows", "openings", "garage door", "cladding"] : [],
+    mustNotPrice: openingBlocked ? ["unresolved openings", "garage door", "cladding"] : [],
     statusCounts,
   };
 }

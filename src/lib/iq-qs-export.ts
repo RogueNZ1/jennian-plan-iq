@@ -1481,6 +1481,16 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   const sectionalDoors: Opening[] = [];
   const manual: string[] = []; // human-visible MANUAL ENTRIES lines
   const blockedOpeningImportCell = () => (data.openingPricingBlocked ? "" : 0);
+  // Row-level opening gate (2 Jul 2026, Haydon decision): a clean extracted W x H window
+  // row is written into its IQ slot even while aggregate opening reconciliation is blocked.
+  // A human QS prices the windows they can read and flags the rest; the export does the same.
+  // Unresolved rows keep blank cells (never zero); garage, window total (B15), and cladding
+  // stay blocked until reconciliation resolves.
+  function cleanExtractedWindowRows() {
+    return (data.extractedQuantityReadModel?.groups.extracted ?? []).filter(
+      (row) => row.category === "window" && row.widthMm != null && row.heightMm != null,
+    );
+  }
   // Fix (12 Jun, JM-0027/JM-0029 audit): NO WINDOW IS EVER SILENTLY DROPPED.
   // Anything without an IQ slot collects here, counts toward the B15 total, and
   // surfaces as a flagged manual line with full dims. A flagged manual entry
@@ -1505,8 +1515,33 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   }
 
   if (data.openingPricingBlocked) {
-    // Partial candidate evidence may be present for review, but the IQ paste rows
-    // must stay unpriced while aggregate opening pricing is blocked.
+    // Row-level gate: unresolved candidate evidence must not price, but clean
+    // extracted W x H window rows write their slots. Anything clean without an
+    // IQ slot surfaces as a manual line - no clean row is ever silently dropped.
+    for (const row of cleanExtractedWindowRows()) {
+      const qty = row.count ?? 1;
+      const heightM = (row.heightMm as number) / 1000;
+      const widthM = (row.widthMm as number) / 1000;
+      const norm = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const room = norm(row.label ?? "");
+      const spec =
+        room === ""
+          ? undefined
+          : WINDOW_SLOT_SPECS.find((sp) => sp.keywords.some((k) => room.includes(norm(k))));
+      if (spec?.key === "toilet") {
+        manual.push(
+          `Review CLEAN (manual slot) - ${row.label ?? "Toilet"}: ${qty} @ ${dim(heightM)}H x ${dim(widthM)}W -> Data Input House row 51`,
+        );
+        continue;
+      }
+      if (!spec || !((spec.key as string) in IQ_SLOT_ROW)) {
+        manual.push(
+          `Review CLEAN (no IQ slot) - ${row.label?.trim() || "Unknown room"}: ${qty} @ ${dim(heightM)}H x ${dim(widthM)}W - enter on Data Input House`,
+        );
+        continue;
+      }
+      for (let i = 0; i < qty; i++) addToSlot(spec.key as string, heightM, widthM);
+    }
   } else if (data.openings != null) {
     for (const o of data.openings) {
       if (o.type === "sectional_door") {
@@ -1663,6 +1698,12 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   );
   put("A15", "Windows");
   put("B15", trueWindowTotal ?? "");
+  if (data.openingPricingBlocked && slotWindowTotal > 0) {
+    put(
+      "C15",
+      `${slotWindowTotal} clean window(s) auto-filled in rows 33-45; total unconfirmed - opening reconciliation blocked`,
+    );
+  }
   if (unplacedWindowTotal > 0 || manualOrOverflowWindowTotal > 0) {
     const reviewTotal = unplacedWindowTotal + manualOrOverflowWindowTotal;
     put("C15", `${slotWindowTotal} in rows 33-45 + ${reviewTotal} manual/overflow below`);

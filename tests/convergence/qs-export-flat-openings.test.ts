@@ -500,7 +500,7 @@ describe("Fallback intact — null openings triggers relational slot layout", ()
     expect(c["D42"]).toBe("");
     expect(c["B15"]).toBe("");
     expect(text).toContain("AI Takeoff Check");
-    expect(text).toContain("Do not price: windows, openings, garage door, cladding");
+    expect(text).toContain("Do not price: unresolved openings, garage door, cladding");
     expect(text).toContain("Less openings: NOT COMPUTED - opening reconciliation blocked");
     expect(text).toContain("NET CLADDING: NOT COMPUTED");
   });
