@@ -68,7 +68,9 @@ describe("floor-plan W x H label recovery", () => {
     });
   });
 
-  it("keeps very narrow door-like labels in review", () => {
+  // Haydon doctrine (2 Jul 2026): m2 of glass is the priced quantity. Plausible
+  // printed window labels are green; room assignment and narrow bands do not gate.
+  it("recovers full-height narrow sidelight labels as green glass evidence", () => {
     const assignment = onlyAssignment(
       recoverFloorPlanLabelAssignments({
         planText: planText({
@@ -77,12 +79,12 @@ describe("floor-plan W x H label recovery", () => {
       }),
     );
 
-    expect(assignment.status).toBe("review");
+    expect(assignment.status).toBe("extracted");
     expect(assignment.room).toBe("ENSUITE");
-    expect(assignment.reason).toContain("dimension band is large, narrow, or door-like");
+    expect(assignment.areaM2).toBe(0.86);
   });
 
-  it("keeps narrow low-height bathroom labels in review", () => {
+  it("recovers narrow low-height bathroom labels as green glass evidence", () => {
     const assignment = onlyAssignment(
       recoverFloorPlanLabelAssignments({
         planText: planText({
@@ -91,11 +93,11 @@ describe("floor-plan W x H label recovery", () => {
       }),
     );
 
-    expect(assignment.status).toBe("review");
-    expect(assignment.reason).toContain("dimension band is large, narrow, or door-like");
+    expect(assignment.status).toBe("extracted");
+    expect(assignment.areaM2).toBe(0.66);
   });
 
-  it("keeps ambiguous room/order assignments in review", () => {
+  it("ambiguous room/order assignment stays green - room is a best guess, not a gate", () => {
     const assignment = onlyAssignment(
       recoverFloorPlanLabelAssignments({
         planText: planText({
@@ -104,8 +106,43 @@ describe("floor-plan W x H label recovery", () => {
       }),
     );
 
+    expect(assignment.status).toBe("extracted");
+    expect(assignment.reason).toContain("best guess - room assignment does not gate glass area");
+  });
+
+  it("keeps door-leaf-like labels in review - they are probably not glass", () => {
+    const assignment = onlyAssignment(
+      recoverFloorPlanLabelAssignments({
+        planText: planText({
+          windowCodes: [{ heightMm: 1980, widthMm: 810, x: 100, y: 260 }],
+        }),
+      }),
+    );
+
     expect(assignment.status).toBe("review");
-    expect(assignment.reason).toContain("room/order assignment is ambiguous");
+    expect(assignment.reason).toContain("door-leaf-like");
+  });
+
+  it("keeps implausible window dimensions in review", () => {
+    const tall = onlyAssignment(
+      recoverFloorPlanLabelAssignments({
+        planText: planText({
+          windowCodes: [{ heightMm: 2600, widthMm: 1200, x: 100, y: 260 }],
+        }),
+      }),
+    );
+    expect(tall.status).toBe("review");
+    expect(tall.reason).toContain("outside the plausible window range");
+
+    const sliver = onlyAssignment(
+      recoverFloorPlanLabelAssignments({
+        planText: planText({
+          windowCodes: [{ heightMm: 300, widthMm: 900, x: 100, y: 260 }],
+        }),
+      }),
+    );
+    expect(sliver.status).toBe("review");
+    expect(sliver.reason).toContain("outside the plausible window range");
   });
 
   it("keeps labels near malformed assembly text in review", () => {

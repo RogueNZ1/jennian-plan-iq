@@ -38,13 +38,26 @@ function labelBbox(code: PlanWindowCode): [number, number, number, number] {
   ];
 }
 
-function cleanDimensionBand(code: PlanWindowCode): boolean {
+// Haydon doctrine (2 Jul 2026): the priced quantity is m2 of glass. A printed
+// W x H opening label with plausible window dimensions is green evidence even
+// when its room/order assignment is uncertain - the room is a convenience
+// label, not a money gate. Only is-this-actually-a-window checks may demote:
+// drafting contamination, door-leaf-like dims, or implausible sizes.
+function plausibleWindowDimensions(code: PlanWindowCode): boolean {
   const min = Math.min(code.heightMm, code.widthMm);
   const max = Math.max(code.heightMm, code.widthMm);
-  const normalWindow = min >= 800 && max <= 2400 && code.heightMm <= 1800;
-  const fullHeightNarrowWindow =
-    code.heightMm >= 1900 && code.heightMm <= 2200 && code.widthMm >= 550 && code.widthMm <= 700;
-  return normalWindow || fullHeightNarrowWindow;
+  if (min < 350 || max > 4200) return false;
+  if (code.heightMm > 2400) return false;
+  return true;
+}
+
+function doorLeafLike(code: PlanWindowCode): boolean {
+  return (
+    code.heightMm >= 1900 &&
+    code.heightMm <= 2150 &&
+    code.widthMm >= 700 &&
+    code.widthMm <= 1000
+  );
 }
 
 function roomCandidates(code: PlanWindowCode, rooms: readonly PlanRoom[]) {
@@ -87,11 +100,11 @@ function reviewReason(args: {
   if (issueText) {
     return `near malformed/contaminated drafting label "${issueText}"`;
   }
-  if (!cleanDimensionBand(args.code)) {
-    return "dimension band is large, narrow, or door-like; keep for review";
+  if (!plausibleWindowDimensions(args.code)) {
+    return "dimensions are outside the plausible window range; keep for review";
   }
-  if (!uniqueRoomAssignment(args.candidates)) {
-    return "room/order assignment is ambiguous";
+  if (doorLeafLike(args.code)) {
+    return "dimensions are door-leaf-like; keep for review";
   }
   return null;
 }
@@ -125,7 +138,9 @@ export function recoverFloorPlanLabelAssignments(args: {
       confidence: status === "extracted" ? "medium" : "low",
       reason:
         status === "extracted"
-          ? `clean floor-plan opening label ${text} assigned to ${best?.name ?? "unknown"} by unique room proximity/order`
+          ? uniqueRoomAssignment(candidates)
+            ? `clean floor-plan opening label ${text} assigned to ${best?.name ?? "unknown"} by unique room proximity/order`
+            : `clean floor-plan opening label ${text}; nearest room ${best?.name ?? "unknown"} is a best guess - room assignment does not gate glass area`
           : `floor-plan opening label ${text} retained for review: ${reason}`,
       reviewFlags:
         status === "extracted"

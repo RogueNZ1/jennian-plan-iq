@@ -70,26 +70,30 @@ describe("floor-plan label recovery into opening evidence", () => {
     });
   });
 
-  it("keeps dirty/tall labels visible as needs_review and out of clean area", () => {
+  it("full-height narrow sidelight labels are green glass rows; door-leaf-like stays out of clean area", () => {
     const evidence = buildOpeningEvidenceLedger({
       openings: [],
       planText: planText({ heightMm: 2150, widthMm: 400, x: 105, y: 100 }),
       planPage: 2,
     });
-    const candidate = evidence.find((item) => item.id === "floorplan-label-1");
     const row = extractedRows(evidence).find((item) => item.id === "opening-floorplan-label-1");
-
-    expect(candidate).toMatchObject({
-      status: "review",
-      priced: false,
-      width_m: 0.4,
-      height_m: 2.15,
-      area_m2: null,
-    });
     expect(row).toMatchObject({
-      status: "needs_review",
+      status: "extracted",
       widthMm: 400,
       heightMm: 2150,
+      areaM2: 0.86,
+    });
+
+    const doorish = buildOpeningEvidenceLedger({
+      openings: [],
+      planText: planText({ heightMm: 1980, widthMm: 810, x: 105, y: 100 }),
+      planPage: 2,
+    });
+    const doorRow = extractedRows(doorish).find(
+      (item) => item.id === "opening-floorplan-label-1",
+    );
+    expect(doorRow).toMatchObject({
+      status: "needs_review",
       areaM2: null,
       warnings: ["area_not_calculated"],
     });
