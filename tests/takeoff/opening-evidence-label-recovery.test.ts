@@ -286,3 +286,90 @@ describe("floor-plan label recovery into opening evidence", () => {
     });
   });
 });
+
+describe("width-witness door/slider recovery (Haydon doctrine 2 Jul 2026)", () => {
+  const witness = (
+    over: Partial<
+      import("../../src/lib/takeoff/floor-opening-witnesses").PlanPhysicalOpeningWidthWitness
+    > = {},
+  ) => ({
+    kind: "physical_opening_width" as const,
+    openingKind: "wide_opening" as const,
+    widthMm: 2400,
+    x: 120,
+    y: 90,
+    vertical: false,
+    text: "2 400",
+    room: "MASTER BED",
+    planSide: "plan_top" as const,
+    evidence: { stub: true, leaf: false },
+    note: "physical wall-opening width",
+    ...over,
+  });
+
+  it("recovers a width-only exterior opening as a green slider at standard 2.1m height", () => {
+    const evidence = buildOpeningEvidenceLedger({
+      openings: [],
+      planText: planText({ heightMm: 1300, widthMm: 1500, x: 105, y: 100 }),
+      physicalOpeningWidthWitnesses: [witness()],
+    });
+    const row = extractedRows(evidence).find((item) =>
+      item.id.includes("door-width-witness-1"),
+    );
+    expect(row).toMatchObject({
+      status: "extracted",
+      category: "window",
+      widthMm: 2400,
+      heightMm: 2100,
+      areaM2: 5.04,
+    });
+  });
+
+  it("recovers an entry-door witness as green exterior_door glass at 2.1m", () => {
+    const evidence = buildOpeningEvidenceLedger({
+      openings: [],
+      physicalOpeningWidthWitnesses: [
+        witness({ openingKind: "entry_door", widthMm: 1400, room: "ENTRY", text: "1 400" }),
+      ],
+    });
+    const row = extractedRows(evidence).find((item) =>
+      item.id.includes("door-width-witness-1"),
+    );
+    expect(row).toMatchObject({
+      status: "extracted",
+      category: "exterior_door",
+      widthMm: 1400,
+      heightMm: 2100,
+      areaM2: 2.94,
+    });
+  });
+
+  it("never turns a garage sectional width into glass", () => {
+    const evidence = buildOpeningEvidenceLedger({
+      openings: [],
+      physicalOpeningWidthWitnesses: [witness({ widthMm: 4800, room: "GARAGE" })],
+    });
+    expect(evidence.find((item) => item.id.startsWith("door-width-witness"))).toBeUndefined();
+  });
+
+  it("does not duplicate an already-recovered opening of the same width", () => {
+    const lounge: Opening = {
+      type: "slider",
+      room: "Lounge",
+      height_m: 2.125,
+      width_m: 3.6,
+      glazed: true,
+      cladding: null,
+      area_m2: 7.65,
+      source: "vector",
+      confidence: "medium",
+    };
+    const evidence = buildOpeningEvidenceLedger({
+      openings: [lounge],
+      physicalOpeningWidthWitnesses: [
+        witness({ widthMm: 3600, room: "LOUNGE", planSide: "plan_left" }),
+      ],
+    });
+    expect(evidence.find((item) => item.id.startsWith("door-width-witness"))).toBeUndefined();
+  });
+});

@@ -101,7 +101,10 @@ function extractVisionCountFromFlags(data: QSExportData): number | null {
 }
 
 function cleanWindowRows(readModel: ExtractedQuantityReadModel | null | undefined) {
-  return cleanRows(readModel).filter((row) => row.category === "window");
+  // Haydon doctrine: exterior doors/sliders are glass; only the garage door is excluded.
+  return cleanRows(readModel).filter(
+    (row) => row.category === "window" || row.category === "exterior_door",
+  );
 }
 
 function cleanWindowArea(readModel: ExtractedQuantityReadModel | null | undefined): number {

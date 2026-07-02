@@ -932,6 +932,7 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     floorPlanGapElevationMatches,
     floorPlanTextDimensionMatches,
     promotedFloorPlanGapOpenings: floorPlanGapPromotion.promotedByGapId,
+    physicalOpeningWidthWitnesses: doorEngine?.physicalOpeningWidthWitnesses ?? null,
   });
   const visualWindowCount =
     !openingPricingAdjudication.pricingBlocked &&

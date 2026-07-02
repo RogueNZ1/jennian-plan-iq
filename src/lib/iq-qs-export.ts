@@ -1488,7 +1488,10 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
   // stay blocked until reconciliation resolves.
   function cleanExtractedWindowRows() {
     return (data.extractedQuantityReadModel?.groups.extracted ?? []).filter(
-      (row) => row.category === "window" && row.widthMm != null && row.heightMm != null,
+      (row) =>
+        (row.category === "window" || row.category === "exterior_door") &&
+        row.widthMm != null &&
+        row.heightMm != null,
     );
   }
   // Fix (12 Jun, JM-0027/JM-0029 audit): NO WINDOW IS EVER SILENTLY DROPPED.

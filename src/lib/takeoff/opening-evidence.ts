@@ -5,6 +5,7 @@ import type { FloorPlanGapElevationMatch } from "./elevation-gap-match";
 import type { FloorPlanTextDimensionMatch } from "./floor-plan-text-height-witness";
 import { recoverFloorPlanLabelAssignments } from "./floor-plan-label-recovery";
 import type { HeldBlockedOpening, QuarantinedOpening } from "./opening-pricing-adjudication";
+import type { PlanPhysicalOpeningWidthWitness } from "./floor-opening-witnesses";
 import type { VisualOpeningAudit } from "./visual-opening-audit";
 
 export type OpeningEvidenceSource =
@@ -144,6 +145,7 @@ export function buildOpeningEvidenceLedger(args: {
   floorPlanGapElevationMatches?: ReadonlyMap<string, FloorPlanGapElevationMatch> | null;
   floorPlanTextDimensionMatches?: ReadonlyMap<string, FloorPlanTextDimensionMatch> | null;
   promotedFloorPlanGapOpenings?: ReadonlyMap<string, Opening> | null;
+  physicalOpeningWidthWitnesses?: readonly PlanPhysicalOpeningWidthWitness[] | null;
 }): OpeningEvidenceCandidate[] {
   const ledger: OpeningEvidenceCandidate[] = [];
   const representedOpenings: Opening[] = [
@@ -367,6 +369,75 @@ export function buildOpeningEvidenceLedger(args: {
               `Clean floor-plan W x H label ${assignment.text} auto-recovered as evidence-only opening; not a pricing write.`,
             ]
           : assignment.reviewFlags,
+      conflicts: [],
+    });
+  }
+
+  // Haydon doctrine (2 Jul 2026): a physical wall-opening width witness on an
+  // exterior wall is a door/slider, and doors/sliders are standard 2.1 m high -
+  // that is exactly why the drafter prints only the width (3600 / 2400 / 2000 /
+  // 1400). These are GREEN glass rows at width x 2.1 with the assumption named.
+  // Garage sectional widths (>= 4200) are excluded from glass per the same
+  // doctrine; sub-900 widths stay evidence-only (too narrow to be a door).
+  const STANDARD_DOOR_HEIGHT_M = 2.1;
+  const DOOR_TYPES = new Set(["slider", "entrance", "pa_door", "sectional_door"]);
+  const witnesses = args.physicalOpeningWidthWitnesses ?? [];
+  for (const [index, witness] of witnesses.entries()) {
+    if (witness.widthMm >= 4200 || witness.widthMm < 900) continue;
+    const widthM = Math.round((witness.widthMm / 1000) * 100) / 100;
+    const witnessRoom = normaliseRoom(witness.room);
+    // A recovered/held DOOR-ISH opening of this width, or any same-room row of
+    // this width, already represents this opening. A window in a DIFFERENT room
+    // must not swallow a door witness on width alone.
+    const covered = ledger.some((row) => {
+      const rowWidthMm = openingMm(row.width_m);
+      if (rowWidthMm == null || Math.abs(rowWidthMm - witness.widthMm) > 150) return false;
+      if ((row.priced || row.status === "held_blocked") && DOOR_TYPES.has(row.type ?? "")) return true;
+      return normaliseRoom(row.room) === witnessRoom;
+    });
+    if (covered) continue;
+    // The same width printed twice near the same room on DIFFERENT plan sides is
+    // dimension-chain echo, not two doors - keep ONE review row to confirm in IQ.
+    const twins = witnesses.filter(
+      (other) =>
+        other.widthMm === witness.widthMm && normaliseRoom(other.room ?? null) === witnessRoom,
+    );
+    const conflictingSides = new Set(twins.map((other) => other.planSide)).size > 1;
+    if (conflictingSides && twins.indexOf(witness) > 0) continue; // only first twin emits
+    const status = conflictingSides ? ("review" as const) : ("extracted" as const);
+    const areaM2 = Math.round(widthM * STANDARD_DOOR_HEIGHT_M * 100) / 100;
+    ledger.push({
+      id: `door-width-witness-${index + 1}`,
+      status,
+      priced: false,
+      type: witness.openingKind === "entry_door" ? "entrance" : "slider",
+      room: witness.room,
+      width_m: widthM,
+      height_m: STANDARD_DOOR_HEIGHT_M,
+      area_m2: status === "extracted" ? areaM2 : null,
+      evidence: [
+        {
+          source: "floorplan_text",
+          role: "dimension",
+          confidence: status === "extracted" ? "medium" : "low",
+          width_m: widthM,
+          height_m: STANDARD_DOOR_HEIGHT_M,
+          room: witness.room,
+          text: witness.text,
+          note:
+            status === "extracted"
+              ? `physical wall-opening width witness ${witness.widthMm}mm near ${witness.room} (${witness.planSide}); standard door height 2.1m applied (Haydon doctrine 2 Jul 2026) - confirm on elevations if non-standard`
+              : `width ${witness.widthMm}mm repeats near ${witness.room} on different plan sides - likely dimension-chain echo; CONFIRM in IQ before counting as glass`,
+        },
+      ],
+      review_flags:
+        status === "extracted"
+          ? [
+              `Door/slider ${witness.widthMm}mm x 2100mm recovered from width witness with standard 2.1m height; evidence-only, not a pricing write.`,
+            ]
+          : [
+              `CONFIRM: width ${witness.widthMm}mm near ${witness.room} appears on multiple plan sides; verify a real door/slider exists before pricing its glass.`,
+            ],
       conflicts: [],
     });
   }
