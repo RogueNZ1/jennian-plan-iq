@@ -359,6 +359,13 @@ const WINDOW_SLOT_SPECS: ReadonlyArray<{
   { key: "garageWindow", keywords: ["garage"] },
   { key: "entrance", keywords: ["entrance", "entry", "foyer", "hall"] },
 ];
+// Erin/Clearview fix (2 Jul 2026): vision room labels arrive as "Bed. 3", "BED-2",
+// etc. Slot matching must survive punctuation - normalise both sides before includes.
+function roomTokenMatches(room: string, keyword: string): boolean {
+  const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return norm(room).includes(norm(keyword));
+}
+
 const WINDOW_TYPES = new Set<Opening["type"]>([
   "window",
   "slider",
@@ -385,7 +392,7 @@ export function openingsToWindowsByRoom(openings: Opening[]): QSExportData["wind
     }
     if (!WINDOW_TYPES.has(o.type)) continue;
     const room = (o.room ?? "").toLowerCase();
-    const spec = WINDOW_SLOT_SPECS.find((s) => s.keywords.some((k) => room.includes(k)));
+    const spec = WINDOW_SLOT_SPECS.find((s) => s.keywords.some((k) => roomTokenMatches(room, k)));
     if (!spec) continue;
     // Kitchen overflow -> second+ kitchen window goes to kitchenExtra (mirrors the relational path).
     put(spec.key === "kitchen" && slots.kitchen != null ? "kitchenExtra" : spec.key, o);
@@ -1515,6 +1522,10 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
 
   if (data.openingPricingBlocked) {
     manual.unshift(...aiCheckSummaryLines(buildAiCheckSummary(data)));
+  } else {
+    // Erin/Clearview fix: the verdict must exist on EVERY export, not only blocked
+    // ones - a single status line keeps the manual block inside its row cap.
+    manual.unshift(`AI Takeoff Check - Status: ${buildAiCheckSummary(data).statusLabel}`);
   }
 
   if (data.openingPricingBlocked) {
@@ -1576,7 +1587,7 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
         addUnplaced("Toilet", 1, o.height_m, o.width_m, "Data Input House row 51");
         continue; // toilet has no IQ slot
       }
-      const spec = WINDOW_SLOT_SPECS.find((s) => s.keywords.some((k) => room.includes(k)));
+      const spec = WINDOW_SLOT_SPECS.find((s) => s.keywords.some((k) => roomTokenMatches(room, k)));
       if (!spec || !((spec.key as string) in IQ_SLOT_ROW)) {
         addUnplaced(o.room?.trim() || "Unknown room", 1, o.height_m, o.width_m);
         continue;

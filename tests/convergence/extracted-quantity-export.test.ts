@@ -411,7 +411,7 @@ describe("Extracted Quantities worksheet", () => {
     ).toThrow(/multiple runIds without activeRunId/);
   });
 
-  it("leaves existing QS/pricing sheet builders unchanged", () => {
+  it("read model changes only the AI verdict narrative, never numeric import cells", () => {
     const readModel = buildExtractedQuantityReadModel(quantities());
     const withSheet = baseData({
       extractedQuantityReadModel: readModel,
@@ -420,6 +420,25 @@ describe("Extracted Quantities worksheet", () => {
     const withoutSheet = baseData();
 
     expect(buildQSDataInputSheet(withSheet)).toEqual(buildQSDataInputSheet(withoutSheet));
-    expect(buildDropInSheet(withSheet)).toEqual(buildDropInSheet(withoutSheet));
+
+    const a = buildDropInSheet(withSheet) as Record<string, { v?: unknown }>;
+    const b = buildDropInSheet(withoutSheet) as Record<string, { v?: unknown }>;
+    // numeric import cells (meta block + window slots) must be identical
+    for (let r = 1; r <= 45; r++) {
+      for (const col of ["A", "B", "C", "D"]) {
+        expect(a[`${col}${r}`]?.v ?? "", `${col}${r}`).toEqual(b[`${col}${r}`]?.v ?? "");
+      }
+    }
+    // the verdict line is ALLOWED (required) to reflect the ledger state
+    const manualText = (ws: Record<string, { v?: unknown }>) => {
+      let out = "";
+      for (let r = 46; r < 90; r++) {
+        const v = ws[`A${r}`]?.v;
+        if (typeof v === "string") out += v + "\n";
+      }
+      return out;
+    };
+    expect(manualText(a)).toContain("AI Takeoff Check - Status:");
+    expect(manualText(b)).toContain("AI Takeoff Check - Status:");
   });
 });

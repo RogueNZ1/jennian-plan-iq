@@ -570,3 +570,16 @@ describe("CLADDING V1.1 — gable span from geometry on the sheet", () => {
     expect(t).not.toMatch(/gable span not measured/);
   });
 });
+
+describe("Erin/Clearview fixes (2 Jul 2026)", () => {
+  it("routes punctuated vision room labels like 'Bed. 3' to their slots", () => {
+    const ws = buildDropInSheet(base({ openings: [op("window", "Bed. 3", 1.2, 1.4)] }));
+    expect([cellVal(ws, "B36"), cellVal(ws, "C36"), cellVal(ws, "D36")]).toEqual([1, 1.2, 1.4]);
+    expect(manualBlock(ws)).not.toContain("UNPLACED — Bed. 3");
+  });
+
+  it("every export carries an AI Takeoff Check status line, not only blocked ones", () => {
+    const ws = buildDropInSheet(base({ openings: [op("window", "Bed 1", 1.3, 1.8)] }));
+    expect(manualBlock(ws)).toContain("AI Takeoff Check - Status:");
+  });
+});
