@@ -763,6 +763,7 @@ describe("buildVerificationModel", () => {
       RUN,
     );
     expect(fromExport.geometryOffline).toBe(true);
+    expect(fromExport.geometryReviewMessage).toContain("Geometry layer unavailable");
 
     const fromEnriched = buildVerificationModel(
       makeData(),
@@ -770,9 +771,29 @@ describe("buildVerificationModel", () => {
       RUN,
     );
     expect(fromEnriched.geometryOffline).toBe(true);
+    expect(fromEnriched.geometryReviewMessage).toContain("Geometry layer unavailable");
+
+    const serviceFailure = buildVerificationModel(
+      makeData({ geometryStatus: "measurement_service_unreachable" }),
+      makeEnriched(),
+      RUN,
+    );
+    expect(serviceFailure.geometryOffline).toBe(true);
+    expect(serviceFailure.geometryReviewMessage).toContain("Measurement service unreachable");
+
+    const fileFailure = buildVerificationModel(
+      makeData(),
+      makeEnriched({
+        geometry_status: fv("file_could_not_be_measured", "flagged-unknown", null),
+      }),
+      RUN,
+    );
+    expect(fileFailure.geometryOffline).toBe(true);
+    expect(fileFailure.geometryReviewMessage).toContain("This file could not be measured");
 
     const healthy = buildVerificationModel(makeData(), makeEnriched(), RUN);
     expect(healthy.geometryOffline).toBe(false);
+    expect(healthy.geometryReviewMessage).toBeNull();
   });
 
   it("specs resolve to human option labels via the contract schema (heating code 2 = high wall)", () => {

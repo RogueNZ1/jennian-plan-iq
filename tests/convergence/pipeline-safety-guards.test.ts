@@ -58,7 +58,45 @@ describe("geometry_status flag at the compose seam", () => {
     const gs = out.enriched.geometry_status;
     expect(gs?.value).toBe("unavailable");
     expect(gs?.source).toBe("flagged-unknown");
-    expect((gs?.discrepancy_flags ?? []).join(" ")).toContain("GEOMETRY LAYER UNAVAILABLE");
+    expect((gs?.discrepancy_flags ?? []).join(" ")).toContain("Geometry layer unavailable");
+  });
+
+  it("classified service failure -> measurement service unreachable flag", () => {
+    const out = composeTakeoff({
+      visionTakeoff: minimalVision,
+      geometry: null,
+      geometryFailure: {
+        kind: "measurement_service_unreachable",
+        status: 503,
+        message: "HTTP 503",
+      },
+      schedule: null,
+      geometryPageIndex: undefined,
+    });
+    const gs = out.enriched.geometry_status;
+    expect(gs?.value).toBe("measurement_service_unreachable");
+    expect((gs?.discrepancy_flags ?? []).join(" ")).toContain(
+      "Measurement service unreachable",
+    );
+  });
+
+  it("classified file failure -> file could not be measured flag", () => {
+    const out = composeTakeoff({
+      visionTakeoff: minimalVision,
+      geometry: null,
+      geometryFailure: {
+        kind: "file_could_not_be_measured",
+        status: 422,
+        message: "HTTP 422",
+      },
+      schedule: null,
+      geometryPageIndex: undefined,
+    });
+    const gs = out.enriched.geometry_status;
+    expect(gs?.value).toBe("file_could_not_be_measured");
+    expect((gs?.discrepancy_flags ?? []).join(" ")).toContain(
+      "This file could not be measured",
+    );
   });
 
   it("missing foundation defaults to TC1 instead of raising an unknown/error value", () => {
@@ -269,16 +307,32 @@ function base(over: Partial<QSExportData> = {}): QSExportData {
 }
 
 describe("export-level guards", () => {
-  it("geometryStatus unavailable → ⚑⚑ GEOMETRY LAYER OFFLINE in the manual block", () => {
+  it("geometryStatus unavailable -> legacy geometry warning in the manual block", () => {
     const ws = buildDropInSheet(base({ geometryStatus: "unavailable" }));
-    expect(manualText(ws)).toContain("GEOMETRY LAYER OFFLINE");
+    expect(manualText(ws)).toContain("Geometry layer unavailable");
+  });
+
+  it("geometryStatus service unreachable -> practical service warning in the manual block", () => {
+    const ws = buildDropInSheet(base({ geometryStatus: "measurement_service_unreachable" }));
+    expect(manualText(ws)).toContain("Measurement service unreachable");
+    expect(manualText(ws)).toContain("retry the takeoff later");
+  });
+
+  it("geometryStatus file unmeasurable -> practical file warning in the manual block", () => {
+    const ws = buildDropInSheet(base({ geometryStatus: "file_could_not_be_measured" }));
+    expect(manualText(ws)).toContain("This file could not be measured");
+    expect(manualText(ws)).toContain("upload a clean vector PDF");
   });
 
   it("geometry ok / pre-flag era → no offline warning", () => {
     const ws = buildDropInSheet(base());
-    expect(manualText(ws)).not.toContain("GEOMETRY LAYER OFFLINE");
+    expect(manualText(ws)).not.toContain("Geometry layer unavailable");
+    expect(manualText(ws)).not.toContain("Measurement service unreachable");
+    expect(manualText(ws)).not.toContain("This file could not be measured");
     const ws2 = buildDropInSheet(base({ geometryStatus: null }));
-    expect(manualText(ws2)).not.toContain("GEOMETRY LAYER OFFLINE");
+    expect(manualText(ws2)).not.toContain("Geometry layer unavailable");
+    expect(manualText(ws2)).not.toContain("Measurement service unreachable");
+    expect(manualText(ws2)).not.toContain("This file could not be measured");
   });
 
   it("internal walls NEVER print a priceable number until P2 (B13 blank + flag)", () => {

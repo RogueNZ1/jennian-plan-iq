@@ -755,12 +755,16 @@ export async function runAutomaticTakeoff(args: {
                 workingPageNumber != null && workingPageNumber >= 1
                   ? workingPageNumber - 1
                   : undefined;
-              const { measurePlanGeometry, overallConfidence } = await import("./geometry-api");
-              const geoResult = await measurePlanGeometry(
+              const { measurePlanGeometryDetailed, overallConfidence } = await import(
+                "./geometry-api"
+              );
+              const geometryAttempt = await measurePlanGeometryDetailed(
                 fileData,
                 fileRow.file_name ?? "plan.pdf",
                 geometryPageIndex,
               );
+              const geoResult = geometryAttempt.geometry;
+              const geometryFailure = geometryAttempt.failure;
               if (geoResult) {
                 // Clear any previous geometry measurements for this job then re-insert
                 await supabase
@@ -996,6 +1000,7 @@ export async function runAutomaticTakeoff(args: {
                   const composed = composeTakeoff({
                     visionTakeoff: conceptResult.takeoffData,
                     geometry: geoResult,
+                    geometryFailure,
                     schedule: scheduleRaw,
                     geometryPageIndex,
                     doorEngine,

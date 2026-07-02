@@ -55,7 +55,7 @@ import { composeTakeoff, type ComposeTakeoffResult } from "@/lib/takeoff/compose
 import { unwrapTakeoff } from "@/lib/takeoff/enriched-takeoff";
 import type { PlanContext } from "@/lib/takeoff/plan-context";
 import {
-  measurePlanGeometry,
+  measurePlanGeometryDetailed,
   overallConfidence,
   type GeometryApiResult,
 } from "@/lib/takeoff/geometry-api";
@@ -969,19 +969,32 @@ function UploadPage() {
         .catch(() => null);
 
       // Run AI extraction, visual audit and geometry measurement in parallel
-      const [result, geoResult, elevBlob, siteBlob, scheduleBlob, visualOpeningAudit] =
+      const [result, geometryAttempt, elevBlob, siteBlob, scheduleBlob, visualOpeningAudit] =
         await Promise.all([
           extractConceptTakeoffs({
             data: { imageBase64: b64, filename: planFile?.name ?? "plan.jpg" },
           }) as Promise<ConceptTakeoffResult>,
           planFile
-            ? measurePlanGeometry(planFile, planFile.name, geometryPageIndex).catch(() => null)
-            : Promise.resolve(null),
+            ? measurePlanGeometryDetailed(planFile, planFile.name, geometryPageIndex).catch(
+                (error) => ({
+                  geometry: null,
+                  failure: {
+                    kind: "measurement_service_unreachable" as const,
+                    message:
+                      error instanceof Error
+                        ? error.message
+                        : "Geometry request failed before returning a measurement.",
+                  },
+                }),
+              )
+            : Promise.resolve({ geometry: null, failure: null }),
           elevBlobP,
           siteBlobP,
           scheduleBlobP,
           visualOpeningAuditP,
         ]);
+      const geoResult = geometryAttempt.geometry;
+      const geometryFailure = geometryAttempt.failure;
 
       setGeometryResult(geoResult);
       setPlanContext(result.planContext);
@@ -1041,6 +1054,7 @@ function UploadPage() {
       const composed = composeTakeoff({
         visionTakeoff: result.takeoffData,
         geometry: geoResult,
+        geometryFailure,
         schedule: scheduleRaw,
         geometryPageIndex,
         doorEngine,

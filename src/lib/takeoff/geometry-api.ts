@@ -185,7 +185,41 @@ export function overallConfidence(c: GeometryConfidence): "high" | "medium" | "l
   return "medium";
 }
 
-export async function measurePlanGeometry(
+export type GeometryFailureKind =
+  | "measurement_service_unreachable"
+  | "file_could_not_be_measured";
+
+export type GeometryFailure = {
+  kind: GeometryFailureKind;
+  status?: number;
+  message: string;
+  detail?: string;
+};
+
+export type GeometryMeasurementResult = {
+  geometry: GeometryApiResult | null;
+  failure: GeometryFailure | null;
+};
+
+function classifyHttpFailure(status: number, detail: string): GeometryFailure {
+  const trimmed = detail.trim();
+  if (status === 400 || status === 413 || status === 415 || status === 422) {
+    return {
+      kind: "file_could_not_be_measured",
+      status,
+      message: `HTTP ${status} - geometry service rejected this file for measurement.`,
+      detail: trimmed || undefined,
+    };
+  }
+  return {
+    kind: "measurement_service_unreachable",
+    status,
+    message: `HTTP ${status} - measurement service was not usable.`,
+    detail: trimmed || undefined,
+  };
+}
+
+export async function measurePlanGeometryDetailed(
   pdfFile: File | Blob,
   filename = "plan.pdf",
   /**
@@ -195,10 +229,10 @@ export async function measurePlanGeometry(
    * `page_used`, so callers can confirm the request took effect.
    */
   page?: number,
-): Promise<GeometryApiResult | null> {
+): Promise<GeometryMeasurementResult> {
   // One POST attempt at a given page (or auto-detect when undefined). The FormData body is
   // single-use, so it is rebuilt per attempt.
-  const attempt = async (p: number | undefined): Promise<GeometryApiResult | null> => {
+  const attempt = async (p: number | undefined): Promise<GeometryMeasurementResult> => {
     try {
       const form = new FormData();
       form.append("file", pdfFile, filename);
@@ -208,6 +242,8 @@ export async function measurePlanGeometry(
           : `${GEOMETRY_API_BASE}/measure`;
       const res = await fetch(url, { method: "POST", body: form });
       if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        const failure = classifyHttpFailure(res.status, detail);
         // The demo-week lesson (12 Jun): a 401 here ran SILENT for two days because the
         // status was swallowed — geometry just "wasn't there". Behaviour is unchanged
         // (still null → downstream geometry_status flag fires), but the REASON now lands
@@ -217,26 +253,41 @@ export async function measurePlanGeometry(
             ? `[geometry] HTTP ${res.status} — auth rejected. Check GEOMETRY_API_KEY binding (Pages secret / Railway env).`
             : `[geometry] HTTP ${res.status} — measure failed for this attempt.`,
         );
-        return null;
+        return { geometry: null, failure };
       }
       const data = (await res.json()) as GeometryApiResult;
       if (!data.success) {
         console.warn("[geometry] engine responded success:false — measurement rejected.");
-        return null;
+        return {
+          geometry: null,
+          failure: {
+            kind: "file_could_not_be_measured",
+            status: 200,
+            message: "Geometry service responded success:false.",
+          },
+        };
       }
-      return data;
+      return { geometry: data, failure: null };
     } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
       console.warn(
         "[geometry] request failed (network/parse):",
-        e instanceof Error ? e.message : e,
+        message,
       );
-      return null;
+      return {
+        geometry: null,
+        failure: {
+          kind: "measurement_service_unreachable",
+          message: "Geometry request failed before a usable measurement was returned.",
+          detail: message,
+        },
+      };
     }
   };
 
   const pinned = page != null && page >= 0 ? page : undefined;
-  let data = await attempt(pinned);
-  if (!data && pinned != null) {
+  let result = await attempt(pinned);
+  if (!result.geometry && pinned != null) {
     // The pinned page failed (out of range, scale not detected on that sheet, a transient
     // engine error, …). Degrade to auto-detect rather than nulling geometry entirely. This
     // stays OBSERVABLE: the engine echoes the page it actually used as `page_used`, and the
@@ -246,7 +297,18 @@ export async function measurePlanGeometry(
     console.warn(
       `[geometry] page=${pinned} failed; retrying with auto-detect (flagged if it lands on a different page).`,
     );
-    data = await attempt(undefined);
+    const fallback = await attempt(undefined);
+    result = fallback.geometry
+      ? fallback
+      : { geometry: null, failure: fallback.failure ?? result.failure };
   }
-  return data;
+  return result;
+}
+
+export async function measurePlanGeometry(
+  pdfFile: File | Blob,
+  filename = "plan.pdf",
+  page?: number,
+): Promise<GeometryApiResult | null> {
+  return (await measurePlanGeometryDetailed(pdfFile, filename, page)).geometry;
 }

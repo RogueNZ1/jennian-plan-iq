@@ -39,6 +39,8 @@ import {
   customerReviewFlagText,
   customerSafeText,
   formatOpeningMismatchWarning,
+  geometryStatusReviewLine,
+  isGeometryUnavailableStatus,
 } from "@/lib/customer-facing-text";
 import {
   aiCheckSummaryLines,
@@ -1746,10 +1748,8 @@ export function buildDropInSheet(data: QSExportData): XLSX.WorkSheet {
     );
   }
   // Pipeline safety (12 Jun): geometry-offline takeoffs are vision-only - say so at the top.
-  if (data.geometryStatus === "unavailable") {
-    manual.unshift(
-      `Review GEOMETRY LAYER OFFLINE - vision-only takeoff; deterministic measurement and cross-checks did not run. Verify all measurements against the plan before pricing.`,
-    );
+  if (isGeometryUnavailableStatus(data.geometryStatus)) {
+    manual.unshift(geometryStatusReviewLine(data.geometryStatus));
   }
 
   // ── MANUAL ENTRIES block (row 47+) - the visible flag set ──

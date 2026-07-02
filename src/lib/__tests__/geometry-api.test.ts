@@ -12,7 +12,11 @@
  *   4. the happy path passes the payload through untouched
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { measurePlanGeometry, type GeometryApiResult } from "../takeoff/geometry-api";
+import {
+  measurePlanGeometry,
+  measurePlanGeometryDetailed,
+  type GeometryApiResult,
+} from "../takeoff/geometry-api";
 
 const okPayload = (page_used = 0): GeometryApiResult =>
   ({
@@ -65,6 +69,22 @@ describe("measurePlanGeometry — failure contract", () => {
     expect(warned).not.toContain("GEOMETRY_API_KEY");
   });
 
+  it("detailed HTTP 503 -> measurement_service_unreachable", async () => {
+    fetchMock.mockResolvedValue(new Response("offline", { status: 503 }));
+    const out = await measurePlanGeometryDetailed(blob);
+    expect(out.geometry).toBeNull();
+    expect(out.failure?.kind).toBe("measurement_service_unreachable");
+    expect(out.failure?.status).toBe(503);
+  });
+
+  it("detailed HTTP 422 -> file_could_not_be_measured", async () => {
+    fetchMock.mockResolvedValue(new Response("no vector content", { status: 422 }));
+    const out = await measurePlanGeometryDetailed(blob);
+    expect(out.geometry).toBeNull();
+    expect(out.failure?.kind).toBe("file_could_not_be_measured");
+    expect(out.failure?.status).toBe(422);
+  });
+
   it("network throw → null, reason logged, never propagates", async () => {
     fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
     await expect(measurePlanGeometry(blob)).resolves.toBeNull();
@@ -84,6 +104,18 @@ describe("measurePlanGeometry — failure contract", () => {
     expect(warnSpy.mock.calls.map((c: unknown[]) => String(c[0])).join("\n")).toContain(
       "success:false",
     );
+  });
+
+  it("detailed success:false -> file_could_not_be_measured", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ success: false }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const out = await measurePlanGeometryDetailed(blob);
+    expect(out.geometry).toBeNull();
+    expect(out.failure?.kind).toBe("file_could_not_be_measured");
   });
 
   it("malformed JSON → null (parse failure is a failure, not a crash)", async () => {

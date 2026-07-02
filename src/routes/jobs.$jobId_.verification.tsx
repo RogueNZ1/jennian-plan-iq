@@ -745,9 +745,7 @@ function VerificationPrintout() {
           <div className="vbanner">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <div>
-              <strong>ReviewReview GEOMETRY LAYER OFFLINE</strong> - vision-only takeoff;
-              deterministic measurement and cross-checks did not run. Verify all measurements
-              against the plan before pricing.
+              <strong>Review</strong> - {m.geometryReviewMessage}
             </div>
           </div>
         )}

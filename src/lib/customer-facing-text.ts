@@ -8,6 +8,41 @@ export const OPENING_RECONCILIATION_BLOCKED_DETAIL =
 export const EXTERNAL_WALL_AREA_BLOCKED =
   "Not calculated - opening reconciliation required";
 
+export const GEOMETRY_STATUS_UNAVAILABLE = "unavailable";
+export const GEOMETRY_STATUS_MEASUREMENT_SERVICE_UNREACHABLE =
+  "measurement_service_unreachable";
+export const GEOMETRY_STATUS_FILE_COULD_NOT_BE_MEASURED = "file_could_not_be_measured";
+
+export type CustomerGeometryStatus =
+  | typeof GEOMETRY_STATUS_UNAVAILABLE
+  | typeof GEOMETRY_STATUS_MEASUREMENT_SERVICE_UNREACHABLE
+  | typeof GEOMETRY_STATUS_FILE_COULD_NOT_BE_MEASURED
+  | string
+  | null
+  | undefined;
+
+export function isGeometryUnavailableStatus(status: CustomerGeometryStatus): boolean {
+  return (
+    status === GEOMETRY_STATUS_UNAVAILABLE ||
+    status === GEOMETRY_STATUS_MEASUREMENT_SERVICE_UNREACHABLE ||
+    status === GEOMETRY_STATUS_FILE_COULD_NOT_BE_MEASURED
+  );
+}
+
+export function geometryStatusReviewMessage(status: CustomerGeometryStatus): string {
+  if (status === GEOMETRY_STATUS_MEASUREMENT_SERVICE_UNREACHABLE) {
+    return "Measurement service unreachable - automatic plan measurement did not run because Jennian IQ could not reach the measurement service. Next step: retry the takeoff later, or ask the office/admin to check the measurement service before using measured quantities.";
+  }
+  if (status === GEOMETRY_STATUS_FILE_COULD_NOT_BE_MEASURED) {
+    return "This file could not be measured - Jennian IQ reached the measurement service, but this PDF could not be measured automatically (file size, pages, or no vector content). Next step: upload a clean vector PDF/working drawing, or have the plan measured manually before pricing.";
+  }
+  return "Geometry layer unavailable - automatic plan measurement and cross-checks did not run. Next step: retry the takeoff later; if it fails again, ask the office/admin to check the measurement service and verify measurements manually before pricing.";
+}
+
+export function geometryStatusReviewLine(status: CustomerGeometryStatus): string {
+  return `Review ${geometryStatusReviewMessage(status)}`;
+}
+
 function c(...codes: number[]): string {
   return String.fromCharCode(...codes);
 }

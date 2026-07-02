@@ -56,6 +56,8 @@ import {
   customerReviewFlagText,
   customerSafeText,
   formatOpeningMismatchWarning,
+  geometryStatusReviewMessage,
+  isGeometryUnavailableStatus,
   openingReconciliationBlockedFlags,
 } from "@/lib/customer-facing-text";
 import { buildAiCheckSummary, type AiCheckSummary } from "@/lib/ai-check-summary";
@@ -153,6 +155,7 @@ export type VerificationModel = {
   };
   aiCheck: AiCheckSummary;
   geometryOffline: boolean;
+  geometryReviewMessage: string | null;
   extractedQuantities: {
     source: ExtractedQuantityAuthoritySource | "none";
     runId: string | null;
@@ -544,8 +547,11 @@ export function buildVerificationModel(
   };
 
   /* geometry banner ---------------------------------------------- */
-  const geometryOffline =
-    data.geometryStatus === "unavailable" || (e?.geometry_status?.value ?? null) === "unavailable";
+  const geometryStatus = data.geometryStatus ?? e?.geometry_status?.value ?? null;
+  const geometryOffline = isGeometryUnavailableStatus(geometryStatus);
+  const geometryReviewMessage = geometryOffline
+    ? geometryStatusReviewMessage(geometryStatus)
+    : null;
   const hasGarageEvidence =
     (e?.visual_opening_audit?.summary?.garageDoors ?? 0) > 0 ||
     data.garageDoor24x21Std > 0 ||
@@ -904,6 +910,7 @@ export function buildVerificationModel(
       authoritySource: extractedQuantities.source,
     }),
     geometryOffline,
+    geometryReviewMessage,
     extractedQuantities,
     measures,
     windows: {

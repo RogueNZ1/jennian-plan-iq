@@ -22,7 +22,13 @@
  *   - Identical inputs ⇒ deterministic output.
  */
 import type { Opening, TakeoffData } from "./takeoff-types";
-import type { GeometryApiResult } from "./geometry-api";
+import type { GeometryApiResult, GeometryFailure } from "./geometry-api";
+import {
+  GEOMETRY_STATUS_FILE_COULD_NOT_BE_MEASURED,
+  GEOMETRY_STATUS_MEASUREMENT_SERVICE_UNREACHABLE,
+  GEOMETRY_STATUS_UNAVAILABLE,
+  geometryStatusReviewMessage,
+} from "../customer-facing-text";
 import type { WindowScheduleData } from "./extract-window-schedule";
 import {
   preferVectorGarage,
@@ -86,6 +92,8 @@ export type ComposeTakeoffInput = {
   visionTakeoff: TakeoffData;
   /** The geometry measurement + vector_annotations (already fetched), or null. */
   geometry: GeometryApiResult | null | undefined;
+  /** Reason the geometry measurement failed, when the caller could classify it. */
+  geometryFailure?: GeometryFailure | null | undefined;
   /** The (already-read) Door & Window Schedule, or null when there is no schedule page. */
   schedule: WindowScheduleData | null | undefined;
   /**
@@ -516,12 +524,19 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
     geometry,
     schedule: scheduleRaw,
     geometryPageIndex,
+    geometryFailure,
     doorEngine,
     visualOpeningAudit,
     elevationData,
   } = input;
 
   const geoResult = geometry ?? null;
+  const geometryStatusValue =
+    geometryFailure?.kind === GEOMETRY_STATUS_MEASUREMENT_SERVICE_UNREACHABLE
+      ? GEOMETRY_STATUS_MEASUREMENT_SERVICE_UNREACHABLE
+      : geometryFailure?.kind === GEOMETRY_STATUS_FILE_COULD_NOT_BE_MEASURED
+        ? GEOMETRY_STATUS_FILE_COULD_NOT_BE_MEASURED
+        : GEOMETRY_STATUS_UNAVAILABLE;
   const m = geoResult?.measurements;
   const geoRoomCount = m?.room_count ?? 0;
   const vectorAnnotations = geoResult?.vector_annotations;
@@ -1189,12 +1204,10 @@ export function composeTakeoff(input: ComposeTakeoffInput): ComposeTakeoffResult
       ? {}
       : {
           geometry_status: fv(
-            "unavailable",
+            geometryStatusValue,
             "flagged-unknown",
             "low",
-            flagsFor(
-              "GEOMETRY LAYER UNAVAILABLE — deterministic measurement and cross-checks did not run; every value on this takeoff is vision-only. Investigate /api/geometry (health AND auth) before relying on or pricing from this takeoff.",
-            ),
+            flagsFor(geometryStatusReviewMessage(geometryStatusValue)),
           ),
         }),
   };
